@@ -407,7 +407,13 @@ void main() {
               r.requestOptions.path.endsWith('/pos/sync') &&
               r.data is Map) {
             // Only batches the server answered (a batch tried while the link was cut never arrived)
-            syncSent.addAll(asList(asMap(r.requestOptions.data)['operations']));
+            // M5 S3: a signed operation travels as {signed, mac, prev, kid}; the operation is the signed text
+            for (final Map<String, Object?> o in asList(
+              asMap(r.requestOptions.data)['operations'],
+            )) {
+              final Object? signed = o['signed'];
+              syncSent.add(signed is String ? asMap(jsonDecode(signed)) : o);
+            }
             for (final Map<String, Object?> res in asList(
               asMap(asMap(r.data)['data'])['results'],
             )) {
@@ -1280,6 +1286,11 @@ void main() {
           r['status'],
           'applied',
           reason: '${o['type']} ${r['reason']} ${r['message']}',
+        );
+        expect(
+          r['sig_status'],
+          'ok',
+          reason: '${o['type']}: the till signs and the server verifies',
         );
       }
       // The LAN operations, with the phone or the KDS they came from and the staff member signed in there

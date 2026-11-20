@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:pos_core/pos_core.dart' show divideHalfUp, percentHundredths;
 import 'package:rizqim_api/rizqim_api.dart' show isConditionalGetPath;
@@ -149,6 +150,40 @@ class FakePosState {
   /// M5 S2: bootstrap `offline.discount: true` (server `order.discount` amalini biladi). Standart — eski server:
   /// aytmaydi, kassa internetsiz chegirma bermaydi.
   bool offlineDiscount = false;
+
+  // --- M5 S3: the signed offline queue ------------------------------------------------------------------------------
+
+  /// The server signs: bootstrap says `offline.signing: true`, the pairing answer carries `sync_key` and
+  /// `POST /terminal/sync-key` exists. Off (default) is an older server: none of the three.
+  bool offlineSigning = false;
+
+  /// Bootstrap also says which key the server holds for this till (`offline.signing_kid`, the signal S3-c proposes).
+  bool advertiseSigningKid = false;
+
+  /// The key the server holds for this till ([syncKid] 0: none), base64 as on the wire, and the one before it.
+  int syncKid = 0;
+  String? syncKey;
+  String? syncKeyPrev;
+
+  /// How many times `POST /terminal/sync-key` was called, and what it answers instead of a key (a test's failure).
+  int syncKeyCalls = 0;
+  FakeResponse? syncKeyFailure;
+
+  /// What refuses a rotation (`FakeSyncBackend`: 409 `queue_not_empty` while the till's reported queue is not empty).
+  FakeResponse? Function()? syncKeyGuard;
+
+  final Random _syncKeys = Random(31);
+
+  /// As the server at every `POST /terminal/sync-key` (and as an owner's rotation in a test): a new key, `kid + 1`,
+  /// the one before it kept.
+  Map<String, Object?> rotateSyncKey() {
+    syncKeyPrev = syncKey;
+    syncKey = base64Encode(<int>[
+      for (var i = 0; i < 32; i++) _syncKeys.nextInt(256),
+    ]);
+    syncKid++;
+    return <String, Object?>{'key': syncKey, 'kid': syncKid};
+  }
 
   /// P6 (A bosqichi): `pos_settings.auto_print_bill` va `bill_printer` (printer id).
   bool autoPrintBill = true;
@@ -885,6 +920,10 @@ class FakePosState {
       if (method == 'GET' && p == '/v1/terminal/staff') {
         return _terminalStaff(query['role']);
       }
+      if (method == 'POST' && p == '/v1/terminal/sync-key' && offlineSigning) {
+        syncKeyCalls++;
+        return syncKeyFailure ?? syncKeyGuard?.call() ?? _ok(rotateSyncKey());
+      }
       if (method == 'DELETE' && p == '/v1/terminal') {
         paired = false;
         _staffTokens.clear();
@@ -1032,7 +1071,15 @@ class FakePosState {
       );
     }
     paired = true;
+    if (offlineSigning) {
+      // A new pairing starts with its own first key
+      syncKid = 0;
+      syncKey = null;
+      rotateSyncKey();
+    }
     return _ok(<String, Object?>{
+      if (offlineSigning)
+        'sync_key': <String, Object?>{'key': syncKey, 'kid': syncKid},
       'token': terminalToken,
       'device': <String, Object?>{
         'uuid': deviceUuid,
@@ -1310,6 +1357,8 @@ class FakePosState {
           'business_date': _date(now()),
           'day_type': 'weekday',
           if (offlineDiscount) 'discount': true,
+          if (offlineSigning) 'signing': true,
+          if (advertiseSigningKid) 'signing_kid': syncKid == 0 ? null : syncKid,
           'fees': <Object?>[
             <String, Object?>{
               'hall_id': null,

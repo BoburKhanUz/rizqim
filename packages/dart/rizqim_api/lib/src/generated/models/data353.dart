@@ -4,28 +4,64 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'entries13.dart';
-import 'summary14.dart';
+import 'branch20.dart';
+import 'sale5.dart';
+import 'buyer5.dart';
+import 'fiscal40.dart';
+import 'blocked6.dart';
+import 'print5.dart';
 
 part 'data353.g.dart';
 
 @JsonSerializable()
 class Data353 {
   const Data353({
-    required this.branchId,
-    required this.date,
-    required this.entries,
-    required this.summary,
+    required this.uuid,
+    required this.code,
+    required this.kind,
+    required this.faceValue,
+    required this.balance,
+    required this.currency,
+    required this.validFrom,
+    required this.validUntil,
+    required this.status,
+    required this.statusLabel,
+    required this.branch,
+    required this.sale,
+    required this.buyer,
+    required this.note,
+    required this.fiscal,
+    required this.blocked,
+    required this.print,
+    required this.createdAt,
   });
 
   factory Data353.fromJson(Map<String, Object?> json) =>
       _$Data353FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String date;
-  final List<Entries13> entries;
-  final Summary14 summary;
+  final String uuid;
+  final String code;
+  final String kind;
+  @JsonKey(name: 'face_value')
+  final String faceValue;
+  final String balance;
+  final String currency;
+  @JsonKey(name: 'valid_from')
+  final String validFrom;
+  @JsonKey(name: 'valid_until')
+  final String? validUntil;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final Branch20? branch;
+  final Sale5 sale;
+  final Buyer5 buyer;
+  final String? note;
+  final Fiscal40 fiscal;
+  final Blocked6? blocked;
+  final Print5? print;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data353ToJson(this);
 }

@@ -8,6 +8,9 @@ part of 'data11.dart';
 
 Data11 _$Data11FromJson(Map<String, dynamic> json) => Data11(
   token: json['token'] as String,
+  syncKey: json['sync_key'] == null
+      ? null
+      : SyncKey.fromJson(json['sync_key'] as Map<String, dynamic>),
   device: Device8.fromJson(json['device'] as Map<String, dynamic>),
   store: json['store'] == null
       ? null
@@ -19,6 +22,7 @@ Data11 _$Data11FromJson(Map<String, dynamic> json) => Data11(
 
 Map<String, dynamic> _$Data11ToJson(Data11 instance) => <String, dynamic>{
   'token': instance.token,
+  'sync_key': instance.syncKey,
   'device': instance.device,
   'store': instance.store,
   'branch': instance.branch,

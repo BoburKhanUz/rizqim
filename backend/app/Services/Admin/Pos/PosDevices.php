@@ -3,22 +3,33 @@
 namespace App\Services\Admin\Pos;
 
 use App\Domain\Pos\Sync\PosSyncService;
+use App\Domain\Pos\Sync\SyncSignatureStatus;
 use App\Enums\DeviceType;
 use App\Models\Device;
+use App\Models\Store;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * P4-24 Qurilmalar: the devices of every store (the terminals and the staff's app installs) with their online state
  * and app version. Online = seen in the last 10 minutes (the same limit the Bugun "offline" source uses). There is no
  * release registry, so "outdated" means older than the newest version seen on an active device of the same type.
+ *
+ * Wave M5 S3-d (docs/scale/M5_DESIGN.md §4): `sync.signatures` — what the signatures of the till's offline operations
+ * were worth in the last SIGNATURE_DAYS days (ok, missing: unsigned, bad, chain_gap: after a lost line), the number of
+ * its queue signing key (`key_id`, null: none) and whether its store enforces signatures. The key itself is never read
+ * here.
  */
 class PosDevices
 {
     public const ONLINE_MINUTES = 10;
 
-    public const ROW = 'array{uuid: string, name: string, type: string, type_label: string, terminal: bool, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null, platform: string|null, app_version: string|null, latest_version: string|null, outdated: bool, state: string, last_seen_at: string|null, paired_at: string|null, revoked_at: string|null, sync: array{pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool}}';
+    /** Wave M5 S3-d: `sync.signatures` counts the offline operations received in this many days. */
+    public const SIGNATURE_DAYS = 7;
+
+    public const ROW = 'array{uuid: string, name: string, type: string, type_label: string, terminal: bool, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null, platform: string|null, app_version: string|null, latest_version: string|null, outdated: bool, state: string, last_seen_at: string|null, paired_at: string|null, revoked_at: string|null, sync: array{pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool, signatures: array{days: int, ok: int, missing: int, bad: int, chain_gap: int, key_id: int|null, enforce: bool}}}';
 
     /**
      * @return Builder<Device>
@@ -168,16 +179,60 @@ class PosDevices
     {
         $latest = $this->latestVersions();
         $now ??= now();
+        $devices = Collection::make($devices);
+        $signatures = $this->signatures($devices, $now);
 
-        return Collection::make($devices)->map(fn (Device $device) => $this->row($device, $now, $latest))->values()->all();
+        return $devices->map(fn (Device $device) => $this->row($device, $now, $latest, $signatures[$device->id] ?? null))->values()->all();
+    }
+
+    /**
+     * Wave M5 S3-d: per device, the last SIGNATURE_DAYS days of offline operations by what their signature was worth
+     * (one grouped read over the (device_id, sig_status, received_at) index) and the store's mode.
+     *
+     * @param  Collection<int, Device>  $devices
+     * @return array<int, array{days: int, ok: int, missing: int, bad: int, chain_gap: int, key_id: int|null, enforce: bool}>
+     */
+    private function signatures(Collection $devices, Carbon $now): array
+    {
+        if ($devices->isEmpty()) {
+            return [];
+        }
+        $counts = [];
+        $rows = DB::table('pos_sync_operations')
+            ->whereIn('device_id', $devices->pluck('id'))
+            // (the statuses by name, not "is not null": an index probe per status instead of a scan of the till's week)
+            ->whereIn('sig_status', array_map(fn (SyncSignatureStatus $status) => $status->value, SyncSignatureStatus::cases()))
+            ->where('received_at', '>=', $now->copy()->subDays(self::SIGNATURE_DAYS))
+            ->selectRaw('device_id, sig_status, count(*) AS n')
+            ->groupBy('device_id', 'sig_status')
+            ->get();
+        foreach ($rows as $row) {
+            $counts[(int) $row->device_id][(string) $row->sig_status] = (int) $row->n;
+        }
+        $enforcing = Store::query()->withTrashed()->whereIn('id', $devices->pluck('store_id')->filter()->unique())
+            ->where('pos_sync_enforce_signatures', true)->pluck('id')->flip();
+
+        $out = [];
+        foreach ($devices as $device) {
+            $kid = (int) $device->getAttribute('sync_key_id');
+            $out[$device->id] = ['days' => self::SIGNATURE_DAYS];
+            foreach (SyncSignatureStatus::cases() as $status) {
+                $out[$device->id][$status->value] = $counts[$device->id][$status->value] ?? 0;
+            }
+            $out[$device->id] += ['key_id' => $kid > 0 ? $kid : null, 'enforce' => isset($enforcing[$device->store_id])];
+        }
+
+        return $out;
     }
 
     /**
      * @param  array<string, string>  $latest
+     * @param  array{days: int, ok: int, missing: int, bad: int, chain_gap: int, key_id: int|null, enforce: bool}|null  $signatures  rows() works them out for the whole page; without them (the export, one row at a time) `sync.signatures` is left out
      * @return array<string, mixed>
      */
-    public function row(Device $device, Carbon $now, array $latest): array
+    public function row(Device $device, Carbon $now, array $latest, ?array $signatures = null): array
     {
+
         $newest = $latest[$device->type->value] ?? null;
         $version = filled($device->app_version) ? (string) $device->app_version : null;
 
@@ -203,7 +258,7 @@ class PosDevices
                 'reported_at' => $device->sync_reported_at?->toIso8601String(),
                 'clock_skew_seconds' => $device->sync_clock_skew_seconds,
                 'clock_warning' => PosSyncService::clockWarning($device->sync_clock_skew_seconds),
-            ],
+            ] + ($signatures !== null ? ['signatures' => $signatures] : []),
         ];
     }
 

@@ -73,4 +73,7 @@ Route::middleware(['auth:device', 'tenant', 'throttle:terminal'])->group(functio
     Route::delete('/devices/{uuid}/staff-session', [TerminalController::class, 'endStaffSession'])->whereUuid('uuid');
     // [P2-33] the terminal unpairs itself (the KDS calls it before forgetting its pairing)
     Route::delete('/terminal', [TerminalController::class, 'destroy'])->middleware('throttle:6,1');
+    // [M5 S3] the till's offline queue signing key: issued or rotated; the key is in this answer only, so no
+    // Idempotency-Key replay store here
+    Route::post('/terminal/sync-key', [TerminalController::class, 'syncKey'])->middleware('throttle:6,1');
 });

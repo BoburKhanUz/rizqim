@@ -25,6 +25,10 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $sync_oldest_op_at
  * @property \Illuminate\Support\Carbon|null $sync_reported_at
  * @property int|null $sync_clock_skew_seconds
+ * @property string|null $sync_key M5 S3: the till's queue signing key (base64, encrypted at rest; App\Domain\Pos\Sync\SyncSignature only)
+ * @property int $sync_key_id its number (kid; 0: no key yet)
+ * @property string|null $sync_key_prev the key before the last rotation
+ * @property string|null $sync_chain the head of the chain of signed operations the server holds (`kid:mac`)
  * @property bool $smart_kassa P6-16: an Android smart kassa (receipts through the provider's virtual kassa)
  * @property string|null $fiscal_kassa_id P6-16: the provider's id of that kassa
  * @property int|null $display_for_device_id P6-14: a customer display follows this till's cart (null: the branch's latest)
@@ -57,6 +61,10 @@ class Device extends Model implements AuthenticatableContract
         'id',
         'push_token',
         'remember_token',
+        // M5 S3: the queue signing keys never leave the server after they were issued
+        'sync_key',
+        'sync_key_prev',
+        'sync_chain',
     ];
 
     protected function casts(): array
@@ -72,6 +80,10 @@ class Device extends Model implements AuthenticatableContract
             'sync_oldest_op_at' => 'datetime',
             'sync_reported_at' => 'datetime',
             'sync_clock_skew_seconds' => 'integer',
+            // M5 S3: the queue signing keys, encrypted at rest (App\Domain\Pos\Sync\SyncSignature)
+            'sync_key' => 'encrypted',
+            'sync_key_id' => 'integer',
+            'sync_key_prev' => 'encrypted',
             // P6-16 (App\Domain\Pos\TerminalFlow)
             'smart_kassa' => 'boolean',
         ];

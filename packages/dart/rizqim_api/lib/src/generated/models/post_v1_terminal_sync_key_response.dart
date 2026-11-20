@@ -1,0 +1,27 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data376.dart';
+
+part 'post_v1_terminal_sync_key_response.g.dart';
+
+@JsonSerializable()
+class PostV1TerminalSyncKeyResponse {
+  const PostV1TerminalSyncKeyResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1TerminalSyncKeyResponse.fromJson(Map<String, Object?> json) =>
+      _$PostV1TerminalSyncKeyResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data376 data;
+
+  Map<String, Object?> toJson() => _$PostV1TerminalSyncKeyResponseToJson(this);
+}

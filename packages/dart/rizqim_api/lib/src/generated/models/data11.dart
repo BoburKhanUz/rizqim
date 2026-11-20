@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'sync_key.dart';
 import 'device8.dart';
 import 'store.dart';
 import 'branch2.dart';
@@ -14,6 +15,7 @@ part 'data11.g.dart';
 class Data11 {
   const Data11({
     required this.token,
+    required this.syncKey,
     required this.device,
     required this.store,
     required this.branch,
@@ -22,6 +24,8 @@ class Data11 {
   factory Data11.fromJson(Map<String, Object?> json) => _$Data11FromJson(json);
 
   final String token;
+  @JsonKey(name: 'sync_key')
+  final SyncKey? syncKey;
   final Device8 device;
   final Store? store;
   final Branch2? branch;

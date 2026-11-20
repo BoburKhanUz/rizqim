@@ -16,6 +16,7 @@ class Results {
     required this.reason,
     required this.message,
     required this.duplicate,
+    required this.sigStatus,
     required this.refs,
   });
 
@@ -30,6 +31,8 @@ class Results {
   final String? reason;
   final String? message;
   final bool duplicate;
+  @JsonKey(name: 'sig_status')
+  final String? sigStatus;
   final Map<String, dynamic> refs;
 
   Map<String, Object?> toJson() => _$ResultsToJson(this);

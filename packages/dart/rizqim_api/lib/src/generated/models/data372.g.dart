@@ -7,21 +7,17 @@ part of 'data372.dart';
 // **************************************************************************
 
 Data372 _$Data372FromJson(Map<String, dynamic> json) => Data372(
-  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store4.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
-      ? null
-      : Branch22.fromJson(json['branch'] as Map<String, dynamic>),
-  branches: (json['branches'] as List<dynamic>)
-      .map((e) => Branches4.fromJson(e as Map<String, dynamic>))
+  enabled: json['enabled'] as bool,
+  minLeadMinutes: (json['min_lead_minutes'] as num).toInt(),
+  slotMinutes: (json['slot_minutes'] as num).toInt(),
+  slots: (json['slots'] as List<dynamic>)
+      .map((e) => Slots11.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data372ToJson(Data372 instance) => <String, dynamic>{
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
-  'branches': instance.branches,
+  'enabled': instance.enabled,
+  'min_lead_minutes': instance.minLeadMinutes,
+  'slot_minutes': instance.slotMinutes,
+  'slots': instance.slots,
 };

@@ -377,7 +377,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Kirish | `POST /auth/telegram`, `/auth/phone/send-code`, `/auth/phone/verify`, `/auth/refresh`, `/auth/logout`, `/auth/logout-all` | token olish, yangilash, chiqish |
 | Profil | `GET /user`, `POST /user/profile`, `POST /phone/send-code`, `/phone/verify-code`, `GET /me/permissions` | joriy foydalanuvchi, telefonni tasdiqlash, ruxsatlar |
 | Qurilmalar | `GET/POST /devices`, `DELETE /devices/{uuid}`, `PUT/DELETE /devices/{uuid}/push-token` | shaxsiy ilovani ro'yxatga olish, push token |
-| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session`, `DELETE /terminal` | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30); `DELETE /terminal` — terminal o'z tokeni bilan o'zini uzadi (P2-33, [AUTH.md](AUTH.md) 4-bo'lim) |
+| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session`, `DELETE /terminal`, `POST /terminal/sync-key` (M5 S3: navbat imzo kaliti, "Imzolangan navbat") | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30); `DELETE /terminal` — terminal o'z tokeni bilan o'zini uzadi (P2-33, [AUTH.md](AUTH.md) 4-bo'lim) |
 | Xabar sozlamalari | `GET/PUT /me/notification-preferences`, `GET /notifications`, `POST /notifications/read` | qaysi xabar qaysi kanaldan, ilova ichidagi xabarlar |
 | Do'konlar va katalog | `GET /stores`, `GET /catalog`, `GET /catalog/availability`, `POST /stores/{id}/rate` | mijoz uchun do'konlar, menyu (kanal narxi bilan), mavjudlik, baho |
 | Manzil va xarita | `GET/POST/PUT/DELETE /addresses`, `GET /locations`, `GET /geocode/reverse`, `/geocode/search` | mijoz manzillari, viloyat/tuman, geokodlash proksisi |
@@ -2059,6 +2059,209 @@ Audit: `device.revoked` da `pending_ops` va `pending_confirmed: true`; admin jur
 `pending_ops`. Kassa o'zini uzganda (`DELETE /terminal`) tasdiq so'ralmaydi, `pending_ops` auditga yoziladi. Uzoq vaqt
 aloqasiz kassada haqiqiy navbat serverdagi sondan katta bo'lishi mumkin.
 
+### Imzolangan navbat (M5 S3)
+
+Kassaning jurnali oddiy fayl: qatorni qo'lda o'zgartirish yoki o'chirish mumkin. Imzo buni **serverda sezdiradi**
+(kalit qurilmaning himoyalangan xotirasida bo'lsa). Sxema (`docs/scale/M5_DESIGN.md` 4-bo'lim, egasi qarori 2):
+qurilmaga bitta maxfiy kalit, HMAC-SHA256, yangi kutubxonasiz. Server avval chiqadi: kassa faqat `GET /pos/bootstrap`
+`offline.signing: true` desa imzolaydi; eski (imzosiz) ko'rinish o'z holicha qabul qilinadi.
+
+**Kalit.** 32 tasodifiy bayt, serverda yaratiladi va kassaga **bir marta** beriladi (base64):
+
+| Qayerda | Javob |
+|---|---|
+| `POST /devices/pair` (POS terminali) | `data.sync_key: {"key": "<base64>", "kid": 1}`; KDS va mijoz ekraniga `null` |
+| `POST /terminal/sync-key` (terminal tokeni, faqat POS; boshqasiga 403 `terminal_required`; daqiqada 6) | `data: {"key": "<base64>", "kid": n}` |
+
+`POST /terminal/sync-key`: kaliti yo'q kassaga (imzodan oldin ulangan) birinchi kalit (`kid: 1`); qayta chaqirilsa
+**almashtiradi** — yangi kalit, `kid + 1`, eskisi serverda `sync_key_prev` da qoladi (undan oldingisi o'chadi), shuning
+uchun eski kalit bilan navbatga yozilgan amallar hali tekshiriladi. Kassa navbati bo'sh bo'lmaguncha kalitni
+almashtirmaydi; **server ham rad etadi**: kassaning oxirgi xabar qilgan navbati bo'sh bo'lmasa
+(`devices.sync_pending_ops > 0` yoki `sync_oldest_op_at` bor — `POST /pos/sync` dagi `queue` va
+`GET /pos/sync/status?queue_size=` dan) — **409** `{"reason": "queue_not_empty", "pending_ops": n}`, kalit
+o'zgarmaydi. Kassa navbatni yuboradi yoki bo'shligini xabar qiladi (`GET /pos/sync/status?queue_size=0`) va qayta
+so'raydi. Kaliti yo'q kassaga birinchi kalit navbatidan qat'i nazar beriladi. Server faqat kassa o'zi aytganini
+biladi: oflayn kassa yangi yozganini xabar qila olmaydi, shuning uchun terminal tokenini qo'lga kiritgan odam kalitni
+ikki marta almashtirib, navbatdagi amallarni `bad` qilib qo'yishi mumkin (imzo jurnal faylini himoya qiladi, o'g'irlangan
+tokendan emas — `docs/scale/M5_DESIGN.md` 4-bo'lim); buni RIZQIM ogohlantirishi ko'rsatadi (quyida: bir kunda bittadan
+ko'p almashtirish).
+Bu yo'lda `Idempotency-Key` ataylab yo'q: takror uchun saqlangan javob kalitni saqlab qo'ygan bo'lardi; javob
+yo'qolsa qayta chaqiriladi. Kalit serverda shifrlangan (`devices.sync_key`, Laravel `encrypted`), hech qayerda qayta
+ko'rsatilmaydi, logga va auditga yozilmaydi. Audit: `device.sync_key_issued`, `device.sync_key_rotated`
+(`{kid, by: "terminal"}`); ulashda berilgan kalit uchun alohida yozuv yo'q (`device.paired` yetarli). Uzilgan qurilmaning kaliti
+`revoked_at` dan keyin 30 kun saqlanadi (kassadan eksport qilingan faylni tekshirish uchun), keyin
+`pos:erase-sync-keys` (har kuni) o'chiradi.
+
+**Imzo.** Kassa amalni navbatga yozganda uni **bir marta** JSON matniga aylantiradi (`raw`) va shu baytlarni imzolaydi:
+
+```
+first_prev = HMAC-SHA256(key, "rizqim-sync/v1/" + qurilma uuid (kichik harflarda))
+mac        = HMAC-SHA256(key, prev (32 bayt) || raw (UTF-8))      prev = oldingi amalning mac'i
+```
+
+`mac` va `prev` simda 64 ta kichik hex belgi. Yangi kalit ostidagi birinchi amal shu kalitning `first_prev` idan
+boshlaydi. `POST /pos/sync` da imzolangan amal:
+
+```json
+{"signed": "{\"op_id\":\"uuid\",\"seq\":41,\"type\":\"order.open\",\"occurred_at\":\"...\",\"staff_id\":7,\"payload\":{...}}",
+ "mac": "<64 hex>", "prev": "<64 hex>", "kid": 1}
+```
+
+Server **kelgan baytlar** ustidan MAC ni tekshiradi, keyin `signed` ni ochib, amal sifatida aynan shuni ishlatadi
+(ikki tomon JSON'ni bir xil yozishi shart emas; `signed` yonidagi boshqa maydonlar e'tiborga olinmaydi). Ochilgan amal
+imzosiz amal bilan bir xil tekshiriladi (bo'sh satr → `null`, chetdagi bo'shliqlar olib tashlanadi). `mac`, `prev`, `kid`
+qanday bo'lmasin (yo'q, noto'g'ri tur) to'plam **hech qachon** rad etilmaydi: o'sha amal `bad` bo'ladi (`kid` matn
+ko'rinishidagi son bo'lsa ham qabul qilinadi: `"2"` = `2`). Bitta to'plamda imzoli va imzosiz amallar aralash kelishi
+mumkin.
+
+**Yaroqsiz imzoli qator to'plamni to'xtatmaydi** (S3 tekshiruvidan keyin). `signed` matni yaroqli amal bo'lmasa (kassa
+diskidagi jurnal qatori buzilgan yoki qo'lda o'zgartirilgan; yangiroq ilovaning server bilmaydigan turi) — 422 **emas**
+(aks holda kassa navbati shu qator ortida abadiy to'xtab qolardi), to'plam 200:
+
+- qator o'zini taniyapti (`op_id` — uuid, `seq` — musbat butun son, ikkalasi ham band emas): amal **yoziladi**,
+  `results[]` da `status: rejected`, `reason: invalid_payload` (`type` noma'lum bo'lsa `type_unknown`), "Sinxronlash
+  xatolari"da ko'rinadi. `sig_status` odatdagidek hisoblanadi: qo'lda buzilgan qator `bad`; kassaning o'zi imzolagan
+  (masalan noma'lum turli) qator `ok` va zanjir undan keyin davom etadi. Qayta yuborilsa `duplicate`;
+- qator o'zini tanimaydi (JSON obyekti emas, `op_id`/`seq` o'qilmaydi yoki ular boshqa amalga tegishli): hech narsa
+  yozilmaydi (`op_id_conflict` / `seq_reused` ham bo'lmaydi), javobda
+  `data.unreadable: [{index, op_id, seq, reason: "invalid_payload", message}]` — `index` to'plamdagi o'rni (0 dan).
+  Kassa shu qatorni navbatidan oladi (`queue.size` dan ham ayiriladi).
+
+Imzosiz ko'rinishdagi buzuq amal avvalgidek 422. Imzoli ko'rinish **JSON tanani** talab qiladi
+(`Content-Type: application/json`): boshqa tanada server imzolangan baytlarga ega emas (so'rov middleware'i satrlarni
+o'zgartiradi), amal o'qiladi va qo'llanadi, lekin `sig_status: bad` bo'ladi (to'plam rad etilmaydi). Javobga
+`data.unreadable` qo'shildi, qolgani o'zgarmagan.
+
+**Natija** har yangi amalda `pos_sync_operations.sig_status` ga yoziladi (`mac` — kelgan MAC; imzodan oldingi
+qatorlarda ikkalasi `null`):
+
+| `sig_status` | Ma'nosi |
+|---|---|
+| `ok` | MAC to'g'ri va amal server ushlab turgan oxirgisidan keyin keladi |
+| `missing` | imzosiz ko'rinishda keldi (eski ilova, kaliti yo'q kassa yoki imzo olib tashlangan) |
+| `bad` | MAC shu qurilma kalitiniki emas: qator o'zgartirilgan, `kid` noma'lum yoki serverda kalit yo'q |
+| `chain_gap` | MAC to'g'ri, lekin zanjir uzilgan (`prev` server ushlab turgan boshga teng emas) yoki `seq` oxirgisidan keyingi son emas: orada qator yo'qolgan |
+
+**Rejimlar** (egasi qarori 4; `App\Domain\Pos\Sync\SignaturePolicy`). Standart — **kuzatuv**; do'kon egasi
+**qat'iy rejim**ni o'zi yoqadi (`stores.pos_sync_enforce_signatures`, quyida). Ikkala rejimda ham to'plam imzo sababli
+**hech qachon** rad etilmaydi (har amal 200 javobning bitta natijasi) va to'lov hech qachon tashlanmaydi.
+**Qat'iy rejim sotuvni hech qachon tashlamaydi** (S3 tekshiruvidan keyingi qaror): sotuvni tashkil qiladigan amallar
+imzosidan qat'i nazar **qo'llanadi** va menejerga `conflict` sifatida ko'rsatiladi; faqat **yon berishlar** rad
+etiladi.
+
+| Rejim | `missing` / `bad`, yon berish (`order.discount`, `order.void`) | `missing` / `bad`, sotuvning o'zi (qolgan hamma tur) | `missing` / `bad`, `bill.pay` | `chain_gap` |
+|---|---|---|---|---|
+| kuzatuv (standart) | qo'llanadi, holat yoziladi | qo'llanadi, holat yoziladi | qo'llanadi, holat yoziladi | qo'llanadi, holat yoziladi |
+| qat'iy | **rad etiladi**: `order.void` — `rejected`, `reason: signature_invalid`; `order.discount` — `rejected`, `reason: discount_not_allowed`, `refs.cause: signature_invalid` | **qo'llanadi**, `conflict`, `reason: signature_invalid` ("Sinxronlash xatolari") | **yoziladi**, `conflict`, `reason: payment_unverified` | qo'llanadi, `conflict`, `reason: chain_gap` |
+
+- "Sotuvning o'zi": `order.open`, `order.round`, `order.send`, `order.served`, `order.course_send`, `order.weight`,
+  `bill.create`, `bill.request`, `order.close`, `kitchen.bump`, `kitchen.recall`, `kitchen.assembled`. Ular rad
+  etilsa butun sotuv yo'qolardi (to'lov tushadigan buyurtma bo'lmaydi) va smena yopilmay qolardi. `conflict` smena
+  yopilishini to'xtatmaydi (faqat hal qilinmagan `rejected` to'xtatadi). Amal o'z sababi bilan `conflict` yoki
+  `rejected` bo'lsa, o'sha sababi qoladi (`sig_status` baribir imzo holatini aytadi).
+- Yon berishlar — mehmon kamroq to'lashiga olib keladigan amallar; sinxron amallari orasida boshqasi yo'q (buyurtmani
+  bekor qilish, to'lovdan voz kechish va qaytarish oflayn qilinmaydi). Rad etilgan `order.void` dan keyin taom
+  buyurtmada qoladi, schyot to'liq summada tuziladi; farqni menejer onlayn hal qiladi. Rad etilgan amal hal
+  qilinmaguncha (`resolve`) kassa smenasi yopilmaydi (yoki menejer majburan yopadi) — rad etilgan chegirma kabi.
+- Favqulodda o'chirgich: `POS_SYNC_SIGNING=false` (`config/pos.php` `pos.sync_signing`, standart `true`) —
+  `GET /pos/bootstrap` `offline.signing: false`, `signing_kid: null` (kassalar imzolamaydi, kalit so'ramaydi) va hech
+  bir do'kon qat'iy rejimda hisoblanmaydi (aks holda har sotuv `signature_invalid` bo'lardi); imzoli kelgan amal
+  baribir tekshiriladi va `sig_status` yoziladi.
+
+- `payment_unverified` M5 S1 dagi `staff_unverified` yo'lidan boradi: schyot ochiq bo'lsa to'lov odatdagi yo'l bilan
+  **schyotga** tushadi (schyot to'lanadi, buyurtma va smena yopiladi), aks holda buyurtmaga bog'lanmagan holda yoziladi
+  (bekor qilingan buyurtmada `refund_needed` ham). Amaldagi xodim ham tasdiqlanmagan hisoblanadi: to'lov faqat shu
+  kassada ishlaydigan va unda PIN bilan kirgan xodim nomiga yoziladi, aks holda hech kimga; audit
+  `pos.offline_payment_unverified` (`sig_status`, `claimed_staff_id`, `amount`, `payments`; aktor — qurilma).
+  Qat'iy rejim `order.open` va `bill.create` ni rad etmagani uchun buyurtma va schyot serverda bor: to'liq imzosiz
+  sotuvda ham pul o'z schyotiga tushadi va buyurtma yopiladi. (Buyurtma boshqa sabab bilan serverda yo'q bo'lsa,
+  to'lov amali boshqa har qanday shunday to'lov kabi `rejected` bo'lib, tenderlari bilan menejerga qoladi.)
+- Qat'iy rejimda imzosiz yoki imzosi noto'g'ri `order.discount` boshqa har qanday rad etilgan chegirma kabi yoziladi:
+  `rejected`, `reason: discount_not_allowed`, `refs.cause: signature_invalid` (schyot to'liq narxda).
+- Qat'iy rejimda `chain_gap` amali o'z sababi bilan `conflict` yoki `rejected` bo'lsa, o'sha sababi qoladi
+  (`sig_status` baribir `chain_gap`).
+- `sig_status` endi `POST /pos/sync` natijalarida (`results[].sig_status`) va "Sinxronlash xatolari"da
+  (`GET /pos/sync/status` `errors[]`, `GET /pos/sync/errors`) ham qaytadi (`null` — imzodan oldingi qator).
+- `GET /pos/bootstrap` → `offline.signing_kid`: server shu kassa uchun ushlab turgan kalit raqami (`null` — kalit
+  yo'q). Kassaning o'z kaliti raqami kichik bo'lsa (yoki kaliti yo'q bo'lsa), u onlayn va navbati bo'sh paytda
+  `POST /terminal/sync-key` bilan yangisini oladi.
+
+**Egasi sozlamasi** (`settings.manage`, faqat veb-panel: PIN sessiyadan 403; butun do'kon uchun — bitta filialga
+biriktirilgan xodimga 403 `store_wide_only`):
+
+| Yo'l | Tavsif |
+|---|---|
+| `GET /owner/pos/sync-signing` | `{enforce, signing_tills, unsigned_tills: [{uuid, name, branch_id, has_key, last_sig_status}]}`. `unsigned_tills` — imzolashi hali **isbotlanmagan** ulangan kassalar. Kassa imzolaydi deb faqat shunda hisoblanadi: server undan **hozirgi kaliti** ostida imzosi to'g'ri amal olgan (`devices.sync_chain` boshi shu `kid` da) va oxirgi kelgan amali imzosiz emas. Serverda kalit borligi hech narsani isbotlamaydi (ulashda har bir kassaga, eski ilovaga ham, kalit beriladi): serverga hali hech narsa yubormagan kassa (`last_sig_status: null`), oxirgi amali `missing` bo'lgan kassa va kaliti almashtirilgach yangi kalit bilan hali imzolamagan kassa ro'yxatda turadi |
+| `PUT /owner/pos/sync-signing` | `{enforce: bool, confirm_unsigned?: bool}`. Yoqishda `unsigned_tills` bo'sh bo'lmasa — **409** `{"reason": "tills_not_signing", "unsigned_tills": [...]}`; `confirm_unsigned: true` bilan baribir yoqiladi. O'chirish tasdiq so'ramaydi. Takrori hech narsani o'zgartirmaydi. Audit `settings.pos_sync_signatures_changed` (`before/after: {enforce}`, `unsigned_tills` uuid lari) |
+
+Kalit bu javoblarda ham, auditda ham yo'q. **Egasi tomonidan "Kalitni yangilash" amali M5 da yo'q** (ataylab): server
+faqat bitta oldingi kalitni saqlaydi, kassa bilmagan almashtirish navbatdagi amallarni `bad` qilib qo'yishi mumkin.
+Kalitni faqat kassaning o'zi almashtiradi (`POST /terminal/sync-key`, navbati bo'sh paytda); qayta ulashda yangi
+qurilma qatori va yangi kalit beriladi.
+
+**Ogohlantirishlar** (ikkala rejimda):
+
+- **RIZQIM** — monitoring qoidasi `pos_sync_signature` ("Kassa navbati imzosi", diqqat): kassa `window_minutes`
+  (standart 1440) ichida `threshold` (standart 1) va undan ko'p `bad` yoki `chain_gap` amal yuborgan bo'lsa, shu
+  kassaga bitta ogohlantirish (`subject_key` — qurilma uuid; `details`: `bad`, `chain_gap`, `key_rotations`,
+  `stopped_signing`, `enforce`, `store`, `branch`, `last_at`); oynada sabab qolmagach o'zi yopiladi. Shu
+  ogohlantirishning yana ikki sababi (audit jurnalidan o'qiladi, `threshold` ga bog'liq emas):
+  - kassaning kaliti oynada **bittadan ko'p** almashtirilgan (`device.sync_key_rotated` ≥ 2): buzuq ilova yoki
+    terminal tokeni begona qo'lda (ikkinchi almashtirish navbatdagi amallar kalitini o'chiradi);
+  - **imzolab turgan kassa imzosiz amal yubordi**: hozirgi kaliti ostida imzosi to'g'ri amal yuborgan kassadan
+    `missing` amal keldi (imzo olib tashlangan yoki ilova eski versiyaga qaytarilgan). To'plam oxirida audit
+    `device.sync_signature_missing` (`{kid, operations, first_seq}`; aktor — qurilma), har kassaga kuniga ko'pi
+    bilan bitta; o'chirgich (`POS_SYNC_SIGNING=false`) paytida yozilmaydi.
+  Hech qachon imzolamagan kassaning `missing` amallari ogohlantirish emas.
+- **Egasi** — `chain_gap` da Telegram/push (`pos_alerts`), har kassaga ko'pi bilan 60 daqiqada bitta, **egaga oxirgi
+  xabar yuborilgan vaqtdan** hisoblanadi (har 50 daqiqada qator yo'qotadigan kassa haqida xabar har ikkinchi safar
+  ketadi, bir marta emas; xabar yuborib bo'lmagan bo'lsa keyingisi to'xtatilmaydi; vaqt keshda emas, auditda —
+  `pos.sync_chain_gap_alerted` `{operations, first_seq}`, aktor — qurilma): "«Kassa 1»: kassa
+  navbatidan amal yo'qolgan. ..." (qaysi `seq` dan oldin yozuv yetishmayotgani bilan). `bad` va `missing` haqida
+  egaga xabar yuborilmaydi.
+- Boshqaruv markazi → Qurilmalar: `sync.signatures` (quyida, `GET /admin/pos/devices`).
+
+Zanjir boshi `devices.sync_chain` da (`kid:mac`) — imzosi **to'g'ri** (`ok` yoki `chain_gap`) oxirgi amal. Qoidalar,
+shu tartibda:
+
+1. Boshdagidan **eskiroq** kalit bilan kelgan amal — `chain_gap`, `prev` i nima bo'lishidan qat'i nazar (almashtirishdan
+   keyin oldingi kalit egasi yangi kalitning amalidan so'ng `ok` amal imzolay olmaydi).
+2. `seq` tekshiruvi: server shu qurilmadan hech narsa olmagan bo'lsa istalgan sondan boshlash mumkin (qayta ulangan
+   kassa sanashda davom etadi), keyin har amal `oxirgi + 1`, aks holda `chain_gap`.
+3. Boshdagi kalit ostidagi amalning `prev` i boshdagi `mac` ga teng bo'lishi kerak.
+4. Yangiroq kalitning birinchi amali o'z `first_prev` idan boshlaydi (almashtirishda zanjir tozalanmaydi).
+
+- `bad` amal boshni **hech qachon surmaydi**. Uning raqami o'z o'rnida bo'lsa (`seq = oxirgi + 1`), u da'vo qilgan
+  `mac` keyingi amalning `prev` i sifatida boshdagi `mac` bilan **birga** qabul qilinadi: o'z o'rnida qo'lda
+  o'zgartirilgan bitta qator — bitta `bad`, keyingisi `ok`; o'z buzuq qatorini tashlab ketgan kassa ham `ok`. Raqami
+  o'z o'rnida bo'lmagan `bad` qator hech narsaga kafil emas: undan oldin olib tashlangan qatorlar keyingi imzoli
+  amalda `chain_gap` bo'lib chiqadi (egaga xabar ketadi). Chegara: o'sha raqam, o'sha `mac` va `prev` bilan boshqa
+  matn qo'yilgan qator server uchun qo'lda o'zgartirilgan qatorning o'zi — bitta `bad` (RIZQIM ogohlantirishi; qat'iy
+  rejimda menejerga `conflict`).
+- Imzosiz amal zanjirga tegmaydi (undan keyingi imzoli amal `chain_gap`), bitta istisno: **imzolamaydigan versiyaga
+  qaytarilib, yana yangilangan kassa** zanjirini yo'qotadi (eski versiya jurnalni qayta yozadi) va `first_prev` dan
+  qayta boshlaydi. Bu faqat shunda `ok`: amal qurilmaning **hozirgi** kaliti ostida, undan bevosita oldingi raqamli
+  amal imzosiz (`missing`) kelgan. Boshqa har qanday holatda `first_prev` dan qayta boshlangan zanjir — `chain_gap`.
+- Takror (`duplicate`) amal birinchi safargi holatini saqlaydi va zanjirni surmaydi.
+- Qurilma qatori yozilmay qolgan bo'lsa (jarayon amal qatori bilan qurilma qatori orasida to'xtagan), bosh shu
+  qurilmaning oxirgi 50 ta amali ichidagi imzosi to'g'ri oxirgi qatordan olinadi (undan keyingi imzosiz qatorlar
+  xalaqit bermaydi); kalit raqami qatorda yo'q, shuning uchun bu faqat kalit o'zgarmagan joyda ishlaydi.
+
+**`seq_reused` dan keyin** (M5 S1, `SyncStore.adoptServerSeq`): 409 javobli to'plamda ziddiyatdan keyingi hech narsa
+qo'llanmagan; kassa `GET /pos/sync/status` dan `device.last_seq` ni oladi, kutayotgan amallarni undan keyin qayta
+raqamlaydi, **qayta imzolaydi va qayta zanjirlaydi** (raqam `raw` ichida), so'ng qayta yuboradi. Server ularni qabul
+qiladi: sonlar ketma-ket; kassa serverdagi zanjir boshini bilmasa (jurnal yo'qolgan) birinchisi `chain_gap`, qolganlari
+`ok`.
+
+Umumiy vektorlar (PHP va Dart testlari bir faylni o'qiydi): `backend/tests/Fixtures/sync_signature_vectors.json`
+(kalit faylda yo'q, test uni urug'dan hosil qiladi). Migratsiya (qo'shimcha, qaytariladigan):
+`2026_11_30_100000_add_sync_signature_columns` (devices: `sync_key`, `sync_key_id`, `sync_key_prev`, `sync_chain`;
+pos_sync_operations: `sig_status`, `mac`). Kod: `App\Domain\Pos\Sync\SyncSignature`, `SyncChain`,
+`SyncSignatureStatus`, `SignaturePolicy`. Testlar: `tests/Unit/PosSync/SyncSignatureVectorsTest.php`,
+`tests/Feature/PosSync/PosSyncSignatureTest.php`, `PosSyncSignatureEnforceTest.php`,
+`PosSyncSignatureReviewTest.php` (ikki mustaqil tekshiruvdan keyingi tuzatishlar), `SyncKeyTest.php`,
+`SyncSigningSettingTest.php`, `tests/Feature/Admin/Monitoring/PosSyncSignatureCheckTest.php`.
+
 ### GET /pos/sync/errors va resolve
 
 `GET /pos/sync/errors?branch_id=&device=&all=&page=` — yangisi birinchi, sahifada 50 ta; `all=1` hal qilinganlarini
@@ -2830,6 +3033,7 @@ Yetti ichki qoida (`kind`), har biri `alert_rules` jadvalida bitta qator (yo'q b
 | `settlement_failures` | Hisobga yozilmagan (`settlement_failed_at`) buyurtmalar `threshold` va undan ko'p | 1 ta | kritik |
 | `backup_stale` | Oxirgi zaxira `threshold` soatdan eski (yoki hech qachon yozilmagan) | 26 soat | kritik |
 | `scheduler_stale` | Scheduler yurak urishi yo'q yoki `threshold` soniyadan eski | 180 soniya | kritik |
+| `pos_sync_signature` (M5 S3) | Kassa `window_minutes` ichida `threshold` va undan ko'p imzosi noto'g'ri (`bad`) yoki navbatdan yo'qolgan amaldan keyingi (`chain_gap`) oflayn amal yubordi; yoki shu oynada kaliti bittadan ko'p almashtirildi; yoki imzolab turgan kassa imzosiz amal yubordi (har kassa alohida; "Imzolangan navbat") | 1 ta, 1440 daqiqa | diqqat |
 
 **"Hozir ochiq" — bitta qoida** (`App\Services\Admin\Monitoring\TerminalBusinessHours`), uni `pos_device_offline` ham,
 "Bugun → Ish vaqtida oflayn kassalar" ham ishlatadi, shuning uchun ikkalasi hech qachon ixtilof qilmaydi: ovqatxona faol va
@@ -3341,7 +3545,7 @@ sana (`business_date`, `due_date`) — `Y-m-d`.
 | `GET /admin/pos/invoices/{uuid}` | shu | Hisob-faktura (qatorlar, to'langan va qolgan qism, eslatmalar tarixi) va ovqatxona qarzi (`subscription_debt` va `commission_debt` alohida) |
 | `POST /admin/pos/invoices/{uuid}/paid` | `finance.manage` + step-up + `reason` | «To'langan» deb belgilash (`SubscriptionService::markPaid`). Balans o'zgarmaydi: pulning o'zi balansni to'ldirish sifatida yoziladi va eng eski hisob-fakturalarni yopadi. Bekor qilinganga 422 `invoice_void` |
 | `POST /admin/pos/invoices/{uuid}/void` | shu | Bekor qilish (`SubscriptionService::voidInvoice`): summasi qarzdan ayriladi (ledger'da teskari yozuv). Faqat to'lanmagan: `paid` yoki qisman to'langan hisob-fakturaga 422 `invoice_paid` (pul Moliya → Qo'lda tuzatish bilan qaytariladi). 1 000 000 so'm (`finance.four_eyes_threshold`) va undan kattasini ikki xil xodim: birinchi chaqiruv — so'rov (hisob-faktura `issued` qoladi, ledger o'zgarmaydi, `invoice.void_request {by, at, reason}`, jurnalda `admin.pos.invoice_void_requested`), o'sha xodim takrorlasa — o'sha javob, boshqa xodimning chaqiruvi bekor qiladi (`voided_by`). Kartada `void_needs_second_approval` |
-| `GET /admin/pos/devices?state=&type=&terminal=&store_id=&outdated=&q=` | `devices.view` | Do'konga tegishli hamma qurilmalar. `state`: `online` (oxirgi 10 daqiqada aloqa), `offline`, `never`, `revoked`, `all`; bo'sh bo'lsa o'chirilmaganlar. Eng uzoq aloqasizlar birinchi. `outdated=1` — shu turdagi faol qurilmalardagi eng yangi versiyadan eskilar (versiyalar reyestri yo'q, «eng yangi» — ko'rilgan eng katta versiya; `latest_versions`). Qatorda kassaning oflayn navbati (`sync`) |
+| `GET /admin/pos/devices?state=&type=&terminal=&store_id=&outdated=&q=` | `devices.view` | Do'konga tegishli hamma qurilmalar. `state`: `online` (oxirgi 10 daqiqada aloqa), `offline`, `never`, `revoked`, `all`; bo'sh bo'lsa o'chirilmaganlar. Eng uzoq aloqasizlar birinchi. `outdated=1` — shu turdagi faol qurilmalardagi eng yangi versiyadan eskilar (versiyalar reyestri yo'q, «eng yangi» — ko'rilgan eng katta versiya; `latest_versions`). Qatorda kassaning oflayn navbati (`sync`); M5 S3: `sync.signatures: {days: 7, ok, missing, bad, chain_gap, key_id, enforce}` — oxirgi 7 kunda kelgan oflayn amallarning imzo holati bo'yicha soni, kassaning imzo kaliti raqami (`null` — kalit yo'q; kalitning o'zi hech qachon ko'rsatilmaydi) va do'kon qat'iy rejimdami (eksportda bu maydon yo'q) |
 | `GET /admin/pos/devices/{uuid}` | shu | Qurilma (Bugun'dagi `/pos?device=` havolasi) |
 | `POST /admin/pos/devices/{uuid}/revoke` | `stores.manage` + step-up + `reason` | Qurilmani o'chirish (`DeviceService::revoke`): tokenlar va sessiyalar darhol to'xtaydi. Kassada yuborilmagan oflayn amallar bo'lsa 409 `pending_ops` (`data.pending_ops`); `confirm_pending: true` bilan tasdiqlanadi (M5 S1) |
 | `GET /admin/pos/shifts?kind=&store_id=&from=&to=` | `devices.view` | Smenalar (faqat o'qish). `kind`: `difference` (yopilgan va kassa farqi bor; farq = sanalgan − hisobdagi, manfiy — pul yetishmaydi), `force_closed`, `open` |

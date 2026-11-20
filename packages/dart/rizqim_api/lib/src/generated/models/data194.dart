@@ -4,20 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff6.dart';
-
 part 'data194.g.dart';
 
 @JsonSerializable()
 class Data194 {
-  const Data194({required this.staff, required this.inviteLink});
+  const Data194({required this.path, required this.url});
 
   factory Data194.fromJson(Map<String, Object?> json) =>
       _$Data194FromJson(json);
 
-  final Staff6 staff;
-  @JsonKey(name: 'invite_link')
-  final String inviteLink;
+  final String path;
+  final String url;
 
   Map<String, Object?> toJson() => _$Data194ToJson(this);
 }

@@ -9,7 +9,7 @@ part of 'data275.dart';
 Data275 _$Data275FromJson(Map<String, dynamic> json) => Data275(
   session: json['session'] == null
       ? null
-      : Session4.fromJson(json['session'] as Map<String, dynamic>),
+      : Session2.fromJson(json['session'] as Map<String, dynamic>),
   todayMinutes: (json['today_minutes'] as num).toInt(),
   businessDate: json['business_date'] as String,
 );

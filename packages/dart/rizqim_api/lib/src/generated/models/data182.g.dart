@@ -7,21 +7,39 @@ part of 'data182.dart';
 // **************************************************************************
 
 Data182 _$Data182FromJson(Map<String, dynamic> json) => Data182(
-  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  sort: json['sort'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  dayStartsAt: json['day_starts_at'] as String,
+  stationId: (json['station_id'] as num?)?.toInt(),
+  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
+  orders: Orders.fromJson(json['orders'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations8.fromJson(e as Map<String, dynamic>))
+      .toList(),
   products: (json['products'] as List<dynamic>)
-      .map((e) => Products8.fromJson(e as Map<String, dynamic>))
+      .map((e) => Products7.fromJson(e as Map<String, dynamic>))
       .toList(),
-  comboParts: (json['combo_parts'] as List<dynamic>)
-      .map((e) => ComboParts.fromJson(e as Map<String, dynamic>))
+  hours: (json['hours'] as List<dynamic>)
+      .map((e) => Hours.fromJson(e as Map<String, dynamic>))
       .toList(),
+  expo: json['expo'] == null
+      ? null
+      : Expo.fromJson(json['expo'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data182ToJson(Data182 instance) => <String, dynamic>{
-  'period': instance.period,
   'branch_id': instance.branchId,
-  'sort': instance.sort,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'day_starts_at': instance.dayStartsAt,
+  'station_id': instance.stationId,
+  'summary': instance.summary,
+  'orders': instance.orders,
+  'stations': instance.stations,
   'products': instance.products,
-  'combo_parts': instance.comboParts,
+  'hours': instance.hours,
+  'expo': instance.expo,
 };

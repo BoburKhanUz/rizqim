@@ -698,6 +698,9 @@ $owner = [
     'POST api/v1/owner/pos/lan/rotate' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/qr-payments' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/qr-payments' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'providers' => ['click'], 'default_provider' => 'click'], 'ok' => $o(200, 403, 403)],
+    // Wave M5 S3-d: the store's own signature mode; no id in the request
+    'GET api/v1/owner/pos/sync-signing' => ['ok' => $o(200, 403, 403)],
+    'PUT api/v1/owner/pos/sync-signing' => ['body' => fn (array $s) => ['enforce' => true, 'confirm_unsigned' => true], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/service-charge-rules' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/service-charge-rules' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'hall_id' => $s['hall']->id, 'large_group_min_guests' => 10, 'large_group_percent' => '15'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/tips' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
@@ -819,6 +822,8 @@ $rest = [
     'GET api/v1/terminal' => ['ok' => ['device' => 200]],
     'DELETE api/v1/terminal' => ['ok' => ['device' => 200]],
     'GET api/v1/terminal/staff' => ['ok' => ['device' => 200]],
+    // M5 S3: the till's own queue signing key (no ids in the request: the token's device only)
+    'POST api/v1/terminal/sync-key' => ['ok' => ['device' => 200]],
     // The staff side of complaints: the store's list and the owner's (or branch manager's) reply
     'GET api/v1/complaints' => ['ok' => $o(200)],
     'POST api/v1/complaints/{id}/reply' => ['params' => $id('complaint'), 'body' => fn (array $s) => ['reply' => 'Uzr so\'raymiz'], 'ok' => $o(200, 200, 403)],

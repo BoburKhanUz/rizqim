@@ -32,7 +32,7 @@ class AdminMonitoringRuleController extends AdminController
      * One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
      * backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
      * pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
-     * partitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+     * partitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
      * kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
      * for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
      * (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.

@@ -7,6 +7,7 @@ use App\Services\Admin\Monitoring\Checks\BackupStaleCheck;
 use App\Services\Admin\Monitoring\Checks\FailedJobsSpikeCheck;
 use App\Services\Admin\Monitoring\Checks\FiscalFailuresCheck;
 use App\Services\Admin\Monitoring\Checks\PosDeviceOfflineCheck;
+use App\Services\Admin\Monitoring\Checks\PosSyncSignatureCheck;
 use App\Services\Admin\Monitoring\Checks\QueueBacklogCheck;
 use App\Services\Admin\Monitoring\Checks\SchedulerStaleCheck;
 use App\Services\Admin\Monitoring\Checks\SettlementFailuresCheck;
@@ -54,6 +55,8 @@ enum AlertKind: string
     case TABLE_BLOAT = 'table_bloat';
     case PARTITIONS = 'partitions';
     case TLS_EXPIRY = 'tls_expiry';
+    // Wave M5 S3-d: the signed offline queue of the tills (docs/scale/M5_DESIGN.md section 4)
+    case POS_SYNC_SIGNATURE = 'pos_sync_signature';
 
     public function label(): string
     {
@@ -78,6 +81,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => 'Jadvallarda o\'lik qatorlar ko\'p',
             self::PARTITIONS => 'Jurnallarning oylik bo\'limlari',
             self::TLS_EXPIRY => 'HTTPS sertifikati muddati tugayapti',
+            self::POS_SYNC_SIGNATURE => 'Kassa navbati imzosi',
         };
     }
 
@@ -104,6 +108,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => 'Asosiy jadvallarda o\'chirilgan, lekin tozalanmagan qatorlar ko\'p yoki uzoq vaqt tozalanmagan: so\'rovlar sekinlashadi.',
             self::PARTITIONS => 'Jurnallar (audit, fiskal, bildirishnoma) uchun oldindagi oylar tayyor emas, zaxira bo\'limda qatorlar bor yoki arxivlashda xato.',
             self::TLS_EXPIRY => 'Saytning HTTPS sertifikati muddati tugashiga oz qoldi: tugasa mijozlar ilovani ocholmaydi.',
+            self::POS_SYNC_SIGNATURE => 'Kassaning internetsiz navbatidan kelgan amal imzosi noto\'g\'ri yoki navbatdan amal yo\'qolgan: navbat fayli qo\'lda o\'zgartirilgan bo\'lishi mumkin.',
         };
     }
 
@@ -133,6 +138,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => 'Kechasi o\'sha jadvalga VACUUM (ANALYZE) bajaring; takrorlansa autovacuum sozlamasini ko\'rib chiqing.',
             self::PARTITIONS => 'php artisan db:partitions:ensure bajaring; xabar boshqa buyruqni aytsa, o\'shani bajaring.',
             self::TLS_EXPIRY => 'Sertifikatni yangilang (masalan certbot renew) va proksi serverni qayta yuklang.',
+            self::POS_SYNC_SIGNATURE => 'Qurilmalar bo\'limida kassani oching, ovqatxona egasi bilan bog\'lanib o\'sha kungi sotuv va smena pulini solishtiring; kassa qayta o\'rnatilgan bo\'lsa bu kutilgan holat.',
         };
     }
 
@@ -144,7 +150,7 @@ enum AlertKind: string
         return match ($this) {
             self::FAILED_JOBS_SPIKE, self::QUEUE_BACKLOG, self::POS_DEVICE_OFFLINE => 'warning',
             self::FISCAL_FAILURES, self::SETTLEMENT_FAILURES, self::BACKUP_STALE, self::SCHEDULER_STALE => 'critical',
-            self::DB_LONG_TRANSACTION, self::DB_LOCK_WAITS, self::REALTIME_DOWN, self::TABLE_BLOAT => 'warning',
+            self::DB_LONG_TRANSACTION, self::DB_LOCK_WAITS, self::REALTIME_DOWN, self::TABLE_BLOAT, self::POS_SYNC_SIGNATURE => 'warning',
             // Their findings say warning or critical (restore_drill_stale: overdue warns, a failed drill is critical)
             self::DB_CONNECTIONS, self::WAL_ARCHIVE, self::PITR_BACKUP_STALE, self::RESTORE_DRILL_STALE, self::DISK_USAGE,
             self::REDIS_MEMORY, self::QUEUE_WORKER_STALE, self::PARTITIONS, self::TLS_EXPIRY => 'critical',
@@ -177,6 +183,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => ['threshold' => 20, 'threshold_secondary' => 24, 'window_minutes' => null],
             self::PARTITIONS => ['threshold' => 2, 'threshold_secondary' => null, 'window_minutes' => null],
             self::TLS_EXPIRY => ['threshold' => 14, 'threshold_secondary' => 3, 'window_minutes' => null],
+            self::POS_SYNC_SIGNATURE => ['threshold' => 1, 'threshold_secondary' => null, 'window_minutes' => 1440],
         };
     }
 
@@ -289,6 +296,11 @@ enum AlertKind: string
                 'threshold_secondary' => ['label' => 'Kritik: muddat tugashiga qolgan', 'unit' => 'kun', 'min' => 1, 'max' => 30],
                 'window' => null,
             ],
+            self::POS_SYNC_SIGNATURE => [
+                'threshold' => ['label' => 'Bitta kassadan kelgan shubhali amallar soni', 'unit' => 'ta', 'min' => 1, 'max' => 10000],
+                'threshold_secondary' => null,
+                'window' => ['label' => 'Oxirgi qancha vaqt ichida', 'unit' => 'daqiqa', 'min' => 5, 'max' => 10080],
+            ],
         };
     }
 
@@ -318,6 +330,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => TableBloatCheck::class,
             self::PARTITIONS => PartitionsCheck::class,
             self::TLS_EXPIRY => TlsExpiryCheck::class,
+            self::POS_SYNC_SIGNATURE => PosSyncSignatureCheck::class,
         };
     }
 

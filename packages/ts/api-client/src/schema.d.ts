@@ -1959,7 +1959,7 @@ export interface paths {
          * @description One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
          *     backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
          *     pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
-         *     partitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+         *     partitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
          *     kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
          *     for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
          *     (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
@@ -4225,6 +4225,10 @@ export interface paths {
          * @description `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
          *     (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
          *     code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
+         *
+         *     Wave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it
+         *     signs its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the
+         *     token, never log it. `null` for a kitchen display or a customer display.
          */
         post: operations["terminal.pair"];
         delete?: never;
@@ -7065,6 +7069,36 @@ export interface paths {
          *     (settings.service_charge_rules_changed).
          */
         put: operations["serviceChargeRules.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/sync-signing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signature mode of the offline queue
+         * @description `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that have not shown that
+         *     they sign (no verified operation received from them under their current key — a key on the server alone proves
+         *     nothing — or the last operation received from them came unsigned: an old app) — in enforce what they queue
+         *     offline is applied but every operation is flagged for the manager, their discounts and voids refused;
+         *     `signing_tills`: how many of the others there are.
+         */
+        get: operations["syncSigning.show"];
+        /**
+         * Change the signature mode of the offline queue
+         * @description `enforce` true or false. Turning it on while a connected till does not sign yet answers 409 `tills_not_signing`
+         *     with those tills; `confirm_unsigned: true` turns it on all the same. Store-wide: a caller bound to one branch is
+         *     refused (403 `store_wide_only`). Audited (settings.pos_sync_signatures_changed). Repeating it changes nothing.
+         */
+        put: operations["syncSigning.update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -11291,6 +11325,27 @@ export interface paths {
          *     kitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an
          *     origin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,
          *     origin_revoked, relay_not_allowed).
+         *     Wave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue
+         *     signing key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,
+         *     mac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;
+         *     `mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the
+         *     first one under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + the device uuid)); `kid` the key's number. The
+         *     server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
+         *     worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never
+         *     refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on
+         *     (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation is still applied and answered as a
+         *     conflict `signature_invalid` (a sale is never dropped); only a concession is refused: `order.discount`
+         *     (rejected `discount_not_allowed`, `refs.cause: signature_invalid`) and `order.void` (rejected
+         *     `signature_invalid`). A payment is recorded and answered as a conflict `payment_unverified`, and an operation
+         *     after a lost one (`chain_gap`) is applied and answered as a conflict.
+         *     A signed element whose text does not hold a usable operation never refuses the batch (the till's queue would
+         *     stop behind it): when its `op_id` and `seq` can be read it is recorded and answered in `results` as rejected
+         *     `invalid_payload` (an unknown `type`: `type_unknown`); when they cannot, or they belong to another operation,
+         *     nothing is recorded and it is answered in `unreadable` with its place in the batch (`index`, from 0): the till
+         *     takes that line off its queue. `mac`, `prev` and `kid` of the wrong kind make an operation `bad`, nothing
+         *     more; `kid` may be a number written as text. The signed shape needs a JSON body (`Content-Type:
+         *     application/json`): in any other body the server no longer has the signed bytes and records the operation
+         *     `bad`. An unsigned element that is malformed is still a 422 for the batch, as before.
          */
         post: operations["posSync.store"];
         delete?: never;
@@ -12062,6 +12117,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/terminal/sync-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A new queue signing key for this till
+         * @description Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with
+         *     (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when
+         *     `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`
+         *     with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one
+         *     previous key only: a till must not rotate while its queue is not empty). The server refuses a rotation while
+         *     the queue this till last reported is not empty (`POST /pos/sync` `queue`, `GET /pos/sync/status?queue_size=`):
+         *     409 `queue_not_empty` — send the queue, or report it empty, then ask again. A till that has no key yet gets its
+         *     first one whatever its queue holds. `key` is base64 of 32 bytes and is
+         *     given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
+         *     No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by
+         *     calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.
+         */
+        post: operations["terminal.syncKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/user": {
         parameters: {
             query?: never;
@@ -12659,6 +12744,7 @@ export interface components {
             fiscal_kassa_id: string | null;
             display_for_device_id: number | null;
             app: components["schemas"]["DeviceApp"] | null;
+            sync_key_id: number;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -19288,7 +19374,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "active" | "all" | "open" | "acknowledged" | "resolved" | null;
-                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | null;
+                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | "pos_sync_signature" | null;
                 severity?: "critical" | "warning" | "info" | null;
                 store_id?: number | null;
                 per_page?: number | null;
@@ -20640,6 +20726,15 @@ export interface operations {
                                     reported_at: string | null;
                                     clock_skew_seconds: number | null;
                                     clock_warning: boolean;
+                                    signatures: {
+                                        days: number;
+                                        ok: number;
+                                        missing: number;
+                                        bad: number;
+                                        chain_gap: number;
+                                        key_id: number | null;
+                                        enforce: boolean;
+                                    };
                                 };
                             }[];
                             current_page: number;
@@ -20715,6 +20810,15 @@ export interface operations {
                                 reported_at: string | null;
                                 clock_skew_seconds: number | null;
                                 clock_warning: boolean;
+                                signatures: {
+                                    days: number;
+                                    ok: number;
+                                    missing: number;
+                                    bad: number;
+                                    chain_gap: number;
+                                    key_id: number | null;
+                                    enforce: boolean;
+                                };
                             };
                         };
                     };
@@ -20786,6 +20890,15 @@ export interface operations {
                                 reported_at: string | null;
                                 clock_skew_seconds: number | null;
                                 clock_warning: boolean;
+                                signatures: {
+                                    days: number;
+                                    ok: number;
+                                    missing: number;
+                                    bad: number;
+                                    chain_gap: number;
+                                    key_id: number | null;
+                                    enforce: boolean;
+                                };
                             };
                         };
                     };
@@ -26497,6 +26610,10 @@ export interface operations {
                         message: string;
                         data: {
                             token: string;
+                            sync_key: {
+                                key: string;
+                                kid: number;
+                            } | null;
                             device: {
                                 uuid: string;
                                 type: string;
@@ -35802,6 +35919,91 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    "syncSigning.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enforce: boolean;
+                            signing_tills: number;
+                            unsigned_tills: {
+                                uuid: string;
+                                name: string;
+                                branch_id: number | null;
+                                has_key: boolean;
+                                last_sig_status: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "syncSigning.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enforce: boolean;
+                    confirm_unsigned?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enforce: boolean;
+                            signing_tills: number;
+                            unsigned_tills: {
+                                uuid: string;
+                                name: string;
+                                branch_id: number | null;
+                                has_key: boolean;
+                                last_sig_status: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A connected till does not sign yet: confirm with confirm_unsigned (tills_not_signing) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
         };
     };
     "tips.report": {
@@ -58118,17 +58320,28 @@ export interface operations {
                         oldest_at?: string | null;
                     };
                     operations: {
-                        /** Format: uuid */
-                        op_id: string;
-                        seq: number;
+                        /**
+                         * Format: uuid
+                         * @description The operation's own fields: required in the unsigned shape; in the signed shape they are read from `signed`
+                         */
+                        op_id?: string;
+                        seq?: number;
                         /** @enum {string} */
-                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request" | "order.discount";
+                        type?: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request" | "order.discount";
                         /** Format: date-time */
                         occurred_at?: string | null;
-                        staff_id: number;
-                        payload: string[];
+                        staff_id?: number;
+                        payload?: string[];
                         /** Format: uuid */
                         origin_device?: string | null;
+                        /** @description The signed shape (wave M5 S3): the whole operation (op_id, seq, type, occurred_at, staff_id, payload, origin_device) as JSON text, exactly the bytes the till wrote to its journal. Fields beside it are ignored. */
+                        signed?: string | null;
+                        /** @description HMAC-SHA256(key, prev || signed), 64 hex characters. */
+                        mac?: string | null;
+                        /** @description The mac of the operation before it (the first under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + device uuid)), 64 hex characters. */
+                        prev?: string | null;
+                        /** @description The number of the key it was signed with. */
+                        kid?: number | null;
                     }[];
                 };
             };
@@ -58155,9 +58368,17 @@ export interface operations {
                                 reason: string | null;
                                 message: string | null;
                                 duplicate: boolean;
+                                sig_status: string | null;
                                 refs: {
                                     [key: string]: unknown;
                                 };
+                            }[];
+                            unreadable: {
+                                index: number;
+                                op_id: string | null;
+                                seq: number | null;
+                                reason: string;
+                                message: string;
                             }[];
                             device: {
                                 uuid: string;
@@ -58219,6 +58440,7 @@ export interface operations {
                                 status: string;
                                 reason: string | null;
                                 message: string | null;
+                                sig_status: string | null;
                                 staff: {
                                     id: number;
                                     name: string | null;
@@ -58316,6 +58538,7 @@ export interface operations {
                             status: string;
                             reason: string | null;
                             message: string | null;
+                            sig_status: string | null;
                             staff: {
                                 id: number;
                                 name: string | null;
@@ -58411,6 +58634,7 @@ export interface operations {
                                 status: string;
                                 reason: string | null;
                                 message: string | null;
+                                sig_status: string | null;
                                 staff: {
                                     id: number;
                                     name: string | null;
@@ -60750,6 +60974,50 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "terminal.syncKey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            key: string;
+                            kid: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The queue this till last reported is not empty: no rotation (queue_not_empty) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
 }

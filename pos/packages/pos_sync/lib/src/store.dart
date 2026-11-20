@@ -5,6 +5,7 @@ import 'dart:math';
 import 'crc32.dart';
 import 'operation.dart';
 import 'queue_numbers.dart';
+import 'signature.dart';
 import 'storage.dart';
 import 'uuid.dart';
 
@@ -53,12 +54,28 @@ class JournalDamage {
 /// * Server javobi ([applyResults]) amalni navbatdan oladi; rad etilgan yoki farq bilan qo'llanganlari [errors] da
 ///   qoladi, oflayn ochilgan buyurtma va schyotning server uuid'i [aliases] ga yoziladi.
 /// * Nusxalar ([putDoc], [doc]) — alohida fayllar, har biri bir butun yoziladi; yoshi [SyncDoc.takenAt] dan.
+/// * M5 S3: when [keyProvider] gives a key, [enqueue] serialises the operation once (`raw`), signs it and chains it to
+///   the signed operation before it ([SyncSignature]); the journal line keeps `raw`, `mac`, `prev`, `kid` beside the
+///   operation (`op`, which a build from before signing still reads) and the sender posts exactly that text. No key:
+///   the operation is queued unsigned, as before. The key itself is never written.
 class SyncStore {
-  SyncStore._(this.storage, this._clock, this._random);
+  SyncStore._(this.storage, this._clock, this._random, this.keyProvider);
 
   final SyncStorage storage;
   final DateTime Function() _clock;
   final Random? _random;
+
+  /// M5 S3: the till's signing key, asked at every [enqueue] and at a renumbering ([adoptServerSeq]); `null` (or a
+  /// provider that answers `null` or throws): operations are queued unsigned. May be set at any time.
+  SyncKeyProvider? keyProvider;
+
+  // M5 S3: the last signed operation the server answered (its mac, key number and device): where the chain goes on
+  // from when nothing signed is waiting. Kept through compactions (the `meta` record).
+  // Review after S3: the head is also noted in its own file ([_chainKey]). A build from before signing drops the
+  // `chain` of the `meta` record when it compacts; after a roll back and an update the journal no longer says where
+  // the chain was, the note does.
+  SyncSeal? _chainAcked;
+  int? _badKid;
 
   final List<SyncOperation> _pending = <SyncOperation>[];
   final List<SyncOperation> _answered = <SyncOperation>[];
@@ -100,8 +117,14 @@ class SyncStore {
     SyncStorage storage, {
     DateTime Function()? clock,
     Random? random,
+    SyncKeyProvider? keyProvider,
   }) async {
-    final SyncStore s = SyncStore._(storage, clock ?? DateTime.now, random);
+    final SyncStore s = SyncStore._(
+      storage,
+      clock ?? DateTime.now,
+      random,
+      keyProvider,
+    );
     await s._load();
     return s;
   }
@@ -134,6 +157,12 @@ class SyncStore {
   }
 
   int get lastSeq => _lastSeq;
+
+  /// M5 S3: the number of the key under which the server last answered a signed operation of this till as `bad`
+  /// ([SyncResult.sigStatus]), until it verifies one under that key or a newer one; `null`: none. The server no longer
+  /// holds that key (or holds another one under its number): the till needs a new key once its queue is empty. Not
+  /// kept over a restart (the next `bad` answer says it again).
+  int? get badKid => _badKid;
 
   /// Server javob bergan amallar (eng yangisi oxirida), ko'pi bilan [keepAnswered].
   List<SyncOperation> get answered =>
@@ -190,7 +219,8 @@ class SyncStore {
     while (opId == null && find(id) != null) {
       id = newUuid(_random);
     }
-    final SyncOperation op = SyncOperation(
+    final SyncKey? key = await _key();
+    final SyncOperation plain = SyncOperation(
       opId: id,
       seq: _lastSeq + 1,
       type: type,
@@ -199,7 +229,10 @@ class SyncStore {
       payload: payload,
       origin: origin,
     );
-    await _append(<String, Object?>{'k': 'op', 'op': op.toJson()});
+    final SyncOperation op = key == null
+        ? plain
+        : _sign(plain, key, _chainPrev(key, _pending));
+    await _append(_opRecord(op));
     _lastSeq = op.seq;
     _bumpLocal(payload);
     _pending.add(op);
@@ -278,9 +311,22 @@ class SyncStore {
 
   Future<void> _applyResults(List<SyncResult> results) async {
     final DateTime now = _clock();
+    var moved = false;
     for (final SyncResult r in results) {
       final int i = _pending.indexWhere((SyncOperation o) => o.opId == r.opId);
       if (i < 0) continue;
+      final SyncSeal? seal = _pending[i].seal;
+      if (r.unreadable) {
+        // The server could not use this line and holds nothing of it: out of the queue, but never silently. Its
+        // exact text (signature included) is kept with the journal's damage, for the manager and for an export
+        final JournalDamage damage = JournalDamage(
+          line: 0,
+          text: _encode(_opRecord(_pending[i])),
+          foundAt: now,
+        );
+        await _append(_damageRecord(damage));
+        _damaged.add(damage);
+      }
       await _append(<String, Object?>{
         'k': 'ack',
         'op_id': r.opId,
@@ -290,8 +336,20 @@ class SyncStore {
         'refs': r.refs,
         'at': now.toUtc().toIso8601String(),
       });
+      // The server has it: the chain goes on from its mac (a duplicate answer too: it was recorded the first time)
+      if (seal != null && !r.unreadable) {
+        _chainAcked = seal;
+        moved = true;
+        if (r.sigStatus == 'bad') {
+          _badKid = seal.kid;
+        } else if ((r.sigStatus == 'ok' || r.sigStatus == 'chain_gap') &&
+            seal.kid >= (_badKid ?? seal.kid + 1)) {
+          _badKid = null;
+        }
+      }
       _answer(_pending.removeAt(i).answered(r, now));
     }
+    if (moved) await _noteChain();
     await _maybeCompact();
     _emit();
   }
@@ -303,6 +361,11 @@ class SyncStore {
   /// in the same order. Their `op_id` and payload (the idempotency key included) stay, so one the server did take
   /// earlier is still answered as a duplicate. Acknowledged operations keep their numbers.
   ///
+  /// M5 S3: a new number changes the operation's text, so every renumbered operation is signed again with the key the
+  /// till has now and chained afresh from the last mac the server answered (first prev when the till knows none: the
+  /// server then records one `chain_gap`, expected after a lost journal). No key now: they go unsigned; a signature
+  /// over the old text is never kept.
+  ///
   /// The journal is rewritten in one piece before this returns. `false`: nothing had to change.
   Future<bool> adoptServerSeq(int serverLastSeq) => _locked(() async {
     final bool collides = _pending.any(
@@ -312,12 +375,18 @@ class SyncStore {
     final List<SyncOperation> before = List<SyncOperation>.of(_pending);
     final int lastBefore = _lastSeq;
     if (collides) {
+      final SyncKey? key = await _key();
+      final List<SyncOperation> signed = <SyncOperation>[];
       var next = serverLastSeq;
       for (var i = 0; i < _pending.length; i++) {
-        _pending[i] = SyncOperation.fromJson(<String, Object?>{
+        final SyncOperation plain = SyncOperation.fromJson(<String, Object?>{
           ..._pending[i].toJson(),
           'seq': ++next,
         });
+        _pending[i] = key == null
+            ? plain
+            : _sign(plain, key, _chainPrev(key, signed));
+        signed.add(_pending[i]);
       }
       _lastSeq = max(_lastSeq, next);
     } else {
@@ -400,6 +469,8 @@ class SyncStore {
     _answered.clear();
     _aliases.clear();
     _damaged.clear();
+    // (M5 S3: the unsent operations are gone, so the next signed one follows [_chainAcked], the last one the server
+    // answered)
     for (final String k in _docs.keys.toList()) {
       await storage.deleteDoc(k);
     }
@@ -418,6 +489,10 @@ class SyncStore {
 
   static const String _contactKey = '_contact';
 
+  /// The note of the chain's head (`{kid, mac, dev}`), beside the journal: not one of the copies ([doc]), kept by
+  /// [clear] like the head itself.
+  static const String _chainKey = '_chain';
+
   /// Runs [body] after every mutation called before it has finished (whether it failed or not).
   Future<T> _locked<T>(Future<T> Function() body) {
     final Future<void>? before = _tail;
@@ -431,6 +506,116 @@ class SyncStore {
       if (identical(_tail, done.future)) _tail = null;
       done.complete();
     });
+  }
+
+  // --- M5 S3: signatures -------------------------------------------------------------------------------------------
+
+  /// The key to sign with now; `null` also when the provider fails (the operation is queued all the same).
+  Future<SyncKey?> _key() async {
+    try {
+      return await keyProvider?.call();
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The `prev` of the next operation signed with [key]: the mac of the last signed operation in [waiting], else of
+  /// the last one the server answered, when that one is under the same key of the same device; otherwise the key
+  /// starts its own chain (a rotation, a re-paired till, the very first operation).
+  String _chainPrev(SyncKey key, List<SyncOperation> waiting) {
+    SyncSeal? last = _chainAcked;
+    for (final SyncOperation o in waiting.reversed) {
+      if (o.seal != null) {
+        last = o.seal;
+        break;
+      }
+    }
+    final String? device = last?.device;
+    if (last != null &&
+        last.kid == key.kid &&
+        (device == null || device == key.deviceUuid.toLowerCase()) &&
+        SyncSignature.isMac(last.mac)) {
+      return last.mac;
+    }
+    return SyncSignature.firstPrev(key);
+  }
+
+  /// [op] serialised once and signed after [prev]. If signing fails the operation stays unsigned: it is never lost
+  /// over a signature.
+  static SyncOperation _sign(SyncOperation op, SyncKey key, String prev) {
+    try {
+      return op.sealed(SyncSignature.seal(key, prev, jsonEncode(op.toJson())));
+    } on Object {
+      return op.sealed(null);
+    }
+  }
+
+  /// The journal line of a waiting operation: the operation itself (`op`), as before M5 S3, and for a signed one the
+  /// exact signed text (`raw`) with `mac`, `prev`, `kid` (and `dev`, the key's device) beside it.
+  ///
+  /// Review after S3: `op` is on a signed line too. A build from before signing reads only `op`: after a roll back of
+  /// the app the unsent sale is still in its queue (and goes unsigned) instead of stopping the app at the start. This
+  /// build sends `raw`, whatever `op` says.
+  static Map<String, Object?> _opRecord(SyncOperation o) => <String, Object?>{
+    'k': 'op',
+    'op': o.toJson(),
+    ...?o.seal?.toStored(),
+  };
+
+  static Map<String, Object?> _damageRecord(JournalDamage d) =>
+      <String, Object?>{
+        'k': 'bad',
+        'line': d.line,
+        'text': d.text,
+        'at': d.foundAt.toUtc().toIso8601String(),
+      };
+
+  /// Writes the chain's head to its own file. Never fails the caller: the journal still says it (the answers just
+  /// written), the note only matters after a build that does not sign rewrote the journal.
+  Future<void> _noteChain() async {
+    final SyncSeal? head = _chainAcked;
+    if (head == null) return;
+    try {
+      await storage.writeDoc(_chainKey, jsonEncode(_chainRecord(head)));
+    } on Object {
+      // Not noted: the next answered signed operation notes it
+    }
+  }
+
+  static Map<String, Object?> _chainRecord(SyncSeal c) => <String, Object?>{
+    'kid': c.kid,
+    'mac': c.mac,
+    'dev': ?c.device,
+  };
+
+  /// Reads an `op` line back; `null`: a signed line whose text is not an operation (reported as damage).
+  static SyncOperation? _opOf(Map<String, Object?> r) {
+    if (r['raw'] == null) return SyncOperation.fromJson(_mapOf(r['op']));
+    // A signed line: the operation is the one in the signed text (what the server will read), never `op`
+    final SyncSeal? seal = SyncSeal.tryParse(r);
+    if (seal == null) return null;
+    try {
+      final Object? decoded = jsonDecode(seal.raw);
+      if (decoded is! Map) return null;
+      return SyncOperation.fromJson(decoded.cast<String, Object?>())
+          .sealed(seal);
+    } on Object {
+      return null;
+    }
+  }
+
+  static SyncSeal? _chainOf(Object? v) {
+    final Map<String, Object?> m = _mapOf(v);
+    final Object? mac = m['mac'];
+    final Object? kid = m['kid'];
+    if (!SyncSignature.isMac(mac) || kid is! int) return null;
+    return SyncSeal(
+      raw: '',
+      mac: mac! as String,
+      prev: '',
+      kid: kid,
+      device: m['dev'] is String ? m['dev']! as String : null,
+    );
   }
 
   Future<void> _append(Map<String, Object?> record) async {
@@ -519,6 +704,8 @@ class SyncStore {
       }
     }
     final DateTime now = _clock();
+    // The journal itself says where the chain is (a `meta` record of this build, or an answered signed operation)
+    var chainInJournal = false;
     final Map<String, SyncOperation> byId = <String, SyncOperation>{};
     for (var i = 0; i < count; i++) {
       if (lines[i].isEmpty || voided.contains(i)) continue;
@@ -533,6 +720,11 @@ class SyncStore {
           _lastSeq = max(_lastSeq, _int(r['last_seq']));
           _nextLocal = max(_nextLocal, _int(r['next_local'], 1));
           _floorSeq = max(_floorSeq, _int(r['floor_seq']));
+          final SyncSeal? chain = _chainOf(r['chain']);
+          if (chain != null) {
+            _chainAcked = chain;
+            chainInJournal = true;
+          }
           if (r['queue_date'] is String) {
             _noteQueue(r['queue_date']! as String, _int(r['queue_last']));
           }
@@ -550,7 +742,13 @@ class SyncStore {
             );
           }
         case 'op':
-          final SyncOperation op = SyncOperation.fromJson(_mapOf(r['op']));
+          final SyncOperation? op = _opOf(r);
+          if (op == null) {
+            _damaged.add(
+              JournalDamage(line: i + 1, text: lines[i], foundAt: now),
+            );
+            continue;
+          }
           if (byId.containsKey(op.opId) ||
               _answered.any((SyncOperation a) => a.opId == op.opId)) {
             continue;
@@ -576,6 +774,10 @@ class SyncStore {
           final String id = r['op_id']! as String;
           final int i = _pending.indexWhere((SyncOperation o) => o.opId == id);
           if (i < 0) continue;
+          if (_pending[i].seal case final SyncSeal seal) {
+            _chainAcked = seal;
+            chainInJournal = true;
+          }
           _answer(
             _pending
                 .removeAt(i)
@@ -590,6 +792,7 @@ class SyncStore {
       await storage.replaceLines(lines.sublist(0, count));
     }
 
+    SyncSeal? noted;
     for (final String key in await storage.docKeys()) {
       final String? text = await storage.readDoc(key);
       if (text == null) continue;
@@ -597,6 +800,10 @@ class SyncStore {
         final Map<String, Object?> m = _mapOf(jsonDecode(text));
         if (key == _contactKey) {
           _lastContactAt = _dateOf(m['at']);
+          continue;
+        }
+        if (key == _chainKey) {
+          noted = _chainOf(m);
           continue;
         }
         _docs[key] = SyncDoc(
@@ -608,6 +815,16 @@ class SyncStore {
       } on FormatException {
         // An unreadable copy is as good as none
       }
+    }
+    // The chain's head: the journal's word first (it is written before the note); the note when the journal has none
+    // (a build from before signing compacted it). A note that is behind is brought up to date.
+    if (!chainInJournal && noted != null) {
+      _chainAcked = noted;
+    } else if (_chainAcked != null &&
+        (noted == null ||
+            noted.mac != _chainAcked!.mac ||
+            noted.kid != _chainAcked!.kid)) {
+      await _noteChain();
     }
   }
 
@@ -667,6 +884,8 @@ class SyncStore {
         'floor_seq': _floorSeq,
         'queue_date': _queueDate,
         'queue_last': _queueLast,
+        // M5 S3: where the chain of signed operations goes on from (never the key)
+        if (_chainAcked case final SyncSeal c) 'chain': _chainRecord(c),
         'aliases': _aliases,
         'answered': <Object?>[
           for (final SyncOperation o in _answered)
@@ -684,14 +903,9 @@ class SyncStore {
       for (final JournalDamage d in _damaged.skip(
         max(0, _damaged.length - keepDamaged),
       ))
-        _encode(<String, Object?>{
-          'k': 'bad',
-          'line': d.line,
-          'text': d.text,
-          'at': d.foundAt.toUtc().toIso8601String(),
-        }),
-      for (final SyncOperation o in _pending)
-        _encode(<String, Object?>{'k': 'op', 'op': o.toJson()}),
+        _encode(_damageRecord(d)),
+      // (a signed operation's line is written back with the same raw text, mac, prev and kid)
+      for (final SyncOperation o in _pending) _encode(_opRecord(o)),
     ];
     await storage.replaceLines(lines);
     _journalLines = lines.length;

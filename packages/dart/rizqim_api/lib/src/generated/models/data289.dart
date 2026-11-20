@@ -4,42 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account6.dart';
-import 'entries11.dart';
-
 part 'data289.g.dart';
 
 @JsonSerializable()
 class Data289 {
   const Data289({
-    required this.account,
-    required this.from,
-    required this.to,
-    required this.openingBalance,
-    required this.closingBalance,
-    required this.chargesTotal,
-    required this.repaymentsTotal,
-    required this.adjustmentsTotal,
-    required this.entries,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.code,
+    required this.dailyLimit,
+    required this.mealsPerDay,
+    required this.isActive,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data289.fromJson(Map<String, Object?> json) =>
       _$Data289FromJson(json);
 
-  final Account6 account;
-  final String from;
-  final String to;
-  @JsonKey(name: 'opening_balance')
-  final String openingBalance;
-  @JsonKey(name: 'closing_balance')
-  final String closingBalance;
-  @JsonKey(name: 'charges_total')
-  final String chargesTotal;
-  @JsonKey(name: 'repayments_total')
-  final String repaymentsTotal;
-  @JsonKey(name: 'adjustments_total')
-  final String adjustmentsTotal;
-  final List<Entries11> entries;
+  final String uuid;
+  final String name;
+  final String? phone;
+  final String code;
+  @JsonKey(name: 'daily_limit')
+  final String? dailyLimit;
+  @JsonKey(name: 'meals_per_day')
+  final int? mealsPerDay;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data289ToJson(this);
 }

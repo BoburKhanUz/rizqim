@@ -14,6 +14,7 @@ Results _$ResultsFromJson(Map<String, dynamic> json) => Results(
   reason: json['reason'] as String?,
   message: json['message'] as String?,
   duplicate: json['duplicate'] as bool,
+  sigStatus: json['sig_status'] as String?,
   refs: json['refs'] as Map<String, dynamic>,
 );
 
@@ -25,5 +26,6 @@ Map<String, dynamic> _$ResultsToJson(Results instance) => <String, dynamic>{
   'reason': instance.reason,
   'message': instance.message,
   'duplicate': instance.duplicate,
+  'sig_status': instance.sigStatus,
   'refs': instance.refs,
 };

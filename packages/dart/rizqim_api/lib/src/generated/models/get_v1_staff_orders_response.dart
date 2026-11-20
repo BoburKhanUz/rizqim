@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data362.dart';
+import 'data364.dart';
 import 'meta5.dart';
 
 part 'get_v1_staff_orders_response.g.dart';
@@ -23,7 +23,7 @@ class GetV1StaffOrdersResponse {
 
   final bool success;
   final String message;
-  final List<Data362> data;
+  final List<Data364> data;
   final Meta5 meta;
 
   Map<String, Object?> toJson() => _$GetV1StaffOrdersResponseToJson(this);

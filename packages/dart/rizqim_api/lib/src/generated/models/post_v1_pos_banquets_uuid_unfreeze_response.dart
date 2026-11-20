@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data244.dart';
+import 'data246.dart';
 
 part 'post_v1_pos_banquets_uuid_unfreeze_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosBanquetsUuidUnfreezeResponse {
 
   final bool success;
   final String message;
-  final Data244 data;
+  final Data246 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosBanquetsUuidUnfreezeResponseToJson(this);

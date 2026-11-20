@@ -7,11 +7,19 @@ part of 'data231.dart';
 // **************************************************************************
 
 Data231 _$Data231FromJson(Map<String, dynamic> json) => Data231(
-  event: Event2.fromJson(json['event'] as Map<String, dynamic>),
-  settlement: Settlement2.fromJson(json['settlement'] as Map<String, dynamic>),
+  contractNo: json['contract_no'] as String?,
+  text: json['text'] as String,
+  lines: (json['lines'] as List<dynamic>).map((e) => e as String).toList(),
+  fields: Map<String, String>.from(json['fields'] as Map),
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings13.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data231ToJson(Data231 instance) => <String, dynamic>{
-  'event': instance.event,
-  'settlement': instance.settlement,
+  'contract_no': instance.contractNo,
+  'text': instance.text,
+  'lines': instance.lines,
+  'fields': instance.fields,
+  'warnings': instance.warnings,
 };

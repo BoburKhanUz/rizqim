@@ -36,6 +36,27 @@ abstract class PosSyncApi {
   /// kitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an.
   /// origin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,.
   /// origin_revoked, relay_not_allowed).
+  /// Wave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue.
+  /// signing key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,.
+  /// mac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;.
+  /// `mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the.
+  /// first one under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + the device uuid)); `kid` the key's number. The.
+  /// server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was.
+  /// worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never.
+  /// refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on.
+  /// (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation is still applied and answered as a.
+  /// conflict `signature_invalid` (a sale is never dropped); only a concession is refused: `order.discount`.
+  /// (rejected `discount_not_allowed`, `refs.cause: signature_invalid`) and `order.void` (rejected.
+  /// `signature_invalid`). A payment is recorded and answered as a conflict `payment_unverified`, and an operation.
+  /// after a lost one (`chain_gap`) is applied and answered as a conflict.
+  /// A signed element whose text does not hold a usable operation never refuses the batch (the till's queue would.
+  /// stop behind it): when its `op_id` and `seq` can be read it is recorded and answered in `results` as rejected.
+  /// `invalid_payload` (an unknown `type`: `type_unknown`); when they cannot, or they belong to another operation,.
+  /// nothing is recorded and it is answered in `unreadable` with its place in the batch (`index`, from 0): the till.
+  /// takes that line off its queue. `mac`, `prev` and `kid` of the wrong kind make an operation `bad`, nothing.
+  /// more; `kid` may be a number written as text. The signed shape needs a JSON body (`Content-Type:.
+  /// application/json`): in any other body the server no longer has the signed bytes and records the operation.
+  /// `bad`. An unsigned element that is malformed is still a 422 for the batch, as before.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/sync')

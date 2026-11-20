@@ -4,67 +4,59 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch15.dart';
-import 'periods.dart';
-import 'sales_attributions.dart';
-import 'component_types.dart';
-import 'guarantee_modes.dart';
-import 'guarantee_per.dart';
-import 'percent_bases.dart';
-import 'event_types.dart';
-import 'roles4.dart';
-import 'staff7.dart';
-import 'rules3.dart';
+import 'branch13.dart';
+import 'login_phone_proof.dart';
 
 part 'data195.g.dart';
 
 @JsonSerializable()
 class Data195 {
   const Data195({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.roleLabel,
     required this.branch,
-    required this.period,
-    required this.periodLabel,
-    required this.periods,
-    required this.salesAttribution,
-    required this.salesAttributionLabel,
-    required this.salesAttributions,
-    required this.componentTypes,
-    required this.guaranteeModes,
-    required this.guaranteePer,
-    required this.percentBases,
-    required this.eventTypes,
-    required this.roles,
-    required this.staff,
-    required this.rules,
+    required this.courierType,
+    required this.phone,
+    required this.loginPhoneEnabled,
+    required this.loginPhoneProof,
+    required this.hasPin,
+    required this.staffCode,
+    required this.telegramLinked,
+    required this.invitePending,
+    required this.canEdit,
+    required this.createdAt,
   });
 
   factory Data195.fromJson(Map<String, Object?> json) =>
       _$Data195FromJson(json);
 
-  final Branch15 branch;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  final List<Periods> periods;
-  @JsonKey(name: 'sales_attribution')
-  final String salesAttribution;
-  @JsonKey(name: 'sales_attribution_label')
-  final String salesAttributionLabel;
-  @JsonKey(name: 'sales_attributions')
-  final List<SalesAttributions> salesAttributions;
-  @JsonKey(name: 'component_types')
-  final List<ComponentTypes> componentTypes;
-  @JsonKey(name: 'guarantee_modes')
-  final List<GuaranteeModes> guaranteeModes;
-  @JsonKey(name: 'guarantee_per')
-  final List<GuaranteePer> guaranteePer;
-  @JsonKey(name: 'percent_bases')
-  final List<PercentBases> percentBases;
-  @JsonKey(name: 'event_types')
-  final List<EventTypes> eventTypes;
-  final List<Roles4> roles;
-  final List<Staff7> staff;
-  final List<Rules3> rules;
+  final int id;
+  final String name;
+  final String role;
+  @JsonKey(name: 'role_label')
+  final String roleLabel;
+  final Branch13? branch;
+  @JsonKey(name: 'courier_type')
+  final String? courierType;
+  final String? phone;
+  @JsonKey(name: 'login_phone_enabled')
+  final bool loginPhoneEnabled;
+  @JsonKey(name: 'login_phone_proof')
+  final LoginPhoneProof? loginPhoneProof;
+  @JsonKey(name: 'has_pin')
+  final bool hasPin;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'telegram_linked')
+  final bool telegramLinked;
+  @JsonKey(name: 'invite_pending')
+  final bool invitePending;
+  @JsonKey(name: 'can_edit')
+  final bool canEdit;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data195ToJson(this);
 }

@@ -12,6 +12,7 @@
 */
 
 use App\Http\Controllers\Api\V1\Management\BranchLanController;
+use App\Http\Controllers\Api\V1\Management\SyncSigningController;
 use App\Http\Controllers\Api\V1\Pos\PosLanController;
 use App\Http\Controllers\Api\V1\Pos\PosSyncController;
 use App\Http\Middleware\EnsureIdempotency;
@@ -34,4 +35,10 @@ Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not
     Route::get('/', [BranchLanController::class, 'show']);
     Route::put('/', [BranchLanController::class, 'update']);
     Route::post('/rotate', [BranchLanController::class, 'rotate']);
+});
+
+// Wave M5 S3-d: the store's signature mode of the offline queue (observe / enforce), the owner's web panel only
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session', 'permission:settings.manage'])->prefix('owner/pos/sync-signing')->group(function () {
+    Route::get('/', [SyncSigningController::class, 'show']);
+    Route::put('/', [SyncSigningController::class, 'update']);
 });

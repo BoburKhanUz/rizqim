@@ -195,6 +195,33 @@ class AuthSession {
     return revoked;
   }
 
+  // --- Terminal: the key of the signed offline queue (M5 S3) --------------------------------------------------
+
+  /// The sync key this terminal holds (`null`: none yet, or not a POS terminal). Kept in the secure storage in the
+  /// same record as the terminal token; gone when the terminal goes.
+  TerminalSyncKey? get syncKey => _terminal?.syncKey;
+
+  Future<TerminalSyncKey?>? _renewingSyncKey;
+
+  /// Asks the server for a key (`POST /terminal/sync-key`) and keeps it. The server ROTATES at every call and keeps
+  /// only one older key, so the caller must not ask while operations signed with the current key are still queued
+  /// (pos_data `PosSyncKeys` decides). Callers at the same time share one request. `null`: no terminal, or the
+  /// terminal changed while the answer was on its way (the key is thrown away). Errors are thrown; the key the till
+  /// has stays.
+  Future<TerminalSyncKey?> renewSyncKey() => _renewingSyncKey ??=
+      _renewSyncKeyOnce().whenComplete(() => _renewingSyncKey = null);
+
+  Future<TerminalSyncKey?> _renewSyncKeyOnce() async {
+    final PairedTerminal? asked = _terminal;
+    if (asked == null) return null;
+    final TerminalSyncKey key = await remote.issueSyncKey();
+    if (!identical(_terminal, asked)) return null;
+    _terminal = asked.withSyncKey(key);
+    // The old key is gone on the server after the next rotation: the new one is written at once
+    await _persist();
+    return key;
+  }
+
   // --- Terminal: xodim ---------------------------------------------------------------------------------------
 
   Future<List<StaffMember>> loadStaff() => remote.terminalStaff();

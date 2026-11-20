@@ -7,11 +7,11 @@ part of 'data247.dart';
 // **************************************************************************
 
 Data247 _$Data247FromJson(Map<String, dynamic> json) => Data247(
-  requestId: json['request_id'] as String,
-  claimed: json['claimed'] as bool,
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings21.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data247ToJson(Data247 instance) => <String, dynamic>{
-  'request_id': instance.requestId,
-  'claimed': instance.claimed,
+  'warnings': instance.warnings,
 };

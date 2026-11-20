@@ -179,6 +179,7 @@ export const monitoring = defineSection({
     monitoring_kind_table_bloat: "Jadvallarda o'lik qatorlar ko'p",
     monitoring_kind_partitions: "Jurnallarning oylik bo'limlari",
     monitoring_kind_tls_expiry: 'HTTPS sertifikati muddati tugayapti',
+    monitoring_kind_pos_sync_signature: 'Kassa navbati imzosi',
     monitoring_alerts_listLabel: "Ogohlantirishlar ro'yxati",
     monitoring_sev_critical: 'Kritik',
     monitoring_sev_warning: 'Diqqat',

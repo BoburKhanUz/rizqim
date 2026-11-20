@@ -10,9 +10,9 @@ use App\Models\PosSyncOperation;
  */
 final class PosSyncPresenter
 {
-    public const RESULT = 'array{op_id: string, seq: int, type: string, status: string, reason: string|null, message: string|null, duplicate: bool, refs: array<string, mixed>}';
+    public const RESULT = 'array{op_id: string, seq: int, type: string, status: string, reason: string|null, message: string|null, duplicate: bool, sig_status: string|null, refs: array<string, mixed>}';
 
-    public const OPERATION = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, staff: array{id: int, name: string|null}|null, device: array{uuid: string, name: string|null}|null, origin_device: array{uuid: string, name: string|null}|null, occurred_at: string|null, received_at: string|null, applied_at: string|null, clock_skew_seconds: int|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, payload: array<string, mixed>, refs: array<string, mixed>, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
+    public const OPERATION = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, sig_status: string|null, staff: array{id: int, name: string|null}|null, device: array{uuid: string, name: string|null}|null, origin_device: array{uuid: string, name: string|null}|null, occurred_at: string|null, received_at: string|null, applied_at: string|null, clock_skew_seconds: int|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, payload: array<string, mixed>, refs: array<string, mixed>, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
 
     public const DEVICE = 'array{uuid: string, name: string|null, prefix: string|null, last_seq: int, pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool}';
 
@@ -29,6 +29,8 @@ final class PosSyncPresenter
             'reason' => $op->reason,
             'message' => $op->error,
             'duplicate' => $duplicate,
+            // Wave M5 S3: what the signature was worth (ok, missing, bad, chain_gap; null: received before signing existed)
+            'sig_status' => $op->sig_status,
             'refs' => (array) ($op->result ?? []),
         ];
     }
@@ -49,6 +51,7 @@ final class PosSyncPresenter
             'status' => $op->status,
             'reason' => $op->reason,
             'message' => $op->error,
+            'sig_status' => $op->sig_status,
             'staff' => $op->staff ? ['id' => (int) $op->staff->id, 'name' => $op->staff->name] : null,
             'device' => $op->device ? ['uuid' => (string) $op->device->uuid, 'name' => $op->device->name] : null,
             // P6: the waiter's phone or KDS the hub relayed it for (null: the till's own)

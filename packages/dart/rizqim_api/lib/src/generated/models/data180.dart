@@ -4,50 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'summary2.dart';
-import 'orders.dart';
-import 'stations8.dart';
-import 'products7.dart';
-import 'hours.dart';
-import 'expo.dart';
-
 part 'data180.g.dart';
 
 @JsonSerializable()
 class Data180 {
-  const Data180({
-    required this.branchId,
-    required this.from,
-    required this.to,
-    required this.timezone,
-    required this.dayStartsAt,
-    required this.stationId,
-    required this.summary,
-    required this.orders,
-    required this.stations,
-    required this.products,
-    required this.hours,
-    required this.expo,
-  });
+  const Data180({required this.productId, required this.modifierGroups});
 
   factory Data180.fromJson(Map<String, Object?> json) =>
       _$Data180FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final String timezone;
-  @JsonKey(name: 'day_starts_at')
-  final String dayStartsAt;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  final Summary2 summary;
-  final Orders orders;
-  final List<Stations8> stations;
-  final List<Products7> products;
-  final List<Hours> hours;
-  final Expo? expo;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'modifier_groups')
+  final String modifierGroups;
 
   Map<String, Object?> toJson() => _$Data180ToJson(this);
 }

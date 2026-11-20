@@ -7,15 +7,21 @@ part of 'data374.dart';
 // **************************************************************************
 
 Data374 _$Data374FromJson(Map<String, dynamic> json) => Data374(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
+  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
   store: json['store'] == null
       ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+      : Store4.fromJson(json['store'] as Map<String, dynamic>),
+  branch: json['branch'] == null
+      ? null
+      : Branch22.fromJson(json['branch'] as Map<String, dynamic>),
+  branches: (json['branches'] as List<dynamic>)
+      .map((e) => Branches4.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data374ToJson(Data374 instance) => <String, dynamic>{
-  'user': instance.user,
+  'device': instance.device,
   'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'branch': instance.branch,
+  'branches': instance.branches,
 };

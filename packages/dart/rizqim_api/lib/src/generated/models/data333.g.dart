@@ -6,18 +6,9 @@ part of 'data333.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data333 _$Data333FromJson(Map<String, dynamic> json) => Data333(
-  businessDate: json['business_date'] as String,
-  preparing: (json['preparing'] as List<dynamic>)
-      .map((e) => Preparing2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  ready: (json['ready'] as List<dynamic>)
-      .map((e) => Ready2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-);
+Data333 _$Data333FromJson(Map<String, dynamic> json) =>
+    Data333(qr: Qr5.fromJson(json['qr'] as Map<String, dynamic>));
 
 Map<String, dynamic> _$Data333ToJson(Data333 instance) => <String, dynamic>{
-  'business_date': instance.businessDate,
-  'preparing': instance.preparing,
-  'ready': instance.ready,
+  'qr': instance.qr,
 };

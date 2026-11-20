@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items20.dart';
-import 'payments25.dart';
+import 'items18.dart';
+import 'payments23.dart';
 
 part 'data260.g.dart';
 
@@ -119,8 +119,8 @@ class Data260 {
   final String depositRequired;
   @JsonKey(name: 'deposit_missing')
   final String depositMissing;
-  final List<Items20> items;
-  final List<Payments25> payments;
+  final List<Items18> items;
+  final List<Payments23> payments;
 
   Map<String, Object?> toJson() => _$Data260ToJson(this);
 }

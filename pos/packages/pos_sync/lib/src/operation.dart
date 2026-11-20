@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'signature.dart';
+
 /// Kassa internetsiz bajara oladigan amallar (docs/POS_SPEC.md 5.1) — serverdagi `POST /pos/sync` turlari.
 abstract final class SyncOpType {
   static const String orderOpen = 'order.open';
@@ -109,6 +113,7 @@ class SyncOperation {
     this.message,
     this.refs = const <String, Object?>{},
     this.answeredAt,
+    this.seal,
   });
 
   factory SyncOperation.fromJson(Map<String, Object?> j) => SyncOperation(
@@ -120,6 +125,16 @@ class SyncOperation {
     payload: _map(j['payload']),
     origin: j['origin_device'] as String?,
   );
+
+  /// Reads [toStored] back. A signed one is the operation inside its signed text (`raw`), as the server will read
+  /// it; signed text that is no operation throws, like [SyncOperation.fromJson] on a record that is none.
+  factory SyncOperation.fromStored(Map<String, Object?> j) {
+    final SyncSeal? seal = SyncSeal.tryParse(j);
+    if (seal == null) return SyncOperation.fromJson(j);
+    return SyncOperation.fromJson(
+      (jsonDecode(seal.raw) as Map<Object?, Object?>).cast<String, Object?>(),
+    ).sealed(seal);
+  }
 
   final String opId;
   final int seq;
@@ -136,12 +151,45 @@ class SyncOperation {
   final Map<String, Object?> refs;
   final DateTime? answeredAt;
 
+  /// M5 S3: the signature it was queued with (`null`: unsigned, the old shape). Only on an operation that still
+  /// waits: an answered one does not carry it.
+  final SyncSeal? seal;
+
   bool get isPending => status == SyncOpStatus.pending;
 
   /// Amal qaysi buyurtmaga tegishli (qurilma id'si yoki server uuid'si).
   String? get orderRef => payload['order'] as String?;
 
-  /// Serverga yuboriladigan ko'rinish.
+  /// What goes into the `operations` of `POST /pos/sync`: a signed operation as `{signed, mac, prev, kid}` (the
+  /// server takes the operation out of `signed`, the exact text that was signed), an unsigned one as [toJson].
+  Map<String, Object?> toWire() => seal?.toWire() ?? toJson();
+
+  /// The same operation with [seal] (`null`: unsigned).
+  SyncOperation sealed(SyncSeal? seal) => SyncOperation(
+    opId: opId,
+    seq: seq,
+    type: type,
+    occurredAt: occurredAt,
+    staffId: staffId,
+    payload: payload,
+    origin: origin,
+    status: status,
+    reason: reason,
+    message: message,
+    refs: refs,
+    answeredAt: answeredAt,
+    seal: seal,
+  );
+
+  /// The operation as it is kept on the disk outside the journal (a queue set aside): [toJson] and, for a signed
+  /// one, its signature beside it (`raw`, `mac`, `prev`, `kid`, `dev`), so that it can still be verified later. A
+  /// reader that knows nothing of signatures ([SyncOperation.fromJson]) reads the same operation.
+  Map<String, Object?> toStored() => <String, Object?>{
+    ...toJson(),
+    ...?seal?.toStored(),
+  };
+
+  /// Amalning ochiq ko'rinishi (imzosiz yuborilganda — serverga shu ketadi).
   Map<String, Object?> toJson() => <String, Object?>{
     'op_id': opId,
     'seq': seq,
@@ -181,7 +229,23 @@ class SyncResult {
     this.message,
     this.duplicate = false,
     this.refs = const <String, Object?>{},
+    this.sigStatus,
+    this.unreadable = false,
   });
+
+  /// M5 S3: the server could not use the signed text of this operation and recorded nothing for it (the answer's
+  /// `unreadable`): it leaves the queue as a rejected one and its journal line is kept as damage.
+  const SyncResult.unreadable({
+    required this.opId,
+    required this.seq,
+    String? reason,
+    this.message,
+  }) : status = SyncOpStatus.rejected,
+       reason = reason ?? 'invalid_payload',
+       duplicate = false,
+       refs = const <String, Object?>{},
+       sigStatus = null,
+       unreadable = true;
 
   factory SyncResult.fromJson(Map<String, Object?> j) => SyncResult(
     opId: j['op_id']! as String,
@@ -193,6 +257,7 @@ class SyncResult {
     refs: j['refs'] is Map
         ? (j['refs']! as Map).cast<String, Object?>()
         : const <String, Object?>{},
+    sigStatus: j['sig_status'] as String?,
   );
 
   final String opId;
@@ -201,6 +266,13 @@ class SyncResult {
   final String? reason;
   final String? message;
   final bool duplicate;
+
+  /// M5 S3: what the server made of the operation's signature (`results[].sig_status`): `ok`, `missing` (it came
+  /// unsigned), `bad` (the mac is not this device's key's), `chain_gap`; `null` from a server that does not say.
+  final String? sigStatus;
+
+  /// See [SyncResult.unreadable].
+  final bool unreadable;
 
   /// Serverdagi id'lar: `order_uuid`, `order_version`, `local_number`, `items` (qator id → server id), `bill_uuid`,
   /// `payments`, `flags`.

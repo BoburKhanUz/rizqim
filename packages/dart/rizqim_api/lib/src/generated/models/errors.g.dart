@@ -14,6 +14,7 @@ Errors _$ErrorsFromJson(Map<String, dynamic> json) => Errors(
   status: json['status'] as String,
   reason: json['reason'] as String?,
   message: json['message'] as String?,
+  sigStatus: json['sig_status'] as String?,
   staff: json['staff'] == null
       ? null
       : Staff27.fromJson(json['staff'] as Map<String, dynamic>),
@@ -48,6 +49,7 @@ Map<String, dynamic> _$ErrorsToJson(Errors instance) => <String, dynamic>{
   'status': instance.status,
   'reason': instance.reason,
   'message': instance.message,
+  'sig_status': instance.sigStatus,
   'staff': instance.staff,
   'device': instance.device,
   'origin_device': instance.originDevice,

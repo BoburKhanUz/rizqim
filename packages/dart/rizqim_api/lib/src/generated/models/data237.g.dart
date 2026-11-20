@@ -7,23 +7,11 @@ part of 'data237.dart';
 // **************************************************************************
 
 Data237 _$Data237FromJson(Map<String, dynamic> json) => Data237(
-  event: Event9.fromJson(json['event'] as Map<String, dynamic>),
-  guests: Guests2.fromJson(json['guests'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  osh: json['osh'] == null
-      ? null
-      : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings16.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  schedule: Schedule.fromJson(json['schedule'] as Map<String, dynamic>),
+  entry: Entry.fromJson(json['entry'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data237ToJson(Data237 instance) => <String, dynamic>{
-  'event': instance.event,
-  'guests': instance.guests,
-  'stations': instance.stations,
-  'osh': instance.osh,
-  'warnings': instance.warnings,
+  'schedule': instance.schedule,
+  'entry': instance.entry,
 };

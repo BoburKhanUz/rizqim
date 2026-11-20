@@ -285,7 +285,27 @@ export interface DeviceRow {
   last_seen_at: string | null;
   paired_at: string | null;
   revoked_at: string | null;
-  sync: { pending_ops: number; oldest_op_at: string | null; reported_at: string | null; clock_skew_seconds: number | null; clock_warning: boolean };
+  sync: {
+    pending_ops: number;
+    oldest_op_at: string | null;
+    reported_at: string | null;
+    clock_skew_seconds: number | null;
+    clock_warning: boolean;
+    // Wave M5 S3-d: what the signatures of the till's offline operations were worth in the last `days` days, the number of its
+    // queue signing key (null: none; the key itself is never sent) and whether its store enforces signatures. Absent on a server
+    // from before S3-d
+    signatures?: DeviceSignatures;
+  };
+}
+
+export interface DeviceSignatures {
+  days: number;
+  ok: number;
+  missing: number;
+  bad: number;
+  chain_gap: number;
+  key_id: number | null;
+  enforce: boolean;
 }
 
 export interface DeviceCounts {
