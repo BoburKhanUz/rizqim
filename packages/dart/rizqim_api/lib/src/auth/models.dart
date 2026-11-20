@@ -54,13 +54,41 @@ class DeviceInfo {
   };
 }
 
-/// `POST /devices/pair` natijasi. [token] terminalning o'z tokeni (365 kun yoki o'chirilguncha).
+/// The key of the till's signed offline queue (wave M5 S3) as the server gives it, once: in the pairing answer
+/// (`sync_key`) or from `POST /terminal/sync-key`. [key]: standard base64 of 32 bytes; [kid]: its number on the server
+/// (1, then +1 at every rotation). It lives in the device's secure storage beside the terminal token and is never
+/// logged or shown ([toString] leaves it out).
+class TerminalSyncKey {
+  const TerminalSyncKey({required this.key, required this.kid});
+
+  /// `null` for anything that is not a key (KDS and the customer display get `sync_key: null`; an older server sends
+  /// nothing): a key never stops a pairing.
+  static TerminalSyncKey? tryParse(Object? json) {
+    if (json is! Map) return null;
+    final Object? key = json['key'];
+    final Object? kid = json['kid'];
+    if (key is! String || key.isEmpty || kid is! int || kid < 1) return null;
+    return TerminalSyncKey(key: key, kid: kid);
+  }
+
+  final String key;
+  final int kid;
+
+  Map<String, Object?> toJson() => <String, Object?>{'key': key, 'kid': kid};
+
+  @override
+  String toString() => 'TerminalSyncKey(kid: $kid)';
+}
+
+/// `POST /devices/pair` natijasi. [token] terminalning o'z tokeni (365 kun yoki o'chirilguncha). [syncKey] (M5 S3):
+/// the key of the signed offline queue, for a POS terminal on a server that signs; `null` otherwise.
 class PairedTerminal {
   const PairedTerminal({
     required this.token,
     required this.device,
     this.store,
     this.branch,
+    this.syncKey,
   });
 
   factory PairedTerminal.fromJson(Map<String, Object?> json) => PairedTerminal(
@@ -68,18 +96,31 @@ class PairedTerminal {
     device: DeviceInfo.fromJson(json['device']! as Map<String, Object?>),
     store: _ref(json['store']),
     branch: _ref(json['branch']),
+    syncKey: TerminalSyncKey.tryParse(json['sync_key']),
   );
 
   final String token;
   final DeviceInfo device;
   final NamedRef? store;
   final NamedRef? branch;
+  final TerminalSyncKey? syncKey;
 
+  /// The same terminal with another sync key (`POST /terminal/sync-key`).
+  PairedTerminal withSyncKey(TerminalSyncKey? key) => PairedTerminal(
+    token: token,
+    device: device,
+    store: store,
+    branch: branch,
+    syncKey: key,
+  );
+
+  /// What is written to the secure storage (the token and the sync key: never to a log or a plain file).
   Map<String, Object?> toJson() => <String, Object?>{
     'token': token,
     'device': device.toJson(),
     'store': store?.toJson(),
     'branch': branch?.toJson(),
+    if (syncKey != null) 'sync_key': syncKey!.toJson(),
   };
 }
 

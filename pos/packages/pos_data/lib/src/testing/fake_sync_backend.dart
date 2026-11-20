@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:pos_core/pos_core.dart';
+import 'package:pos_sync/pos_sync.dart' show SyncKey, SyncSignature;
 
 import '../offline/sync_models.dart';
 import 'fake_pos_state.dart';
@@ -31,6 +34,16 @@ class FakeSyncBackend {
   }
 
   final FakePosState state;
+
+  /// M5 S3: what the server would write to `pos_sync_operations.sig_status` for each NEW operation (op_id →
+  /// `ok`, `missing`, `bad`, `chain_gap`), in observe mode: the operation is applied all the same. [signedSeen]: the
+  /// `kid` each signed one came with.
+  final Map<String, String> sigStatus = <String, String>{};
+  final Map<String, int> signedSeen = <String, int>{};
+
+  /// The chain's head as the server keeps it (`devices.sync_chain`).
+  int? _headKid;
+  String? _headMac;
 
   /// Qo'llangan amallar (op_id → natija).
   final Map<String, Map<String, Object?>> results =
@@ -172,7 +185,7 @@ class FakeSyncBackend {
         <Map<String, Object?>>[
           for (final Object? o
               in (data['operations'] as List<Object?>?) ?? const <Object?>[])
-            if (o is Map) o.cast<String, Object?>(),
+            if (o is Map) _opened(o.cast<String, Object?>()),
         ]..sort(
           (Map<String, Object?> a, Map<String, Object?> b) =>
               (a['seq']! as int).compareTo(b['seq']! as int),
@@ -196,6 +209,7 @@ class FakeSyncBackend {
         });
       }
       received.add(op);
+      sigStatus[id] = _signature(id, (op['seq']! as num).toInt());
       final Map<String, Object?> r = _apply(op);
       results[id] = r;
       out.add(<String, Object?>{...r, 'duplicate': false});
@@ -212,6 +226,61 @@ class FakeSyncBackend {
       'results': out,
       'device': _device(),
     }, message: 'Sinxronlandi.');
+  }
+
+  final Map<String, Map<String, Object?>> _seals =
+      <String, Map<String, Object?>>{};
+  int? _lastSeq;
+
+  /// M5 S3: a signed operation (`{signed, mac, prev, kid}`) is the JSON inside `signed`; its seal is kept aside for
+  /// [_signature]. The old shape passes as it is.
+  Map<String, Object?> _opened(Map<String, Object?> op) {
+    final Object? raw = op['signed'];
+    if (raw is! String) return op;
+    final Map<String, Object?> inner =
+        (jsonDecode(raw) as Map<Object?, Object?>).cast<String, Object?>();
+    _seals[inner['op_id']! as String] = op;
+    return inner;
+  }
+
+  /// As the server's observe mode (docs/API.md "Imzolangan navbat"): the mac against the key the `kid` names (the
+  /// current one or the one before it), then the chain and `seq = last + 1`.
+  String _signature(String opId, int seq) {
+    final int? last = _lastSeq;
+    _lastSeq = seq;
+    final Map<String, Object?>? seal = _seals.remove(opId);
+    if (seal == null) return 'missing';
+    final Object? kid = seal['kid'];
+    final Object? mac = seal['mac'];
+    final Object? prev = seal['prev'];
+    if (kid is int) signedSeen[opId] = kid;
+    final String? secret = kid == state.syncKid
+        ? state.syncKey
+        : (kid == state.syncKid - 1 ? state.syncKeyPrev : null);
+    if (kid is! int ||
+        secret == null ||
+        !SyncSignature.isMac(mac) ||
+        !SyncSignature.isMac(prev)) {
+      return 'bad';
+    }
+    final SyncKey key = SyncKey.fromBase64(
+      secret,
+      kid: kid,
+      deviceUuid: FakePosState.deviceUuid,
+    );
+    final int? headKid = _headKid;
+    final String? headMac = _headMac;
+    _headKid = kid;
+    _headMac = mac! as String;
+    if (SyncSignature.mac(key, prev! as String, seal['signed']! as String) !=
+        mac) {
+      return 'bad';
+    }
+    final bool chained = headKid == kid
+        ? prev == headMac
+        : (headKid == null || kid > headKid) &&
+              prev == SyncSignature.firstPrev(key);
+    return chained && (last == null || seq == last + 1) ? 'ok' : 'chain_gap';
   }
 
   Map<String, Object?> _apply(Map<String, Object?> op) {

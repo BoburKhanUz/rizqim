@@ -22,6 +22,7 @@ import 'http/pos_http.dart';
 import 'lan/pos_lan_route.dart';
 import 'menu_day/batch_repository.dart';
 import 'offline/pos_offline.dart';
+import 'offline/sync_keys.dart';
 import 'orders/order_repository.dart';
 import 'realtime/pos_events.dart';
 import 'session/approvals.dart';
@@ -101,7 +102,13 @@ class PosData {
     banquetPayments = PosBanquetPaymentRepository(http, offline: offline);
     ingredients = PosIngredientRepository(http);
     final PosOffline? o = offline;
+    // M5 S3: the journal signs with the key the terminal holds, while the server says it signs (asked at every
+    // operation; the store was opened by the app before the terminal was known)
+    syncKeys = o == null
+        ? null
+        : PosSyncKeys(auth: client.auth, offline: o, clock: clock);
     if (o != null) {
+      o.store.keyProvider ??= syncKeys!.current;
       o
         ..staffId = (() => session.staffId)
         ..staffName = (() => session.staffName)
@@ -176,6 +183,9 @@ class PosData {
   /// Internetsiz cheklangan rejim (kassa); ofitsiantda `null`.
   late final PosOffline? offline;
 
+  /// M5 S3: the key of the signed offline queue (the till); `null` where there is no queue.
+  late final PosSyncKeys? syncKeys;
+
   final RizqimClient client;
   final PosHttp http;
 
@@ -234,6 +244,7 @@ class PosData {
     await _lanSub?.cancel();
     await _lanEvents.close();
     await displayFeed.dispose();
+    await syncKeys?.dispose();
     await offline?.dispose();
     await session.dispose();
     await catalog.dispose();

@@ -19,6 +19,8 @@ class PosOfflineSettings {
     this.serviceChargeLocked = false,
     this.packaging = const <PosPackagingRule>[],
     this.discount = false,
+    this.signing = false,
+    this.signingKid,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -32,6 +34,8 @@ class PosOfflineSettings {
     limits: OfflineLimits.fromJson(j.objOrNull('limits')?.map),
     serviceChargeLocked: j.boolean('service_charge_locked'),
     discount: j.boolean('discount'),
+    signing: j.boolean('signing'),
+    signingKid: j.intOrNull('signing_kid'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
@@ -59,6 +63,8 @@ class PosOfflineSettings {
         serviceChargeLocked: serviceChargeLocked,
         packaging: rules,
         discount: discount,
+        signing: signing,
+        signingKid: signingKid,
       );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
@@ -80,6 +86,15 @@ class PosOfflineSettings {
   /// M5 S2: server `order.discount` amalini qabul qiladi (`offline.discount: true`). Eski server aytmaydi: kassa
   /// internetsiz chegirma bermaydi (aks holda butun navbat 422 bilan to'xtab qolardi).
   final bool discount;
+
+  /// M5 S3: the server takes signed operations (`offline.signing: true`). An older server does not say so: the till
+  /// queues in the old unsigned shape, even when it holds a key.
+  final bool signing;
+
+  /// M5 S3: the number of the key the server holds for this till (`offline.signing_kid`), when the server says it.
+  /// Larger than the number of the till's own key: the key was rotated on the server and the till fetches a new one
+  /// (`PosSyncKeys`). `null`: not said (nothing is concluded from that).
+  final int? signingKid;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {

@@ -134,6 +134,24 @@ class AuthRemote {
     );
   }
 
+  /// `POST /v1/terminal/sync-key` (terminal token, POS terminals only: 403 `terminal_required` for the others): the
+  /// key of the signed offline queue (wave M5 S3). EVERY call rotates the key on the server (the first one issues
+  /// `kid` 1), so there is no `Idempotency-Key` and the caller decides when ([AuthSession.renewSyncKey]).
+  Future<TerminalSyncKey> issueSyncKey() async {
+    final Map<String, Object?> data = await _send(
+      () => _dio.post<Object?>(
+        '/v1/terminal/sync-key',
+        options: scoped(AuthScope.terminal),
+      ),
+    );
+    final TerminalSyncKey? key = TerminalSyncKey.tryParse(data);
+    if (key == null) {
+      // Never the answer itself in the message: it may hold a part of a key
+      throw const ApiException(message: 'Server kutilmagan javob qaytardi.');
+    }
+    return key;
+  }
+
   /// `POST /v1/auth/refresh`: eski refresh token sarflanadi, yangi juftlik qaytadi. Faqat [AuthSession] chaqiradi
   /// (bir vaqtda bittadan: single-flight).
   Future<UserSession> refresh({

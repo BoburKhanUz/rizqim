@@ -63,6 +63,7 @@ export 'src/offline/offline_packaging.dart';
 export 'src/offline/offline_pricing.dart';
 export 'src/offline/offline_settings.dart';
 export 'src/offline/pos_offline.dart';
+export 'src/offline/sync_keys.dart';
 export 'src/offline/sync_models.dart';
 export 'src/orders/course_models.dart';
 export 'src/orders/order_models.dart';
