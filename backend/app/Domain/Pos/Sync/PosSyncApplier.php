@@ -118,7 +118,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string}  $op
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string}  $op
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -143,6 +143,9 @@ final class PosSyncApplier
             'clock_skew_seconds' => $clockSkew,
             'received_at' => $received,
             'client_ref' => $this->clientRef($type, $payload),
+            // Wave M5 S3: what the signature was worth (PosSyncService, SyncChain), kept on the row whatever becomes of it
+            'sig_status' => $op['sig_status'] ?? null,
+            'mac' => $op['mac'] ?? null,
         ];
 
         $origin = isset($op['origin_device']) ? strtolower($op['origin_device']) : null;

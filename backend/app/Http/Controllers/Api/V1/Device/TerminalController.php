@@ -7,7 +7,9 @@ use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use App\Domain\Pos\Sync\SyncSignature;
 use App\Models\Device;
+use App\Services\Audit\AuditLogger;
 use App\Services\Auth\AuthTokenException;
 use App\Services\Auth\DevicePairingService;
 use App\Services\Auth\PermissionService;
@@ -40,8 +42,12 @@ class TerminalController extends Controller
      * `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
      * (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
      * code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
+     *
+     * Wave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it
+     * signs its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the
+     * token, never log it. `null` for a kitchen display or a customer display.
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{token: string, device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{token: string, sync_key: array{key: string, kid: int}|null, device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null}}')]
     public function pair(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -64,6 +70,7 @@ class TerminalController extends Controller
 
         return $this->success([
             'token' => $result['token'],
+            'sync_key' => $result['sync_key'],
             'device' => $device->toPublicArray(),
             'store' => $device->store?->only(['id', 'name']),
             'branch' => $device->branch?->only(['id', 'name']),
@@ -209,6 +216,36 @@ class TerminalController extends Controller
         $devices->revoke($this->device($request), null, true);
 
         return $this->success(null, "Terminal uzildi. Qayta ulash uchun yangi kod kerak.");
+    }
+
+    /**
+     * A new queue signing key for this till
+     *
+     * Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with
+     * (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when
+     * `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`
+     * with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one
+     * previous key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is
+     * given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
+     * No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by
+     * calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{key: string, kid: int}}')]
+    public function syncKey(Request $request): JsonResponse
+    {
+        $device = $this->device($request);
+        if ($device->type !== \App\Enums\DeviceType::POS || $device->store_id === null) {
+            return $this->error("Faqat kassa terminali navbat kalitini oladi.", ['reason' => 'terminal_required'], 403);
+        }
+
+        $issued = SyncSignature::issue($device);
+        // The key itself is never part of an audit record
+        app(AuditLogger::class)->record($issued['rotated'] ? 'device.sync_key_rotated' : 'device.sync_key_issued', $device, [], [], [
+            'kid' => $issued['kid'],
+            'by' => 'terminal',
+        ], ['actor' => null, 'device' => $device]);
+
+        return $this->success(['key' => $issued['key'], 'kid' => $issued['kid']], $issued['rotated'] ? 'Navbat kaliti yangilandi.' : 'Navbat kaliti berildi.');
     }
 
     /**

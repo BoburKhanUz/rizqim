@@ -1,0 +1,495 @@
+{
+  "version": 1,
+  "about": "Wave M5 S3 (docs/scale/M5_DESIGN.md 4): the signature of a queued offline operation. Read by the PHP test (backend/tests/Unit/PosSync/SyncSignatureVectorsTest.php) and by the Dart test of pos_sync. Generated once by an independent script (Python hmac/hashlib), never by the code under test.",
+  "scheme": {
+    "key": "32 bytes per device; on the wire (pairing answer, POST /terminal/sync-key) standard base64 with padding",
+    "first_prev": "HMAC-SHA256(key, utf8(label + lowercase(device uuid))), label = 'rizqim-sync/v1/'",
+    "mac": "HMAC-SHA256(key, prev (its 32 bytes, not its hex text) || utf8(raw)); raw is the operation's JSON text exactly as written to the journal and sent as `signed`",
+    "encoding": "mac and prev travel as 64 lowercase hex characters; kid is an integer",
+    "chain": "prev of an operation is the mac of the one before it under the same key; the first operation under a key uses first_prev of that key"
+  },
+  "label": "rizqim-sync/v1/",
+  "test_keys": {
+    "about": "No key is written here. key(kid) = HMAC-SHA256(key = utf8(seed), data = utf8('kid-' + kid)), 32 bytes; a test derives them.",
+    "seed": "rizqim-sync/v1/test-vector-key",
+    "kids": [
+      1,
+      2
+    ],
+    "sha256_of_key": {
+      "1": "885515f5744c8c7f37697890958d2beff61530832de7f486af2033af9263fdfe",
+      "2": "ab74de033094f3a0880d0ab7d4b6266b15235b85a5d7598041fc9bb4a5ed3017"
+    }
+  },
+  "device": "7b1d5c0e-4a52-4f0b-9d6e-2f8a1c3e5b70",
+  "first_prev": {
+    "1": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+    "2": "03f4c16dff4d3b0a6edb20feb7dd50b71503ee9e3ed3d7b1419afe040d52c7eb"
+  },
+  "chains": [
+    {
+      "name": "kid 1: five operations",
+      "kid": 1,
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"32400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "prev": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "kid": 1
+        },
+        {
+          "signed": "{ \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"seq\": 5, \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"caf\\u00e9 1\\/2\"} }",
+          "mac": "fcd786a6035a0d81e71e1618d3fcefdf9ae76e3ef462f7c3c5368ad40c44fea1",
+          "prev": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "kid": 1
+        }
+      ]
+    },
+    {
+      "name": "kid 2 (after a rotation): two operations, the second relayed for another terminal",
+      "kid": 2,
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000006\",\"seq\":6,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:06:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f502\",\"local_number\":\"K1-0042\",\"channel\":\"pos_takeaway\",\"items\":[],\"send\":false}}",
+          "mac": "ac5e1038edce35729950f9b09dc28c3d05d02ee83ad8317156dadfac22dcfc48",
+          "prev": "03f4c16dff4d3b0a6edb20feb7dd50b71503ee9e3ed3d7b1419afe040d52c7eb",
+          "kid": 2
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000007\",\"seq\":7,\"type\":\"order.close\",\"occurred_at\":\"2026-11-20T09:07:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f502\"},\"origin_device\":\"2f8a1c3e-5b70-4f0b-9d6e-7b1d5c0e4a52\"}",
+          "mac": "b425e36794aaee9e2156d5f1ac151ba6e0a77c5415d71800119ab99a402e3d0a",
+          "prev": "ac5e1038edce35729950f9b09dc28c3d05d02ee83ad8317156dadfac22dcfc48",
+          "kid": 2
+        }
+      ]
+    }
+  ],
+  "cases_about": "What the server records (pos_sync_operations.sig_status) for each operation of a batch from a device whose stored keys are `keys` (the highest kid is the current one, the one below it the previous one) and whose chain is empty before the batch. An operation without `signed` is in the old unsigned shape.",
+  "cases": [
+    {
+      "name": "intact chain",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"32400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "prev": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "kid": 1
+        },
+        {
+          "signed": "{ \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"seq\": 5, \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"caf\\u00e9 1\\/2\"} }",
+          "mac": "fcd786a6035a0d81e71e1618d3fcefdf9ae76e3ef462f7c3c5368ad40c44fea1",
+          "prev": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "ok",
+        "ok",
+        "ok",
+        "ok"
+      ]
+    },
+    {
+      "name": "a line edited by hand (the amount), its mac left as it was",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"2400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "prev": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "kid": 1
+        },
+        {
+          "signed": "{ \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"seq\": 5, \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"caf\\u00e9 1\\/2\"} }",
+          "mac": "fcd786a6035a0d81e71e1618d3fcefdf9ae76e3ef462f7c3c5368ad40c44fea1",
+          "prev": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "ok",
+        "ok",
+        "bad",
+        "ok"
+      ]
+    },
+    {
+      "name": "a line removed",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"32400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "prev": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "kid": 1
+        },
+        {
+          "signed": "{ \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"seq\": 5, \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"caf\\u00e9 1\\/2\"} }",
+          "mac": "fcd786a6035a0d81e71e1618d3fcefdf9ae76e3ef462f7c3c5368ad40c44fea1",
+          "prev": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "ok",
+        "chain_gap",
+        "ok"
+      ]
+    },
+    {
+      "name": "the first line removed",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "chain_gap",
+        "ok"
+      ]
+    },
+    {
+      "name": "one operation sent unsigned (old shape) by a device that has a key",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "op_id": "0d5e8f10-0000-4000-8000-000000000002",
+          "seq": 2,
+          "type": "order.discount",
+          "occurred_at": "2026-11-20T09:02:00.000Z",
+          "staff_id": 7,
+          "payload": {
+            "order": "3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501",
+            "kind": "percent",
+            "value": "10.00",
+            "reason": "doimiy mijoz"
+          }
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "missing",
+        "chain_gap"
+      ]
+    },
+    {
+      "name": "no key on the server: every operation is missing a verifiable signature",
+      "keys": [],
+      "operations": [
+        {
+          "op_id": "0d5e8f10-0000-4000-8000-000000000002",
+          "seq": 2,
+          "type": "order.discount",
+          "occurred_at": "2026-11-20T09:02:00.000Z",
+          "staff_id": 7,
+          "payload": {
+            "order": "3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501",
+            "kind": "percent",
+            "value": "10.00",
+            "reason": "doimiy mijoz"
+          }
+        }
+      ],
+      "expect": [
+        "missing"
+      ]
+    },
+    {
+      "name": "signed, but the server has no key for the device",
+      "keys": [],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "bad"
+      ]
+    },
+    {
+      "name": "rotation: the old key's operations, then the new key's from its own first prev",
+      "keys": [
+        1,
+        2
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "prev": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"32400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "prev": "b4beb718729b53e5d251d47fbcafe7af83664e7a82f776a814e358e5bdbacf61",
+          "kid": 1
+        },
+        {
+          "signed": "{ \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"seq\": 5, \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"caf\\u00e9 1\\/2\"} }",
+          "mac": "fcd786a6035a0d81e71e1618d3fcefdf9ae76e3ef462f7c3c5368ad40c44fea1",
+          "prev": "f005d9f94a5e99abeb7b8c776d0af7906ed09d1a4d479c19116c93a95775f67f",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000006\",\"seq\":6,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:06:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f502\",\"local_number\":\"K1-0042\",\"channel\":\"pos_takeaway\",\"items\":[],\"send\":false}}",
+          "mac": "ac5e1038edce35729950f9b09dc28c3d05d02ee83ad8317156dadfac22dcfc48",
+          "prev": "03f4c16dff4d3b0a6edb20feb7dd50b71503ee9e3ed3d7b1419afe040d52c7eb",
+          "kid": 2
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000007\",\"seq\":7,\"type\":\"order.close\",\"occurred_at\":\"2026-11-20T09:07:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f502\"},\"origin_device\":\"2f8a1c3e-5b70-4f0b-9d6e-7b1d5c0e4a52\"}",
+          "mac": "b425e36794aaee9e2156d5f1ac151ba6e0a77c5415d71800119ab99a402e3d0a",
+          "prev": "ac5e1038edce35729950f9b09dc28c3d05d02ee83ad8317156dadfac22dcfc48",
+          "kid": 2
+        }
+      ],
+      "expect": [
+        "ok",
+        "ok",
+        "ok",
+        "ok",
+        "ok",
+        "ok",
+        "ok"
+      ]
+    },
+    {
+      "name": "the key before the previous one is gone",
+      "keys": [
+        2
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "bad"
+      ]
+    },
+    {
+      "name": "unknown kid",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 9
+        }
+      ],
+      "expect": [
+        "bad"
+      ]
+    },
+    {
+      "name": "a mac that is not 64 hex characters",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "not-a-mac",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "bad"
+      ]
+    },
+    {
+      "name": "the chain started again from the first prev (journal lost) while the server holds its head",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":2,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\"}}",
+          "mac": "bfe2b89a021f695bde9525ee4bb52cbc9e25d88af6b2df99d07e3fb34811d196",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "4b3fb0c34f0145f85f3086d2a7080e6b944629d0f9881369955df0756f8d309a",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":4,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"tender\":\"cash\",\"amount\":\"32400.00\",\"tendered_amount\":\"50000\"}]}}",
+          "mac": "32f3b401026381969a2ae12dc449b38492d3f242ffd4000893737dcdbc3600bd",
+          "prev": "4b3fb0c34f0145f85f3086d2a7080e6b944629d0f9881369955df0756f8d309a",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "ok",
+        "chain_gap",
+        "ok"
+      ]
+    },
+    {
+      "name": "a number skipped in an unbroken chain",
+      "keys": [
+        1
+      ],
+      "operations": [
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator\"}}",
+          "mac": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "prev": "ff86979b6c8a4ce316c943414f6f02b9f7186f4bed47b60ff7350e12213bd361",
+          "kid": 1
+        },
+        {
+          "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":3,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+          "mac": "78343723cbdd9eb30f6aac7b4346e7fee543ff76b2508c6adbf938b1cc1320f3",
+          "prev": "507612c45f73dc1c10fab03f613229cb6d15ad89307b7ffb98f592b7a898c844",
+          "kid": 1
+        }
+      ],
+      "expect": [
+        "ok",
+        "chain_gap"
+      ]
+    }
+  ]
+}

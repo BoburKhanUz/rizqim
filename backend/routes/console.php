@@ -67,3 +67,10 @@ Artisan::command('pos:offline-discount-summaries', function (\App\Domain\Pos\Syn
     $this->info($discounts->sendOverdue() . ' offline discount summary message(s) sent');
 })->purpose("Send the owner's summary of offline discounts for tills whose queue never finished draining (once per till and outage)");
 Schedule::command('pos:offline-discount-summaries')->everyTenMinutes()->withoutOverlapping(10);
+
+// Wave M5 S3 (docs/scale/M5_DESIGN.md §4): a disconnected till's queue signing key is kept 30 days (a rescue file
+// exported from it can still be checked), then erased
+Artisan::command('pos:erase-sync-keys', function () {
+    $this->info(\App\Domain\Pos\Sync\SyncSignature::eraseExpired() . ' disconnected device sync key(s) erased');
+})->purpose('Erase the offline queue signing keys of devices disconnected more than 30 days ago');
+Schedule::command('pos:erase-sync-keys')->daily()->withoutOverlapping(30);

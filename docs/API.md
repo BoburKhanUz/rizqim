@@ -377,7 +377,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Kirish | `POST /auth/telegram`, `/auth/phone/send-code`, `/auth/phone/verify`, `/auth/refresh`, `/auth/logout`, `/auth/logout-all` | token olish, yangilash, chiqish |
 | Profil | `GET /user`, `POST /user/profile`, `POST /phone/send-code`, `/phone/verify-code`, `GET /me/permissions` | joriy foydalanuvchi, telefonni tasdiqlash, ruxsatlar |
 | Qurilmalar | `GET/POST /devices`, `DELETE /devices/{uuid}`, `PUT/DELETE /devices/{uuid}/push-token` | shaxsiy ilovani ro'yxatga olish, push token |
-| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session`, `DELETE /terminal` | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30); `DELETE /terminal` — terminal o'z tokeni bilan o'zini uzadi (P2-33, [AUTH.md](AUTH.md) 4-bo'lim) |
+| Terminal | `POST /devices/pair`, `GET /terminal`, `GET /terminal/staff`, `POST/DELETE /devices/{uuid}/staff-session`, `DELETE /terminal`, `POST /terminal/sync-key` (M5 S3: navbat imzo kaliti, "Imzolangan navbat") | POS/KDS ulash va xodim PIN kirishi; `GET /terminal` da `branches` — terminal obuna bo'la oladigan filiallar, `GET /terminal/staff?role=cook,manager` — rol bo'yicha (P2-30); `DELETE /terminal` — terminal o'z tokeni bilan o'zini uzadi (P2-33, [AUTH.md](AUTH.md) 4-bo'lim) |
 | Xabar sozlamalari | `GET/PUT /me/notification-preferences`, `GET /notifications`, `POST /notifications/read` | qaysi xabar qaysi kanaldan, ilova ichidagi xabarlar |
 | Do'konlar va katalog | `GET /stores`, `GET /catalog`, `GET /catalog/availability`, `POST /stores/{id}/rate` | mijoz uchun do'konlar, menyu (kanal narxi bilan), mavjudlik, baho |
 | Manzil va xarita | `GET/POST/PUT/DELETE /addresses`, `GET /locations`, `GET /geocode/reverse`, `/geocode/search` | mijoz manzillari, viloyat/tuman, geokodlash proksisi |
@@ -2058,6 +2058,87 @@ serverga yuborilmagan 5 ta amal bor..."); admin javobida `code: "pending_ops"` h
 Audit: `device.revoked` da `pending_ops` va `pending_confirmed: true`; admin jurnalida (`admin.pos.device_revoked`)
 `pending_ops`. Kassa o'zini uzganda (`DELETE /terminal`) tasdiq so'ralmaydi, `pending_ops` auditga yoziladi. Uzoq vaqt
 aloqasiz kassada haqiqiy navbat serverdagi sondan katta bo'lishi mumkin.
+
+### Imzolangan navbat (M5 S3)
+
+Kassaning jurnali oddiy fayl: qatorni qo'lda o'zgartirish yoki o'chirish mumkin. Imzo buni **serverda sezdiradi**
+(kalit qurilmaning himoyalangan xotirasida bo'lsa). Sxema (`docs/scale/M5_DESIGN.md` 4-bo'lim, egasi qarori 2):
+qurilmaga bitta maxfiy kalit, HMAC-SHA256, yangi kutubxonasiz. Server avval chiqadi: kassa faqat `GET /pos/bootstrap`
+`offline.signing: true` desa imzolaydi; eski (imzosiz) ko'rinish o'z holicha qabul qilinadi.
+
+**Kalit.** 32 tasodifiy bayt, serverda yaratiladi va kassaga **bir marta** beriladi (base64):
+
+| Qayerda | Javob |
+|---|---|
+| `POST /devices/pair` (POS terminali) | `data.sync_key: {"key": "<base64>", "kid": 1}`; KDS va mijoz ekraniga `null` |
+| `POST /terminal/sync-key` (terminal tokeni, faqat POS; boshqasiga 403 `terminal_required`; daqiqada 6) | `data: {"key": "<base64>", "kid": n}` |
+
+`POST /terminal/sync-key`: kaliti yo'q kassaga (imzodan oldin ulangan) birinchi kalit (`kid: 1`); qayta chaqirilsa
+**almashtiradi** — yangi kalit, `kid + 1`, eskisi serverda `sync_key_prev` da qoladi (undan oldingisi o'chadi), shuning
+uchun eski kalit bilan navbatga yozilgan amallar hali tekshiriladi. Kassa navbati bo'sh bo'lmaguncha kalitni
+almashtirmaydi (server buni rad etmaydi, lekin ikki marta almashtirilsa birinchi kalitning amallari `bad` bo'ladi).
+Bu yo'lda `Idempotency-Key` ataylab yo'q: takror uchun saqlangan javob kalitni saqlab qo'ygan bo'lardi; javob
+yo'qolsa qayta chaqiriladi. Kalit serverda shifrlangan (`devices.sync_key`, Laravel `encrypted`), hech qayerda qayta
+ko'rsatilmaydi, logga va auditga yozilmaydi. Audit: `device.sync_key_issued`, `device.sync_key_rotated`
+(`{kid, by: "terminal"}`); ulashda berilgan kalit uchun alohida yozuv yo'q (`device.paired` yetarli). Uzilgan qurilmaning kaliti
+`revoked_at` dan keyin 30 kun saqlanadi (kassadan eksport qilingan faylni tekshirish uchun), keyin
+`pos:erase-sync-keys` (har kuni) o'chiradi.
+
+**Imzo.** Kassa amalni navbatga yozganda uni **bir marta** JSON matniga aylantiradi (`raw`) va shu baytlarni imzolaydi:
+
+```
+first_prev = HMAC-SHA256(key, "rizqim-sync/v1/" + qurilma uuid (kichik harflarda))
+mac        = HMAC-SHA256(key, prev (32 bayt) || raw (UTF-8))      prev = oldingi amalning mac'i
+```
+
+`mac` va `prev` simda 64 ta kichik hex belgi. Yangi kalit ostidagi birinchi amal shu kalitning `first_prev` idan
+boshlaydi. `POST /pos/sync` da imzolangan amal:
+
+```json
+{"signed": "{\"op_id\":\"uuid\",\"seq\":41,\"type\":\"order.open\",\"occurred_at\":\"...\",\"staff_id\":7,\"payload\":{...}}",
+ "mac": "<64 hex>", "prev": "<64 hex>", "kid": 1}
+```
+
+Server **kelgan baytlar** ustidan MAC ni tekshiradi, keyin `signed` ni ochib, amal sifatida aynan shuni ishlatadi
+(ikki tomon JSON'ni bir xil yozishi shart emas; `signed` yonidagi boshqa maydonlar e'tiborga olinmaydi). Ochilgan amal
+imzosiz amal bilan bir xil tekshiriladi (bo'sh satr → `null`, chetdagi bo'shliqlar olib tashlanadi). `signed` JSON
+obyekti bo'lmasa yoki amalning majburiy maydonlari yo'q bo'lsa — 422 (har qanday buzuq amal kabi). `mac`, `prev`, `kid`
+qanday bo'lmasin (yo'q, noto'g'ri tur) to'plam **hech qachon** rad etilmaydi: o'sha amal `bad` bo'ladi. Bitta to'plamda
+imzoli va imzosiz amallar aralash kelishi mumkin. Javob o'zgarmagan.
+
+**Natija** har yangi amalda `pos_sync_operations.sig_status` ga yoziladi (`mac` — kelgan MAC; imzodan oldingi
+qatorlarda ikkalasi `null`):
+
+| `sig_status` | Ma'nosi |
+|---|---|
+| `ok` | MAC to'g'ri va amal server ushlab turgan oxirgisidan keyin keladi |
+| `missing` | imzosiz ko'rinishda keldi (eski ilova, kaliti yo'q kassa yoki imzo olib tashlangan) |
+| `bad` | MAC shu qurilma kalitiniki emas: qator o'zgartirilgan, `kid` noma'lum yoki serverda kalit yo'q |
+| `chain_gap` | MAC to'g'ri, lekin zanjir uzilgan (`prev` server ushlab turgan boshga teng emas) yoki `seq` oxirgisidan keyingi son emas: orada qator yo'qolgan |
+
+Hozir **kuzatuv rejimi** (egasi qarori 4): holat yoziladi, amal avvalgidek qo'llanadi; to'lov hech qachon tashlanmaydi.
+Do'kon bo'yicha "majburlash" va ogohlantirishlar keyingi bosqichda (S3-d).
+
+Zanjir boshi `devices.sync_chain` da (`kid:mac`). Qoidalar: shu kalit ostidagi amalning `prev` i boshdagi `mac` ga
+teng bo'lishi kerak; yangiroq kalitning birinchi amali o'z `first_prev` idan boshlaydi (almashtirishda zanjir
+tozalanmaydi); boshdagidan eskiroq kalit bilan kelgan amal — `chain_gap`. `bad` amal zanjirni o'zi da'vo qilgan `mac`
+ga suradi (kalit ma'lum bo'lsa): qo'lda o'zgartirilgan bitta qator bitta `bad`, keyingisi `ok`. Imzosiz amal zanjirga
+tegmaydi (undan keyingi imzoli amal `chain_gap`). `seq` tekshiruvi: server shu qurilmadan hech narsa olmagan bo'lsa
+istalgan sondan boshlash mumkin (qayta ulangan kassa sanashda davom etadi), keyin har amal `oxirgi + 1`. Takror
+(`duplicate`) amal birinchi safargi holatini saqlaydi va zanjirni surmaydi.
+
+**`seq_reused` dan keyin** (M5 S1, `SyncStore.adoptServerSeq`): 409 javobli to'plamda ziddiyatdan keyingi hech narsa
+qo'llanmagan; kassa `GET /pos/sync/status` dan `device.last_seq` ni oladi, kutayotgan amallarni undan keyin qayta
+raqamlaydi, **qayta imzolaydi va qayta zanjirlaydi** (raqam `raw` ichida), so'ng qayta yuboradi. Server ularni qabul
+qiladi: sonlar ketma-ket; kassa serverdagi zanjir boshini bilmasa (jurnal yo'qolgan) birinchisi `chain_gap`, qolganlari
+`ok`.
+
+Umumiy vektorlar (PHP va Dart testlari bir faylni o'qiydi): `backend/tests/Fixtures/sync_signature_vectors.json`
+(kalit faylda yo'q, test uni urug'dan hosil qiladi). Migratsiya (qo'shimcha, qaytariladigan):
+`2026_11_30_100000_add_sync_signature_columns` (devices: `sync_key`, `sync_key_id`, `sync_key_prev`, `sync_chain`;
+pos_sync_operations: `sig_status`, `mac`). Kod: `App\Domain\Pos\Sync\SyncSignature`, `SyncChain`,
+`SyncSignatureStatus`. Testlar: `tests/Unit/PosSync/SyncSignatureVectorsTest.php`,
+`tests/Feature/PosSync/PosSyncSignatureTest.php`, `SyncKeyTest.php`.
 
 ### GET /pos/sync/errors va resolve
 

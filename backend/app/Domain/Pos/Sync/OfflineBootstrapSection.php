@@ -34,6 +34,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
  *
  * Wave M5 S2: `discount: true` tells the till this server takes the `order.discount` operation; a till offers the
  * offline discount only then (a till never queues what its server does not know: the whole batch would be refused).
+ * Wave M5 S3: `signing: true` the same way for the signed queue (SyncSignature).
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -126,6 +127,9 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             'limits' => self::LIMITS,
             // Wave M5 S2 (risk 7.2-1): this server takes `order.discount`: the till may give a discount offline
             'discount' => true,
+            // Wave M5 S3 (risk 7.2-1): this server takes signed operations (`operations[].signed`): a till that holds a
+            // queue signing key signs what it queues; one that holds none asks for it (POST /terminal/sync-key)
+            'signing' => true,
         ]];
     }
 

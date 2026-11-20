@@ -79,31 +79,56 @@ class PosSyncController extends Controller
      * kitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an
      * origin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,
      * origin_revoked, relay_not_allowed).
+     * Wave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue
+     * signing key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,
+     * mac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;
+     * `mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the
+     * first one under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + the device uuid)); `kid` the key's number. The
+     * server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
+     * worth is kept with the operation (ok, missing, bad, chain_gap). A signature never refuses the batch, and the
+     * unsigned shape is still taken.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{server_time: string, clock_skew_seconds: int|null, clock_warning: bool, stopped_at: int|null, results: list<' . PosSyncPresenter::RESULT . '>, device: ' . PosSyncPresenter::DEVICE . '}}')]
     #[HeaderParameter('Idempotency-Key', description: 'Optional: every operation is applied once by its op_id anyway; a key replays the whole answer.', type: 'string')]
     public function store(Request $request): JsonResponse
     {
         $device = $this->terminal($request);
+        $signatures = $this->openSigned($request);
         $data = $request->validate([
             'sent_at' => 'nullable|date',
             'queue' => 'nullable|array',
             'queue.size' => 'nullable|integer|min:0|max:100000',
             'queue.oldest_at' => 'nullable|date',
             'operations' => 'present|array|max:' . PosSyncService::MAX_BATCH,
-            'operations.*.op_id' => 'required|uuid|distinct',
-            'operations.*.seq' => 'required|integer|min:1|distinct',
-            'operations.*.type' => ['required', 'string', Rule::in(array_map(fn (PosSyncOperationType $type) => $type->value, PosSyncOperationType::cases()))],
+            // The operation's own fields: required in the unsigned shape; in the signed shape they are read from `signed`
+            'operations.*.op_id' => 'required_without:operations.*.signed|uuid|distinct',
+            'operations.*.seq' => 'required_without:operations.*.signed|integer|min:1|distinct',
+            'operations.*.type' => ['required_without:operations.*.signed', 'string', Rule::in(array_map(fn (PosSyncOperationType $type) => $type->value, PosSyncOperationType::cases()))],
             'operations.*.occurred_at' => 'nullable|date',
-            'operations.*.staff_id' => 'required|integer|min:1',
-            'operations.*.payload' => 'present|array',
+            'operations.*.staff_id' => 'required_without:operations.*.signed|integer|min:1',
+            'operations.*.payload' => 'present_with:operations.*.op_id|array',
             'operations.*.origin_device' => 'nullable|uuid',
+            // The signed shape (wave M5 S3): the whole operation (op_id, seq, type, occurred_at, staff_id, payload, origin_device) as JSON text, exactly the bytes the till wrote to its journal. Fields beside it are ignored.
+            'operations.*.signed' => 'nullable|string',
+            // HMAC-SHA256(key, prev || signed), 64 hex characters.
+            'operations.*.mac' => 'nullable|string',
+            // The mac of the operation before it (the first under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + device uuid)), 64 hex characters.
+            'operations.*.prev' => 'nullable|string',
+            // The number of the key it was signed with.
+            'operations.*.kid' => 'nullable|integer',
         ]);
+
+        $operations = [];
+        foreach ($data['operations'] as $k => $operation) {
+            // Signature fields beside an unsigned operation mean nothing
+            unset($operation['signed'], $operation['mac'], $operation['prev'], $operation['kid']);
+            $operations[] = $operation + (isset($signatures[$k]) ? ['signature' => $signatures[$k]] : []);
+        }
 
         try {
             $outcome = $this->sync()->sync(
                 $device,
-                array_values($data['operations']),
+                $operations,
                 isset($data['sent_at']) ? Carbon::parse((string) $data['sent_at']) : null,
                 $data['queue'] ?? null,
             );
@@ -221,6 +246,64 @@ class PosSyncController extends Controller
         $op = $this->syncErrors()->resolve($op, $user, (string) $data['resolution'], $data['note'] ?? null);
 
         return $this->success(PosSyncPresenter::operation($op->fresh() ?? $op), $data['resolution'] === 'resolved' ? 'Hal qilindi deb belgilandi.' : 'Yopildi.');
+    }
+
+    /**
+     * Wave M5 S3 (docs/scale/M5_DESIGN.md §4): opens the signed operations of the batch. An element with `signed` (the
+     * operation's JSON text as the till wrote it to its journal) is replaced in the request by the operation decoded
+     * from that text, so the rules of store() check it like an unsigned one; what was written beside `signed` is dropped
+     * (nobody signed it). Returned: what each such operation came with, by its place in the batch, for the service to
+     * verify — the exact bytes received (`raw`), and `mac` / `prev` / `kid` as sent, whatever they hold: a signature
+     * field of the wrong kind makes that operation badly signed, never the batch invalid.
+     *
+     * Text that is not a JSON object leaves an element without the operation's fields: 422, like any malformed
+     * operation (the server cannot record what has no op_id and seq).
+     *
+     * @return array<int, array{raw: string, mac: mixed, prev: mixed, kid: mixed}>
+     */
+    private function openSigned(Request $request): array
+    {
+        $sent = $request->input('operations');
+        if (!is_array($sent)) {
+            return [];
+        }
+        // The bytes as they arrived: the request middleware trims the strings of the parsed input
+        $body = $request->isJson() ? json_decode($request->getContent(), true) : null;
+
+        $signatures = [];
+        foreach ($sent as $k => $element) {
+            if (!is_array($element) || !is_string($element['signed'] ?? null)) {
+                continue;
+            }
+            $raw = is_string($body['operations'][$k]['signed'] ?? null) ? $body['operations'][$k]['signed'] : $element['signed'];
+            $decoded = json_decode($raw, true, 64);
+            $operation = is_array($decoded) && !array_is_list($decoded) ? self::asRequestInput($decoded) : [];
+
+            // Without `signed`: the rules of store() then require the operation's fields of it, as of an unsigned one
+            $sent[$k] = array_intersect_key($operation, array_flip(['op_id', 'seq', 'type', 'occurred_at', 'staff_id', 'payload', 'origin_device']));
+            $signatures[$k] = ['raw' => $raw, 'mac' => $element['mac'] ?? null, 'prev' => $element['prev'] ?? null, 'kid' => $element['kid'] ?? null];
+        }
+        $request->merge(['operations' => $sent]);
+
+        return $signatures;
+    }
+
+    /**
+     * What the request middleware does to the old shape (TrimStrings, ConvertEmptyStringsToNull), done to an operation
+     * decoded from signed text: both shapes reach the applier alike.
+     */
+    private static function asRequestInput(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map(self::asRequestInput(...), $value);
+        }
+        if (is_string($value)) {
+            $value = Str::trim($value);
+
+            return $value === '' ? null : $value;
+        }
+
+        return $value;
     }
 
     private function terminal(Request $request): Device

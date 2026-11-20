@@ -36,6 +36,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $resolved_by
  * @property string|null $resolution
  * @property string|null $resolution_note
+ * @property string|null $sig_status M5 S3: what its signature was worth (App\Domain\Pos\Sync\SyncSignatureStatus; null: received before signing)
+ * @property string|null $mac the mac it came with (64 hex characters)
  */
 class PosSyncOperation extends Model
 {
@@ -48,6 +50,7 @@ class PosSyncOperation extends Model
         'store_id', 'branch_id', 'device_id', 'op_id', 'seq', 'type', 'staff_id', 'occurred_at', 'payload', 'status',
         'reason', 'error', 'result', 'client_ref', 'order_id', 'clock_skew_seconds', 'received_at', 'applied_at',
         'resolved_at', 'resolved_by', 'resolution', 'resolution_note', 'created_at', 'updated_at', 'origin_device_id',
+        'sig_status', 'mac',
     ];
 
     /**

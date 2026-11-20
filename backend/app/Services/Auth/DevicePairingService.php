@@ -2,6 +2,7 @@
 
 namespace App\Services\Auth;
 
+use App\Domain\Pos\Sync\SyncSignature;
 use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
 use App\Models\Branch;
@@ -90,8 +91,11 @@ class DevicePairingService
      * P6 stage B: `app` (DeviceApp) is kept when it runs on the code's terminal type, else dropped (pairing never fails
      * over it).
      *
+     * Wave M5 S3: a POS terminal (the only kind that sends an offline queue) also gets its queue signing key here, the
+     * one time it is ever given out (`sync_key`; null for a kitchen display or a customer display).
+     *
      * @param  array{name?: ?string, platform?: ?string, app_version?: ?string, app?: ?string}  $details
-     * @return array{device: Device, token: string}
+     * @return array{device: Device, token: string, sync_key: array{key: string, kid: int}|null}
      *
      * @throws AuthTokenException
      */
@@ -139,7 +143,14 @@ class DevicePairingService
                 'platform' => $device->platform,
             ], ['actor' => $pairing->creator, 'device' => $device]);
 
-            return ['device' => $device, 'token' => $token->plainTextToken];
+            // Wave M5 S3 (docs/scale/M5_DESIGN.md §4): never in the audit record above, never logged
+            $key = $device->type === DeviceType::POS ? SyncSignature::issue($device) : null;
+
+            return [
+                'device' => $device,
+                'token' => $token->plainTextToken,
+                'sync_key' => $key !== null ? ['key' => $key['key'], 'kid' => $key['kid']] : null,
+            ];
         });
     }
 

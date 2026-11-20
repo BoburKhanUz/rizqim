@@ -819,6 +819,8 @@ $rest = [
     'GET api/v1/terminal' => ['ok' => ['device' => 200]],
     'DELETE api/v1/terminal' => ['ok' => ['device' => 200]],
     'GET api/v1/terminal/staff' => ['ok' => ['device' => 200]],
+    // M5 S3: the till's own queue signing key (no ids in the request: the token's device only)
+    'POST api/v1/terminal/sync-key' => ['ok' => ['device' => 200]],
     // The staff side of complaints: the store's list and the owner's (or branch manager's) reply
     'GET api/v1/complaints' => ['ok' => $o(200)],
     'POST api/v1/complaints/{id}/reply' => ['params' => $id('complaint'), 'body' => fn (array $s) => ['reply' => 'Uzr so\'raymiz'], 'ok' => $o(200, 200, 403)],
