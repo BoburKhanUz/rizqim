@@ -62,6 +62,10 @@ enum Type9 {
   @JsonValue('bill.request')
   undefined13('bill.request'),
 
+  /// Incorrect name has been replaced. Original name: `order.discount`.
+  @JsonValue('order.discount')
+  undefined14('order.discount'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

@@ -153104,6 +153104,21 @@
                                                                 },
                                                                 "amount": {
                                                                     "type": "string"
+                                                                },
+                                                                "offline": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "count": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "amount": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "count",
+                                                                        "amount"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -154098,6 +154113,21 @@
                                                                             },
                                                                             "amount": {
                                                                                 "type": "string"
+                                                                            },
+                                                                            "offline": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "count": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "amount": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "count",
+                                                                                    "amount"
+                                                                                ]
                                                                             }
                                                                         },
                                                                         "required": [
@@ -155154,6 +155184,21 @@
                                                                 },
                                                                 "amount": {
                                                                     "type": "string"
+                                                                },
+                                                                "offline": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "count": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "amount": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "count",
+                                                                        "amount"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -157525,6 +157570,21 @@
                                                                 },
                                                                 "amount": {
                                                                     "type": "string"
+                                                                },
+                                                                "offline": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "count": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "amount": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "count",
+                                                                        "amount"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -158974,6 +159034,21 @@
                                                                 },
                                                                 "amount": {
                                                                     "type": "string"
+                                                                },
+                                                                "offline": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "count": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "amount": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "count",
+                                                                        "amount"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -159700,7 +159775,8 @@
                                                         "kitchen.bump",
                                                         "kitchen.recall",
                                                         "kitchen.assembled",
-                                                        "bill.request"
+                                                        "bill.request",
+                                                        "order.discount"
                                                     ]
                                                 },
                                                 "occurred_at": {
@@ -175043,7 +175119,7 @@
             },
             "PosSyncOperationType": {
                 "type": "string",
-                "description": "What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()).\n",
+                "description": "What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()). Wave M5 S2 (docs/scale/M5_DESIGN.md §3): a discount given at the till without internet (`order.discount`), with the online rights less the manager's approval; only the till itself sends it, and it is not money.\n",
                 "enum": [
                     "order.open",
                     "order.round",
@@ -175058,7 +175134,8 @@
                     "kitchen.bump",
                     "kitchen.recall",
                     "kitchen.assembled",
-                    "bill.request"
+                    "bill.request",
+                    "order.discount"
                 ],
                 "title": "PosSyncOperationType"
             },
