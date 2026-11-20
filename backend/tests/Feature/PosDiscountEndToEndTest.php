@@ -160,7 +160,7 @@ class PosDiscountEndToEndTest extends TestCase
 
         // X: the discount counted on both bills
         $report = $this->till('GET', "/pos/shifts/{$shift}/x-report")->assertOk()->json('data.report');
-        $this->assertSame(['count' => 2, 'amount' => '24000.00'], $report['discounts']);
+        $this->assertSame(['count' => 2, 'amount' => '24000.00', 'offline' => ['count' => 0, 'amount' => '0.00']], $report['discounts']);
         $this->assertSame(['240000.00', '24000.00', '21600.00', '237600.00', '237600.00'], [
             $report['sales']['subtotal'], $report['sales']['discount'], $report['sales']['service_charge'], $report['sales']['bills_total'], $report['sales']['received'],
         ]);
@@ -169,7 +169,7 @@ class PosDiscountEndToEndTest extends TestCase
         $z = $this->till('POST', "/pos/shifts/{$shift}/close", ['counted_breakdown' => ['200000' => 1, '10000' => 1, '5000' => 1, '2000' => 1, '1000' => 1, '500' => 1, '200' => 1, '100' => 1]])
             ->assertOk()->json('data');
         $this->assertSame(['closed', '218800.00', '0.00'], [$z['status'], $z['expected_cash'], $z['difference']]);
-        $this->assertSame(['count' => 2, 'amount' => '24000.00'], $z['summary']['discounts']);
+        $this->assertSame(['count' => 2, 'amount' => '24000.00', 'offline' => ['count' => 0, 'amount' => '0.00']], $z['summary']['discounts']);
         $this->assertSame('24000.00', $z['summary']['sales']['discount']);
     }
 }

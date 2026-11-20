@@ -174,6 +174,21 @@ class PosOffline {
   /// Payload key of an operation queued by a staff member who goes on without a PIN ([staffContinued]).
   static const String continuedKey = 'staff_continued';
 
+  /// M5 S2: [PosOfflineUnavailable.reason] of a discount refused because the server did not say it takes
+  /// `order.discount` (bootstrap `offline.discount`): the discount needs the internet, as before.
+  static const String discountUnsupportedReason =
+      'offline_discount_unsupported';
+
+  /// M5 S2: [PosOfflineUnavailable.reason] of a discount above what anybody gives offline (owner decision of
+  /// 20.11.2026: the branch's cashier limit, for a manager and a holder of `orders.discount` too; no limit configured:
+  /// no offline discount), or by somebody who gives none alone: a larger one needs the internet, a manager's approval
+  /// cannot be given offline.
+  static const String discountLimitReason = 'offline_discount_limit';
+
+  /// M5 S2: [PosOfflineUnavailable.reason] of a discount refused because the order already has a bill (offline a
+  /// discount is given only before the bill, by everybody).
+  static const String discountBilledReason = 'offline_discount_billed';
+
   /// "PIN'siz davom etilmoqda" lentasi uchun: PIN sessiyasi aloqa yo'q paytda tugagan xodimning ismi (bo'lmasa
   /// `null`). Ism noma'lum bo'lsa — "Xodim".
   String? get continuedStaffName =>
@@ -673,6 +688,254 @@ class PosOffline {
       'idempotency_key': ?idempotencyKey,
     });
     return order(uuid);
+  }
+
+  // --- M5 S2: internetsiz chegirma --------------------------------------------------------------------------------
+
+  /// Server `order.discount` amalini qabul qiladi (bootstrap `offline.discount: true`). `false` — eski server:
+  /// chegirma faqat internet bilan.
+  bool get discountEnabled => settings.discount;
+
+  /// Internetsiz hech kim cheksiz chegirma bermaydi (egasining qarori, 20.11.2026): menejer va `orders.discount`
+  /// egasi ham filialning kassir chegarasigacha ([discountLimitPercent]). Doim `false`; kattarog'i — faqat onlayn.
+  bool get discountUnlimited => false;
+
+  /// Shu xodim internetsiz bera oladigan eng katta foiz — filialning kassir chegarasi, bootstrap nusxasidan (`"10"`,
+  /// `"12.5"`), hammaga bir xil (`orders.discount` egasiga ham). Chegara belgilanmagan, 0 yoki xodim o'zi chegirma
+  /// bera olmaydi (na `orders.discount`, na `pos.take_payment`) — `null`: internetsiz chegirma yo'q.
+  String? get discountLimitPercent {
+    if (!_givesDiscountAlone) return null;
+    final String? limit = _cashierLimit;
+    return limit == null ? null : formatPercent(limit);
+  }
+
+  /// Whoever gives a discount without a manager's approval online: a holder of `orders.discount`, or a cashier.
+  bool get _givesDiscountAlone =>
+      _can('orders.discount') || _can('pos.take_payment');
+
+  String? get _cashierLimit {
+    final String? limit =
+        bootstrap()?.branch.settings.cashierDiscountMaxPercent;
+    return (OfflineDiscount.hundredths(limit) ?? 0) > 0 ? limit : null;
+  }
+
+  /// Nega shu buyurtmaga internetsiz UMUMAN chegirma berib (yoki olib tashlab) bo'lmaydi — o'zbekcha matn, tugma
+  /// yonida ko'rsatish uchun; mumkin bo'lsa `null`. Qiymatga bog'liq sabablar (kassir chegarasi, sabab yozilmagan):
+  /// [discountRefusal].
+  String? discountBlock(String uuid) => _discountBlock(uuid)?.message;
+
+  /// Aynan shu chegirmani internetsiz berib bo'lmasa — sababi (o'zbekcha), aks holda `null`. [discount] aynan shu
+  /// tekshiruvdan o'tadi (hech narsa navbatga yozilmaydi).
+  String? discountRefusal(
+    String uuid, {
+    required PosDiscountKind kind,
+    required String value,
+    String? reason,
+  }) => _discountCheck(uuid, kind, value, reason).refused?.message;
+
+  /// M5 S2 (docs/scale/M5_DESIGN.md 3-bo'lim): buyurtmaga internetsiz chegirma, menejer tasdig'isiz (uni server
+  /// beradi). Egasining qarori (20.11.2026): internetsiz HAMMA — kassir (`pos.take_payment`), menejer va
+  /// `orders.discount` egasi ham — ko'pi bilan bootstrap nusxasidagi `cashier_discount_max_percent` gacha beradi
+  /// (qiymat yozilganidek); undan ko'pi yoki chegara belgilanmagan — rad etiladi ([discountLimitReason]). Faqat schyot
+  /// tuzilguncha, 24 soatlik chegaradan keyin emas, PIN'siz davom etayotgan xodim bera olmaydi, sabab majburiy.
+  /// [value] `"0"` — chegirmani olib tashlash (sabab shart emas). Navbatga `order.discount` yoziladi; summa serverdagi
+  /// qoida bilan hisoblanadi ([OfflineDiscount]) va har qator o'zgarishida qayta hisoblanadi.
+  Future<PosOrder> discount(
+    String uuid, {
+    required PosDiscountKind kind,
+    required String value,
+    String? reason,
+    String? idempotencyKey,
+  }) async {
+    final ({
+      PosOfflineUnavailable? refused,
+      int hundredths,
+      PosMoney items,
+      String? reason,
+    })
+    check = _discountCheck(uuid, kind, value, reason);
+    if (check.refused != null) throw check.refused!;
+    final bool removing = check.hundredths == 0;
+    final String canonical = OfflineDiscount.canonical(check.hundredths);
+    await _enqueue(SyncOpType.orderDiscount, <String, Object?>{
+      'order': uuid,
+      'kind': kind.wire,
+      'value': canonical,
+      if (!removing) 'reason': check.reason,
+      // What the till shows now: the server compares it with what it applied (`discount_mismatch`, a note)
+      'expected_discount':
+          (removing
+                  ? PosMoney.zero
+                  : OfflineDiscount.amount(kind.wire, canonical, check.items))
+              .toApiString(),
+      'idempotency_key': ?idempotencyKey,
+    });
+    return order(uuid);
+  }
+
+  /// Why no discount at all may be given (or taken off) on this order offline; `null`: it may.
+  PosOfflineUnavailable? _discountBlock(String uuid) {
+    if (!settings.discount) {
+      return const PosOfflineUnavailable(
+        'Chegirma uchun internet kerak: aloqa tiklangach bering.',
+        reason: discountUnsupportedReason,
+      );
+    }
+    if (_actor != null) {
+      // Never relayed over the LAN (as the server: PosSyncOperationType::relayable)
+      return const PosOfflineUnavailable(
+        "Chegirma faqat kassaning o'zida beriladi.",
+      );
+    }
+    if (_forgetting != null) {
+      return const PosOfflineUnavailable(
+        'Kassa serverdan uzildi: amal saqlanmadi. Kassani qayta ulang.',
+      );
+    }
+    if (staffId() == null) {
+      return const PosOfflineUnavailable('Xodim kirmagan.');
+    }
+    if (!status.canOpenOrders) {
+      return const PosOfflineUnavailable(
+        "Kassa 24 soatdan beri server bilan bog'lanmagan (yoki menyu nusxasi 24 soatdan eski): internetsiz chegirma "
+        "berilmaydi. Schyot va to'lov ishlaydi; chegirmani internet tiklangach bering.",
+        reason: limitReason,
+      );
+    }
+    if (_continued) {
+      return const PosOfflineUnavailable(
+        "PIN'siz davom etilmoqda: internetsiz chegirma berilmaydi. Faqat ochiq buyurtmalarni yakunlash va to'lov "
+        'olish mumkin. Internet tiklangach PIN bilan kiring.',
+        reason: continuedReason,
+      );
+    }
+    if (!_can('orders.discount') && !_can('orders.manage')) {
+      return const PosOfflineUnavailable(
+        "Chegirma berishga ruxsat yo'q (internetsiz menejer tasdig'i olinmaydi).",
+        reason: 'permission_denied',
+      );
+    }
+    final OfflineOrderState? state = book.state(uuid);
+    if (state == null) {
+      return const PosOfflineUnavailable(
+        'Bu buyurtma kassada saqlanmagan: chegirmani internet tiklangach bering.',
+        reason: 'offline_not_cached',
+      );
+    }
+    if (!state.isOpen) {
+      return const PosOfflineUnavailable('Buyurtma yopilgan.');
+    }
+    final bool billed =
+        state.order['bill_locked'] == true ||
+        state.bills.any((Map<String, Object?> b) => b['status'] != 'void');
+    if (billed) {
+      return const PosOfflineUnavailable(
+        "Schyot tuzilgan: internetsiz chegirma faqat schyot tuzilguncha beriladi. Internet tiklangach menejer bilan "
+        "o'zgartiring.",
+        reason: discountBilledReason,
+      );
+    }
+    return null;
+  }
+
+  /// The whole check of one discount (the same rules as PosOrderService::discount, without the approval token):
+  /// `refused` when it may not be given offline; else the value in hundredths, the dishes it is taken from and the
+  /// trimmed reason.
+  ({
+    PosOfflineUnavailable? refused,
+    int hundredths,
+    PosMoney items,
+    String? reason,
+  })
+  _discountCheck(
+    String uuid,
+    PosDiscountKind kind,
+    String value,
+    String? reason,
+  ) {
+    ({
+      PosOfflineUnavailable? refused,
+      int hundredths,
+      PosMoney items,
+      String? reason,
+    })
+    no(String message, String why) => (
+      refused: PosOfflineUnavailable(message, reason: why),
+      hundredths: 0,
+      items: PosMoney.zero,
+      reason: null,
+    );
+
+    final PosOfflineUnavailable? block = _discountBlock(uuid);
+    if (block != null) {
+      return (
+        refused: block,
+        hundredths: 0,
+        items: PosMoney.zero,
+        reason: null,
+      );
+    }
+    final int? h = OfflineDiscount.hundredths(value.trim());
+    if (h == null) {
+      return no(
+        "Chegirma qiymatini to'g'ri kiriting (manfiy emas, ko'pi bilan ikki kasr raqam).",
+        'value_invalid',
+      );
+    }
+    final PosMoney items = PosMoney.sum(<PosMoney>[
+      for (final Map<String, Object?> i in book.state(uuid)!.items)
+        if (i['kitchen_status'] != 'void') PosMoney.parse(i['total_price']),
+    ]);
+    if (h == 0) {
+      // Taking a discount off raises the bill: whoever may ask at all may do it, no reason needed
+      return (refused: null, hundredths: 0, items: items, reason: null);
+    }
+    final String trimmed = reason?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return no('Chegirma sababini yozing.', 'reason_required');
+    }
+    final String why = trimmed.length > 255
+        ? trimmed.substring(0, 255)
+        : trimmed;
+    if (kind == PosDiscountKind.percent && h > 10000) {
+      return no('Chegirma 100 foizdan oshmasligi kerak.', 'value_invalid');
+    }
+    if (kind == PosDiscountKind.amount && PosMoney(h) > items) {
+      return no(
+        "Chegirma taomlar summasidan (${items.format()}) katta bo'lmasligi kerak.",
+        'value_invalid',
+      );
+    }
+    // Owner decision of 20.11.2026: offline everybody has the branch's cashier limit, a holder of `orders.discount`
+    // too (as PosSyncApplier::discount: `offline_limit`); a larger discount is given online
+    if (!_givesDiscountAlone) {
+      return no(
+        "Internetsiz chegirma berish uchun menejer tasdig'i kerak, u esa faqat internet bilan olinadi: chegirmani "
+        'aloqa tiklangach bering.',
+        discountLimitReason,
+      );
+    }
+    final String? limit = _cashierLimit;
+    if (limit == null) {
+      return no(
+        'Filialda kassir chegirmasi chegarasi belgilanmagan: internetsiz chegirma berilmaydi. Chegirmani internet '
+        'qaytgach bering.',
+        discountLimitReason,
+      );
+    }
+    if (!OfflineDiscount.withinLimit(
+      kind.wire,
+      OfflineDiscount.canonical(h),
+      items,
+      limit,
+    )) {
+      return no(
+        "Internetsiz chegirma: filial chegarasi ${formatPercent(limit)}% gacha. Kattarog'i internet qaytgach "
+        'beriladi.',
+        discountLimitReason,
+      );
+    }
+    return (refused: null, hundredths: h, items: items, reason: why);
   }
 
   /// Bitta schyot (bo'lish — internet kerak).

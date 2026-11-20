@@ -18,6 +18,7 @@ class PosOfflineSettings {
     this.limits = const OfflineLimits(),
     this.serviceChargeLocked = false,
     this.packaging = const <PosPackagingRule>[],
+    this.discount = false,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -30,6 +31,7 @@ class PosOfflineSettings {
     guestItems: j.objects('guest_items', PosOfflineGuestItem.fromJson),
     limits: OfflineLimits.fromJson(j.objOrNull('limits')?.map),
     serviceChargeLocked: j.boolean('service_charge_locked'),
+    discount: j.boolean('discount'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
@@ -56,6 +58,7 @@ class PosOfflineSettings {
         limits: limits,
         serviceChargeLocked: serviceChargeLocked,
         packaging: rules,
+        discount: discount,
       );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
@@ -73,6 +76,10 @@ class PosOfflineSettings {
 
   /// P6-34: filialning qadoq qoidalari (`packaging` moduli o'chiq — bo'sh; `OfflinePackaging`).
   final List<PosPackagingRule> packaging;
+
+  /// M5 S2: server `order.discount` amalini qabul qiladi (`offline.discount: true`). Eski server aytmaydi: kassa
+  /// internetsiz chegirma bermaydi (aks holda butun navbat 422 bilan to'xtab qolardi).
+  final bool discount;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {

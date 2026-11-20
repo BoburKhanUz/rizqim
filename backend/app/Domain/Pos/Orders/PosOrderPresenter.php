@@ -65,6 +65,9 @@ class PosOrderPresenter
             'discount_value' => $order->getAttribute('discount_value') !== null ? (string) $order->getAttribute('discount_value') : null,
             'discount_reason' => $order->getAttribute('discount_reason'),
             'discount_by' => $order->getAttribute('discount_by') !== null ? (int) $order->getAttribute('discount_by') : null,
+            // Wave M5 S2 (review): whether the discount is a promo code's (worked out by the code's own rules; a till
+            // offline does not recompute it and never reads this from the reason's text). A hand discount clears it
+            'discount_promo' => $order->getAttribute('promo_code_id') !== null,
             // Review C1: why the order's promo code was dropped (the dishes fell under its minimum); null otherwise
             'promo_note' => $order->getAttribute('promo_note'),
             'service_charge_amount' => (string) $order->service_charge_amount,

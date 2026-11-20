@@ -10,6 +10,8 @@ use App\Enums\Permission;
  * one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight.
  * P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request,
  * which the hub relays from the KDS and the waiters' phones (relayable()).
+ * Wave M5 S2 (docs/scale/M5_DESIGN.md §3): a discount given at the till without internet (`order.discount`), with
+ * the online rights less the manager's approval; only the till itself sends it, and it is not money.
  */
 enum PosSyncOperationType: string
 {
@@ -29,6 +31,8 @@ enum PosSyncOperationType: string
     case KITCHEN_RECALL = 'kitchen.recall';
     case KITCHEN_ASSEMBLED = 'kitchen.assembled';
     case BILL_REQUEST = 'bill.request';
+    // Wave M5 S2: a discount given offline (PosSyncApplier::discount)
+    case ORDER_DISCOUNT = 'order.discount';
 
     /**
      * The permissions the staff member must hold (any of them).
@@ -41,17 +45,20 @@ enum PosSyncOperationType: string
             self::BILL_CREATE => [Permission::ORDERS_MANAGE, Permission::POS_TAKE_PAYMENT],
             self::BILL_PAY, self::ORDER_CLOSE => [Permission::POS_TAKE_PAYMENT],
             self::KITCHEN_BUMP, self::KITCHEN_RECALL, self::KITCHEN_ASSEMBLED => [Permission::KITCHEN_MANAGE],
+            // Who may ask at all, as the online route (POST /pos/orders/{uuid}/discount); PosOrderService::discount
+            // decides the rest (the cashier's limit, taking a discount off)
+            self::ORDER_DISCOUNT => [Permission::ORDERS_DISCOUNT, Permission::ORDERS_MANAGE],
             default => [Permission::ORDERS_MANAGE],
         };
     }
 
     /**
-     * What the branch's hub may relay for another device (docs/POS_SPEC.md §5.5): never money, a bill or closing an
-     * order (those stay on the till itself).
+     * What the branch's hub may relay for another device (docs/POS_SPEC.md §5.5): never money, a bill, closing an
+     * order or a discount (those stay on the till itself).
      */
     public function relayable(): bool
     {
-        return !in_array($this, [self::BILL_CREATE, self::BILL_PAY, self::ORDER_CLOSE], true);
+        return !in_array($this, [self::BILL_CREATE, self::BILL_PAY, self::ORDER_CLOSE, self::ORDER_DISCOUNT], true);
     }
 
     /**
@@ -79,6 +86,7 @@ enum PosSyncOperationType: string
             self::KITCHEN_RECALL => 'Taom oshxonaga qaytarildi',
             self::KITCHEN_ASSEMBLED => "Buyurtma yig'ildi",
             self::BILL_REQUEST => "Schyot so'raldi",
+            self::ORDER_DISCOUNT => 'Chegirma berildi',
         };
     }
 }

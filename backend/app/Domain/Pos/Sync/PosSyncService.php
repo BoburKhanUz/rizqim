@@ -40,7 +40,7 @@ final class PosSyncService
      */
     public function sync(Device $device, array $operations, ?Carbon $sentAt, ?array $queue): array
     {
-        $lock = Cache::lock("pos-sync:device:{$device->id}", 120);
+        $lock = Cache::lock(self::lockName($device), 120);
         if (!$lock->block(10)) {
             throw new PosSyncException('sync_in_progress', "Bu kassaning boshqa sinxronlash so'rovi hali tugamadi. Birozdan keyin qayta yuboring.");
         }
@@ -84,11 +84,14 @@ final class PosSyncService
                 // Wave M5 S1: a batch refused half-way (op_id_conflict, seq_reused) still applied what came before it:
                 // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
                 $this->report($device, $results, null, $skew);
+                app(OfflineDiscounts::class)->afterBatch($device);
 
                 throw $e;
             }
 
             $this->report($device, $results, $queue, $skew);
+            // Wave M5 S2: one message to the owner about the discounts this outage's queue carried (never fails the batch)
+            app(OfflineDiscounts::class)->afterBatch($device);
 
             return ['results' => $results, 'duplicates' => $duplicates, 'stopped_at' => $stoppedAt, 'clock_skew_seconds' => $skew];
         } finally {
@@ -116,6 +119,15 @@ final class PosSyncService
         }
 
         $device->forceFill($attributes)->saveQuietly();
+    }
+
+    /**
+     * The lock one batch of a till is applied under; the owner's offline-discount summary of the till is sent under it
+     * too (OfflineDiscounts), by the batch or by the schedule, never by both.
+     */
+    public static function lockName(Device $device): string
+    {
+        return "pos-sync:device:{$device->id}";
     }
 
     public static function clockWarning(?int $skew): bool

@@ -31,6 +31,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * `service_charge_rules` module, else null) and the bill notice, and the section the stolovaya lock
  * (`service_charge_locked`), so the till prices an offline order as PosChargesCalculator does (order type, large group,
  * cover) and its bills stop coming back with `amount_mismatch`.
+ *
+ * Wave M5 S2: `discount: true` tells the till this server takes the `order.discount` operation; a till offers the
+ * offline discount only then (a till never queues what its server does not know: the whole batch would be refused).
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -121,6 +124,8 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             'places' => $places,
             'guest_items' => $guestItems,
             'limits' => self::LIMITS,
+            // Wave M5 S2 (risk 7.2-1): this server takes `order.discount`: the till may give a discount offline
+            'discount' => true,
         ]];
     }
 

@@ -146,6 +146,10 @@ class FakePosState {
   /// Filial POS sozlamasi (P3-37): kassir menejersiz beradigan chegirma foizi; `null` — har chegirma tasdiq bilan.
   String? cashierDiscountMaxPercent = '10.00';
 
+  /// M5 S2: bootstrap `offline.discount: true` (server `order.discount` amalini biladi). Standart — eski server:
+  /// aytmaydi, kassa internetsiz chegirma bermaydi.
+  bool offlineDiscount = false;
+
   /// P6 (A bosqichi): `pos_settings.auto_print_bill` va `bill_printer` (printer id).
   bool autoPrintBill = true;
   int? billPrinter;
@@ -1305,6 +1309,7 @@ class FakePosState {
           'next_local_number': 1,
           'business_date': _date(now()),
           'day_type': 'weekday',
+          if (offlineDiscount) 'discount': true,
           'fees': <Object?>[
             <String, Object?>{
               'hall_id': null,
@@ -1586,6 +1591,8 @@ class FakePosState {
       'discount_value': null,
       'discount_reason': null,
       'discount_by': null,
+      // M5 S2: the discount is a promo code's (FakeCashierBackend sets it; a hand discount clears it)
+      'discount_promo': false,
       'service_charge_amount': '0.00',
       'place_fee_amount': '0.00',
       'room_fee_amount': '0.00',
@@ -2296,7 +2303,8 @@ class FakePosState {
       ..['discount_kind'] = value == 0 ? null : kind
       ..['discount_value'] = stored
       ..['discount_reason'] = value == 0 ? null : reason
-      ..['discount_by'] = value == 0 ? null : member['id'];
+      ..['discount_by'] = value == 0 ? null : member['id']
+      ..['discount_promo'] = false;
     // Like the server: the existing `charges_changed` change
     _touch(order, 'charges_changed');
     return _ok(

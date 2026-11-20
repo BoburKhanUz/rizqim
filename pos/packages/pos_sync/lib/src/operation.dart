@@ -25,6 +25,10 @@ abstract final class SyncOpType {
   /// P6: ofitsiant schyot so'radi (`{order}`).
   static const String billRequest = 'bill.request';
 
+  /// M5 S2: kassada internetsiz berilgan chegirma (`{order, kind: percent|amount, value, reason,
+  /// expected_discount}`; `value` 0 — olib tashlash). Faqat kassaning o'zida: markaz orqali uzatilmaydi.
+  static const String orderDiscount = 'order.discount';
+
   static const List<String> all = <String>[
     orderOpen,
     orderRound,
@@ -40,6 +44,7 @@ abstract final class SyncOpType {
     kitchenRecall,
     kitchenAssembled,
     billRequest,
+    orderDiscount,
   ];
 
   /// Ro'yxatdagi nomi ("Sinxronlash xatolari").
@@ -58,6 +63,7 @@ abstract final class SyncOpType {
     kitchenRecall => 'Taom oshxonaga qaytarildi',
     kitchenAssembled => "Buyurtma yig'ildi",
     billRequest => "Schyot so'raldi",
+    orderDiscount => 'Chegirma berildi',
     _ => type,
   };
 }

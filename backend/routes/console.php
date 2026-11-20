@@ -59,3 +59,11 @@ Artisan::command('pos:alert-long-open', function (\App\Domain\Pos\Orders\PosOrde
     $this->info($alerts->checkLongOpen() . ' long-open order alert(s) sent');
 })->purpose('Alert the owner about POS hall orders open longer than the branch threshold (once per order)');
 Schedule::command('pos:alert-long-open')->everyTenMinutes()->withoutOverlapping(10);
+
+// Wave M5 S2 (review): the owner's ONE summary of the discounts a till gave without internet (and of those the server
+// refused) is sent at the latest 30 minutes after the first of them reached the server, also when the till never
+// syncs again (App\Domain\Pos\Sync\OfflineDiscounts::sendOverdue; the till's own batches send it sooner)
+Artisan::command('pos:offline-discount-summaries', function (\App\Domain\Pos\Sync\OfflineDiscounts $discounts) {
+    $this->info($discounts->sendOverdue() . ' offline discount summary message(s) sent');
+})->purpose("Send the owner's summary of offline discounts for tills whose queue never finished draining (once per till and outage)");
+Schedule::command('pos:offline-discount-summaries')->everyTenMinutes()->withoutOverlapping(10);

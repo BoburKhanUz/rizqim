@@ -13444,10 +13444,10 @@ export interface components {
         };
         /**
          * PosSyncOperationType
-         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()).
+         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()). Wave M5 S2 (docs/scale/M5_DESIGN.md §3): a discount given at the till without internet (`order.discount`), with the online rights less the manager's approval; only the till itself sends it, and it is not money.
          * @enum {string}
          */
-        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request";
+        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request" | "order.discount";
         /** Product */
         Product: {
             id: number;
@@ -43499,6 +43499,7 @@ export interface operations {
                                     discount_value: string | null;
                                     discount_reason: string | null;
                                     discount_by: number | null;
+                                    discount_promo: boolean;
                                     promo_note: string | null;
                                     service_charge_amount: string;
                                     place_fee_amount: string;
@@ -49253,6 +49254,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -49464,6 +49466,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -50513,6 +50516,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -50732,6 +50736,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -50952,6 +50957,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -51456,6 +51462,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -51678,6 +51685,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -51897,6 +51905,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -52166,6 +52175,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -52393,6 +52403,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -52622,6 +52633,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -52850,6 +52862,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -53079,6 +53092,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -53298,6 +53312,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -53518,6 +53533,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -53737,6 +53753,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -53957,6 +53974,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -54175,6 +54193,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -54389,6 +54408,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -54841,6 +54861,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -55087,6 +55108,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -55306,6 +55328,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -55525,6 +55548,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -55745,6 +55769,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            discount_promo: boolean;
                             promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
@@ -56546,6 +56571,10 @@ export interface operations {
                                 discounts: {
                                     count: number;
                                     amount: string;
+                                    offline?: {
+                                        count: number;
+                                        amount: string;
+                                    };
                                 };
                                 voids: {
                                     count: number;
@@ -56770,6 +56799,10 @@ export interface operations {
                                     discounts: {
                                         count: number;
                                         amount: string;
+                                        offline?: {
+                                            count: number;
+                                            amount: string;
+                                        };
                                     };
                                     voids: {
                                         count: number;
@@ -57036,6 +57069,10 @@ export interface operations {
                                 discounts: {
                                     count: number;
                                     amount: string;
+                                    offline?: {
+                                        count: number;
+                                        amount: string;
+                                    };
                                 };
                                 voids: {
                                     count: number;
@@ -57584,6 +57621,10 @@ export interface operations {
                                 discounts: {
                                     count: number;
                                     amount: string;
+                                    offline?: {
+                                        count: number;
+                                        amount: string;
+                                    };
                                 };
                                 voids: {
                                     count: number;
@@ -57905,6 +57946,10 @@ export interface operations {
                                 discounts: {
                                     count: number;
                                     amount: string;
+                                    offline?: {
+                                        count: number;
+                                        amount: string;
+                                    };
                                 };
                                 voids: {
                                     count: number;
@@ -58077,7 +58122,7 @@ export interface operations {
                         op_id: string;
                         seq: number;
                         /** @enum {string} */
-                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request";
+                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request" | "order.discount";
                         /** Format: date-time */
                         occurred_at?: string | null;
                         staff_id: number;

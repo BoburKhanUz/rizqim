@@ -4,17 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'offline30.dart';
+
 part 'discounts4.g.dart';
 
 @JsonSerializable()
 class Discounts4 {
-  const Discounts4({required this.count, required this.amount});
+  const Discounts4({required this.count, required this.amount, this.offline});
 
   factory Discounts4.fromJson(Map<String, Object?> json) =>
       _$Discounts4FromJson(json);
 
   final int count;
   final String amount;
+  final Offline30? offline;
 
   Map<String, Object?> toJson() => _$Discounts4ToJson(this);
 }

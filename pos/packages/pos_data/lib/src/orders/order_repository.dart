@@ -78,6 +78,7 @@ class PosOrderRepository {
     Future<PosOrder> Function(String? key) local, {
     String? idempotencyKey,
     Future<PosOrder> Function(String? key)? viaLan,
+    bool refusalKeepsNetworkError = false,
   }) async {
     if (_viaLan) {
       if (viaLan == null) _onlineOnly('bu amal');
@@ -96,7 +97,15 @@ class PosOrderRepository {
       try {
         return await local(e.idempotencyKey ?? idempotencyKey);
       } on PosOfflineUnavailable catch (refused) {
-        if (refused.reason == PosOffline.limitReason) throw e;
+        // M5 S2: nor a server that takes no offline discount: the request stays what it was, a network error.
+        // [refusalKeepsNetworkError] (a discount): so does ANY local refusal — the request was an online one (the
+        // server may well give it: a manager's approval, a larger limit) and its answer was lost; the till's offline
+        // rules are no answer to it
+        if (refusalKeepsNetworkError ||
+            refused.reason == PosOffline.limitReason ||
+            refused.reason == PosOffline.discountUnsupportedReason) {
+          throw e;
+        }
         rethrow;
       }
     }
@@ -504,7 +513,17 @@ class PosOrderRepository {
   ///
   /// Kassir o'zi filial chegarasigacha (`pos_settings.cashier_discount_max_percent`) beradi; undan ko'pi —
   /// [PosApprovalRequired] (`orders.discount` menejer tasdig'i). To'lov olingan schyot bo'lsa — [PosConflict]
-  /// `paid_bill_affected`. Internetsiz rejimda — [PosOfflineUnavailable] (navbatga yozilmaydi).
+  /// `paid_bill_affected`.
+  ///
+  /// M5 S2: internetsiz rejimda (kassa) chegirma navbatga `order.discount` bo'lib yoziladi va lokal ko'rinish qaytadi
+  /// ([PosOffline.discount]) — faqat server buni qabul qilishini aytgan bo'lsa (bootstrap `offline.discount`), menejer
+  /// tasdig'isiz ([approvalToken] internetsiz ishlatilmaydi): hamma (menejer ham) filialning kassir chegarasigacha;
+  /// undan ko'pi, chegara belgilanmagan, schyotdan keyin, 24 soatdan keyin yoki PIN'siz davom etayotgan xodimga —
+  /// [PosOfflineUnavailable] (sababi o'zbekcha `message` da, turi `reason` da: [PosOffline.discountLimitReason] ...).
+  /// Hech narsa navbatga yozilmaydi. Markaz orqali (ofitsiant telefoni, LAN) chegirma berilmaydi.
+  ///
+  /// Onlayn so'rovning javobi kelmasa (tarmoq xatosi) va kassaning internetsiz qoidasi uni bermasa — o'sha
+  /// [PosNetworkException] qaytadi (navbatga yozilmaydi, lokal rad etilmaydi): so'rov onlayn edi.
   Future<PosOrder> discount(
     String uuid, {
     required int version,
@@ -514,19 +533,30 @@ class PosOrderRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
-    if (_limited) {
+    if (_viaLan || (_limited && offline == null)) {
       throw const PosOfflineUnavailable(
         'Chegirma uchun internet kerak: aloqa tiklangach bering.',
       );
     }
     final String? why = reason?.trim();
-    return _post(uuid, 'discount', idempotencyKey, <String, Object?>{
-      'version': version,
-      'kind': kind.wire,
-      'value': value,
-      if (why != null && why.isNotEmpty) 'reason': why,
-      'approval_token': ?approvalToken,
-    });
+    return _either(
+      () => _post(uuid, 'discount', idempotencyKey, <String, Object?>{
+        'version': version,
+        'kind': kind.wire,
+        'value': value,
+        if (why != null && why.isNotEmpty) 'reason': why,
+        'approval_token': ?approvalToken,
+      }),
+      (String? key) => offline!.discount(
+        uuid,
+        kind: kind,
+        value: value,
+        reason: why,
+        idempotencyKey: key,
+      ),
+      idempotencyKey: idempotencyKey,
+      refusalKeepsNetworkError: true,
+    );
   }
 
   /// `POST /pos/orders/{uuid}/charges/{charge}/waive`: xizmat qatorini sabab bilan olib tashlash.

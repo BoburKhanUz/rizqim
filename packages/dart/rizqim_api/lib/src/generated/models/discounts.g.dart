@@ -9,9 +9,13 @@ part of 'discounts.dart';
 Discounts _$DiscountsFromJson(Map<String, dynamic> json) => Discounts(
   count: (json['count'] as num).toInt(),
   amount: json['amount'] as String,
+  offline: json['offline'] == null
+      ? null
+      : Offline27.fromJson(json['offline'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$DiscountsToJson(Discounts instance) => <String, dynamic>{
   'count': instance.count,
   'amount': instance.amount,
+  'offline': instance.offline,
 };

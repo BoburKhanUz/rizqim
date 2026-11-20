@@ -327,7 +327,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     if (refund != null && mounted) await refresh();
   }
 
-  /// P3-37: chegirma schyotga to'lov olinmaguncha beriladi (keyin server `paid_bill_affected` deydi); internetsiz yo'q.
+  /// P3-37: chegirma schyotga to'lov olinmaguncha beriladi (keyin server `paid_bill_affected` deydi). Internetsiz — M5 S2: tugma `discountBlock` bilan.
   bool get _canDiscount {
     final PosBilling? b = _billing;
     final PosOrder? o = _order;
@@ -338,6 +338,14 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
         !b.bills.any(_settled) &&
         DiscountRules.of(_scope.session).allowed;
   }
+
+  /// M5 S2: offline the discount works only when the server takes it and the order allows one ([discountBlock]).
+  ({PosOffline? offline, bool allowed, String? reason}) get _discountMode =>
+      discountOfflineMode(
+        limited: limitedMode(context),
+        offline: _scope.data.offline,
+        orderUuid: widget.orderUuid,
+      );
 
   Future<void> _discount({bool remove = false}) async {
     final PosOrder? o = _order;
@@ -351,14 +359,18 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       );
     } else {
       final DiscountRules rules = DiscountRules.of(_scope.session);
+      final mode = _discountMode;
+      if (!mode.allowed) return;
       d = await showDiscountDialog(
         context,
         order: o,
         unlimited: rules.unlimited,
         limitHundredths: rules.limitHundredths,
+        offline: mode.offline,
       );
     }
     if (d == null || !mounted) return;
+    if (remove && !_discountMode.allowed) return;
     final DiscountInput input = d;
     final String signature =
         '${input.kind.wire}:${input.value}:${input.reason}';
@@ -402,15 +414,25 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     await refresh();
   }
 
-  Widget _discountButton() => RzButton(
-    key: const ValueKey<String>('billing-discount'),
-    label: (_order?.hasDiscount ?? false)
-        ? "Chegirmani o'zgartirish"
-        : 'Chegirma',
-    icon: Icons.percent_rounded,
-    size: RzButtonSize.lg,
-    variant: RzButtonVariant.secondary,
-    onPressed: _busy ? null : () => unawaited(_discount()),
+  /// Offline and blocked: the button is off and says why (the same text as the order screen's tooltip).
+  Widget _withDiscountReason(Widget button) {
+    final String? reason = _discountMode.reason;
+    return reason == null ? button : Tooltip(message: reason, child: button);
+  }
+
+  Widget _discountButton() => _withDiscountReason(
+    RzButton(
+      key: const ValueKey<String>('billing-discount'),
+      label: (_order?.hasDiscount ?? false)
+          ? "Chegirmani o'zgartirish"
+          : 'Chegirma',
+      icon: Icons.percent_rounded,
+      size: RzButtonSize.lg,
+      variant: RzButtonVariant.secondary,
+      onPressed: _busy || !_discountMode.allowed
+          ? null
+          : () => unawaited(_discount()),
+    ),
   );
 
   /// P3-35: buyurtmaning hamma to'lovi qaytarilgan (`payment_status = refunded`) — endi uni bekor qilish mumkin
@@ -819,7 +841,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               amount: _depositAvailable,
               tone: StatusTone.success,
             ),
-          if (_canDiscount && !limitedMode(context)) ...<Widget>[
+          if (_canDiscount) ...<Widget>[
             const SizedBox(height: 12),
             Wrap(
               spacing: 12,
@@ -835,13 +857,17 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
     );
   }
 
-  Widget _removeDiscountButton() => RzButton(
-    key: const ValueKey<String>('billing-remove-discount'),
-    label: 'Chegirmani olib tashlash',
-    icon: Icons.backspace_outlined,
-    size: RzButtonSize.lg,
-    variant: RzButtonVariant.ghost,
-    onPressed: _busy ? null : () => unawaited(_discount(remove: true)),
+  Widget _removeDiscountButton() => _withDiscountReason(
+    RzButton(
+      key: const ValueKey<String>('billing-remove-discount'),
+      label: 'Chegirmani olib tashlash',
+      icon: Icons.backspace_outlined,
+      size: RzButtonSize.lg,
+      variant: RzButtonVariant.ghost,
+      onPressed: _busy || !_discountMode.allowed
+          ? null
+          : () => unawaited(_discount(remove: true)),
+    ),
   );
 
   static String _percentLabel(String raw) {
@@ -1037,7 +1063,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 onPressed: () =>
                     unawaited(printSale(context, bill, _order, copy: true)),
               ),
-            if (_canDiscount && !limitedMode(context)) ...<Widget>[
+            if (_canDiscount) ...<Widget>[
               _discountButton(),
               if (_order?.hasDiscount ?? false) _removeDiscountButton(),
             ],

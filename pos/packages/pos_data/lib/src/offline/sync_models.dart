@@ -292,6 +292,7 @@ abstract final class PosSyncReasons {
     'line_sent':
         "Taom shu orada oshxonaga yuborilgan edi: o'chirish qo'llanmadi.",
     'variant_not_found': 'Taom menyuda topilmadi (o\'chirilgan).',
+    'discount_not_allowed': "Internetsiz berilgan chegirma serverda qabul qilinmadi (ruxsat yoki chegara): schyot to'liq summada qoldi. Menejer tekshirsin.",
     'tender_not_offline': "Oflayn faqat naqd va karta to'lovi olinadi.",
   };
 
