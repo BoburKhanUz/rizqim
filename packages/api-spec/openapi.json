@@ -67332,7 +67332,7 @@
         "/v1/owner/pos/sync-signing": {
             "get": {
                 "operationId": "syncSigning.show",
-                "description": "`enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no\nkey on the server, or the last operation received from them came unsigned: an old app) — in enforce what they\nqueue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.",
+                "description": "`enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that have not shown that\nthey sign (no verified operation received from them under their current key — a key on the server alone proves\nnothing — or the last operation received from them came unsigned: an old app) — in enforce what they queue\noffline is applied but every operation is flagged for the manager, their discounts and voids refused;\n`signing_tills`: how many of the others there are.",
                 "summary": "The signature mode of the offline queue",
                 "tags": [
                     "Owner: POS settings"
@@ -160149,7 +160149,7 @@
         "/v1/pos/sync": {
             "post": {
                 "operationId": "posSync.store",
-                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).\nWave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue\nsigning key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,\nmac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;\n`mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the\nfirst one under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + the device uuid)); `kid` the key's number. The\nserver verifies the bytes, then reads the operation from them. The answer is the same; what the signature was\nworth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never\nrefuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on\n(`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected\n(`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an\noperation after a lost one (`chain_gap`) is applied and answered as a conflict.",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).\nWave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue\nsigning key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,\nmac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;\n`mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the\nfirst one under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + the device uuid)); `kid` the key's number. The\nserver verifies the bytes, then reads the operation from them. The answer is the same; what the signature was\nworth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never\nrefuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on\n(`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation is still applied and answered as a\nconflict `signature_invalid` (a sale is never dropped); only a concession is refused: `order.discount`\n(rejected `discount_not_allowed`, `refs.cause: signature_invalid`) and `order.void` (rejected\n`signature_invalid`). A payment is recorded and answered as a conflict `payment_unverified`, and an operation\nafter a lost one (`chain_gap`) is applied and answered as a conflict.\nA signed element whose text does not hold a usable operation never refuses the batch (the till's queue would\nstop behind it): when its `op_id` and `seq` can be read it is recorded and answered in `results` as rejected\n`invalid_payload` (an unknown `type`: `type_unknown`); when they cannot, or they belong to another operation,\nnothing is recorded and it is answered in `unreadable` with its place in the batch (`index`, from 0): the till\ntakes that line off its queue. `mac`, `prev` and `kid` of the wrong kind make an operation `bad`, nothing\nmore; `kid` may be a number written as text. The signed shape needs a JSON body (`Content-Type:\napplication/json`): in any other body the server no longer has the signed bytes and records the operation\n`bad`. An unsigned element that is malformed is still a 422 for the batch, as before.",
                 "summary": "Send the offline queue",
                 "tags": [
                     "POS: sync"
@@ -160388,6 +160388,42 @@
                                                         ]
                                                     }
                                                 },
+                                                "unreadable": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "index": {
+                                                                "type": "integer"
+                                                            },
+                                                            "op_id": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "seq": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reason": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "index",
+                                                            "op_id",
+                                                            "seq",
+                                                            "reason",
+                                                            "message"
+                                                        ]
+                                                    }
+                                                },
                                                 "device": {
                                                     "type": "object",
                                                     "properties": {
@@ -160453,6 +160489,7 @@
                                                 "clock_warning",
                                                 "stopped_at",
                                                 "results",
+                                                "unreadable",
                                                 "device"
                                             ]
                                         }
@@ -170020,7 +170057,7 @@
         "/v1/terminal/sync-key": {
             "post": {
                 "operationId": "terminal.syncKey",
-                "description": "Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with\n(`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when\n`GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`\nwith `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one\nprevious key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is\ngiven in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.\nNo Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by\ncalling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.",
+                "description": "Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with\n(`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when\n`GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`\nwith `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one\nprevious key only: a till must not rotate while its queue is not empty). The server refuses a rotation while\nthe queue this till last reported is not empty (`POST /pos/sync` `queue`, `GET /pos/sync/status?queue_size=`):\n409 `queue_not_empty` — send the queue, or report it empty, then ask again. A till that has no key yet gets its\nfirst one whatever its queue holds. `key` is base64 of 32 bytes and is\ngiven in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.\nNo Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by\ncalling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.",
                 "summary": "A new queue signing key for this till",
                 "tags": [
                     "Terminal"
@@ -170060,6 +170097,16 @@
                                         "message",
                                         "data"
                                     ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The queue this till last reported is not empty: no rotation (queue_not_empty)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }

@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'results.dart';
+import 'unreadable.dart';
 import 'device20.dart';
 
 part 'data346.g.dart';
@@ -17,6 +18,7 @@ class Data346 {
     required this.clockWarning,
     required this.stoppedAt,
     required this.results,
+    required this.unreadable,
     required this.device,
   });
 
@@ -32,6 +34,7 @@ class Data346 {
   @JsonKey(name: 'stopped_at')
   final int? stoppedAt;
   final List<Results> results;
+  final List<Unreadable> unreadable;
   final Device20 device;
 
   Map<String, Object?> toJson() => _$Data346ToJson(this);

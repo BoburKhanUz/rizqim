@@ -14,6 +14,9 @@ Data346 _$Data346FromJson(Map<String, dynamic> json) => Data346(
   results: (json['results'] as List<dynamic>)
       .map((e) => Results.fromJson(e as Map<String, dynamic>))
       .toList(),
+  unreadable: (json['unreadable'] as List<dynamic>)
+      .map((e) => Unreadable.fromJson(e as Map<String, dynamic>))
+      .toList(),
   device: Device20.fromJson(json['device'] as Map<String, dynamic>),
 );
 
@@ -23,5 +26,6 @@ Map<String, dynamic> _$Data346ToJson(Data346 instance) => <String, dynamic>{
   'clock_warning': instance.clockWarning,
   'stopped_at': instance.stoppedAt,
   'results': instance.results,
+  'unreadable': instance.unreadable,
   'device': instance.device,
 };

@@ -56,9 +56,11 @@ abstract class OwnerPosSettingsApi {
 
   /// The signature mode of the offline queue.
   ///
-  /// `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no.
-  /// key on the server, or the last operation received from them came unsigned: an old app) — in enforce what they.
-  /// queue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.
+  /// `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that have not shown that.
+  /// they sign (no verified operation received from them under their current key — a key on the server alone proves.
+  /// nothing — or the last operation received from them came unsigned: an old app) — in enforce what they queue.
+  /// offline is applied but every operation is flagged for the manager, their discounts and voids refused;.
+  /// `signing_tills`: how many of the others there are.
   @GET('/v1/owner/pos/sync-signing')
   Future<GetV1OwnerPosSyncSigningResponse> syncSigningShow();
 

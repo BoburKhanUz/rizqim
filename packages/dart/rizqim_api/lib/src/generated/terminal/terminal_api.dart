@@ -81,7 +81,10 @@ abstract class TerminalApi {
   /// (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when.
   /// `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`.
   /// with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one.
-  /// previous key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is.
+  /// previous key only: a till must not rotate while its queue is not empty). The server refuses a rotation while.
+  /// the queue this till last reported is not empty (`POST /pos/sync` `queue`, `GET /pos/sync/status?queue_size=`):.
+  /// 409 `queue_not_empty` — send the queue, or report it empty, then ask again. A till that has no key yet gets its.
+  /// first one whatever its queue holds. `key` is base64 of 32 bytes and is.
   /// given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
   /// No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by.
   /// calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.

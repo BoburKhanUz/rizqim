@@ -2874,6 +2874,7 @@ export 'models/report3.dart';
 export 'models/data345.dart';
 export 'models/get_v1_pos_shifts_uuid_x_report_response.dart';
 export 'models/results.dart';
+export 'models/unreadable.dart';
 export 'models/device20.dart';
 export 'models/data346.dart';
 export 'models/post_v1_pos_sync_response.dart';

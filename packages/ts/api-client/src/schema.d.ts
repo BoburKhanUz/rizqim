@@ -7085,9 +7085,11 @@ export interface paths {
         };
         /**
          * The signature mode of the offline queue
-         * @description `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no
-         *     key on the server, or the last operation received from them came unsigned: an old app) — in enforce what they
-         *     queue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.
+         * @description `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that have not shown that
+         *     they sign (no verified operation received from them under their current key — a key on the server alone proves
+         *     nothing — or the last operation received from them came unsigned: an old app) — in enforce what they queue
+         *     offline is applied but every operation is flagged for the manager, their discounts and voids refused;
+         *     `signing_tills`: how many of the others there are.
          */
         get: operations["syncSigning.show"];
         /**
@@ -11331,9 +11333,19 @@ export interface paths {
          *     server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
          *     worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never
          *     refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on
-         *     (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected
-         *     (`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an
-         *     operation after a lost one (`chain_gap`) is applied and answered as a conflict.
+         *     (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation is still applied and answered as a
+         *     conflict `signature_invalid` (a sale is never dropped); only a concession is refused: `order.discount`
+         *     (rejected `discount_not_allowed`, `refs.cause: signature_invalid`) and `order.void` (rejected
+         *     `signature_invalid`). A payment is recorded and answered as a conflict `payment_unverified`, and an operation
+         *     after a lost one (`chain_gap`) is applied and answered as a conflict.
+         *     A signed element whose text does not hold a usable operation never refuses the batch (the till's queue would
+         *     stop behind it): when its `op_id` and `seq` can be read it is recorded and answered in `results` as rejected
+         *     `invalid_payload` (an unknown `type`: `type_unknown`); when they cannot, or they belong to another operation,
+         *     nothing is recorded and it is answered in `unreadable` with its place in the batch (`index`, from 0): the till
+         *     takes that line off its queue. `mac`, `prev` and `kid` of the wrong kind make an operation `bad`, nothing
+         *     more; `kid` may be a number written as text. The signed shape needs a JSON body (`Content-Type:
+         *     application/json`): in any other body the server no longer has the signed bytes and records the operation
+         *     `bad`. An unsigned element that is malformed is still a 422 for the batch, as before.
          */
         post: operations["posSync.store"];
         delete?: never;
@@ -12120,7 +12132,10 @@ export interface paths {
          *     (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when
          *     `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`
          *     with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one
-         *     previous key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is
+         *     previous key only: a till must not rotate while its queue is not empty). The server refuses a rotation while
+         *     the queue this till last reported is not empty (`POST /pos/sync` `queue`, `GET /pos/sync/status?queue_size=`):
+         *     409 `queue_not_empty` — send the queue, or report it empty, then ask again. A till that has no key yet gets its
+         *     first one whatever its queue holds. `key` is base64 of 32 bytes and is
          *     given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
          *     No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by
          *     calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.
@@ -58358,6 +58373,13 @@ export interface operations {
                                     [key: string]: unknown;
                                 };
                             }[];
+                            unreadable: {
+                                index: number;
+                                op_id: string | null;
+                                seq: number | null;
+                                reason: string;
+                                message: string;
+                            }[];
                             device: {
                                 uuid: string;
                                 name: string | null;
@@ -60980,6 +61002,15 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The queue this till last reported is not empty: no rotation (queue_not_empty) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
