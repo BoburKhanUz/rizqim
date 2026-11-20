@@ -116,8 +116,12 @@ class Order extends Model
         
         static::creating(function ($order) {
             if (empty($order->short_code)) {
-                // Generate a random 4-5 digit hex code like A1024
-                $order->short_code = 'A' . strtoupper(substr(uniqid(), -4));
+                // A random 4-digit hex code like A1024. uniqid()'s last digits cycle every ~65 ms, so two orders made
+                // that far apart collided on the unique index; draw at random and skip codes already taken (any store)
+                do {
+                    $code = 'A' . strtoupper(bin2hex(random_bytes(2)));
+                } while (static::withoutGlobalScopes()->withTrashed()->where('short_code', $code)->exists());
+                $order->short_code = $code;
             }
         });
     }
