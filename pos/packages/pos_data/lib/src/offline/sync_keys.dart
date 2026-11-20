@@ -30,12 +30,18 @@ class PosSyncKeyRefused implements Exception {
 ///   before the apps; an older server gets the old unsigned shape) and the terminal holds a usable key.
 /// * **A till without a key** (paired before signing existed, or its key is unreadable) asks for one with
 ///   `POST /terminal/sync-key` by itself ([check]). So does a till whose key is older than the one the server says it
-///   holds (`offline.signing_kid`: the key was rotated on the server).
+///   holds (`offline.signing_kid`: the key was rotated on the server), and a till whose own operation the server
+///   answered as badly signed (`results[].sig_status: bad`, [SyncStore.badKid]: the server no longer holds this key
+///   under this number, e.g. after a restore from a backup). A new key that is answered `bad` again is not replaced
+///   at every sale: such a fetch is paced like a failed one.
+/// * **The server refuses too** (409 `queue_not_empty`) while the last queue the till reported to it was not empty.
+///   A till whose queue is empty says so ([PosOffline.reportQueue]) and asks once more; still refused, it waits.
 /// * **Never while the queue is not empty.** Every call rotates the key on the server, which keeps only ONE older
 ///   key: a second call with operations of the first key still queued would turn them into `bad`. [check] waits for
 ///   the queue to drain; [rotate] refuses ([PosSyncKeyRefused], [queueNotEmpty]).
 /// * **A signature never stops a sale.** No key, a failed request, a refusing server: the till sells on and queues
-///   unsigned. A failed request is tried again later, with a growing pause ([retryAfter] .. [retryCap]).
+///   unsigned. A failed request is tried again later, with a growing pause ([retryAfter] .. [retryCap]); a timer
+///   asks again when the pause is over, so a till that sits idle gets its key too.
 class PosSyncKeys {
   PosSyncKeys({
     required AuthSession auth,
@@ -50,8 +56,8 @@ class PosSyncKeys {
         auth.events.listen((AuthEvent e) {
           if (e.kind == AuthEventKind.terminalPaired) {
             // Another pairing: what the old one was refused does not count
-            _failures = 0;
-            _notBefore = null;
+            _settled();
+            _afterBad = false;
             _refusedToken = null;
           }
           _auto();
@@ -82,6 +88,10 @@ class PosSyncKeys {
   Future<void>? _checking;
   int _failures = 0;
   DateTime? _notBefore;
+  Timer? _retry;
+
+  /// The last key was fetched because the server answered `bad`: the pause stands until it verifies an operation.
+  bool _afterBad = false;
   String? _refusedToken;
   bool _disposed = false;
 
@@ -144,13 +154,43 @@ class PosSyncKeys {
     await _checking;
     final PosSyncKeyRefused? blocked = _blocked;
     if (blocked != null) throw blocked;
-    final TerminalSyncKey? key = await _auth.renewSyncKey();
+    final TerminalSyncKey? key = await _renew();
     if (key == null) {
       throw const PosSyncKeyRefused(notPaired, 'Kassa ulanmagan.');
     }
+    _settled();
+    _afterBad = false;
+    return key.kid;
+  }
+
+  /// `POST /terminal/sync-key`. The server answers 409 `queue_not_empty` while the last queue this till reported was
+  /// not empty; the queue IS empty here ([_blocked]), so the till says so and asks once more. Any other error, and a
+  /// second refusal, is thrown.
+  Future<TerminalSyncKey?> _renew() async {
+    try {
+      return await _auth.renewSyncKey();
+    } on ApiException catch (e) {
+      if (e.statusCode != 409 ||
+          e.reason != queueNotEmpty ||
+          _blocked != null) {
+        rethrow;
+      }
+      if (!await _offline.reportQueue() || _blocked != null) rethrow;
+      return _auth.renewSyncKey();
+    }
+  }
+
+  /// The server answered an operation signed with the key the till holds as badly signed.
+  bool get _keyAnsweredBad {
+    final SyncKey? key = _usable();
+    return key != null && _offline.store.badKid == key.kid;
+  }
+
+  void _settled() {
     _failures = 0;
     _notBefore = null;
-    return key.kid;
+    _retry?.cancel();
+    _retry = null;
   }
 
   /// Fetches a key when the till needs one and may ask now; otherwise does nothing. Called by itself on every change
@@ -160,11 +200,18 @@ class PosSyncKeys {
       _checking ??= _check().whenComplete(() => _checking = null);
 
   void _auto() {
-    if (_disposed || !_wanted) return;
+    if (_disposed) return;
+    if (_afterBad && _offline.store.badKid == null) {
+      // The server verified an operation under the key fetched after a `bad`: that story is over
+      _afterBad = false;
+      _settled();
+    }
+    if (!_wanted) return;
     unawaited(check());
   }
 
-  /// The till has no usable key, or the server says it holds a newer one, and nothing forbids asking.
+  /// The till has no usable key, the server says it holds a newer one, or it answered this key's operation as badly
+  /// signed, and nothing forbids asking.
   bool get _wanted {
     if (_blocked != null) return false;
     final PairedTerminal? terminal = _auth.terminal;
@@ -174,16 +221,24 @@ class PosSyncKeys {
     if (wait != null && _clock().isBefore(wait)) return false;
     final SyncKey? key = _usable();
     final int? serverKid = _offline.settings.signingKid;
-    return key == null || (serverKid != null && serverKid > key.kid);
+    return key == null ||
+        (serverKid != null && serverKid > key.kid) ||
+        _keyAnsweredBad;
   }
 
   Future<void> _check() async {
     if (_disposed || !_wanted) return;
     final String? token = _auth.terminal?.token;
+    final bool afterBad = _keyAnsweredBad;
     try {
-      await _auth.renewSyncKey();
-      _failures = 0;
-      _notBefore = null;
+      await _renew();
+      if (afterBad) {
+        // Not at every sale if the server goes on answering `bad`: the next such fetch waits, longer each time
+        _afterBad = true;
+        _pause();
+      } else {
+        _settled();
+      }
     } on ApiException catch (e) {
       final int? status = e.statusCode;
       if (status == 403 || status == 404 || status == 405) {
@@ -203,10 +258,18 @@ class PosSyncKeys {
     if (wait > retryCap) wait = retryCap;
     _failures++;
     _notBefore = _clock().add(wait);
+    // Nothing may happen on an idle till when the pause is over: ask then
+    _retry?.cancel();
+    _retry = Timer(wait + const Duration(seconds: 1), () {
+      _retry = null;
+      _auto();
+    });
   }
 
   Future<void> dispose() async {
     _disposed = true;
+    _retry?.cancel();
+    _retry = null;
     for (final StreamSubscription<Object?> s in _subs) {
       await s.cancel();
     }

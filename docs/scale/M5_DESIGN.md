@@ -348,6 +348,13 @@ or `pointycastle`; PHP has `ext-sodium`; kept as owner decision 2, default no); 
 protect the journal at rest or an export file); a signature with a timestamp window like the LAN's ±2 min (operations
 are hours old by design); mutual TLS per device (operations, not transport, are what must survive on disk).
 
+**As built on the till (S3 fixes, 20.11.2026).** A signed journal line keeps the decoded operation under `op` beside
+`raw/mac/prev/kid/dev`, so an app rolled back to a pre-S3 build reads it as unsigned (this build always sends `raw`).
+The acknowledged chain head is also kept in its own doc `_chain` (`{kid, mac, dev}`, never the key), so an old
+build's compaction cannot drop it. Orphan files keep each operation's seal for the S4 import. A `bad` answer to the
+till's own operation makes it fetch a new key (empty queue only, with backoff). Lines the server reports in
+`data.unreadable` leave the queue and are kept as journal damage.
+
 ## 5. Proposal D: a local backup at the till
 
 **Layers.**

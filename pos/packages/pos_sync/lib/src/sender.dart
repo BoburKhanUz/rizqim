@@ -42,6 +42,7 @@ class SyncBatchResponse {
     this.clockSkewSeconds,
     this.clockWarning = false,
     this.stoppedAt,
+    this.unreadable = const <SyncUnreadable>[],
   });
 
   factory SyncBatchResponse.fromJson(Map<String, Object?> j) =>
@@ -54,6 +55,16 @@ class SyncBatchResponse {
         clockSkewSeconds: (j['clock_skew_seconds'] as num?)?.toInt(),
         clockWarning: j['clock_warning'] == true,
         stoppedAt: (j['stopped_at'] as num?)?.toInt(),
+        unreadable: <SyncUnreadable>[
+          for (final Object? u
+              in (j['unreadable'] as List<Object?>?) ?? const <Object?>[])
+            if (u is Map && u['index'] is int)
+              SyncUnreadable(
+                index: u['index']! as int,
+                reason: u['reason'] as String?,
+                message: u['message'] as String?,
+              ),
+        ],
       );
 
   final List<SyncResult> results;
@@ -62,6 +73,19 @@ class SyncBatchResponse {
 
   /// Server shu `seq` da to'xtadi (bazada vaqtinchalik xato): u va keyingilari keyin qayta yuboriladi.
   final int? stoppedAt;
+
+  /// M5 S3 (`data.unreadable`): signed elements of the batch whose text the server could not use and recorded
+  /// nothing for, by their place in the batch. They leave the queue ([SyncResult.unreadable]).
+  final List<SyncUnreadable> unreadable;
+}
+
+/// One entry of `data.unreadable`: [index] is the element's place in the `operations` that were sent (from 0).
+class SyncUnreadable {
+  const SyncUnreadable({required this.index, this.reason, this.message});
+
+  final int index;
+  final String? reason;
+  final String? message;
 }
 
 /// Paketni serverga yetkazadi. Tarmoq yo'q — [SyncUnreachable]; server rad etdi — [SyncRefused].
@@ -362,7 +386,19 @@ class SyncSender {
       final int before = store.pendingCount;
       try {
         await store.markContact();
-        await store.applyResults(response.results);
+        await store.applyResults(<SyncResult>[
+          ...response.results,
+          // M5 S3: a line the server could not read is answered by its place in the batch, with no row behind it.
+          // Left in the queue it would be sent for ever
+          for (final SyncUnreadable u in response.unreadable)
+            if (u.index >= 0 && u.index < batch.length)
+              SyncResult.unreadable(
+                opId: batch[u.index].opId,
+                seq: batch[u.index].seq,
+                reason: u.reason,
+                message: u.message,
+              ),
+        ]);
       } on Object catch (e) {
         // The answers could not be written down: the operations stay queued and go again (the server knows them by
         // op_id), the retry timer keeps running

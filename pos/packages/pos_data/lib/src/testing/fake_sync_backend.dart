@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:pos_core/pos_core.dart';
-import 'package:pos_sync/pos_sync.dart' show SyncKey, SyncSignature;
+import 'package:pos_sync/pos_sync.dart' show SyncKey, SyncOpType, SyncSignature;
 
 import '../offline/sync_models.dart';
 import 'fake_pos_state.dart';
@@ -31,19 +31,38 @@ class FakeSyncBackend {
   FakeSyncBackend(this.state) {
     state.terminalRoutes = _terminal;
     state.syncRoutes = _staff;
+    state.syncKeyGuard = _keyGuard;
   }
 
   final FakePosState state;
 
   /// M5 S3: what the server would write to `pos_sync_operations.sig_status` for each NEW operation (op_id →
-  /// `ok`, `missing`, `bad`, `chain_gap`), in observe mode: the operation is applied all the same. [signedSeen]: the
-  /// `kid` each signed one came with.
+  /// `ok`, `missing`, `bad`, `chain_gap`); it is also in each result (`results[].sig_status`) and in the error list.
+  /// In observe mode the operation is applied all the same ([enforceSignatures]). [signedSeen]: the `kid` each signed
+  /// one came with.
   final Map<String, String> sigStatus = <String, String>{};
   final Map<String, int> signedSeen = <String, int>{};
 
-  /// The chain's head as the server keeps it (`devices.sync_chain`).
+  /// M5 S3-d: the store's "enforce" switch (`stores.pos_sync_enforce_signatures`). Off: observe, everything is
+  /// applied as it came. On (as `SignaturePolicy`, after the S3 review: a sale is never dropped): an unsigned or
+  /// badly signed concession is refused (`order.void` rejected `signature_invalid`; `order.discount` rejected
+  /// `discount_not_allowed`, `refs.cause: signature_invalid`), a payment is recorded as a conflict
+  /// `payment_unverified`, every other operation is applied and becomes a conflict `signature_invalid`; a
+  /// `chain_gap` one is applied and becomes a conflict `chain_gap`. An operation that is a conflict or rejected for
+  /// its own reason keeps that reason.
+  bool enforceSignatures = false;
+
+  /// Every `data.unreadable` entry answered so far: signed elements whose text was no usable operation and for which
+  /// nothing was recorded (`{index, op_id, seq, reason, message}`).
+  final List<Map<String, Object?>> unreadable = <Map<String, Object?>>[];
+
+  /// The chain's head as the server keeps it (`devices.sync_chain`): the last VERIFIED operation's key and mac. A
+  /// badly signed one never moves it; the mac it claims counts as a `prev` only in its own place ([_claimedMac]).
   int? _headKid;
   String? _headMac;
+  String? _claimedMac;
+  int? _claimedKid;
+  bool _lastMissing = false;
 
   /// Qo'llangan amallar (op_id → natija).
   final Map<String, Map<String, Object?>> results =
@@ -181,26 +200,47 @@ class FakeSyncBackend {
 
   FakeResponse _sync(Map<String, Object?> data) {
     batches++;
-    final List<Map<String, Object?>> ops =
-        <Map<String, Object?>>[
-          for (final Object? o
-              in (data['operations'] as List<Object?>?) ?? const <Object?>[])
-            if (o is Map) _opened(o.cast<String, Object?>()),
-        ]..sort(
-          (Map<String, Object?> a, Map<String, Object?> b) =>
-              (a['seq']! as int).compareTo(b['seq']! as int),
-        );
+    final List<Map<String, Object?>> notRead = <Map<String, Object?>>[];
+    final List<Object?> sent =
+        (data['operations'] as List<Object?>?) ?? const <Object?>[];
+    final List<Map<String, Object?>> ops = <Map<String, Object?>>[];
+    for (var index = 0; index < sent.length; index++) {
+      final Object? o = sent[index];
+      if (o is! Map) continue;
+      final Map<String, Object?>? opened = _opened(
+        o.cast<String, Object?>(),
+        index,
+        notRead,
+      );
+      if (opened != null) ops.add(opened);
+    }
+    ops.sort(
+      (Map<String, Object?> a, Map<String, Object?> b) =>
+          (a['seq']! as int).compareTo(b['seq']! as int),
+    );
     final List<Object?> out = <Object?>[];
     for (final Map<String, Object?> op in ops) {
       final String id = op['op_id']! as String;
+      final String? invalid = op.remove(_invalid) as String?;
+      final int index = (op.remove(_index) as int?) ?? 0;
       final Map<String, Object?>? before = results[id];
+      final bool numberTaken = received.any(
+        (Map<String, Object?> o) => o['seq'] == op['seq'],
+      );
+      if (invalid != null && before == null && numberTaken) {
+        // Its number belongs to something else: text nobody can vouch for refuses nothing
+        _seals.remove(id);
+        notRead.add(_unreadable(index, id, op['seq'] as int?, invalid));
+        continue;
+      }
       if (before != null) {
+        _seals.remove(id);
         out.add(<String, Object?>{...before, 'duplicate': true});
         continue;
       }
       // As the server: one device never uses a number twice (PosSyncService: 409 `seq_reused`; what came before it
       // in the batch stays applied)
-      if (received.any((Map<String, Object?> o) => o['seq'] == op['seq'])) {
+      if (numberTaken) {
         return FakeResponse(409, <String, Object?>{
           'success': false,
           'message':
@@ -209,79 +249,304 @@ class FakeSyncBackend {
         });
       }
       received.add(op);
-      sigStatus[id] = _signature(id, (op['seq']! as num).toInt());
-      final Map<String, Object?> r = _apply(op);
+      final String sig = _signature(id, (op['seq']! as num).toInt());
+      sigStatus[id] = sig;
+      final Map<String, Object?> r = <String, Object?>{
+        ..._marked(
+          invalid != null
+              ? _result(
+                  op,
+                  'rejected',
+                  SyncOpType.all.contains(op['type'])
+                      ? PosSyncReasons.invalidPayload
+                      : 'type_unknown',
+                  invalid,
+                  const <String, Object?>{},
+                )
+              : (_refusedUnsigned(op, sig) ?? _apply(op)),
+          op,
+          sig,
+        ),
+        'sig_status': sig,
+      };
       results[id] = r;
       out.add(<String, Object?>{...r, 'duplicate': false});
     }
+    unreadable.addAll(notRead);
     final Map<String, Object?>? queue = (data['queue'] as Map?)
         ?.cast<String, Object?>();
     final int size = (queue?['size'] as num?)?.toInt() ?? 0;
-    pendingReported = size - ops.length < 0 ? 0 : size - ops.length;
+    // (a line answered as unreadable leaves the till's queue too)
+    final int left = size - out.length - notRead.length;
+    pendingReported = left < 0 ? 0 : left;
     return _ok(<String, Object?>{
       'server_time': state.now().toUtc().toIso8601String(),
       'clock_skew_seconds': 0,
       'clock_warning': false,
       'stopped_at': null,
       'results': out,
+      'unreadable': notRead
+        ..sort(
+          (Map<String, Object?> a, Map<String, Object?> b) =>
+              (a['index']! as int).compareTo(b['index']! as int),
+        ),
       'device': _device(),
     }, message: 'Sinxronlandi.');
   }
 
   final Map<String, Map<String, Object?>> _seals =
       <String, Map<String, Object?>>{};
-  int? _lastSeq;
+  int _lastSeq = 0;
+
+  // (markers on an opened element, taken off before it is recorded)
+  static const String _invalid = '__invalid';
+  static const String _index = '__index';
+  static final RegExp _uuid = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
+
+  static Map<String, Object?> _unreadable(
+    int index,
+    String? opId,
+    int? seq,
+    String message,
+  ) => <String, Object?>{
+    'index': index,
+    'op_id': opId,
+    'seq': seq,
+    'reason': PosSyncReasons.invalidPayload,
+    'message': message,
+  };
 
   /// M5 S3: a signed operation (`{signed, mac, prev, kid}`) is the JSON inside `signed`; its seal is kept aside for
   /// [_signature]. The old shape passes as it is.
-  Map<String, Object?> _opened(Map<String, Object?> op) {
+  ///
+  /// As `PosSyncController::openSigned` after the S3 review: signed text that holds no usable operation never refuses
+  /// the batch. One that names itself (a uuid `op_id`, a `seq`) comes back marked [_invalid] and is recorded
+  /// rejected; one that does not is answered in [notRead] by its place in the batch and `null` is returned.
+  Map<String, Object?>? _opened(
+    Map<String, Object?> op,
+    int index,
+    List<Map<String, Object?>> notRead,
+  ) {
     final Object? raw = op['signed'];
     if (raw is! String) return op;
-    final Map<String, Object?> inner =
-        (jsonDecode(raw) as Map<Object?, Object?>).cast<String, Object?>();
-    _seals[inner['op_id']! as String] = op;
-    return inner;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      decoded = null;
+    }
+    final Map<String, Object?> inner = decoded is Map
+        ? decoded.cast<String, Object?>()
+        : <String, Object?>{};
+    final String? opId =
+        inner['op_id'] is String && _uuid.hasMatch(inner['op_id']! as String)
+        ? (inner['op_id']! as String).toLowerCase()
+        : null;
+    final int? seq = inner['seq'] is int && (inner['seq']! as int) >= 1
+        ? inner['seq']! as int
+        : null;
+    final List<String> wrong = <String>[
+      if (opId == null) 'op_id',
+      if (seq == null) 'seq',
+      if (!SyncOpType.all.contains(inner['type'])) 'type',
+      if (DateTime.tryParse('${inner['occurred_at']}') == null) 'occurred_at',
+      if (inner['staff_id'] is! int) 'staff_id',
+      if (inner['payload'] != null && inner['payload'] is! Map) 'payload',
+    ];
+    if (wrong.isEmpty) {
+      _seals[opId!] = op;
+      return <String, Object?>{...inner, 'op_id': opId, _index: index};
+    }
+    final String message =
+        "Navbatdagi yozuv buzilgan: amal ma'lumotlari to'liq emas yoki noto'g'ri (${wrong.join(', ')}). Amal "
+        "qo'llanmadi.";
+    if (opId == null || seq == null) {
+      notRead.add(_unreadable(index, opId, seq, message));
+      return null;
+    }
+    _seals[opId] = op;
+    return <String, Object?>{
+      'op_id': opId,
+      'seq': seq,
+      'type': inner['type'] is String && inner['type'] != ''
+          ? inner['type']
+          : 'unknown',
+      'occurred_at': inner['occurred_at'] is String
+          ? inner['occurred_at']
+          : null,
+      'staff_id': inner['staff_id'] is int ? inner['staff_id'] : null,
+      'payload': inner['payload'] is Map
+          ? inner['payload']
+          : <String, Object?>{},
+      _invalid: message,
+      _index: index,
+    };
   }
 
-  /// As the server's observe mode (docs/API.md "Imzolangan navbat"): the mac against the key the `kid` names (the
-  /// current one or the one before it), then the chain and `seq = last + 1`.
+  /// As the server's `SyncChain` (docs/API.md "Imzolangan navbat"): the mac against the key the `kid` names (the
+  /// current one or the one before it), then, in this order: the key order (an older key than the head's never
+  /// follows), `seq = last + 1`, and the `prev` (the head's mac under the head's key; the mac a badly signed line in
+  /// its place claimed; the key's first prev for a newer key, or for the same key straight after an unsigned
+  /// operation: a till that came back from a build that does not sign).
   String _signature(String opId, int seq) {
-    final int? last = _lastSeq;
-    _lastSeq = seq;
+    final int last = _lastSeq;
+    final bool numberFollows = last == 0 || seq == last + 1;
+    if (seq > _lastSeq) _lastSeq = seq;
+    final bool afterMissing = _lastMissing;
     final Map<String, Object?>? seal = _seals.remove(opId);
+    _lastMissing = seal == null;
     if (seal == null) return 'missing';
-    final Object? kid = seal['kid'];
+    final Object? sentKid = seal['kid'];
+    // (a number sent as text, "2", is the same number)
+    final int? kid = sentKid is int
+        ? sentKid
+        : (sentKid is String && RegExp(r'^[0-9]{1,9}$').hasMatch(sentKid)
+              ? int.parse(sentKid)
+              : null);
     final Object? mac = seal['mac'];
     final Object? prev = seal['prev'];
-    if (kid is int) signedSeen[opId] = kid;
-    final String? secret = kid == state.syncKid
-        ? state.syncKey
-        : (kid == state.syncKid - 1 ? state.syncKeyPrev : null);
-    if (kid is! int ||
-        secret == null ||
+    if (kid != null) signedSeen[opId] = kid;
+    final String? secret = kid == null || kid < 1
+        ? null
+        : (kid == state.syncKid
+              ? state.syncKey
+              : (kid == state.syncKid - 1 ? state.syncKeyPrev : null));
+    final SyncKey? key = secret == null
+        ? null
+        : SyncKey.fromBase64(
+            secret,
+            kid: kid!,
+            deviceUuid: FakePosState.deviceUuid,
+          );
+    if (key == null ||
         !SyncSignature.isMac(mac) ||
-        !SyncSignature.isMac(prev)) {
+        !SyncSignature.isMac(prev) ||
+        SyncSignature.mac(key, prev! as String, seal['signed']! as String) !=
+            mac) {
+      // Never the head. Its claim counts only in its own place and under a key the server holds
+      if (numberFollows && SyncSignature.isMac(mac) && key != null) {
+        _claimedMac = mac! as String;
+        _claimedKid = kid;
+      } else if (!numberFollows) {
+        _claimedMac = null;
+        _claimedKid = null;
+      }
       return 'bad';
     }
-    final SyncKey key = SyncKey.fromBase64(
-      secret,
-      kid: kid,
-      deviceUuid: FakePosState.deviceUuid,
-    );
     final int? headKid = _headKid;
-    final String? headMac = _headMac;
+    bool follows() {
+      if (headKid != null && headKid > kid!) return false;
+      if ((headKid == null || headKid == kid) &&
+          _headMac != null &&
+          prev == _headMac) {
+        return true;
+      }
+      if (_claimedMac != null &&
+          prev == _claimedMac &&
+          (_claimedKid ?? headKid ?? kid) == kid) {
+        return true;
+      }
+      final bool first = prev == SyncSignature.firstPrev(key);
+      if (headKid == kid) {
+        return first && afterMissing && seq == last + 1 && kid == state.syncKid;
+      }
+      return first;
+    }
+
+    final bool ok = follows() && numberFollows;
     _headKid = kid;
     _headMac = mac! as String;
-    if (SyncSignature.mac(key, prev! as String, seal['signed']! as String) !=
-        mac) {
-      return 'bad';
-    }
-    final bool chained = headKid == kid
-        ? prev == headMac
-        : (headKid == null || kid > headKid) &&
-              prev == SyncSignature.firstPrev(key);
-    return chained && (last == null || seq == last + 1) ? 'ok' : 'chain_gap';
+    _claimedMac = null;
+    _claimedKid = null;
+    return ok ? 'ok' : 'chain_gap';
   }
+
+  /// Enforce mode, an unsigned or badly signed concession (`SignaturePolicy::CONCESSIONS`): refused, not applied.
+  /// `null`: the operation is applied.
+  Map<String, Object?>? _refusedUnsigned(Map<String, Object?> op, String sig) {
+    if (!enforceSignatures || (sig != 'missing' && sig != 'bad')) return null;
+    final Map<String, Object?> p =
+        (op['payload'] as Map?)?.cast<String, Object?>() ?? <String, Object?>{};
+    return switch (op['type']) {
+      'order.void' => _result(
+        op,
+        'rejected',
+        'signature_invalid',
+        _signatureText(sig),
+        const <String, Object?>{},
+      ),
+      'order.discount' => _discountRefused(
+        op,
+        p,
+        'signature_invalid',
+        _signatureText(sig),
+      ),
+      _ => null,
+    };
+  }
+
+  /// Enforce mode, as `SignaturePolicy::mark` and the applier's unverified payment: an operation that was APPLIED
+  /// although its signature is missing or wrong becomes a conflict `signature_invalid` (a payment:
+  /// `payment_unverified`, whatever else it earned: the money is on its bill all the same), one with a line missing
+  /// before it a conflict `chain_gap`. Rejected, or a conflict for its own reason: unchanged.
+  Map<String, Object?> _marked(
+    Map<String, Object?> r,
+    Map<String, Object?> op,
+    String sig,
+  ) {
+    if (!enforceSignatures || sig == 'ok' || r['status'] == 'rejected') {
+      return r;
+    }
+    final bool unverified = sig == 'missing' || sig == 'bad';
+    if (unverified && op['type'] == 'bill.pay') {
+      if (r['reason'] == 'payment_unallocated' ||
+          r['reason'] == PosSyncReasons.staffUnverified) {
+        return r;
+      }
+      return <String, Object?>{
+        ...r,
+        'status': 'conflict',
+        'reason': 'payment_unverified',
+        'message':
+            "${_signatureText(sig)} Pul schyotga yozildi: menejer tekshirsin.",
+      };
+    }
+    if (r['status'] != 'applied') return r;
+    return <String, Object?>{
+      ...r,
+      'status': 'conflict',
+      'reason': unverified ? 'signature_invalid' : 'chain_gap',
+      'message': unverified
+          ? "${_signatureText(sig)} Amal qo'llandi, menejer tekshirsin."
+          : _signatureText(sig),
+    };
+  }
+
+  /// `SignaturePolicy::message`.
+  static String _signatureText(String sig) => switch (sig) {
+    'missing' =>
+      "Amal imzosiz keldi (kassa ilovasi eski yoki kassada imzo kaliti yo'q).",
+    'bad' => "Amal imzosi noto'g'ri: kassa navbatidagi yozuv o'zgartirilgan yoki kalit bu kassaniki emas.",
+    _ =>
+      "Bu amaldan oldingi amal(lar) serverga kelmagan: kassa navbatidan amal yo'qolgan. Amal qo'llandi, menejer "
+          'tekshirsin.',
+  };
+
+  /// As `SyncSignature::issueUnlessQueued` (`POST /terminal/sync-key`): a key that exists is not replaced while the
+  /// till's last reported queue is not empty: 409 `queue_not_empty`. The first key is given whatever the queue.
+  FakeResponse? _keyGuard() => state.syncKid > 0 && pendingReported > 0
+      ? FakeResponse(409, <String, Object?>{
+          'success': false,
+          'message': 'Kassa navbatida yuborilmagan amallar bor: avval navbat yuborilsin, keyin kalit yangilanadi.',
+          'data': <String, Object?>{
+            'reason': 'queue_not_empty',
+            'pending_ops': pendingReported,
+          },
+        })
+      : null;
 
   Map<String, Object?> _apply(Map<String, Object?> op) {
     final String type = op['type']! as String;
@@ -842,6 +1107,7 @@ class FakeSyncBackend {
       'order': null,
       'payload': p,
       'refs': e['refs'],
+      'sig_status': e['sig_status'],
       'resolved_at': e['resolved_at'],
       'resolved_by': null,
       'resolution': e['resolution'],

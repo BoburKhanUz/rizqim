@@ -228,7 +228,8 @@ void main() {
         expect(line['mac'], sa.mac);
         expect(line['prev'], sa.prev);
         expect(line['kid'], 1);
-        expect(line.containsKey('op'), isFalse);
+        // (review after S3: the operation is kept beside the signature, for a build from before signing)
+        expect(line['op'], a.toJson());
         // The wire shape
         expect(a.toWire(), <String, Object?>{
           'signed': sa.raw,

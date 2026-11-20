@@ -65,7 +65,8 @@ class PosOrphanQueue {
         in (j['operations'] as List<Object?>?) ?? const <Object?>[]) {
       if (o is! Map) continue;
       try {
-        ops.add(SyncOperation.fromJson(o.cast<String, Object?>()));
+        // (M5 S3: a signed operation comes back with its signature, [SyncOperation.toStored])
+        ops.add(SyncOperation.fromStored(o.cast<String, Object?>()));
       } on Object {
         // An unreadable entry stays in the file as it is; it is only not counted here
       }
@@ -293,7 +294,9 @@ abstract final class PosSyncReasons {
         "Taom shu orada oshxonaga yuborilgan edi: o'chirish qo'llanmadi.",
     'variant_not_found': 'Taom menyuda topilmadi (o\'chirilgan).',
     'discount_not_allowed': "Internetsiz berilgan chegirma serverda qabul qilinmadi (ruxsat yoki chegara): schyot to'liq summada qoldi. Menejer tekshirsin.",
-    'signature_invalid': "Amal imzosi tekshiruvdan o'tmadi: server uni qabul qilmadi. Menejer tekshirsin.",
+    // (enforce mode after the S3 review: the sale itself is applied and shown to the manager; only a void or a
+    // discount is refused)
+    'signature_invalid': "Amal imzosi tekshiruvdan o'tmadi: amal qo'llandi, menejer tekshirsin (taomni o'chirish yoki chegirma bo'lsa, u qo'llanmadi).",
     'payment_unverified':
         "To'lov imzosi tekshiruvdan o'tmadi: pul yozildi, menejer tekshirsin.",
     'chain_gap':

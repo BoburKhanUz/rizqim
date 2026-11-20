@@ -169,6 +169,9 @@ class FakePosState {
   int syncKeyCalls = 0;
   FakeResponse? syncKeyFailure;
 
+  /// What refuses a rotation (`FakeSyncBackend`: 409 `queue_not_empty` while the till's reported queue is not empty).
+  FakeResponse? Function()? syncKeyGuard;
+
   final Random _syncKeys = Random(31);
 
   /// As the server at every `POST /terminal/sync-key` (and as an owner's rotation in a test): a new key, `kid + 1`,
@@ -919,7 +922,7 @@ class FakePosState {
       }
       if (method == 'POST' && p == '/v1/terminal/sync-key' && offlineSigning) {
         syncKeyCalls++;
-        return syncKeyFailure ?? _ok(rotateSyncKey());
+        return syncKeyFailure ?? syncKeyGuard?.call() ?? _ok(rotateSyncKey());
       }
       if (method == 'DELETE' && p == '/v1/terminal') {
         paired = false;

@@ -1344,7 +1344,9 @@ class PosOffline {
       'branch_id': (boot?['branch'] as Map?)?['id'],
       'last_seq': store.lastSeq,
       'operations': <Object?>[
-        for (final SyncOperation o in store.pending) o.toJson(),
+        // M5 S3 review: a signed operation keeps its signature (`raw`, `mac`, `prev`, `kid`, `dev`) beside its
+        // fields, so that the file can still be verified when it is imported
+        for (final SyncOperation o in store.pending) o.toStored(),
       ],
       'damaged': <Object?>[
         for (final JournalDamage d in store.damaged)
@@ -1470,6 +1472,24 @@ class PosOffline {
   Future<SyncDrainResult> syncNow() {
     sender.nudge();
     return sender.drain();
+  }
+
+  /// Tells the server how many operations wait in the queue now (`GET /pos/sync/status?queue_size=`). M5 S3 review:
+  /// the server refuses a new sync key (409 `queue_not_empty`) while the last queue the till reported was not empty;
+  /// a till whose queue has gone since (set aside, or drained without a word) says so here. `false`: no answer.
+  Future<bool> reportQueue() async {
+    try {
+      await _http.raw(
+        'GET',
+        '/v1/pos/sync/status',
+        query: <String, Object?>{'queue_size': store.pendingCount},
+        scope: AuthScope.terminal,
+        idempotent: false,
+      );
+      return true;
+    } on PosException {
+      return false;
+    }
   }
 
   /// M5 S1 review (design bug 5): asks the server for this device's `last_seq` (`GET /pos/sync/status`). `null`: no

@@ -126,6 +126,34 @@ class SyncSeal {
   final int kid;
   final String? device;
 
+  /// Reads [toStored] back; `null` when [j] holds no signature (an unsigned operation) or not a whole one.
+  static SyncSeal? tryParse(Map<String, Object?> j) {
+    final Object? raw = j['raw'];
+    final Object? mac = j['mac'];
+    final Object? prev = j['prev'];
+    final Object? kid = j['kid'];
+    if (raw is! String || mac is! String || prev is! String || kid is! int) {
+      return null;
+    }
+    return SyncSeal(
+      raw: raw,
+      mac: mac,
+      prev: prev,
+      kid: kid,
+      device: j['dev'] is String ? j['dev']! as String : null,
+    );
+  }
+
+  /// The signature as it is kept on the disk (a journal line, a queue set aside): `raw`, `mac`, `prev`, `kid` and
+  /// `dev`. Never the key.
+  Map<String, Object?> toStored() => <String, Object?>{
+    'raw': raw,
+    'mac': mac,
+    'prev': prev,
+    'kid': kid,
+    'dev': ?device,
+  };
+
   /// The operation as `POST /pos/sync` takes a signed one.
   Map<String, Object?> toWire() => <String, Object?>{
     'signed': raw,
