@@ -1,3 +1,5 @@
+import 'signature.dart';
+
 /// Kassa internetsiz bajara oladigan amallar (docs/POS_SPEC.md 5.1) — serverdagi `POST /pos/sync` turlari.
 abstract final class SyncOpType {
   static const String orderOpen = 'order.open';
@@ -109,6 +111,7 @@ class SyncOperation {
     this.message,
     this.refs = const <String, Object?>{},
     this.answeredAt,
+    this.seal,
   });
 
   factory SyncOperation.fromJson(Map<String, Object?> j) => SyncOperation(
@@ -136,12 +139,37 @@ class SyncOperation {
   final Map<String, Object?> refs;
   final DateTime? answeredAt;
 
+  /// M5 S3: the signature it was queued with (`null`: unsigned, the old shape). Only on an operation that still
+  /// waits: an answered one does not carry it.
+  final SyncSeal? seal;
+
   bool get isPending => status == SyncOpStatus.pending;
 
   /// Amal qaysi buyurtmaga tegishli (qurilma id'si yoki server uuid'si).
   String? get orderRef => payload['order'] as String?;
 
-  /// Serverga yuboriladigan ko'rinish.
+  /// What goes into the `operations` of `POST /pos/sync`: a signed operation as `{signed, mac, prev, kid}` (the
+  /// server takes the operation out of `signed`, the exact text that was signed), an unsigned one as [toJson].
+  Map<String, Object?> toWire() => seal?.toWire() ?? toJson();
+
+  /// The same operation with [seal] (`null`: unsigned).
+  SyncOperation sealed(SyncSeal? seal) => SyncOperation(
+    opId: opId,
+    seq: seq,
+    type: type,
+    occurredAt: occurredAt,
+    staffId: staffId,
+    payload: payload,
+    origin: origin,
+    status: status,
+    reason: reason,
+    message: message,
+    refs: refs,
+    answeredAt: answeredAt,
+    seal: seal,
+  );
+
+  /// Amalning ochiq ko'rinishi (imzosiz yuborilganda — serverga shu ketadi).
   Map<String, Object?> toJson() => <String, Object?>{
     'op_id': opId,
     'seq': seq,

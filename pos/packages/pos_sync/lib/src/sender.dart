@@ -29,7 +29,8 @@ class SyncBatchRequest {
       'oldest_at': ?oldestAt?.toUtc().toIso8601String(),
     },
     'operations': <Map<String, Object?>>[
-      for (final SyncOperation o in operations) o.toJson(),
+      // M5 S3: a signed operation goes as `{signed, mac, prev, kid}`, an unsigned one in the old shape
+      for (final SyncOperation o in operations) o.toWire(),
     ],
   };
 }

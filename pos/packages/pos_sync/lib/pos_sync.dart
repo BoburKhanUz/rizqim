@@ -14,6 +14,7 @@ export 'src/limits.dart';
 export 'src/operation.dart';
 export 'src/queue_numbers.dart';
 export 'src/sender.dart';
+export 'src/signature.dart';
 export 'src/storage.dart';
 export 'src/store.dart';
 export 'src/uuid.dart' show newUuid;
