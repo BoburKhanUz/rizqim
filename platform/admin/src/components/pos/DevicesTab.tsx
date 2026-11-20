@@ -16,6 +16,8 @@ import { deviceTypeLabel } from './deviceLabels';
 
 // Qurilmalar (P4-24): every store's devices, online or offline by the last contact (10 minutes), the app version and the
 // versions older than the newest in use. Revoking (stores.manage) asks for a reason and the step-up.
+// M5 S3-d: the signed offline queue: how many of the till's operations of the last week were well signed, unsigned, badly signed
+// or came after a lost one, the number of its key and the store's mode. There is no "renew the key" action: only the till does.
 
 export function DevicesTab({ selected, onSelect }: { selected: string | null; onSelect: (uuid: string | null) => void }) {
   if (selected) return <DeviceCardView uuid={selected} onBack={() => onSelect(null)} />;
@@ -120,6 +122,9 @@ function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
                       <Pill tone={DEVICE_TONE[row.state]}>{t(DEVICE_LABEL[row.state])}</Pill>
                       {row.outdated && <Pill tone="warning">{t('pos_dev_outdated')}</Pill>}
                       {row.sync.pending_ops > 0 && <Pill tone="info">{t('pos_dev_queue', { count: row.sync.pending_ops })}</Pill>}
+                      {(row.sync.signatures?.bad ?? 0) > 0 && <Pill tone="danger">{t('pos_dev_sigBadPill', { count: row.sync.signatures?.bad ?? 0 })}</Pill>}
+                      {(row.sync.signatures?.chain_gap ?? 0) > 0 && <Pill tone="danger">{t('pos_dev_sigGapPill', { count: row.sync.signatures?.chain_gap ?? 0 })}</Pill>}
+                      {(row.sync.signatures?.missing ?? 0) > 0 && <Pill tone="neutral">{t('pos_dev_sigMissingPill', { count: row.sync.signatures?.missing ?? 0 })}</Pill>}
                     </span>
                     <span className="flex flex-wrap gap-x-3 gap-y-1 text-footnote text-fg-muted">
                       <span>{row.type_label}</span>
@@ -155,6 +160,8 @@ function DeviceCardView({ uuid, onBack }: { uuid: string; onBack: () => void }) 
   if (card.isError) return <InlineError title={t('pos_loadError')} message={errorText(card.error, t)} retryLabel={t('retry')} retrying={card.isFetching} onRetry={() => void card.refetch()} />;
   if (!card.data) return <CardSkeletons count={2} lines={4} label={t('loading')} />;
   const device = card.data;
+  // M5 S3-d: absent on a server from before the signed queue's counts
+  const signatures = device.sync.signatures;
 
   return (
     <div className="flex max-w-3xl flex-col gap-4">
@@ -191,6 +198,24 @@ function DeviceCardView({ uuid, onBack }: { uuid: string; onBack: () => void }) 
           ]}
         />
       </Card>
+      {signatures && (
+        <Card>
+          <div role="group" aria-label={t('pos_dev_sigTitle', { days: signatures.days })}>
+            <h3 className="mb-2 text-body font-bold text-fg">{t('pos_dev_sigTitle', { days: signatures.days })}</h3>
+            <Facts
+              rows={[
+                [t('pos_dev_sigOk'), String(signatures.ok)],
+                [t('pos_dev_sigMissing'), String(signatures.missing)],
+                [t('pos_dev_sigBad'), String(signatures.bad)],
+                [t('pos_dev_sigGap'), String(signatures.chain_gap)],
+                [t('pos_dev_sigKey'), signatures.key_id === null ? t('pos_dev_sigNoKey') : String(signatures.key_id)],
+                [t('pos_dev_sigMode'), signatures.enforce ? t('pos_dev_sigEnforce') : t('pos_dev_sigObserve')],
+              ]}
+            />
+            {signatures.bad + signatures.chain_gap > 0 && <p className="mt-2 text-footnote text-fg-muted">{t('pos_dev_sigHint')}</p>}
+          </div>
+        </Card>
+      )}
       {can('stores.manage') && device.state !== 'revoked' && (
         <div role="group" aria-label={t('pos_actions')} className="flex flex-wrap gap-2">
           <Button variant="danger" onClick={() => setRevoking(true)}>

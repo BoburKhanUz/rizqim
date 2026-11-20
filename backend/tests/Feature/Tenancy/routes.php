@@ -698,6 +698,9 @@ $owner = [
     'POST api/v1/owner/pos/lan/rotate' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/qr-payments' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/qr-payments' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'providers' => ['click'], 'default_provider' => 'click'], 'ok' => $o(200, 403, 403)],
+    // Wave M5 S3-d: the store's own signature mode; no id in the request
+    'GET api/v1/owner/pos/sync-signing' => ['ok' => $o(200, 403, 403)],
+    'PUT api/v1/owner/pos/sync-signing' => ['body' => fn (array $s) => ['enforce' => true, 'confirm_unsigned' => true], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/service-charge-rules' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/service-charge-rules' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'hall_id' => $s['hall']->id, 'large_group_min_guests' => 10, 'large_group_percent' => '15'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/tips' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],

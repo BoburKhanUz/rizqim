@@ -88,7 +88,7 @@ describe('the restaurant floor tabs', () => {
   it('are not there for a choyxona: its page keeps its six tabs', async () => {
     await open(['rooms', 'bookings']);
     await screen.findByRole('tab', { name: 'Format' });
-    await waitFor(() => expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Format', 'Sexlar', "Yo'naltirish", 'Printerlar', 'Kassa sozlamalari', 'Lokal tarmoq']));
+    await waitFor(() => expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Format', 'Sexlar', "Yo'naltirish", 'Printerlar', 'Kassa sozlamalari', 'Lokal tarmoq', 'Navbat imzosi']));
   });
 
   it('come with their modules', async () => {

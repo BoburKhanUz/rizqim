@@ -85,8 +85,11 @@ class PosSyncController extends Controller
      * `mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the
      * first one under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + the device uuid)); `kid` the key's number. The
      * server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
-     * worth is kept with the operation (ok, missing, bad, chain_gap). A signature never refuses the batch, and the
-     * unsigned shape is still taken.
+     * worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never
+     * refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on
+     * (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected
+     * (`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an
+     * operation after a lost one (`chain_gap`) is applied and answered as a conflict.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{server_time: string, clock_skew_seconds: int|null, clock_warning: bool, stopped_at: int|null, results: list<' . PosSyncPresenter::RESULT . '>, device: ' . PosSyncPresenter::DEVICE . '}}')]
     #[HeaderParameter('Idempotency-Key', description: 'Optional: every operation is applied once by its op_id anyway; a key replays the whole answer.', type: 'string')]

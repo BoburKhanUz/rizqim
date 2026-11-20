@@ -649,7 +649,7 @@ class ServerAlertChecksTest extends TestCase
 
     public function test_every_kind_has_a_check_texts_and_fields_within_bounds(): void
     {
-        $this->assertCount(20, AlertKind::cases());
+        $this->assertCount(21, AlertKind::cases());
         foreach (AlertKind::cases() as $kind) {
             $this->assertNotSame('', $kind->label());
             $this->assertNotSame('', $kind->action());

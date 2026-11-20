@@ -18,6 +18,8 @@ const KINDS = [
   // M3: the server
   'db_connections', 'db_long_transaction', 'db_lock_waits', 'wal_archive', 'pitr_backup_stale', 'restore_drill_stale', 'disk_usage',
   'redis_memory', 'queue_worker_stale', 'realtime_down', 'table_bloat', 'partitions', 'tls_expiry',
+  // M5 S3-d: the signed offline queue
+  'pos_sync_signature',
 ] as const;
 
 // Ogohlantirishlar: open ones first (critical before the rest), each with who took it; "Faol" is open + acknowledged together,

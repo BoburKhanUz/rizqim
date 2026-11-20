@@ -1,0 +1,81 @@
+import { defineSection } from './define';
+
+// Texts of the signature mode of the tills' offline queue (wave M5 S3; Kassa sozlamalari → Navbat imzosi): observe or
+// enforce, the tills that do not sign yet, the confirmation. Keys start with `possign_`; see ./define.ts.
+export const possign = defineSection({
+  uz: {
+    possign_tab: 'Navbat imzosi',
+    possign_intro:
+      "Kassa internetsiz ishlaganda amallarni navbatga yozadi va har birini o'z kaliti bilan imzolaydi. Navbatdagi yozuv qo'lda o'zgartirilsa yoki o'chirilsa, server buni sezadi. To'lov hech qachon tashlab yuborilmaydi.",
+    possign_title: 'Imzo tekshiruvi',
+    possign_modeObserve: 'Kuzatish rejimi',
+    possign_modeEnforce: "Qat'iy rejim",
+    possign_observeHint: "Hozir imzo faqat tekshiriladi va qayd etiladi: amallar avvalgidek qo'llanadi.",
+    possign_enforceHint:
+      "Imzosiz yoki imzosi noto'g'ri amal rad etiladi va «Sinxronlash xatolari»da ko'rinadi. To'lov baribir yoziladi va menejer tekshirishi uchun belgilanadi.",
+    possign_switch: "Qat'iy rejim",
+    possign_signingTills: 'Imzolayotgan kassalar: {{count}}',
+    possign_unsignedTitle: 'Hali imzolamaydigan kassalar:',
+    possign_unsignedOldApp: 'oxirgi amallari imzosiz kelgan (kassa ilovasi eski)',
+    possign_unsignedNoKey: "imzo kaliti yo'q (ilovani yangilab, internetga ulang)",
+    possign_unsignedHint: "Qat'iy rejimda bu kassalarning internetsiz amallari rad etiladi. Avval ularda kassa ilovasini yangilang.",
+    possign_storeWide: "Bu sozlama butun do'kon uchun (hamma filial kassalari). Har o'zgarish jurnalga yoziladi.",
+    possign_confirmTitle: "Qat'iy rejimni yoqasizmi?",
+    possign_confirmText: "Shundan keyin imzosiz yoki imzosi noto'g'ri internetsiz amallar rad etiladi. To'lovlar baribir yoziladi.",
+    possign_confirmUnsignedText: "Hali imzolamaydigan kassa bor: {{names}}. Yoqsangiz, ularning internetsiz amallari rad etiladi, to'lovlari esa tekshirish uchun belgilanadi.",
+    possign_confirm: 'Ha, yoqish',
+    possign_confirmAnyway: 'Baribir yoqish',
+    possign_enforceOn: "Qat'iy rejim yoqildi.",
+    possign_enforceOff: 'Kuzatish rejimi yoqildi.',
+  },
+  ru: {
+    possign_tab: 'Подпись очереди',
+    possign_intro:
+      'Без интернета касса записывает операции в очередь и подписывает каждую своим ключом. Если запись в очереди изменить или удалить вручную, сервер это заметит. Оплата никогда не теряется.',
+    possign_title: 'Проверка подписи',
+    possign_modeObserve: 'Режим наблюдения',
+    possign_modeEnforce: 'Строгий режим',
+    possign_observeHint: 'Сейчас подпись только проверяется и записывается: операции применяются как раньше.',
+    possign_enforceHint:
+      'Операция без подписи или с неверной подписью отклоняется и видна в «Ошибках синхронизации». Оплата всё равно записывается и помечается для проверки менеджером.',
+    possign_switch: 'Строгий режим',
+    possign_signingTills: 'Кассы с подписью: {{count}}',
+    possign_unsignedTitle: 'Кассы, которые ещё не подписывают:',
+    possign_unsignedOldApp: 'последние операции пришли без подписи (старое приложение кассы)',
+    possign_unsignedNoKey: 'нет ключа подписи (обновите приложение и подключите к интернету)',
+    possign_unsignedHint: 'В строгом режиме офлайн-операции этих касс будут отклонены. Сначала обновите на них приложение кассы.',
+    possign_storeWide: 'Настройка действует на всё заведение (кассы всех филиалов). Каждое изменение записывается в журнал.',
+    possign_confirmTitle: 'Включить строгий режим?',
+    possign_confirmText: 'После этого офлайн-операции без подписи или с неверной подписью будут отклоняться. Оплаты всё равно записываются.',
+    possign_confirmUnsignedText: 'Есть кассы, которые ещё не подписывают: {{names}}. Если включить, их офлайн-операции будут отклонены, а оплаты помечены для проверки.',
+    possign_confirm: 'Да, включить',
+    possign_confirmAnyway: 'Всё равно включить',
+    possign_enforceOn: 'Строгий режим включён.',
+    possign_enforceOff: 'Включён режим наблюдения.',
+  },
+  en: {
+    possign_tab: 'Queue signature',
+    possign_intro:
+      'Without internet a till writes its operations to a queue and signs each with its own key. If a queued line is changed or removed by hand, the server notices. A payment is never dropped.',
+    possign_title: 'Signature check',
+    possign_modeObserve: 'Observe mode',
+    possign_modeEnforce: 'Strict mode',
+    possign_observeHint: 'Signatures are only checked and recorded for now: operations are applied as before.',
+    possign_enforceHint:
+      'An operation with no signature or a wrong one is rejected and shown in "Sync errors". A payment is still recorded and marked for the manager to check.',
+    possign_switch: 'Strict mode',
+    possign_signingTills: 'Tills that sign: {{count}}',
+    possign_unsignedTitle: 'Tills that do not sign yet:',
+    possign_unsignedOldApp: 'its last operations came unsigned (an old till app)',
+    possign_unsignedNoKey: 'no signing key (update the app and connect it to the internet)',
+    possign_unsignedHint: 'In strict mode the offline operations of these tills are rejected. Update the till app on them first.',
+    possign_storeWide: 'This setting is for the whole store (the tills of every branch). Every change is written to the log.',
+    possign_confirmTitle: 'Turn strict mode on?',
+    possign_confirmText: 'After this, offline operations with no signature or a wrong one are rejected. Payments are still recorded.',
+    possign_confirmUnsignedText: 'Some tills do not sign yet: {{names}}. If you turn it on, their offline operations are rejected and their payments marked for checking.',
+    possign_confirm: 'Yes, turn on',
+    possign_confirmAnyway: 'Turn on anyway',
+    possign_enforceOn: 'Strict mode is on.',
+    possign_enforceOff: 'Observe mode is on.',
+  },
+});

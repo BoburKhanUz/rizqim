@@ -285,12 +285,21 @@ do it now.
 
 The batch is never blocked by a signature (a 4xx for the whole batch would freeze a till's queue, 1.5).
 
+*As built (S3-d, `SignaturePolicy`):* the switch is `stores.pos_sync_enforce_signatures` (`PUT /owner/pos/sync-signing`,
+audited; turning it on while a till does not sign yet asks for a second yes). `payment_unverified` goes the way of
+S1's `staff_unverified`: onto its bill when the bill is open (so the order and the shift still close), unallocated
+otherwise. The RIZQIM alert is the monitoring rule `pos_sync_signature` (per till, `bad` or `chain_gap` in the last
+day); the owner's `chain_gap` message is sent once per till and hour.
+
 **Lifecycle.**
 - Existing paired tills: `POST /v1/terminal/sync-key` (terminal token) issues a key when the device has none.
   Calling it again rotates: new key, `kid + 1`, the old one moves to `sync_key_prev` so operations queued under it
   still verify. The chain restarts at a rotation.
 - Rotation by the owner: "Kalitni yangilash" on the device row (audited `device.sync_key_rotated`, the key itself
   never logged or shown). Automatic at re-pairing (a new device row).
+  *Not built in M5 (supervisor decision at S3-d):* the server keeps one previous key only, and a rotation the till
+  did not ask for can turn its queued operations into `bad`. Only the till rotates (`POST /terminal/sync-key`, queue
+  empty); the till learns the server's key number from bootstrap `offline.signing_kid`.
 - Disconnected devices: the key is **kept** for 30 days after `revoked_at` [E] so an export file from that till can
   still be verified and imported (section 5), then erased by the nightly job. Operations dated after `revoked_at` are
   refused on import.

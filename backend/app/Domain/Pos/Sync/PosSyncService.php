@@ -26,6 +26,11 @@ use Illuminate\Support\Facades\Cache;
  * `seq_reused` the till renumbers what is still waiting and signs it again (pos_sync `adoptServerSeq`): the numbers
  * then follow, the first of those operations is a `chain_gap` when the till no longer holds the server's head (its
  * journal was lost), the rest are `ok`.
+ *
+ * Wave M5 S3-d: what is done with that status is the store's mode (SignaturePolicy: observe, or enforce by the owner's
+ * switch). In enforce an unsigned or badly signed operation is rejected `signature_invalid`, a payment recorded as
+ * `payment_unverified`, an operation after a gap applied and marked a conflict; each is still one answered result of
+ * a 200 batch. After the batch the owner hears about a `chain_gap` (SignaturePolicy::afterBatch()).
  */
 final class PosSyncService
 {
@@ -37,6 +42,7 @@ final class PosSyncService
 
     public function __construct(
         private readonly PosSyncApplier $applier,
+        private readonly SignaturePolicy $policy,
     ) {}
 
     /**
@@ -60,6 +66,9 @@ final class PosSyncService
             $results = [];
             $duplicates = [];
             $stoppedAt = null;
+            // Wave M5 S3-d: the operations this batch recorded itself (not the duplicates), for the owner's alert
+            $recorded = [];
+            $enforce = $this->policy->enforced((int) $device->store_id);
             // Wave M5 S3: under the till's lock, so the chain is read and moved by one batch at a time
             $chain = SyncSignature::chainFor($device);
             try {
@@ -80,15 +89,24 @@ final class PosSyncService
                         throw new PosSyncException('seq_reused', "Navbat raqami ({$op['seq']}) boshqa amalga berilgan: kassa navbati buzilgan, administratorga ayting.", ['seq' => (int) $op['seq']]);
                     }
 
-                    // Wave M5 S3 (observe mode): the signature's worth is recorded on the operation, which is applied
-                    // as before whatever it is; nothing here ever refuses the operation or the batch
+                    // Wave M5 S3: the signature's worth is recorded on the operation. Observe mode: applied as before
+                    // whatever it is. Enforce (S3-d, SignaturePolicy): the applier rejects it or records the payment
+                    // as unverified. Nothing here ever refuses the batch
                     $signature = $op['signature'] ?? null;
                     unset($op['signature']);
-                    $op['sig_status'] = $chain->check($signature, (int) $op['seq'])->value;
+                    $status = $chain->check($signature, (int) $op['seq']);
+                    $verdict = SignaturePolicy::verdict($enforce, PosSyncOperationType::tryFrom((string) $op['type']), $status);
+                    $op['sig_status'] = $status->value;
                     $op['mac'] = SyncChain::storedMac($signature);
+                    $op['signature_verdict'] = $verdict;
 
                     try {
-                        $results[] = $this->applier->apply($device, $op, $skew);
+                        $result = $this->applier->apply($device, $op, $skew);
+                        if ($verdict === SignatureVerdict::APPLY_AS_CONFLICT) {
+                            $result = $this->policy->markChainGap($result);
+                        }
+                        $results[] = $result;
+                        $recorded[] = $result;
                         $chain->recorded($signature, (int) $op['seq']);
                     } catch (QueryException|\PDOException $e) {
                         // The database, not the operation (the applier answers the operation's own errors, review
@@ -103,6 +121,7 @@ final class PosSyncService
                 // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
                 $this->report($device, $results, null, $skew, $chain);
                 app(OfflineDiscounts::class)->afterBatch($device);
+                $this->policy->afterBatch($device, $recorded);
 
                 throw $e;
             }
@@ -110,6 +129,8 @@ final class PosSyncService
             $this->report($device, $results, $queue, $skew, $chain);
             // Wave M5 S2: one message to the owner about the discounts this outage's queue carried (never fails the batch)
             app(OfflineDiscounts::class)->afterBatch($device);
+            // Wave M5 S3-d: the owner hears about operations lost from the till's queue (never fails the batch)
+            $this->policy->afterBatch($device, $recorded);
 
             return ['results' => $results, 'duplicates' => $duplicates, 'stopped_at' => $stoppedAt, 'clock_skew_seconds' => $skew];
         } finally {

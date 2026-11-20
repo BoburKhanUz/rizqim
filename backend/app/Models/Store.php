@@ -32,6 +32,9 @@ use App\Traits\Auditable;
  * Loaded with withCount('branches'):
  *
  * @property-read int|null $branches_count
+ *
+ * Wave M5 S3: the signed offline queue (App\Domain\Pos\Sync\SignaturePolicy)
+ * @property bool $pos_sync_enforce_signatures false: observe (record only); true: enforce
  */
 class Store extends Model
 {
@@ -57,6 +60,7 @@ class Store extends Model
         'fiscal_settings', // P3-11: shown through GET /owner/settings and /owner/fiscal/settings only
         'subscription_debt', 'commission_overrides', 'delivery_courier', // P4-21
         'marketplace_offline_minutes', // wave M2: the reachability rule's limit (App\Domain\Marketplace\StoreReachability)
+        'pos_sync_enforce_signatures', // wave M5 S3: shown through GET /owner/pos/sync-signing only
     ];
 
     /**
@@ -488,6 +492,7 @@ class Store extends Model
             'subscription_debt' => 'decimal:2',
             'commission_overrides' => 'array',
             'delivery_courier' => \App\Enums\CourierType::class,
+            'pos_sync_enforce_signatures' => 'boolean', // wave M5 S3 (App\Domain\Pos\Sync\SignaturePolicy)
         ];
     }
     

@@ -118,7 +118,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string}  $op
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict}  $op  `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before)
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -149,13 +149,25 @@ final class PosSyncApplier
         ];
 
         $origin = isset($op['origin_device']) ? strtolower($op['origin_device']) : null;
+        // Wave M5 S3-d (SignaturePolicy, the store enforces signatures): unsigned or badly signed
+        $verdict = $op['signature_verdict'] ?? null;
+        $sigStatus = SyncSignatureStatus::tryFrom((string) ($op['sig_status'] ?? '')) ?? SyncSignatureStatus::MISSING;
         try {
             if ($type === null) {
                 throw new PosSyncException('type_unknown', "Amal turi noma'lum: ilovani yangilang.");
             }
+            if ($verdict === SignatureVerdict::REJECT) {
+                // ...and not money: never applied, for the manager to look at
+                throw new PosSyncException(SignaturePolicy::REASON_INVALID, SignaturePolicy::message($sigStatus) . ' Amal qo\'llanmadi.');
+            }
             // P6: a relayed operation is the origin terminal's (who signed in there, the order's device)
             $acting = $this->origin($device, $origin, $type, $happenedAt);
             $base['origin_device_id'] = (int) $acting->id !== (int) $device->id ? (int) $acting->id : null;
+            if ($verdict === SignatureVerdict::PAYMENT_UNVERIFIED && $type->isMoney()) {
+                // ...money: never dropped. Nothing the operation says is proven, the staff member neither: recorded
+                // the way of a payment whose staff check failed, flagged `payment_unverified`
+                return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, new PosSyncException('signature_' . $sigStatus->value, SignaturePolicy::message($sigStatus)), $sigStatus);
+            }
             try {
                 $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
             } catch (PosSyncException $e) {
@@ -178,9 +190,10 @@ final class PosSyncApplier
                 $base['staff_id'] = null;
             }
 
-            if ($type === PosSyncOperationType::ORDER_DISCOUNT && in_array($e->reason, ['permission_denied', 'staff_invalid', 'staff_not_signed_in'], true)) {
+            if ($type === PosSyncOperationType::ORDER_DISCOUNT && in_array($e->reason, ['permission_denied', 'staff_invalid', 'staff_not_signed_in', SignaturePolicy::REASON_INVALID], true)) {
                 // Wave M5 S2: the right to discount was taken away during the outage, the person was blocked or
-                // their PIN sign-in on this till is too old
+                // their PIN sign-in on this till is too old (S3-d: or the store enforces signatures and this one's
+                // is missing or wrong: refused like any other discount, the cause `signature_invalid`)
                 return $this->discountRefused($device, $base, $e->reason, $e->getMessage());
             }
 
@@ -250,7 +263,7 @@ final class PosSyncApplier
      *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base
-     * @param  array{claimed_staff_id: int|null}|null  $unverified  the staff check failed (staffUnverified())
+     * @param  array{claimed_staff_id: int|null, sig_status?: string}|null  $unverified  the staff check failed (staffUnverified())
      */
     private function unallocatedOrRejected(Device $device, ?User $staff, array $payload, ?Carbon $happenedAt, array $base, string $reason, string $message, ?array $unverified = null): PosSyncOperation
     {
@@ -283,18 +296,23 @@ final class PosSyncApplier
      * Flagged `staff_unverified` for the manager and audited either way. The staff id is only a claim: the money is
      * that person's only when they are attributable(); the audit's actor is the device, the claim is in its payload.
      *
+     * Wave M5 S3-d: `$signature` — the store enforces signatures and this payment came unsigned or badly signed
+     * (SignaturePolicy): the same way exactly, the flag and the conflict's reason being `payment_unverified`, the
+     * audit `pos.offline_payment_unverified` with what the signature was worth.
+     *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>|null  $clamped
      * @param  array<string, mixed>  $base
      */
-    private function staffUnverified(Device $device, PosSyncOperationType $type, array $payload, ?Carbon $happenedAt, ?array $clamped, array $base, PosSyncException $e): PosSyncOperation
+    private function staffUnverified(Device $device, PosSyncOperationType $type, array $payload, ?Carbon $happenedAt, ?array $clamped, array $base, PosSyncException $e, ?SyncSignatureStatus $signature = null): PosSyncOperation
     {
         $claimed = $base['staff_id'];
         $attributed = $this->attributable($device, $claimed);
         // The row links (and "Sinxronlash xatolari" names) only a person who passes that check; so does the message
         $base['staff_id'] = $attributed?->id;
-        $message = $attributed !== null || $e->reason === 'staff_invalid' ? $e->getMessage() : "Amalda ko'rsatilgan xodim bu kassada PIN bilan kirmagan.";
-        $unverified = ['claimed_staff_id' => $claimed];
+        $message = $signature !== null || $attributed !== null || $e->reason === 'staff_invalid' ? $e->getMessage() : "Amalda ko'rsatilgan xodim bu kassada PIN bilan kirmagan.";
+        $unverified = ['claimed_staff_id' => $claimed] + ($signature !== null ? ['sig_status' => $signature->value] : []);
+        $flag = $signature !== null ? SignaturePolicy::REASON_PAYMENT : 'staff_unverified';
 
         $replayed = $claimed !== null && User::where('store_id', $device->store_id)->whereKey($claimed)->exists()
             ? $this->replayed($type, $claimed, $payload)
@@ -304,7 +322,7 @@ final class PosSyncApplier
                 $order = $this->posOrder($device, $payload);
 
                 // (`staff_unverified`: why the check failed, so the close that follows is taken too — closeUnverified())
-                return $this->record($base, $this->finish($order, [], $payload, ['replayed' => true, 'staff_unverified' => $e->reason] + $replayed));
+                return $this->record($base, $this->finish($order, [], $payload, ['replayed' => true, $flag => $e->reason] + $replayed));
             } catch (PosSyncException) {
                 // No such order here: recorded below as any other payment
             }
@@ -312,7 +330,7 @@ final class PosSyncApplier
 
         $bills = [];
         try {
-            return DB::transaction(function () use ($device, $attributed, $payload, $happenedAt, $clamped, $base, $e, $message, $unverified, &$bills) {
+            return DB::transaction(function () use ($device, $attributed, $payload, $happenedAt, $clamped, $base, $e, $message, $unverified, $flag, $signature, &$bills) {
                 // PaymentService needs a person for the shift and the drawer's count: the shift's opener stands in
                 $shift = $this->openShiftOf($device, $payload['shift_uuid'] ?? null);
                 $standIn = $attributed ?? ($shift !== null ? User::find($shift->opened_by) : null);
@@ -329,11 +347,11 @@ final class PosSyncApplier
                 $amount = Money::sum(...$created->pluck('amount')->all())->toString();
 
                 $flags = [
-                    ['flag' => 'staff_unverified', 'amount' => $amount, 'reason' => $e->reason, 'message' => $message],
+                    ['flag' => $flag, 'amount' => $amount, 'reason' => $e->reason, 'message' => $message],
                     ...($outcome['flags'] ?? []),
                     ...($clamped !== null ? [$clamped] : []),
                 ];
-                $this->audit->record('pos.offline_payment_staff_unverified', $order, [], [], $unverified + [
+                $this->audit->record($signature !== null ? 'pos.offline_payment_unverified' : 'pos.offline_payment_staff_unverified', $order, [], [], $unverified + [
                     'amount' => $amount,
                     'reason' => $e->reason,
                     'payments' => $created->pluck('uuid')->all(),
@@ -342,8 +360,10 @@ final class PosSyncApplier
 
                 return $this->record($base, [
                     'status' => PosSyncStatus::CONFLICT,
-                    'reason' => 'staff_unverified',
-                    'error' => "To'lov ({$amount} so'm) xodim tekshiruvidan o'tmadi: {$message} Pul schyotga yozildi: menejer tekshirsin.",
+                    'reason' => $flag,
+                    'error' => $signature !== null
+                        ? "To'lov ({$amount} so'm) imzo tekshiruvidan o'tmadi: {$message} Pul schyotga yozildi: menejer tekshirsin."
+                        : "To'lov ({$amount} so'm) xodim tekshiruvidan o'tmadi: {$message} Pul schyotga yozildi: menejer tekshirsin.",
                     'result' => ['flags' => $flags] + $outcome['result'],
                     'order' => $order,
                     'flags' => $flags,
@@ -1135,10 +1155,12 @@ final class PosSyncApplier
      * Wave M5 S1: `$unverified` — the staff check failed (staffUnverified()): the flag is `staff_unverified` (with
      * `refund_needed` beside it on a cancelled order), `$staff` is the attributable() person or nobody, the audit's
      * actor is the device with the claimed staff id in its payload.
+     * Wave M5 S3-d: with `sig_status` in `$unverified` it is the signature that failed (the store enforces them): the
+     * flag is `payment_unverified`, the audit `pos.offline_payment_unverified`.
      *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base
-     * @param  array{claimed_staff_id: int|null}|null  $unverified
+     * @param  array{claimed_staff_id: int|null, sig_status?: string}|null  $unverified
      */
     private function unallocated(Device $device, ?User $staff, array $payload, ?Carbon $occurredAt, array $base, string $reason, string $message, ?array $unverified = null): PosSyncOperation
     {
@@ -1200,7 +1222,8 @@ final class PosSyncApplier
             }
 
             $canceled = $order->status === OrderStatus::CANCELED;
-            $flag = $staffUnverified ? 'staff_unverified' : ($canceled ? 'refund_needed' : 'payment_unallocated');
+            $signatureFailed = isset($unverified['sig_status']);
+            $flag = $signatureFailed ? SignaturePolicy::REASON_PAYMENT : ($staffUnverified ? 'staff_unverified' : ($canceled ? 'refund_needed' : 'payment_unallocated'));
             $amount = Money::sum(...array_map(fn (Payment $payment) => Money::of($payment->amount), $created));
             $flags = [['flag' => $flag, 'amount' => $amount->toString(), 'reason' => $reason, 'message' => $message]];
             if ($staffUnverified && $canceled) {
@@ -1208,7 +1231,7 @@ final class PosSyncApplier
             }
             $this->flag($order, $flags, (string) $base['op_id']);
 
-            $this->audit->record($staffUnverified ? 'pos.offline_payment_staff_unverified' : 'pos.offline_payment_unallocated', $order, [], [], ($unverified ?? []) + [
+            $this->audit->record($signatureFailed ? 'pos.offline_payment_unverified' : ($staffUnverified ? 'pos.offline_payment_staff_unverified' : 'pos.offline_payment_unallocated'), $order, [], [], ($unverified ?? []) + [
                 'amount' => $amount->toString(),
                 'reason' => $reason,
                 'payments' => array_map(fn (Payment $payment) => $payment->uuid, $created),
@@ -1218,6 +1241,8 @@ final class PosSyncApplier
                 'status' => PosSyncStatus::CONFLICT,
                 'reason' => $flag,
                 'error' => match (true) {
+                    $signatureFailed => "To'lov ({$amount->toString()} so'm) imzo tekshiruvidan o'tmadi: {$message} Pul yozildi, schyotga tushmadi: menejer tekshirsin."
+                        . ($canceled ? ' Buyurtma bekor qilingan: mijozga qaytarish kerak.' : ''),
                     $staffUnverified => "To'lov ({$amount->toString()} so'm) xodim tekshiruvidan o'tmadi: {$message} Pul yozildi, schyotga tushmadi: menejer tekshirsin."
                         . ($canceled ? ' Buyurtma bekor qilingan: mijozga qaytarish kerak.' : ''),
                     $canceled => "Buyurtma bekor qilingan, lekin offlayn {$amount->toString()} so'm olingan: pul yozildi, mijozga qaytarish kerak.",

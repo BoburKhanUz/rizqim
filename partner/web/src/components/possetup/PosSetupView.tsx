@@ -17,13 +17,15 @@ import { PrintersPanel } from './PrintersPanel';
 import { QrPaymentsPanel } from './QrPaymentsPanel';
 import { RoutesPanel } from './RoutesPanel';
 import { StationsPanel } from './StationsPanel';
+import { SyncSigningPanel } from './SyncSigningPanel';
 import { PackagingRulesPanel, PickupSettingsPanel, RoundTheClockPanel } from './TakeawayPanels';
 import { WaitlistPanel } from './WaitlistPanel';
 
-type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'lan' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock' | 'qr';
+type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'lan' | 'signing' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock' | 'qr';
 // P6-11: the branch's format comes first (it decides the till's mode and modules)
 // P6 stage B: the local bridge (the hub till, the port, the key) for every format
-const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings', 'lan'];
+// M5 S3: the signature mode of the tills' offline queue (store-wide), for every format
+const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings', 'lan', 'signing'];
 // P6-24/P6-26: the restaurant floor's tabs appear with their modules (table_booking, hostess); a choyxona's page stays as it was
 const MODULE_TABS: Array<{ id: Tab; module: string }> = [
   { id: 'rules', module: 'table_booking' },
@@ -53,7 +55,7 @@ export function PosSetupView() {
   const tabs = [...TABS, ...MODULE_TABS.filter((entry) => modules.has(entry.module)).map((entry) => entry.id)];
   // The module a tab needs went off (in the Format tab): back to the first
   const shown: Tab = tabs.includes(tab) ? tab : 'format';
-  const tabLabel = (id: Tab) => (id === 'lan' ? t('poslan_tab') : id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : id === 'qr' ? t('qrp_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
+  const tabLabel = (id: Tab) => (id === 'lan' ? t('poslan_tab') : id === 'signing' ? t('possign_tab') : id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : id === 'qr' ? t('qrp_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
 
   if (access.ready && !access.can('settings.manage')) {
     return (
@@ -84,6 +86,7 @@ export function PosSetupView() {
             {shown === 'printers' && <PrintersPanel branchId={choice.branchId} />}
             {shown === 'settings' && <BranchSettingsPanel branchId={choice.branchId} />}
             {shown === 'lan' && <LanPanel branchId={choice.branchId} />}
+            {shown === 'signing' && <SyncSigningPanel />}
             {shown === 'rules' && <BookingRulesPanel branchId={choice.branchId} enabled={modules.has('table_booking')} />}
             {shown === 'labels' && <LabelSettingsPanel branchId={choice.branchId} enabled={modules.has('labels')} />}
             {shown === 'waitlist' && <WaitlistPanel branchId={choice.branchId} enabled={modules.has('hostess')} />}
