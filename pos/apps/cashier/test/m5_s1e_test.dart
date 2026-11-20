@@ -8,10 +8,12 @@ import 'support/p22.dart';
 
 /// Wave M5 stage S1-e on the till's screen: the staff PIN session ends during an outage. The till stays on the work
 /// screen (no PIN keypad it could not get past), says who goes on without a PIN, and asks for the PIN once the server
-/// answers.
+/// refuses the dead token. M5 S1 review: when the link goes again before a PIN login succeeded, the staff member goes
+/// on (a flapping link never leaves the till at a keypad nobody can pass).
 void main() {
-  testWidgets("the PIN session ends during an outage: the banner says PIN'siz davom etilmoqda, the open room is paid; on "
-      'first contact the PIN keypad is back', (WidgetTester tester) async {
+  testWidgets("the PIN session ends during an outage: the banner says PIN'siz davom etilmoqda, the open room is paid; "
+      'when the server refuses the token the PIN keypad is back; the link goes again and the staff member goes '
+      'on', (WidgetTester tester) async {
     DateTime Function() clock = () => DateTime.utc(2026, 10, 22, 13);
     final SyncStore store = await SyncStore.open(
       MemorySyncStorage(),
@@ -22,8 +24,10 @@ void main() {
     p.state.openShift();
     FakeSyncBackend(p.state);
     final String room = p.state.seedOrder(tableId: 1, guests: 2);
+    final String second = p.state.seedOrder(tableId: 2, guests: 2);
     await pumpHome(tester, p.h);
     await drive(tester, p.h.data.orders.get(room));
+    await drive(tester, p.h.data.orders.get(second));
     final String name = p.h.data.session.staffName!;
 
     p.h.adapter.offline = true;
@@ -39,7 +43,8 @@ void main() {
     expect(p.h.data.session.phase, PosSessionPhase.ready);
     expect(
       find.textContaining(
-        "PIN'siz davom etilmoqda: $name. Faqat ochiq buyurtmalarni yakunlash va to'lov olish mumkin.",
+        "PIN'siz davom etilmoqda: $name. PIN bilan kirilganiga 12 soatdan oshdi: faqat schyot, to'lov va "
+        "buyurtmani yopish mumkin (yangi taom qo'shilmaydi, taom o'chirilmaydi).",
       ),
       findsOneWidget,
     );
@@ -69,5 +74,42 @@ void main() {
       find.textContaining('Sessiya tugadi. PIN bilan qayta kiring.'),
       findsOneWidget,
     );
+
+    // The link goes again before anybody could enter a PIN: the till finds out and the staff member goes on
+    p.h.adapter.offline = true;
+    await drive(
+      tester,
+      p.h.data.floor.load().then<void>((_) {}, onError: (Object _) {}),
+    );
+    await tester.pumpAndSettle();
+    expect(p.h.data.session.phase, PosSessionPhase.ready);
+    expect(p.h.data.session.staffContinued, isTrue);
+    expect(
+      find.textContaining("PIN'siz davom etilmoqda: $name"),
+      findsOneWidget,
+    );
+    final PosOrder next = await drive(tester, p.h.data.orders.get(second));
+    final PosBilling nextBilling = await drive(
+      tester,
+      p.h.data.billing.createBills(second, version: next.version),
+    );
+    final PosBillResult nextPaid = await drive(
+      tester,
+      p.h.data.billing.pay(
+        nextBilling.bills.single.uuid,
+        tenders: <PosTenderInput>[
+          PosTenderInput.cash(nextBilling.bills.single.total),
+        ],
+        shiftUuid: p.state.shift!['uuid']! as String,
+      ),
+    );
+    expect(nextPaid.order.isClosed, isTrue);
+
+    // The link is back for good: the sale reaches the server and the PIN is asked again
+    p.h.adapter.offline = false;
+    await drive(tester, p.h.data.offline!.syncNow());
+    await tester.pumpAndSettle();
+    expect(p.state.orders[second]!['closed_at'], isNotNull);
+    expect(p.h.data.session.phase, PosSessionPhase.locked);
   });
 }

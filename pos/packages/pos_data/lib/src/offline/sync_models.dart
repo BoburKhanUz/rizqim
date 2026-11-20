@@ -264,11 +264,12 @@ abstract final class PosSyncReasons {
   static const String deviceTimeClamped = 'device_time_clamped';
 
   /// M5 S1: to'lov xodim tekshiruvidan o'tmadi (PIN sessiyasi 36 soatdan eski, ruxsat olib qo'yilgan yoki xodim
-  /// topilmadi) — pul baribir yozildi, schyotga tushmadi (`conflict`): menejer ko'rib chiqadi.
+  /// topilmadi) — pul baribir yozildi (`conflict`): ochiq schyot bo'lsa unga tushdi (`refs.bill_uuid`), bo'lmasa
+  /// schyotsiz; menejer ko'rib chiqadi.
   static const String staffUnverified = 'staff_unverified';
 
   static const Map<String, String> _messages = <String, String>{
-    staffUnverified: "To'lov xodim tekshiruvidan o'tmadi (PIN bilan kirganiga 36 soatdan oshgan yoki ruxsati o'zgargan). Pul yozildi, lekin schyotga tushmadi: menejer tekshirsin.",
+    staffUnverified: "To'lov xodim tekshiruvidan o'tmadi (PIN bilan kirganiga 36 soatdan oshgan yoki ruxsati o'zgargan). Pul yozildi: menejer tekshirsin.",
     'staff_not_signed_in': "Xodim bu kassada uzilishdan oldingi 36 soat ichida PIN bilan kirmagan: amal qo'llanmadi.",
     invalidPayload: "Amal ma'lumotlari serverda saqlanmadi (noto'g'ri yoki juda katta qiymat). Menejer qo'lda tekshirsin.",
     modifierNotFound: "Qo'shimcha menyuda topilmadi (o'chirilgan yoki boshqa do'konniki): amal qo'llanmadi. Menejer tekshirsin.",

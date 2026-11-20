@@ -316,6 +316,9 @@ class FakePosState {
 
   final Map<String, int> _staffTokens = <String, int>{};
 
+  /// M5 S1: the PIN session's end, as on the server (12 h): a token past it answers 401.
+  final Map<String, DateTime> _staffTokenExpires = <String, DateTime>{};
+
   /// P3-31: so'rovni [staffId] xodim nomidan bajaradi (sinxronlashda har amal o'z xodimi bilan keladi).
   FakeResponse handleAsStaff(
     int staffId,
@@ -514,6 +517,8 @@ class FakePosState {
   Map<String, Object?>? staffOf(String? token) {
     final int? id = _staffTokens[token];
     if (id == null) return null;
+    final DateTime? expires = _staffTokenExpires[token];
+    if (expires != null && !expires.isAfter(now())) return null;
     for (final Map<String, Object?> s in staff) {
       if (s['id'] == id) return s;
     }
@@ -1057,6 +1062,9 @@ class FakePosState {
     _staffTokens
       ..clear()
       ..[token] = member['id']! as int;
+    _staffTokenExpires
+      ..clear()
+      ..[token] = now().add(const Duration(hours: 12));
     return _ok(<String, Object?>{
       'token': token,
       'expires_at': _iso(now().add(const Duration(hours: 12))),

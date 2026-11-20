@@ -50,7 +50,8 @@ class LimitedModeBanner extends StatelessWidget {
       final PosScope scope = PosScope.of(context);
       final PosOfflineWarnings warnings =
           scope.data.offline?.warnings ?? const PosOfflineWarnings();
-      // M5 S1-e: the PIN session ran out during the outage, the staff member goes on without a PIN
+      // M5 S1-e: the PIN session ran out during the outage, the staff member goes on without a PIN. More than 12 h
+      // after the PIN login the line says that only the bill, the payment and the close are left (owner answer 3)
       final String? continued = scope.data.offline?.continuedNotice;
       if (!s.active &&
           s.errorsCount == 0 &&

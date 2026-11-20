@@ -296,6 +296,47 @@ class SyncStore {
     _emit();
   }
 
+  /// M5 S1 review (design bug 5): the server holds this device's numbers up to [serverLastSeq], and the till's journal
+  /// does not know it (the journal was lost or damaged while the pairing survived, so the till counts from a lower
+  /// number and every batch is answered 409 `seq_reused`). New operations are numbered after [serverLastSeq]; the
+  /// operations still waiting (never acknowledged) whose numbers the server has already used are renumbered after it,
+  /// in the same order. Their `op_id` and payload (the idempotency key included) stay, so one the server did take
+  /// earlier is still answered as a duplicate. Acknowledged operations keep their numbers.
+  ///
+  /// The journal is rewritten in one piece before this returns. `false`: nothing had to change.
+  Future<bool> adoptServerSeq(int serverLastSeq) => _locked(() async {
+    final bool collides = _pending.any(
+      (SyncOperation o) => o.seq <= serverLastSeq,
+    );
+    if (!collides && serverLastSeq <= _lastSeq) return false;
+    final List<SyncOperation> before = List<SyncOperation>.of(_pending);
+    final int lastBefore = _lastSeq;
+    if (collides) {
+      var next = serverLastSeq;
+      for (var i = 0; i < _pending.length; i++) {
+        _pending[i] = SyncOperation.fromJson(<String, Object?>{
+          ..._pending[i].toJson(),
+          'seq': ++next,
+        });
+      }
+      _lastSeq = max(_lastSeq, next);
+    } else {
+      _lastSeq = serverLastSeq;
+    }
+    try {
+      await _maybeCompact(force: true);
+    } catch (_) {
+      // Not written: the old numbers stay (the server answers `seq_reused` again and this is done again)
+      _pending
+        ..clear()
+        ..addAll(before);
+      _lastSeq = lastBefore;
+      rethrow;
+    }
+    _emit();
+    return true;
+  });
+
   /// Navbat bo'shab, server holati qayta yuklandi: hozirgi [lastSeq] gacha bo'lgan amallar endi nusxalarda bor
   /// (siqishda tashlanadi).
   Future<void> markReloaded() => _locked(() async {

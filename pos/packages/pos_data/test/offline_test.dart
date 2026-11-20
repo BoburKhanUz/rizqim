@@ -36,6 +36,7 @@ class OfflineHarness {
     TestClock? clock,
     MemoryKeyValueStore? keys,
     int seed = 11,
+    bool restore = false,
   }) async {
     final MemoryKeyValueStore k = keys ?? MemoryKeyValueStore();
     final TestClock c = clock ?? TestClock(DateTime.utc(2026, 10, 22, 13));
@@ -47,6 +48,8 @@ class OfflineHarness {
       dio: Dio()..httpClientAdapter = a,
       clock: () => c.now,
     );
+    // As the till's main(): the saved terminal is read before the offline mode is built
+    if (restore) await client.auth.restore();
     final SyncStore store = await SyncStore.open(
       d,
       clock: () => c.now,
@@ -411,8 +414,9 @@ void main() {
       adapter: h.adapter,
       clock: h.clock,
       keys: h.keys,
+      // (as the app does: the saved terminal first; a journal without its terminal is not sent, M5 S1 review)
+      restore: true,
     );
-    await again.client.auth.restore();
     expect(again.offline.store.pendingCount, 1);
     expect(again.offline.active, isTrue);
     final PosOrder restored = await again.pos.orders.get(walkIn.uuid);

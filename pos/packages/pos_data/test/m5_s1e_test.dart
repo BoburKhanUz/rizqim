@@ -47,8 +47,10 @@ void main() {
     return room;
   }
 
-  test('the staff token expires during an outage: an open order still takes a round, the bill, a cash payment and '
-      'the close; the operations are marked staff_continued', () async {
+  // (M5 S1 review: 12 h after the PIN login, which is when the server's 12 h token ends, a round is no longer taken:
+  // m5_s1_fix_test.dart)
+  test('the staff token expires during an outage: an open order still takes the bill, a cash payment and the close; '
+      'the operations are marked staff_continued', () async {
     final String room = await outageOutlivesTheSession();
 
     expect(h.pos.session.isSignedIn, isTrue);
@@ -56,15 +58,9 @@ void main() {
     expect(h.offline.continuedStaffName, isNotNull);
 
     final PosOrder before = await h.pos.orders.get(room);
-    final PosOrder after = await h.pos.orders.addRound(
-      room,
-      version: before.version,
-      items: <PosLineInput>[line(4, '1')],
-      send: true,
-    );
     final PosBilling billing = await h.pos.billing.createBills(
       room,
-      version: after.version,
+      version: before.version,
     );
     final PosBill bill = billing.bills.single;
     final PosBillResult paid = await h.pos.billing.pay(
@@ -76,7 +72,6 @@ void main() {
 
     final List<SyncOperation> queued = h.offline.store.pending;
     expect(queued.map((SyncOperation o) => o.type), <String>[
-      SyncOpType.orderRound,
       SyncOpType.billCreate,
       SyncOpType.billPay,
       SyncOpType.orderClose,
@@ -130,46 +125,43 @@ void main() {
     );
   });
 
-  test(
-    'on the first server contact the continued staff member is dropped (PIN required) and the queue is sent: the '
-    'server applies the payment and the close (inside its 36 h staff window)',
-    () async {
-      final String room = await outageOutlivesTheSession();
-      final PosOrder order = await h.pos.orders.get(room);
-      final PosBilling billing = await h.pos.billing.createBills(
-        room,
-        version: order.version,
-      );
-      final PosBill bill = billing.bills.single;
-      await h.pos.billing.pay(
-        bill.uuid,
-        tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
-        shiftUuid: shift(),
-      );
-      final List<AuthEvent> events = <AuthEvent>[];
-      final StreamSubscription<AuthEvent> sub = h.client.auth.events.listen(
-        events.add,
-      );
-      addTearDown(sub.cancel);
+  test('when the link is back the queue is sent and the server applies the payment and the close (inside its 36 h staff '
+      'window); the dead staff token is refused on its first request and the PIN is required', () async {
+    final String room = await outageOutlivesTheSession();
+    final PosOrder order = await h.pos.orders.get(room);
+    final PosBilling billing = await h.pos.billing.createBills(
+      room,
+      version: order.version,
+    );
+    final PosBill bill = billing.bills.single;
+    await h.pos.billing.pay(
+      bill.uuid,
+      tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
+      shiftUuid: shift(),
+    );
+    final List<AuthEvent> events = <AuthEvent>[];
+    final StreamSubscription<AuthEvent> sub = h.client.auth.events.listen(
+      events.add,
+    );
+    addTearDown(sub.cancel);
 
-      h.adapter.offline = false;
-      await h.offline.syncNow();
-      await settle();
+    h.adapter.offline = false;
+    await h.offline.syncNow();
+    await settle();
 
-      expect(h.offline.store.pendingCount, 0);
-      expect(h.offline.store.errors, isEmpty);
-      for (final Map<String, Object?> r in sync.results.values) {
-        expect(r['status'], 'applied', reason: '${r['type']}: ${r['reason']}');
-      }
-      expect(h.client.auth.staff, isNull);
-      expect(h.pos.session.phase, PosSessionPhase.locked);
-      expect(
-        events.where((AuthEvent e) => e.kind == AuthEventKind.staffSignedOut),
-        hasLength(1),
-      );
-      expect(events.last.reason, 'expired');
-    },
-  );
+    expect(h.offline.store.pendingCount, 0);
+    expect(h.offline.store.errors, isEmpty);
+    for (final Map<String, Object?> r in sync.results.values) {
+      expect(r['status'], 'applied', reason: '${r['type']}: ${r['reason']}');
+    }
+    expect(h.client.auth.staff, isNull);
+    expect(h.pos.session.phase, PosSessionPhase.locked);
+    expect(
+      events.where((AuthEvent e) => e.kind == AuthEventKind.staffSignedOut),
+      hasLength(1),
+    );
+    expect(events.last.reason, 'expired');
+  });
 
   test(
     'online, an expired staff token signs the staff member out (unchanged)',

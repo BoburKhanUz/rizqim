@@ -46,12 +46,17 @@ void main() {
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 
   group('bug 1: the 24 h limit stops only NEW orders', () {
+    // (The staff member signs in again on the way: 12 h after a PIN login only the bill, the payment and the close are
+    // left, m5_s1_fix_test.dart; the 24 h limit itself never stops a round.)
     test('after 25 h without contact a new order is refused; a round, the bill, a cash payment and the close of an '
         'order that is already open work', () async {
       final String room = h.state.seedOrder(tableId: 1, guests: 4);
       await h.warmUp();
+      h.clock.now = h.clock.now.add(const Duration(hours: 14));
+      await h.client.auth.signInStaff(userId: 3, pin: h.state.pins[3]!);
       await h.goOffline();
-      h.clock.now = h.clock.now.add(const Duration(hours: 25));
+      // (the PIN login is not a request of the till's data layer: its last contact and its menu copy are 25 h old)
+      h.clock.now = h.clock.now.add(const Duration(hours: 11));
 
       expect(h.offline.status.canOpenOrders, isFalse);
       await expectLater(
