@@ -293,6 +293,11 @@ abstract final class PosSyncReasons {
         "Taom shu orada oshxonaga yuborilgan edi: o'chirish qo'llanmadi.",
     'variant_not_found': 'Taom menyuda topilmadi (o\'chirilgan).',
     'discount_not_allowed': "Internetsiz berilgan chegirma serverda qabul qilinmadi (ruxsat yoki chegara): schyot to'liq summada qoldi. Menejer tekshirsin.",
+    'signature_invalid': "Amal imzosi tekshiruvdan o'tmadi: server uni qabul qilmadi. Menejer tekshirsin.",
+    'payment_unverified':
+        "To'lov imzosi tekshiruvdan o'tmadi: pul yozildi, menejer tekshirsin.",
+    'chain_gap':
+        "Kassa navbatidan amal yo'qolgan bo'lishi mumkin: menejer tekshirsin.",
     'tender_not_offline': "Oflayn faqat naqd va karta to'lovi olinadi.",
   };
 
