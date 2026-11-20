@@ -237,9 +237,10 @@ class OfflineOrderBook {
 /// (`PosChargesCalculator::discountOf`, `PosOrderService::cashierMayDiscount`). Ikkala tomon bitta fayl bilan
 /// tekshiriladi: `backend/tests/Fixtures/offline_discount_vectors.json`.
 abstract final class OfflineDiscount {
-  /// Promo-kod chegirmasining sababi shu bilan boshlanadi (`promo:KOD`): uni faqat server hisoblaydi (kodning
-  /// minimal summasi va chegarasi kassada yo'q).
-  static const String promoPrefix = 'promo:';
+  /// Buyurtma JSON'idagi server maydoni (`discount_promo`): chegirma promo-kodniki. Uni faqat server hisoblaydi
+  /// (kodning minimal summasi va chegarasi kassada yo'q) — kassa buni hech qachon sabab matnidan (`promo:...`)
+  /// aniqlamaydi: sababni xodim o'zi yozadi.
+  static const String promoKey = 'discount_promo';
 
   /// Qiymat yuzdan birlarda: foiz `"12.5"` → 1250, summa `"25000.50"` → 2 500 050 (tiyin). Manfiy, ikkidan ortiq
   /// kasr raqamli yoki o'qib bo'lmaydigan qiymat — `null`.
@@ -610,18 +611,22 @@ class OfflineOrderState {
       ..['discount_kind'] = given ? kind : null
       ..['discount_value'] = given ? OfflineDiscount.canonical(h) : null
       ..['discount_reason'] = given ? p['reason'] : null
-      ..['discount_by'] = given ? op.staffId : null;
+      ..['discount_by'] = given ? op.staffId : null
+      // A hand discount replaces a promo code's, as on the server (the order's promo_code_id is cleared)
+      ..[OfflineDiscount.promoKey] = false;
     if (!given) order['discount'] = '0.00';
   }
 
   /// The order's discount on [itemsTotal]: by its kind and value when it has them (given at the till, online or
-  /// offline); else, and for a promo code, the amount the server stored.
+  /// offline); else, and for a promo code (the server's `discount_promo`, never the reason's text: a typed reason
+  /// may read anything), the amount the server stored.
   PosMoney _discountOn(PosMoney itemsTotal) {
     final String? kind = order['discount_kind'] as String?;
     final Object? value = order['discount_value'];
-    final bool promo = '${order['discount_reason'] ?? ''}'.startsWith(
-      OfflineDiscount.promoPrefix,
-    );
+    // Recomputed only when the server said it is NOT a promo code's (`false`), or the discount was given on this
+    // till offline (discount() sets `false`). No key at all (cached from an older server): unknown, the stored amount
+    // stands
+    final bool promo = order[OfflineDiscount.promoKey] != false;
     if (kind == null ||
         promo ||
         OfflineDiscount.hundredths(value) == null ||

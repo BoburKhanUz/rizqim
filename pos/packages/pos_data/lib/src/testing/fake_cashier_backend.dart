@@ -4719,7 +4719,8 @@ class FakeCashierBackend {
         ..['discount_kind'] = null
         ..['discount_value'] = null
         ..['discount_reason'] = null
-        ..['discount_by'] = null;
+        ..['discount_by'] = null
+        ..['discount_promo'] = false;
       state.touchOrder(order, 'charges_changed');
       return _ok(order, message: 'Promo-kod olib tashlandi.');
     }
@@ -4757,7 +4758,9 @@ class FakeCashierBackend {
       ..['discount_kind'] = percent ? 'percent' : 'amount'
       ..['discount_value'] = percent ? promo['percent'] : promo['amount']
       ..['discount_reason'] = 'promo:$code'
-      ..['discount_by'] = r.member['id'];
+      ..['discount_by'] = r.member['id']
+      // M5 S2: the server's own mark of a promo discount (the order JSON's `discount_promo`)
+      ..['discount_promo'] = true;
     promo['used'] = (promo['used']! as int) + 1;
     state.touchOrder(order, 'charges_changed');
     return _ok(order, message: "Promo-kod qo'llandi.");

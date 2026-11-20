@@ -179,8 +179,9 @@ class PosOffline {
   static const String discountUnsupportedReason =
       'offline_discount_unsupported';
 
-  /// M5 S2: [PosOfflineUnavailable.reason] of a discount above what this staff member gives alone (the cashier's
-  /// branch limit; nobody but a holder of `orders.discount` when there is none): it needs a manager's approval, which
+  /// M5 S2: [PosOfflineUnavailable.reason] of a discount above what anybody gives offline (owner decision of
+  /// 20.11.2026: the branch's cashier limit, for a manager and a holder of `orders.discount` too; no limit configured:
+  /// no offline discount), or by somebody who gives none alone: a larger one needs the internet, a manager's approval
   /// cannot be given offline.
   static const String discountLimitReason = 'offline_discount_limit';
 
@@ -695,17 +696,22 @@ class PosOffline {
   /// chegirma faqat internet bilan.
   bool get discountEnabled => settings.discount;
 
-  /// Shu xodim internetsiz har qanday chegirma bera oladi (`orders.discount`); aks holda — kassir chegarasigacha
-  /// ([discountLimitPercent]).
-  bool get discountUnlimited => _can('orders.discount');
+  /// Internetsiz hech kim cheksiz chegirma bermaydi (egasining qarori, 20.11.2026): menejer va `orders.discount`
+  /// egasi ham filialning kassir chegarasigacha ([discountLimitPercent]). Doim `false`; kattarog'i — faqat onlayn.
+  bool get discountUnlimited => false;
 
-  /// Kassir (`pos.take_payment`, `orders.discount` siz) internetsiz o'zi bera oladigan eng katta foiz, bootstrap
-  /// nusxasidan (`"10"`, `"12.5"`); chegara yo'q, 0 yoki xodim kassir emas — `null` (o'zi hech qancha bera olmaydi).
+  /// Shu xodim internetsiz bera oladigan eng katta foiz — filialning kassir chegarasi, bootstrap nusxasidan (`"10"`,
+  /// `"12.5"`), hammaga bir xil (`orders.discount` egasiga ham). Chegara belgilanmagan, 0 yoki xodim o'zi chegirma
+  /// bera olmaydi (na `orders.discount`, na `pos.take_payment`) — `null`: internetsiz chegirma yo'q.
   String? get discountLimitPercent {
-    if (!_can('pos.take_payment')) return null;
+    if (!_givesDiscountAlone) return null;
     final String? limit = _cashierLimit;
     return limit == null ? null : formatPercent(limit);
   }
+
+  /// Whoever gives a discount without a manager's approval online: a holder of `orders.discount`, or a cashier.
+  bool get _givesDiscountAlone =>
+      _can('orders.discount') || _can('pos.take_payment');
 
   String? get _cashierLimit {
     final String? limit =
@@ -727,9 +733,10 @@ class PosOffline {
     String? reason,
   }) => _discountCheck(uuid, kind, value, reason).refused?.message;
 
-  /// M5 S2 (docs/scale/M5_DESIGN.md 3-bo'lim): buyurtmaga internetsiz chegirma. Huquqlar onlayndagidek, faqat menejer
-  /// tasdig'isiz (uni server beradi): `orders.discount` — har qanday; kassir (`pos.take_payment`) — bootstrap
-  /// nusxasidagi `cashier_discount_max_percent` gacha; undan ko'pi rad etiladi ([discountLimitReason]). Faqat schyot
+  /// M5 S2 (docs/scale/M5_DESIGN.md 3-bo'lim): buyurtmaga internetsiz chegirma, menejer tasdig'isiz (uni server
+  /// beradi). Egasining qarori (20.11.2026): internetsiz HAMMA — kassir (`pos.take_payment`), menejer va
+  /// `orders.discount` egasi ham — ko'pi bilan bootstrap nusxasidagi `cashier_discount_max_percent` gacha beradi
+  /// (qiymat yozilganidek); undan ko'pi yoki chegara belgilanmagan — rad etiladi ([discountLimitReason]). Faqat schyot
   /// tuzilguncha, 24 soatlik chegaradan keyin emas, PIN'siz davom etayotgan xodim bera olmaydi, sabab majburiy.
   /// [value] `"0"` — chegirmani olib tashlash (sabab shart emas). Navbatga `order.discount` yoziladi; summa serverdagi
   /// qoida bilan hisoblanadi ([OfflineDiscount]) va har qator o'zgarishida qayta hisoblanadi.
@@ -899,27 +906,34 @@ class PosOffline {
         'value_invalid',
       );
     }
-    if (!_can('orders.discount')) {
-      final String? limit = _can('pos.take_payment') ? _cashierLimit : null;
-      if (limit == null) {
-        return no(
-          "Internetsiz chegirma berish uchun menejer tasdig'i kerak, u esa faqat internet bilan olinadi: chegirmani "
-          'aloqa tiklangach bering.',
-          discountLimitReason,
-        );
-      }
-      if (!OfflineDiscount.withinLimit(
-        kind.wire,
-        OfflineDiscount.canonical(h),
-        items,
-        limit,
-      )) {
-        return no(
-          "Internetsiz kassir ${formatPercent(limit)}% gacha chegirma bera oladi. Undan ko'pi uchun menejer "
-          "tasdig'i kerak, u esa faqat internet bilan olinadi.",
-          discountLimitReason,
-        );
-      }
+    // Owner decision of 20.11.2026: offline everybody has the branch's cashier limit, a holder of `orders.discount`
+    // too (as PosSyncApplier::discount: `offline_limit`); a larger discount is given online
+    if (!_givesDiscountAlone) {
+      return no(
+        "Internetsiz chegirma berish uchun menejer tasdig'i kerak, u esa faqat internet bilan olinadi: chegirmani "
+        'aloqa tiklangach bering.',
+        discountLimitReason,
+      );
+    }
+    final String? limit = _cashierLimit;
+    if (limit == null) {
+      return no(
+        'Filialda kassir chegirmasi chegarasi belgilanmagan: internetsiz chegirma berilmaydi. Chegirmani internet '
+        'qaytgach bering.',
+        discountLimitReason,
+      );
+    }
+    if (!OfflineDiscount.withinLimit(
+      kind.wire,
+      OfflineDiscount.canonical(h),
+      items,
+      limit,
+    )) {
+      return no(
+        "Internetsiz chegirma: filial chegarasi ${formatPercent(limit)}% gacha. Kattarog'i internet qaytgach "
+        'beriladi.',
+        discountLimitReason,
+      );
     }
     return (refused: null, hundredths: h, items: items, reason: why);
   }

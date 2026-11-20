@@ -265,7 +265,7 @@ void main() {
       expect(percent.reason, PosOffline.discountLimitReason);
       expect(percent.message, contains('10%'));
       expect(percent.message, contains('Internetsiz'));
-      expect(percent.message, contains('menejer'));
+      expect(percent.message, contains('filial chegarasi'));
 
       // 190 000 x 10 % = 19 000: one tiyin above is refused though it rounds down to the limit
       final PosOfflineUnavailable amount = await refused(
@@ -328,27 +328,12 @@ void main() {
           ),
         );
         expect(e.reason, PosOffline.discountLimitReason);
-        expect(e.message, contains('menejer'));
+        expect(e.message, contains('chegarasi belgilanmagan'));
       },
     );
 
-    test('a holder of orders.discount gives any discount offline (no ceiling of its own)', () async {
-      await start(userId: 2);
-      final PosOrder order = await roomOffline();
-      final PosOrder given = await h.pos.orders.discount(
-        order.uuid,
-        version: order.version,
-        kind: PosDiscountKind.percent,
-        value: '50',
-        reason: 'Bayram',
-      );
-      expect(given.discount, const PosMoney.som(95000));
-      expect(given.discountBy, 2);
-      h.adapter.offline = false;
-      expect((await h.offline.syncNow()).drained, isTrue);
-      expect(sync.results.values.single['status'], 'applied');
-      expect(h.state.orders[order.uuid]!['discount'], '95000.00');
-    });
+    // (owner decision of 20.11.2026: a holder of orders.discount has the cashier limit offline too:
+    // m5_s2_fix_test.dart)
 
     test('risk 7.2-1: a server that does not advertise offline.discount gets no order.discount; the till says '
         'internet is needed', () async {
@@ -608,7 +593,8 @@ void main() {
         contains('Chegirma serverda qabul qilinmadi'),
       );
       expect(refusedOp['refs'], <String, Object?>{
-        'cause': 'approval_required',
+        // (owner decision of 20.11.2026: through sync the cashier limit is everybody's ceiling)
+        'cause': 'offline_limit',
         'kind': 'percent',
         'value': '10.00',
         'expected_discount': '19000.00',
@@ -685,7 +671,7 @@ void main() {
       },
     );
 
-    test('a promo code (reason promo:CODE) is the server\'s to compute: its amount stays as stored', () {
+    test('a promo code (the server\'s discount_promo) is the server\'s to compute: its amount stays as stored', () {
       final Map<String, Object?> order = <String, Object?>{
         'uuid': 'u',
         'status': 'preparing',
@@ -695,6 +681,7 @@ void main() {
         'discount_kind': 'percent',
         'discount_value': '10.00',
         'discount_reason': 'promo:YOZ',
+        'discount_promo': true,
         'charges': <String, Object?>{},
         'items': <Object?>[
           <String, Object?>{

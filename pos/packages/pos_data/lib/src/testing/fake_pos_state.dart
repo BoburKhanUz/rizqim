@@ -1591,6 +1591,8 @@ class FakePosState {
       'discount_value': null,
       'discount_reason': null,
       'discount_by': null,
+      // M5 S2: the discount is a promo code's (FakeCashierBackend sets it; a hand discount clears it)
+      'discount_promo': false,
       'service_charge_amount': '0.00',
       'place_fee_amount': '0.00',
       'room_fee_amount': '0.00',
@@ -2301,7 +2303,8 @@ class FakePosState {
       ..['discount_kind'] = value == 0 ? null : kind
       ..['discount_value'] = stored
       ..['discount_reason'] = value == 0 ? null : reason
-      ..['discount_by'] = value == 0 ? null : member['id'];
+      ..['discount_by'] = value == 0 ? null : member['id']
+      ..['discount_promo'] = false;
     // Like the server: the existing `charges_changed` change
     _touch(order, 'charges_changed');
     return _ok(

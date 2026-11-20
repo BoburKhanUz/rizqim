@@ -216,13 +216,20 @@ void main() {
   Future<({P22 p, String uuid, SyncStore store})> goOffline(
     WidgetTester tester, {
     bool flag = true,
+    String? name,
+    String? limit = '10.00',
   }) async {
     final SyncStore store = await SyncStore.open(MemorySyncStorage());
     final P22 p = P22(offlineStore: store);
     p.state.offlineDiscount = flag;
+    p.state.cashierDiscountMaxPercent = limit;
     p.state.openShift();
     final String uuid = p.state.seedOrder(tableId: 1, guests: 2);
-    await pumpHome(tester, p.h, size: tall);
+    if (name == null) {
+      await pumpHome(tester, p.h, size: tall);
+    } else {
+      await pumpHome(tester, p.h, name: name, size: tall);
+    }
     p.h.adapter.offline = true;
     p.h.data.floor.load().ignore();
     for (var i = 0; i < 50 && !p.h.data.offline!.active; i++) {
@@ -266,7 +273,12 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Sizning chegarangiz: 10%'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey<String>('discount-limit')))
+            .data,
+        "Internetsiz chegirma: filial chegarasi 10% gacha. Kattarog'i internet qaytgach beriladi.",
+      );
       await giveDiscount(tester, quick: 10);
 
       // No manager step offline; the discount is on the screen and queued once
@@ -314,6 +326,77 @@ void main() {
         find.byKey(const ValueKey<String>('discount-above-limit')),
         findsNothing,
       );
+      expect(
+        tester
+            .widget<RzButton>(
+              find.byKey(const ValueKey<String>('discount-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(discountOps(o.store), isEmpty);
+      await backOnline(tester, o.p);
+    },
+  );
+
+  testWidgets(
+    'offline, flag on: a manager (orders.discount) has the branch limit too: the same sentence, 15% is refused',
+    (WidgetTester tester) async {
+      final String manager =
+          P22().state.staff.firstWhere(
+                (Map<String, Object?> s) => s['id'] == 2,
+              )['name']!
+              as String;
+      final o = await goOffline(tester, name: manager);
+      await openPlace(tester, '1-xona');
+      await tapKey(tester, 'order-discount');
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey<String>('discount-limit')))
+            .data,
+        "Internetsiz chegirma: filial chegarasi 10% gacha. Kattarog'i internet qaytgach beriladi.",
+      );
+      expect(
+        find.text("Siz istalgan chegirmani o'zingiz bera olasiz."),
+        findsNothing,
+      );
+      await tapKey(tester, 'discount-quick-15');
+      await tapOn(tester, find.widgetWithText(ChoiceChip, 'Ega ruxsati'));
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey<String>('discount-offline-refusal')),
+            )
+            .data,
+        "Internetsiz chegirma: filial chegarasi 10% gacha. Kattarog'i internet qaytgach beriladi.",
+      );
+      expect(
+        tester
+            .widget<RzButton>(
+              find.byKey(const ValueKey<String>('discount-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(discountOps(o.store), isEmpty);
+      await backOnline(tester, o.p);
+    },
+  );
+
+  testWidgets(
+    'offline, flag on: no branch limit configured: the dialog says there is no offline discount',
+    (WidgetTester tester) async {
+      final o = await goOffline(tester, limit: null);
+      await openPlace(tester, '1-xona');
+      await tapKey(tester, 'order-discount');
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey<String>('discount-limit')))
+            .data,
+        'Filialda chegirma chegarasi belgilanmagan: internetsiz chegirma berilmaydi.',
+      );
+      await tapKey(tester, 'discount-quick-5');
+      await tapOn(tester, find.widgetWithText(ChoiceChip, 'Ega ruxsati'));
       expect(
         tester
             .widget<RzButton>(

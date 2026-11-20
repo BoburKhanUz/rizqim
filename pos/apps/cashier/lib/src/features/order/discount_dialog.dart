@@ -194,16 +194,11 @@ class _DiscountDialogState extends State<DiscountDialog> {
     return refusal;
   }
 
-  /// Internetsiz: kassirning o'z chegarasi haqida jumla.
+  /// Internetsiz: chegara haqida jumla. Egasining qarori (20.11.2026): internetsiz hamma — menejer ham — ko'pi bilan
+  /// filialning kassir chegarasigacha beradi; chegara belgilanmagan — internetsiz chegirma yo'q.
   String get _offlineLimitText {
-    final PosOffline off = widget.offline!;
-    if (off.discountUnlimited) {
-      return "Siz istalgan chegirmani o'zingiz bera olasiz.";
-    }
-    final String? limit = off.discountLimitPercent;
-    return limit == null
-        ? "Internetsiz sizga chegirma berish mumkin emas."
-        : 'Sizning chegarangiz: $limit%';
+    final String? limit = widget.offline!.discountLimitPercent;
+    return limit == null ? discountOfflineNoLimit : discountOfflineLimit(limit);
   }
 
   bool get _valid =>
@@ -450,6 +445,14 @@ const String discountOfflineReason = 'Chegirma uchun internet kerak.';
 /// M5 S2: internetsiz chegirma oynasidagi izoh.
 const String discountOfflineNote =
     'Internetsiz chegirma: aloqa tiklangach serverda tekshiriladi.';
+
+/// M5 S2: internetsiz chegirma chegarasi ([percent] — filialning kassir chegarasi, masalan `10`), hammaga bir xil.
+String discountOfflineLimit(String percent) =>
+    "Internetsiz chegirma: filial chegarasi $percent% gacha. Kattarog'i internet qaytgach beriladi.";
+
+/// M5 S2: filialda kassir chegarasi belgilanmagan — internetsiz chegirma berilmaydi.
+const String discountOfflineNoLimit =
+    'Filialda chegirma chegarasi belgilanmagan: internetsiz chegirma berilmaydi.';
 
 /// Sabab hali yozilmaganda qiymatni tekshirish uchun vaqtinchalik matn (faqat qiymatga bog'liq rad sabablari chiqadi).
 const String discountOfflineProbeReason = '-';

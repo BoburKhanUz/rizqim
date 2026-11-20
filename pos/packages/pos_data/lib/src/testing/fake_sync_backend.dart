@@ -11,7 +11,12 @@ import 'fake_pos_state.dart';
 /// M5 S2: `order.discount` — internetsiz berilgan chegirma onlayn qoidaning o'zi bilan, menejer tasdig'isiz
 /// qo'llanadi (`refs.discount`, `discount_kind`, `discount_value`, belgi `offline_discount`); server qabul qilmasa —
 /// `rejected` `discount_not_allowed` (`refs.cause`), keyingi schyot to'liq narxda (`amount_mismatch`, ma'lumot
-/// uchun), to'lov baribir olinadi va kam chiqqani `conflict` `underpaid` bo'ladi.
+/// uchun), to'lov baribir olinadi va kam chiqqani `conflict` `underpaid` bo'ladi. Serverdagidek (egasining qarori,
+/// 20.11.2026): sinxronlash orqali HAMMA ko'pi bilan filialning kassir chegarasigacha beradi (`offline_limit`;
+/// chegara yo'q — chegirma yo'q), PIN'siz davom etayotgan xodim (`staff_continued: true`) bermaydi
+/// (`staff_continued`), xodim tekshiruvi (`staff_invalid`, `staff_not_signed_in`: PIN bilan kirish server amalni
+/// OLGAN vaqtdan [sessionWindow] ichida) o'tmasa ham `discount_not_allowed`. Bloklangan xodim (`blocked_at`) puldan
+/// boshqa hech narsa qila olmaydi (`staff_invalid`; to'lov — `staff_unverified`).
 ///
 /// ```dart
 /// final FakePosState state = FakePosState();
@@ -254,6 +259,7 @@ class FakeSyncBackend {
           ],
         });
       }
+      if (type == 'order.discount') return _discountRefused(op, p, why, text);
       if (type != 'bill.pay') {
         return _result(op, 'rejected', why, text, const <String, Object?>{});
       }
@@ -487,24 +493,9 @@ class FakeSyncBackend {
           });
         }
       case 'order.discount':
-        // M5 S2 (PosSyncApplier::discount): the online rule itself, without an approval token
-        Map<String, Object?> refusedDiscount(
-          String cause,
-          String message,
-        ) => _result(
-          op,
-          'rejected',
-          'discount_not_allowed',
-          "Chegirma serverda qabul qilinmadi: $message Schyot to'liq narxda hisoblanadi: menejer chegirmani "
-              'onlayn bersin yoki farqni hal qilsin.',
-          <String, Object?>{
-            'cause': cause,
-            if (p['kind'] is String) 'kind': p['kind'],
-            'value': ?PosMoney.tryParse(p['value'])?.toApiString(),
-            'expected_discount': ?PosMoney.tryParse(p['expected_discount'])
-                ?.toApiString(),
-          },
-        );
+        // M5 S2 (PosSyncApplier::discount): the offline limit, then the online rule itself, without an approval token
+        Map<String, Object?> refusedDiscount(String cause, String message) =>
+            _discountRefused(op, p, cause, message);
         final Map<String, Object?> member = state.staff.firstWhere(
           (Map<String, Object?> s) => s['id'] == staff,
         );
@@ -514,6 +505,15 @@ class FakeSyncBackend {
           return refusedDiscount(
             'permission_denied',
             "${member['name']} uchun bu amalga ruxsat yo'q.",
+          );
+        }
+        // (after the staff check, before the order is looked at, as the server)
+        if (p['staff_continued'] == true ||
+            p['staff_continued'] == 'true' ||
+            p['staff_continued'] == 1) {
+          return refusedDiscount(
+            'staff_continued',
+            "PIN'siz davom etayotgan xodim chegirma bera olmaydi.",
           );
         }
         if (!state.orders.containsKey(orderUuid)) {
@@ -528,6 +528,37 @@ class FakeSyncBackend {
             'value_invalid',
             "Chegirma qiymati noto'g'ri.",
           );
+        }
+        // Owner decision of 20.11.2026: through sync everybody gives at most the branch's cashier limit (the value
+        // as typed); none configured: no offline discount. Taking a discount off is not capped
+        if (value.isPositive &&
+            (p['kind'] == 'percent' || p['kind'] == 'amount')) {
+          final String? max = state.cashierDiscountMaxPercent;
+          final int limit = max == null ? 0 : percentHundredths(max);
+          if (limit <= 0) {
+            return refusedDiscount(
+              'offline_limit',
+              'Filialda kassir chegirmasi chegarasi belgilanmagan: internetsiz chegirma berilmaydi.',
+            );
+          }
+          var items = 0;
+          for (final Object? i
+              in (state.orders[orderUuid]!['items'] as List<Object?>?) ??
+                  const <Object?>[]) {
+            if (i is Map && i['kitchen_status'] != 'void') {
+              items += PosMoney.parse(i['total_price']).tiyin;
+            }
+          }
+          final bool within = p['kind'] == 'percent'
+              ? value.tiyin <= limit
+              : value.tiyin * 10000 <= items * limit;
+          if (!within) {
+            return refusedDiscount(
+              'offline_limit',
+              'Internetsiz chegirma filial chegarasidan (${formatPercent(max!)}%) oshmaydi; '
+                  "kattarog'i internet bilan beriladi.",
+            );
+          }
         }
         res = state.handleAsStaff(
           staff,
@@ -626,8 +657,9 @@ class FakeSyncBackend {
   }
 
   /// The server's staff check (`PosSyncApplier::staff`): `(reason, message)` when it fails. Only the rules a test can
-  /// set up: an unknown staff id, a PIN login on this till older than [sessionWindow] before the operation (when
-  /// [sessionStartedAt] names the staff member), a payment without `pos.take_payment`.
+  /// set up: an unknown or blocked (`blocked_at`) staff id, a PIN login on this till older than [sessionWindow] before
+  /// the operation (when [sessionStartedAt] names the staff member; for `order.discount` before the server RECEIVED
+  /// it: the till's own time cannot stretch the window), a payment without `pos.take_payment`.
   (String, String)? _staffCheck(
     String type,
     int staff,
@@ -637,11 +669,13 @@ class FakeSyncBackend {
     for (final Map<String, Object?> s in state.staff) {
       if (s['id'] == staff) member = s;
     }
-    if (member == null) {
+    if (member == null || member['blocked_at'] != null) {
       return ('staff_invalid', 'Xodim topilmadi yoki bu kassada ishlamaydi.');
     }
     final DateTime? started = sessionStartedAt[staff];
-    final DateTime? at = DateTime.tryParse('${op['occurred_at']}');
+    final DateTime? at = type == 'order.discount'
+        ? state.now()
+        : DateTime.tryParse('${op['occurred_at']}');
     if (started != null &&
         at != null &&
         (at.isBefore(started) || at.difference(started) > sessionWindow)) {
@@ -659,6 +693,28 @@ class FakeSyncBackend {
     }
     return null;
   }
+
+  /// As `PosSyncApplier::discountRefused`: an offline discount the server does not take, for the manager
+  /// (`discount_not_allowed`, the rule's own reason in `refs.cause`).
+  Map<String, Object?> _discountRefused(
+    Map<String, Object?> op,
+    Map<String, Object?> p,
+    String cause,
+    String message,
+  ) => _result(
+    op,
+    'rejected',
+    'discount_not_allowed',
+    "Chegirma serverda qabul qilinmadi: $message Schyot to'liq narxda hisoblanadi: menejer chegirmani "
+        'onlayn bersin yoki farqni hal qilsin.',
+    <String, Object?>{
+      'cause': cause,
+      if (p['kind'] is String) 'kind': p['kind'],
+      'value': ?PosMoney.tryParse(p['value'])?.toApiString(),
+      'expected_discount': ?PosMoney.tryParse(p['expected_discount'])
+          ?.toApiString(),
+    },
+  );
 
   /// As `PosSyncApplier::attributable`: the claimed staff member is named only when they work here and are known to
   /// have signed in on this till ([sessionStartedAt]).
