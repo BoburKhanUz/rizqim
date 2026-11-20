@@ -94951,6 +94951,9 @@
                                                                             "null"
                                                                         ]
                                                                     },
+                                                                    "discount_promo": {
+                                                                        "type": "boolean"
+                                                                    },
                                                                     "promo_note": {
                                                                         "type": [
                                                                             "string",
@@ -95667,6 +95670,7 @@
                                                                     "discount_value",
                                                                     "discount_reason",
                                                                     "discount_by",
+                                                                    "discount_promo",
                                                                     "promo_note",
                                                                     "service_charge_amount",
                                                                     "place_fee_amount",
@@ -119501,6 +119505,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -120217,6 +120224,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -120520,6 +120528,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -121236,6 +121247,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -125445,6 +125457,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -126161,6 +126176,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -126489,6 +126505,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -127205,6 +127224,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -127539,6 +127559,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -128255,6 +128278,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -129985,6 +130009,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -130701,6 +130728,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -131040,6 +131068,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -131756,6 +131787,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -132082,6 +132114,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -132798,6 +132833,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -133275,6 +133311,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -133991,6 +134030,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -134329,6 +134369,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -135045,6 +135088,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -135396,6 +135440,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -136112,6 +136159,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -136455,6 +136503,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -137171,6 +137222,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -137511,6 +137563,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -138227,6 +138282,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -138552,6 +138608,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -139268,6 +139327,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -139602,6 +139662,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -140318,6 +140381,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -140646,6 +140710,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -141362,6 +141429,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -141690,6 +141758,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -142406,6 +142477,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -142725,6 +142797,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -143441,6 +143516,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -143742,6 +143818,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -144458,6 +144537,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -145776,6 +145856,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -146492,6 +146575,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -146949,6 +147033,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -147665,6 +147752,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -147996,6 +148084,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -148712,6 +148803,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -149040,6 +149132,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -149756,6 +149851,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
@@ -150088,6 +150184,9 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "discount_promo": {
+                                                    "type": "boolean"
+                                                },
                                                 "promo_note": {
                                                     "type": [
                                                         "string",
@@ -150804,6 +150903,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "discount_promo",
                                                 "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",

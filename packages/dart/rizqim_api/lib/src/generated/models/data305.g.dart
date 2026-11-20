@@ -7,7 +7,7 @@ part of 'data305.dart';
 // **************************************************************************
 
 Data305 _$Data305FromJson(Map<String, dynamic> json) => Data305(
-  openedBy: (json['opened_by'] as num).toInt(),
+  deviceId: (json['device_id'] as num?)?.toInt(),
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   channel: json['channel'] as String,
@@ -28,8 +28,8 @@ Data305 _$Data305FromJson(Map<String, dynamic> json) => Data305(
   waiter: json['waiter'] == null
       ? null
       : Waiter11.fromJson(json['waiter'] as Map<String, dynamic>),
+  openedBy: (json['opened_by'] as num).toInt(),
   uuid: json['uuid'] as String,
-  deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
   bookingUuid: json['booking_uuid'] as String?,
   depositAvailable: json['deposit_available'] as String,
@@ -44,10 +44,11 @@ Data305 _$Data305FromJson(Map<String, dynamic> json) => Data305(
       ? null
       : DiscountKind.fromJson(json['discount_kind'] as String?),
   discountValue: json['discount_value'] as String?,
+  discountReason: json['discount_reason'] as String?,
   items: (json['items'] as List<dynamic>)
       .map((e) => Items39.fromJson(e as Map<String, dynamic>))
       .toList(),
-  discountBy: (json['discount_by'] as num?)?.toInt(),
+  discountPromo: json['discount_promo'] as bool,
   promoNote: json['promo_note'] as String?,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
@@ -70,7 +71,7 @@ Data305 _$Data305FromJson(Map<String, dynamic> json) => Data305(
       .map((e) => Courses6.fromJson(e as Map<String, dynamic>))
       .toList(),
   weightPending: (json['weight_pending'] as num).toInt(),
-  discountReason: json['discount_reason'] as String?,
+  discountBy: (json['discount_by'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data305ToJson(Data305 instance) => <String, dynamic>{
@@ -105,6 +106,7 @@ Map<String, dynamic> _$Data305ToJson(Data305 instance) => <String, dynamic>{
   'discount_value': instance.discountValue,
   'discount_reason': instance.discountReason,
   'discount_by': instance.discountBy,
+  'discount_promo': instance.discountPromo,
   'promo_note': instance.promoNote,
   'service_charge_amount': instance.serviceChargeAmount,
   'place_fee_amount': instance.placeFeeAmount,

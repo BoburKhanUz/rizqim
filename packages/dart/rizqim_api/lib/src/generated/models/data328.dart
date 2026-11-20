@@ -20,7 +20,7 @@ part 'data328.g.dart';
 @JsonSerializable()
 class Data328 {
   const Data328({
-    required this.openedBy,
+    required this.deviceId,
     required this.shortCode,
     required this.status,
     required this.channel,
@@ -35,8 +35,8 @@ class Data328 {
     required this.tableLabel,
     required this.guestsCount,
     required this.waiter,
+    required this.openedBy,
     required this.uuid,
-    required this.deviceId,
     required this.bookingId,
     required this.bookingUuid,
     required this.depositAvailable,
@@ -49,8 +49,9 @@ class Data328 {
     required this.discount,
     required this.discountKind,
     required this.discountValue,
+    required this.discountReason,
     required this.items,
-    required this.discountBy,
+    required this.discountPromo,
     required this.promoNote,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
@@ -65,7 +66,7 @@ class Data328 {
     required this.rounds,
     required this.courses,
     required this.weightPending,
-    required this.discountReason,
+    required this.discountBy,
   });
 
   factory Data328.fromJson(Map<String, Object?> json) =>
@@ -122,6 +123,8 @@ class Data328 {
   final String? discountReason;
   @JsonKey(name: 'discount_by')
   final int? discountBy;
+  @JsonKey(name: 'discount_promo')
+  final bool discountPromo;
   @JsonKey(name: 'promo_note')
   final String? promoNote;
   @JsonKey(name: 'service_charge_amount')
