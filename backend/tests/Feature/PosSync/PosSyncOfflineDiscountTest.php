@@ -19,7 +19,7 @@ use Tests\TestCase;
 /**
  * Wave M5 S2 (docs/scale/M5_DESIGN.md §3, owner answer 8.1-1): a discount given at the till without internet
  * (`order.discount`): applied on sync through PosOrderService::discount with every online rule but the manager's
- * approval; audited twice (`pos.order.discount`, `pos.offline_discount`); refused → rejected `discount_not_allowed`
+ * approval, at most the branch's cashier limit whoever gives it (owner decision of 20.11.2026); audited twice (`pos.order.discount`, `pos.offline_discount`); refused → rejected `discount_not_allowed`
  * while the bill and the payment that follow are still taken (the order `underpaid` by the refused discount); marked
  * for the reports; the owner hears of them once per till and outage, not once per discount.
  */
@@ -194,7 +194,8 @@ class PosSyncOfflineDiscountTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.results.1.status', 'rejected')
             ->assertJsonPath('data.results.1.reason', 'discount_not_allowed')
-            ->assertJsonPath('data.results.1.refs.cause', 'approval_required')
+            // (owner decision of 20.11.2026: through sync the cashier limit is everyone's limit)
+            ->assertJsonPath('data.results.1.refs.cause', 'offline_limit')
             ->assertJsonPath('data.results.1.refs.expected_discount', '4100.00')
             // The bill at the full price: a note, the payment settles it
             ->assertJsonPath('data.results.2.status', 'applied')
@@ -214,7 +215,9 @@ class PosSyncOfflineDiscountTest extends TestCase
         $this->assertStringContainsString('Chegirma serverda qabul qilinmadi', (string) PosSyncOperation::where('type', 'order.discount')->firstOrFail()->error);
         $this->assertSame(0, AuditLog::where('action', 'pos.offline_discount')->count());
         $this->assertSame(0, AuditLog::where('action', 'pos.order.discount')->count());
-        $this->assertSame([], $this->ownerAlerts());
+        // The owner hears of the refusal and of what it left unpaid (review: PosSyncOfflineDiscountReviewTest)
+        $this->assertCount(1, $this->ownerAlerts());
+        $this->assertStringContainsString("Rad etilgan: 1 ta — schyotlarda 4 100 so'm kam to'langan", $this->ownerAlerts()[0]);
     }
 
     public function test_who_may_not_discount_online_may_not_offline(): void
@@ -309,23 +312,24 @@ class PosSyncOfflineDiscountTest extends TestCase
         $this->sync([
             $this->open($a), $this->discount($a, 'percent', '10'),
             $this->open($b), $this->discount($b, 'amount', '2000'),
-            $this->open($c), $this->discount($c, 'percent', '50', $manager),
+            // (a manager too gives at most the cashier limit offline: owner decision of 20.11.2026)
+            $this->open($c), $this->discount($c, 'amount', '3000', $manager),
         ])->assertOk()->assertJsonPath('data.results.5.status', 'applied');
 
         $alerts = $this->ownerAlerts();
         $this->assertCount(1, $alerts);
         $this->assertStringContainsString('Internetsiz berilgan chegirmalar: 3 ta', $alerts[0]);
-        // 4 100 + 2 000 + 20 500
-        $this->assertStringContainsString("jami 26 600 so'm", $alerts[0]);
+        // 4 100 + 2 000 + 3 000
+        $this->assertStringContainsString("jami 9 100 so'm", $alerts[0]);
         $this->assertStringContainsString("{$this->cashier->name} — 2 ta, 6 100 so'm", $alerts[0]);
-        $this->assertStringContainsString("{$manager->name} — 1 ta, 20 500 so'm", $alerts[0]);
+        $this->assertStringContainsString("{$manager->name} — 1 ta, 3 000 so'm", $alerts[0]);
         $this->assertStringContainsString("Filial: {$this->branch->name}", $alerts[0]);
         $this->assertStringNotContainsString('Chegirma berildi', implode("\n", $alerts));
 
         $summary = AuditLog::where('action', 'pos.offline_discount_summary')->firstOrFail();
         $this->assertSame($this->till['device']->id, (int) $summary->device_id);
         $this->assertSame(3, $summary->payload_json['count']);
-        $this->assertSame('26600.00', $summary->payload_json['amount']);
+        $this->assertSame('9100.00', $summary->payload_json['amount']);
 
         // A later batch without a discount: nothing more
         $this->sync([$this->op('order.close', ['order' => $a])])->assertOk();

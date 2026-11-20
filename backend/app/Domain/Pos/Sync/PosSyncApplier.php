@@ -14,6 +14,7 @@ use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Kitchen\KitchenAssembly;
 use App\Domain\Pos\Lan\BranchLan;
 use App\Domain\Pos\Contracts\PosTender;
+use App\Domain\Pos\Orders\PosChargesCalculator;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOrderAlerts;
 use App\Domain\Pos\Orders\PosOrderException;
@@ -82,7 +83,12 @@ use Throwable;
  * Wave M5 S2 (docs/scale/M5_DESIGN.md §3): `order.discount`, a discount given at the till without internet, goes
  * through PosOrderService::discount with every online rule and no manager's approval (discount()). Refused: rejected
  * `discount_not_allowed` (the rule's own reason in `cause`); the bill and the payment that follow are taken as ever
- * (the bill at the full price, the order `underpaid` by the refused discount).
+ * (the bill at the full price, the order `underpaid` by the refused discount). Owner decision of 20.11.2026: through
+ * sync everyone, a manager too, gives at most the branch's cashier limit (`offline_limit`), only with a PIN sign-in on
+ * the till within 36 h before the server received the operation, never as a PIN-less "continued" staff member.
+ *
+ * A blocked user (users.blocked_at) does nothing through sync (`staff_invalid`); money they took is recorded as any
+ * payment whose staff check failed (`staff_unverified`).
  */
 final class PosSyncApplier
 {
@@ -169,9 +175,10 @@ final class PosSyncApplier
                 $base['staff_id'] = null;
             }
 
-            if ($type === PosSyncOperationType::ORDER_DISCOUNT && $e->reason === 'permission_denied') {
-                // Wave M5 S2: the right to discount was taken away during the outage
-                return $this->discountRefused($base, $e->reason, $e->getMessage());
+            if ($type === PosSyncOperationType::ORDER_DISCOUNT && in_array($e->reason, ['permission_denied', 'staff_invalid', 'staff_not_signed_in'], true)) {
+                // Wave M5 S2: the right to discount was taken away during the outage, the person was blocked or
+                // their PIN sign-in on this till is too old
+                return $this->discountRefused($device, $base, $e->reason, $e->getMessage());
             }
 
             // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied
@@ -202,7 +209,7 @@ final class PosSyncApplier
             [$reason, $message] = $this->describe($e);
 
             if ($type === PosSyncOperationType::ORDER_DISCOUNT) {
-                return $this->discountRefused($base, $reason, $message);
+                return $this->discountRefused($device, $base, $reason, $message);
             }
 
             // Money taken is never rejected: it is recorded on the order as it is now
@@ -219,7 +226,7 @@ final class PosSyncApplier
             report($e);
             $message = "Amal ma'lumotlari serverda qo'llanmadi (noto'g'ri yoki juda katta qiymat).";
             if ($type === PosSyncOperationType::ORDER_DISCOUNT) {
-                return $this->discountRefused($base, 'invalid_payload', $message);
+                return $this->discountRefused($device, $base, 'invalid_payload', $message);
             }
 
             return $type->isMoney()
@@ -891,7 +898,10 @@ final class PosSyncApplier
 
     /**
      * Wave M5 S2 order.discount: {order, kind: percent|amount, value, reason, expected_discount?} — a discount given
-     * at the till without internet; value 0 takes it off. PosOrderService::discount applies it with every online rule
+     * at the till without internet; value 0 takes it off. Owner decision of 20.11.2026: whoever gives it, at most the
+     * branch's cashier limit (OfflineDiscounts::limit / within: the value as typed; no limit configured, no offline
+     * discount: `offline_limit`), and never by a PIN-less "continued" staff member (`staff_continued: true` in the
+     * payload: `staff_continued`). Then PosOrderService::discount applies it with every online rule
      * (the cashier's limit from the branch's settings now, the bill lock, no change once a bill is being paid, the
      * waiter rule, a reason) and without a manager's approval: nobody could give one offline. On top of that rule's own
      * audit row (`pos.order.discount`) a second one, `pos.offline_discount`: the operation, the till, the till's
@@ -906,13 +916,28 @@ final class PosSyncApplier
      */
     private function discount(Device $device, User $staff, array $payload, ?Carbon $occurredAt, array $base): array
     {
-        $order = $this->openOrder($device, $payload);
+        if (self::continued($payload)) {
+            throw new PosSyncException('staff_continued', "PIN'siz davom etayotgan xodim chegirma bera olmaydi.");
+        }
+        // Locked here already (PosOrderService::discount locks it again): the limit below reads the dishes as they are
+        $order = Order::whereKey($this->openOrder($device, $payload)->id)->lockForUpdate()->firstOrFail();
         $kind = is_string($payload['kind'] ?? null) ? $payload['kind'] : '';
         $value = self::money($payload['value'] ?? null);
         if ($value === null) {
             throw new PosSyncException('value_invalid', "Chegirma qiymati noto'g'ri.");
         }
         $expected = self::money($payload['expected_discount'] ?? null);
+        if ($value->isPositive() && in_array($kind, ['percent', 'amount'], true)) {
+            $limit = OfflineDiscounts::limit($order->branch);
+            if ($limit === null) {
+                throw new PosSyncException('offline_limit', "Filialda kassir chegirmasi chegarasi belgilanmagan: internetsiz chegirma berilmaydi.");
+            }
+            if (!OfflineDiscounts::within($limit, $kind, $value, app(PosChargesCalculator::class)->compute($order)->itemsSubtotal)) {
+                $percent = rtrim(rtrim($limit->toString(), '0'), '.');
+
+                throw new PosSyncException('offline_limit', "Internetsiz chegirma filial chegarasidan ({$percent}%) oshmaydi; kattarog'i internet bilan beriladi.");
+            }
+        }
 
         $order = PosOrderAlerts::withoutDiscountAlert(fn () => $this->orders->discount($order, (int) $order->version, $staff, $kind, $value->toString(), $this->text($payload['reason'] ?? null, 255), null));
         $applied = Money::of($order->discount);
@@ -930,6 +955,8 @@ final class PosSyncApplier
             'expected_discount' => $expected?->toString(),
             'applied_discount' => $applied->toString(),
             'removed' => $removed ?: null,
+            // What the till said about a PIN-less "continued" staff member, when it said anything (true never gets here)
+            'staff_continued' => array_key_exists('staff_continued', $payload) ? self::continued($payload) : null,
         ], fn ($field) => $field !== null), ['actor' => $staff, 'device' => $device]);
 
         // One mark per order: that of an earlier offline discount (changed or taken off now) goes
@@ -955,15 +982,22 @@ final class PosSyncApplier
 
     /**
      * Wave M5 S2: an offline discount the server does not take (the limit lowered or the permission taken away
-     * meanwhile, a bill being paid, the order closed, no reason...): rejected `discount_not_allowed` for the manager,
+     * meanwhile, above the offline limit, a bill being paid, the order closed, no reason, a blocked or PIN-less
+     * "continued" staff member, a PIN sign-in too old...): rejected `discount_not_allowed` for the manager,
      * the rule's own reason in `cause`. Nothing else is touched: the bill that follows is made at the full price and
      * its payment is taken (`underpaid` by this discount).
      *
      * @param  array<string, mixed>  $base
      */
-    private function discountRefused(array $base, string $cause, string $message): PosSyncOperation
+    private function discountRefused(Device $device, array $base, string $cause, string $message): PosSyncOperation
     {
         $payload = (array) ($base['payload'] ?? []);
+        try {
+            // The order it was for: the owner's summary reads what the refusal left unpaid (OfflineDiscounts)
+            $base['order_id'] = $this->posOrder($device, $payload)->id;
+        } catch (PosSyncException) {
+            // Not an order of this branch: nothing to link
+        }
 
         return $this->rejected($base, 'discount_not_allowed', "Chegirma serverda qabul qilinmadi: {$message} Schyot to'liq narxda hisoblanadi: menejer chegirmani onlayn bersin yoki farqni hal qilsin.", array_filter([
             'cause' => $cause,
@@ -1405,23 +1439,27 @@ final class PosSyncApplier
 
     /**
      * The staff member the operation is attributed to: this store's, working on the till's branch, in a terminal role,
-     * signed in on this till with their PIN before the outage (a session started there in the last 36 hours), holding
-     * the operation's permission.
+     * not blocked, signed in on this till with their PIN before the outage (a session started there in the 36 hours
+     * before the operation; for `order.discount` before the server received it), holding the operation's permission.
      */
     private function staff(Device $device, ?int $staffId, PosSyncOperationType $type, ?Carbon $happenedAt = null): User
     {
         $staff = $this->terminalStaff($device, $staffId);
-        if ($staff === null) {
+        // A blocked user is nobody on a terminal (as their PIN online); a payment goes the staff_unverified way
+        if ($staff === null || $staff->getAttribute('blocked_at') !== null) {
             throw new PosSyncException('staff_invalid', "Xodim topilmadi yoki bu kassada ishlamaydi.");
         }
 
+        // Wave M5 S2 (review): a discount is measured at the server's receipt — the operation's time is the till's own
+        // word and would stretch the window by the 48 h a device time may lie back
+        $at = $type === PosSyncOperationType::ORDER_DISCOUNT ? now() : ($happenedAt ?? now());
         $signedIn = AuditLog::query()
             ->where('action', 'staff.session_started')
             ->where('user_id', $staff->id)
             ->where('device_id', $device->id)
             // Review P6 C8: measured at the operation's time (a long outage late in a session still syncs; the LAN
             // grant ends as long after the sign-in), the time kept within the device-time window (deviceTime)
-            ->where('created_at', '>=', ($happenedAt ?? now())->copy()->subHours(self::SESSION_WINDOW_HOURS))
+            ->where('created_at', '>=', $at->copy()->subHours(self::SESSION_WINDOW_HOURS))
             ->exists();
         if (!$signedIn) {
             throw new PosSyncException('staff_not_signed_in', "{$staff->name} bu kassada uzilishdan oldin PIN bilan kirmagan.");
@@ -1660,6 +1698,16 @@ final class PosSyncApplier
         }
 
         return $lines;
+    }
+
+    /**
+     * Whether the till marked the operation as done by a PIN-less "continued" staff member (POS_SPEC 5.4).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private static function continued(array $payload): bool
+    {
+        return filter_var($payload['staff_continued'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
