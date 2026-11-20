@@ -16,9 +16,10 @@ use Tests\TestCase;
 /**
  * Wave M5 S1 (docs/scale/M5_DESIGN.md 1.6 bug 4): a payment taken offline is never rejected because the staff check
  * failed (a PIN session older than 36 h before the payment, a permission taken away meanwhile, a staff id the store
- * does not know). The money is recorded through the unallocated path with the conflict flag `staff_unverified`, an
- * audit row and a line in "Sinxronlash xatolari"; every other operation is rejected as before. Also: the server's
- * `last_seq` for the till is what it really holds, after a batch that stopped half-way too.
+ * does not know). The money is recorded (on its bill when that is open: PosSyncStaffUnverifiedSettleTest, else
+ * unallocated) with the conflict flag `staff_unverified`, an audit row and a line in "Sinxronlash xatolari"; every
+ * other operation is rejected as before, but the close of the order it paid in full. Also: the server's `last_seq`
+ * for the till is what it really holds, after a batch that stopped half-way too.
  */
 class PosSyncStaffUnverifiedTest extends TestCase
 {
@@ -54,22 +55,23 @@ class PosSyncStaffUnverifiedTest extends TestCase
 
         // The outage goes on: the payment is taken 37 h after the cashier typed the PIN (the window is 36 h)
         Carbon::setTestNow(now()->addHours(37)->addMinutes(10));
+        $request = $this->op('bill.request', ['order' => $table['order']]);
         $pay = $this->op('bill.pay', ['order' => $table['order'], 'bill' => $table['bill'], 'shift_uuid' => $this->shift->uuid, 'tenders' => [
             ['tender' => 'cash', 'amount' => '41000', 'tendered_amount' => '50000'],
         ]]);
-        $close = $this->op('order.close', ['order' => $table['order']]);
 
-        $this->sync([$pay, $close])->assertOk()
-            ->assertJsonPath('data.results.0.status', 'conflict')
-            ->assertJsonPath('data.results.0.reason', 'staff_unverified')
+        $this->sync([$request, $pay])->assertOk()
             // A non-money operation of the same staff member is still rejected
-            ->assertJsonPath('data.results.1.status', 'rejected')
-            ->assertJsonPath('data.results.1.reason', 'staff_not_signed_in');
+            ->assertJsonPath('data.results.0.status', 'rejected')
+            ->assertJsonPath('data.results.0.reason', 'staff_not_signed_in')
+            ->assertJsonPath('data.results.1.status', 'conflict')
+            ->assertJsonPath('data.results.1.reason', 'staff_unverified');
 
-        // The money is in the books: on the order, in the till's shift and drawer, attributed to the named cashier
+        // The money is in the books: on the bill, in the till's shift and drawer, attributed to the cashier (who did
+        // sign in on this till, only too long ago)
         $order = Order::where('external_id', $table['order'])->firstOrFail();
         $payment = Payment::where('order_id', $order->id)->sole();
-        $this->assertSame(['41000.00', 'paid', 'cash', $this->cashier->id, $this->shift->id, null], [
+        $this->assertSame(['41000.00', 'paid', 'cash', $this->cashier->id, $this->shift->id, \App\Models\OrderBill::where('order_id', $order->id)->value('id')], [
             $payment->amount, $payment->status->value, $payment->provider, $payment->received_by, $payment->shift_id, $payment->bill_id,
         ]);
         $this->assertSame(1, CashMovement::where('shift_id', $this->shift->id)->where('payment_id', $payment->id)->count());
@@ -80,6 +82,8 @@ class PosSyncStaffUnverifiedTest extends TestCase
         $audit = AuditLog::where('action', 'pos.offline_payment_staff_unverified')->sole();
         $this->assertSame([$this->store->id, $this->till['device']->id, $order->id], [$audit->store_id, $audit->device_id, $audit->model_id]);
         $this->assertSame(['41000.00', 'staff_not_signed_in', [$payment->uuid]], [$audit->payload_json['amount'], $audit->payload_json['reason'], $audit->payload_json['payments']]);
+        // The audit's actor is the device; the staff id is what the till claimed
+        $this->assertSame([null, $this->cashier->id], [$audit->user_id, $audit->payload_json['claimed_staff_id']]);
 
         // The manager sees it in "Sinxronlash xatolari"; the same operation sent again changes nothing
         $this->pinSession($this->till, $this->cashier);
@@ -98,15 +102,16 @@ class PosSyncStaffUnverifiedTest extends TestCase
         // The waiter is signed in on the till but may not take money
         $this->pinSession($this->till, $this->waiter, '7391');
 
+        $close = $this->op('order.close', ['order' => $table['order']], $this->waiter);
         $pay = $this->op('bill.pay', ['order' => $table['order'], 'bill' => $table['bill'], 'shift_uuid' => $this->shift->uuid, 'tenders' => [
             ['tender' => 'card', 'amount' => '41000', 'card_type' => 'uzcard'],
         ]], $this->waiter);
-        $this->sync([$pay, $this->op('order.close', ['order' => $table['order']], $this->waiter)])->assertOk()
-            ->assertJsonPath('data.results.0.status', 'conflict')
-            ->assertJsonPath('data.results.0.reason', 'staff_unverified')
-            ->assertJsonPath('data.results.0.refs.flags.0.reason', 'permission_denied')
-            ->assertJsonPath('data.results.1.status', 'rejected')
-            ->assertJsonPath('data.results.1.reason', 'permission_denied');
+        $this->sync([$close, $pay])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'rejected')
+            ->assertJsonPath('data.results.0.reason', 'permission_denied')
+            ->assertJsonPath('data.results.1.status', 'conflict')
+            ->assertJsonPath('data.results.1.reason', 'staff_unverified')
+            ->assertJsonPath('data.results.1.refs.flags.0.reason', 'permission_denied');
 
         $payment = Payment::where('order_id', Order::where('external_id', $table['order'])->value('id'))->sole();
         $this->assertSame(['41000.00', 'card', $this->waiter->id], [$payment->amount, $payment->provider, $payment->received_by]);
@@ -136,7 +141,7 @@ class PosSyncStaffUnverifiedTest extends TestCase
         $this->assertStringNotContainsString('Begona', (string) json_encode($this->tillAs('GET', '/pos/sync/errors')->assertOk()->json('data.errors')));
 
         // A non-money operation naming them: rejected as before
-        $this->sync([$this->op('order.close', ['order' => $table['order']], $stranger)])->assertOk()
+        $this->sync([$this->op('bill.request', ['order' => $table['order']], $stranger)])->assertOk()
             ->assertJsonPath('data.results.0.status', 'rejected')->assertJsonPath('data.results.0.reason', 'staff_invalid');
     }
 

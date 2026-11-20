@@ -1919,12 +1919,27 @@ shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_
   schyotga sig'diriladi). `bill.create` dagi `expected_total` farqi — `amount_mismatch` (ma'lumot uchun).
 - **To'lov va xodim tekshiruvi** (M5 S1) — `bill.pay` ning xodimi tekshiruvdan o'tmasa (PIN bilan kirgani to'lovdan
   36 soatdan oldin — `staff_not_signed_in`; ruxsati olib qo'yilgan — `permission_denied`; `staff_id` shu kassa xodimi
-  emas — `staff_invalid`) to'lov **rad etilmaydi**: pul buyurtmaga schyotsiz yoziladi (kassa smenasiga, naqd — kassa
-  hisobiga), natija `conflict`, `reason: staff_unverified`, `refs.flags[0]` = `{flag: "staff_unverified", amount,
-  reason, message}` (`reason` — yuqoridagi uchtadan biri), audit `pos.offline_payment_staff_unverified`. To'lov
-  ko'rsatilgan xodimga yoziladi, agar u shu do'kon foydalanuvchisi bo'lsa; aks holda `received_by` bo'sh. Bekor
-  qilingan buyurtmada yoniga `refund_needed` belgisi ham qo'yiladi. Schyot to'lanmagan qoladi — menejer
-  "Sinxronlash xatolari"da ko'rib, qo'lda hal qiladi. Pul bo'lmagan amallar (`order.close` ham) avvalgidek `rejected`.
+  emas — `staff_invalid`) to'lov **rad etilmaydi**, natija `conflict`, `reason: staff_unverified`, `refs.flags[0]` =
+  `{flag: "staff_unverified", amount, reason, message}` (`reason` — yuqoridagi uchtadan biri), audit
+  `pos.offline_payment_staff_unverified`, menejer "Sinxronlash xatolari"da ko'radi:
+  - **schyot ochiq bo'lsa** to'lov oddiy to'lov yo'li bilan schyotga yoziladi: schyot to'lanadi (`refs.bill_uuid`,
+    `refs.payments`, `refs.fiscal_status`; `underpaid` / `overpaid` belgilari `refs.flags` da keyin keladi), chek
+    chiqqach buyurtma yopiladi, smena yopiladi, schyotni onlayn qayta to'lash `409` bilan rad etiladi (`bill_paid`);
+  - **ochiq schyot bo'lmasa** (buyurtma bekor qilingan yoki yopilgan, schyot to'langan / bekor qilingan / topilmagan,
+    smena yopiq, to'lov qabul qilinmagan) pul buyurtmaga schyotsiz yoziladi (kassa smenasiga, naqd — kassa hisobiga);
+    bekor qilingan buyurtmada yoniga `refund_needed` belgisi ham qo'yiladi;
+  - **takror** — amalda `idempotency_key` bo'lsa va server shu so'rovni onlayn (`POST /pos/bills/{uuid}/payments`,
+    o'sha `Idempotency-Key`, o'sha xodim) allaqachon bajargan bo'lsa: `applied`, `refs.replayed: true`,
+    `refs.staff_unverified` = sabab; yangi to'lov, belgi va audit yozilmaydi;
+  - **kimga yoziladi** — amaldagi `staff_id` faqat da'vo. `received_by`, naqd harakati va xatolar ro'yxatidagi `staff`
+    faqat shu do'kon, terminal roli va shu filial xodimi bo'lib, **shu kassada kamida bir marta PIN bilan kirgan**
+    odamga qo'yiladi; aks holda `received_by` va `staff` bo'sh, naqd harakati smenani ochgan xodimga yoziladi, xabarda
+    ism ko'rsatilmaydi. Audit (`pos.offline_payment_staff_unverified`, `pos.payment` ham) foydalanuvchisiz, faqat
+    qurilma bilan yoziladi; da'vo qilingan id — `payload.claimed_staff_id`.
+  Shunday to'lov (yoki shunday takror) dan keyin buyurtma to'liq to'langan bo'lsa, shu kassaning keyingi `order.close` amali ham xodim tekshiruvidan
+  o'tmasa-da qo'llanadi: `applied`, `refs.closed`, `refs.flags[0]` = `{flag: "staff_unverified", reason}`, audit
+  `pos.offline_close_staff_unverified` (`claimed_staff_id`). To'liq to'lanmagan buyurtmaning `order.close` i va pul
+  bo'lmagan boshqa amallar avvalgidek `rejected`.
 - `local_number` band bo'lsa — `local_number_taken` (ma'lumot uchun), buyurtma raqamsiz ochiladi.
 
 Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offline` blokida ko'rinadi:

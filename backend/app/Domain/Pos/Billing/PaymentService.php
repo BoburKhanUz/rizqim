@@ -83,10 +83,14 @@ final class PaymentService
      * @param  int|null  $tipStaffId  P6-22: the staff member the cashier gave the tips to (personal mode)
      * @param  string|null  $tipApprovalToken  a manager's approval (tips.manage) for a tip to someone other than the waiter
      * @param  int|null  $offlineWaiterId  offline: the order's waiter as the till saw it when it took the money
+     * @param  bool  $staffUnverified  wave M5 S1: money a till took offline whose staff check failed at sync (the bill
+     *                                 is settled all the same). `$user` then only stands in for the shift and the
+     *                                 drawer's count; the payment is `$attributed`'s (nobody's when null) and the
+     *                                 audit's actor is the device alone
      *
      * @throws PosActionException
      */
-    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null, ?int $tipStaffId = null, ?string $tipApprovalToken = null, ?int $offlineWaiterId = null): OrderBill
+    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null, ?int $tipStaffId = null, ?string $tipApprovalToken = null, ?int $offlineWaiterId = null, bool $staffUnverified = false, ?User $attributed = null): OrderBill
     {
         $order = Order::findOrFail($bill->order_id);
         $shift = $this->shifts->forAction($user, $shiftUuid, (int) $order->branch_id);
@@ -123,7 +127,7 @@ final class PaymentService
             $this->fiscalizer->lines($bill);
         }
 
-        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt, $tipStaffId, $tipApproval, $tipApprovalToken, $waiterOf) {
+        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt, $tipStaffId, $tipApproval, $tipApprovalToken, $waiterOf, $staffUnverified, $attributed) {
             // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
             // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
             $shift = PosShift::lockForMoney((int) $shift->id);
@@ -204,7 +208,7 @@ final class PaymentService
                     'bill_id' => $bill->id,
                     'shift_id' => $shift->id,
                     'device_id' => $device?->id,
-                    'received_by' => $user->id,
+                    'received_by' => $staffUnverified ? $attributed?->id : $user->id,
                     'provider' => $tender['tender']->value,
                     'amount' => $tender['amount']->toString(),
                     'status' => 'paid',
@@ -254,7 +258,7 @@ final class PaymentService
                 'covered' => $covered,
                 // P6-22: tips taken with these payments (never part of the bill or the receipt)
                 'tips' => array_map(fn (\App\Models\PosTip $tip) => ['uuid' => $tip->uuid, 'method' => $tip->method->value, 'amount' => $tip->amount, 'mode' => $tip->mode->value, 'staff_id' => $tip->staff_id], $tips),
-            ], ['actor' => $user, 'device' => $device]);
+            ] + ($staffUnverified ? ['staff_unverified' => true] : []), ['actor' => $staffUnverified ? null : $user, 'device' => $device]);
 
             if ($applied) {
                 $applied();
@@ -265,7 +269,7 @@ final class PaymentService
 
         event(new BillChangedBroadcast(Order::findOrFail($bill->order_id), $bill, 'payment'));
 
-        return $covered ? $this->fiscalizer->issue($bill, $user) : $bill->refresh();
+        return $covered ? $this->fiscalizer->issue($bill, $staffUnverified ? null : $user) : $bill->refresh();
     }
 
     /**
