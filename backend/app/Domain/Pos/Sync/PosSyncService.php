@@ -52,32 +52,40 @@ final class PosSyncService
             $results = [];
             $duplicates = [];
             $stoppedAt = null;
-            foreach ($operations as $op) {
-                $opId = strtolower((string) $op['op_id']);
-                // M4: op_id is unique across every store: another store's id must still answer op_id_conflict below
-                $existing = PosSyncOperation::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('op_id', $opId)->first();
-                if ($existing !== null) {
-                    if ((int) $existing->device_id !== (int) $device->id) {
-                        // Somebody else's operation id: never shown, never applied
-                        throw new PosSyncException('op_id_conflict', "Amal raqami boshqa qurilmaga tegishli: ilovani qayta o'rnating.", ['op_id' => $opId]);
+            try {
+                foreach ($operations as $op) {
+                    $opId = strtolower((string) $op['op_id']);
+                    // M4: op_id is unique across every store: another store's id must still answer op_id_conflict below
+                    $existing = PosSyncOperation::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('op_id', $opId)->first();
+                    if ($existing !== null) {
+                        if ((int) $existing->device_id !== (int) $device->id) {
+                            // Somebody else's operation id: never shown, never applied
+                            throw new PosSyncException('op_id_conflict', "Amal raqami boshqa qurilmaga tegishli: ilovani qayta o'rnating.", ['op_id' => $opId]);
+                        }
+                        $results[] = $existing;
+                        $duplicates[] = $opId;
+                        continue;
                     }
-                    $results[] = $existing;
-                    $duplicates[] = $opId;
-                    continue;
-                }
-                if (PosSyncOperation::where('device_id', $device->id)->where('seq', (int) $op['seq'])->exists()) {
-                    throw new PosSyncException('seq_reused', "Navbat raqami ({$op['seq']}) boshqa amalga berilgan: kassa navbati buzilgan, administratorga ayting.", ['seq' => (int) $op['seq']]);
-                }
+                    if (PosSyncOperation::where('device_id', $device->id)->where('seq', (int) $op['seq'])->exists()) {
+                        throw new PosSyncException('seq_reused', "Navbat raqami ({$op['seq']}) boshqa amalga berilgan: kassa navbati buzilgan, administratorga ayting.", ['seq' => (int) $op['seq']]);
+                    }
 
-                try {
-                    $results[] = $this->applier->apply($device, $op, $skew);
-                } catch (QueryException|\PDOException $e) {
-                    // The database, not the operation (the applier answers the operation's own errors, review
-                    // P3-35): it stays queued on the till and comes again
-                    report($e);
-                    $stoppedAt = (int) $op['seq'];
-                    break;
+                    try {
+                        $results[] = $this->applier->apply($device, $op, $skew);
+                    } catch (QueryException|\PDOException $e) {
+                        // The database, not the operation (the applier answers the operation's own errors, review
+                        // P3-35): it stays queued on the till and comes again
+                        report($e);
+                        $stoppedAt = (int) $op['seq'];
+                        break;
+                    }
                 }
+            } catch (PosSyncException $e) {
+                // Wave M5 S1: a batch refused half-way (op_id_conflict, seq_reused) still applied what came before it:
+                // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
+                $this->report($device, $results, null, $skew);
+
+                throw $e;
             }
 
             $this->report($device, $results, $queue, $skew);

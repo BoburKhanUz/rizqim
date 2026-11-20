@@ -47,10 +47,10 @@ class OfflineLimits {
   /// Navbatda shuncha oflayn buyurtma bo'lsa yangi buyurtma bloklanadi.
   final int maxQueuedOrders;
 
-  /// Menyu nusxasi shundan eski bo'lsa oflayn sotuv boshlanmaydi.
+  /// Menyu nusxasi shundan eski bo'lsa oflaynda yangi buyurtma ochilmaydi (ochiq buyurtmalar va to'lov ishlaydi).
   final Duration menuMaxAge;
 
-  /// Terminal server bilan shundan oldin bog'langan bo'lsa oflayn sotuv boshlanmaydi.
+  /// Terminal server bilan shundan oldin bog'langan bo'lsa oflaynda yangi buyurtma ochilmaydi.
   final Duration contactMaxAge;
 
   /// Serverga yetmagan eng eski to'lovning yoshi: ogohlantirish va qizil ogohlantirish (virtual kassa 48 soatda
@@ -67,7 +67,8 @@ enum OfflineLevel { none, warning, alert }
 /// Fiskal chek navbati: yo'q, ogohlantirish (24 soat), qizil (40 soat), chegara (48 soat).
 enum FiscalQueueLevel { none, notice, urgent, limit }
 
-/// UI uchun holat: aloqa, navbat, yoshi, chegaralar va nima mumkin emasligi (sababi bilan).
+/// UI uchun holat: aloqa, navbat, yoshi, chegaralar va nima mumkin emasligi (sababi bilan). Chegaralar faqat yangi
+/// buyurtma ochishni to'xtatadi ([canOpenOrders], [newOrdersBlocked]); to'lovni to'xtatadigan maydon yo'q.
 class OfflineStatus {
   const OfflineStatus({
     required this.online,
@@ -76,7 +77,7 @@ class OfflineStatus {
     required this.queuedOrders,
     required this.level,
     required this.fiscalLevel,
-    required this.canSell,
+    required this.canOpenOrders,
     required this.newOrdersBlocked,
     required this.errorsCount,
     this.offlineSince,
@@ -133,14 +134,19 @@ class OfflineStatus {
         ? FiscalQueueLevel.notice
         : FiscalQueueLevel.none;
 
+    // The age limits gate only OPENING a new order (docs/scale/M5_DESIGN.md section 2)
     String? reason;
     if (active && !online) {
       if (lastContactAt == null ||
           now.difference(lastContactAt) > limits.contactMaxAge) {
-        reason = "Internet kerak: kassa so'nggi 24 soatda server bilan bog'lanmagan.";
+        reason =
+            "Internet kerak: yangi buyurtma ochilmaydi (kassa so'nggi 24 soatda server bilan bog'lanmagan). "
+            "Ochiq buyurtmalar va to'lov ishlaydi.";
       } else if (menuTakenAt == null ||
           now.difference(menuTakenAt) > limits.menuMaxAge) {
-        reason = "Internet kerak: menyu nusxasi 24 soatdan eski.";
+        reason =
+            "Internet kerak: yangi buyurtma ochilmaydi (menyu nusxasi 24 soatdan eski). "
+            "Ochiq buyurtmalar va to'lov ishlaydi.";
       }
     }
     final bool blocked = queuedOrders >= limits.maxQueuedOrders;
@@ -152,7 +158,7 @@ class OfflineStatus {
       queuedOrders: queuedOrders,
       level: level,
       fiscalLevel: fiscal,
-      canSell: reason == null,
+      canOpenOrders: reason == null,
       newOrdersBlocked: blocked,
       errorsCount: errorsCount,
       offlineSince: online ? null : lastContactAt,
@@ -174,7 +180,7 @@ class OfflineStatus {
     queuedOrders: 0,
     level: OfflineLevel.none,
     fiscalLevel: FiscalQueueLevel.none,
-    canSell: true,
+    canOpenOrders: true,
     newOrdersBlocked: false,
     errorsCount: 0,
   );
@@ -188,8 +194,12 @@ class OfflineStatus {
   final OfflineLevel level;
   final FiscalQueueLevel fiscalLevel;
 
-  /// Oflayn sotish mumkin (aks holda [blockReason]).
-  final bool canSell;
+  /// Oflaynda YANGI buyurtma ochish mumkin (aks holda [blockReason]): aloqa va menyu nusxasi 24 soatdan yangi.
+  /// Faqat yangi buyurtmaga tegishli: ochiq buyurtmaga qo'shish, schyot, naqd/karta to'lov va yopish bu chegaraga
+  /// qaramaydi (egasining qoidasi: to'lov hech qachon bloklanmaydi).
+  final bool canOpenOrders;
+
+  /// [canOpenOrders] `false` bo'lsa — sababi (kassirga ko'rsatiladi).
   final String? blockReason;
 
   /// Navbatda 500 ta oflayn buyurtma: yangisi ochilmaydi.

@@ -9,6 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import 'services.dart';
 import 'shell/home_shell.dart';
 import 'shell/idle_scope.dart';
+import 'shell/limited_mode.dart';
 import 'shell/pairing_screen.dart';
 import 'shell/staff_sign_in_screen.dart';
 
@@ -103,7 +104,13 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final PairedTerminal? terminal = _auth.terminal;
-    if (terminal == null) return PairingScreen(auth: _auth);
+    if (terminal == null) {
+      // M5 S1: a till the server cut off keeps its unsent operations; the pairing screen says so
+      return UnsentQueueNotice(
+        offline: widget.services.data.offline,
+        child: PairingScreen(auth: _auth),
+      );
+    }
     return TerminalHome(
       key: ValueKey<String>(terminal.device.uuid),
       services: widget.services,

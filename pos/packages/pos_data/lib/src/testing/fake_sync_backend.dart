@@ -1,3 +1,5 @@
+import 'package:pos_core/pos_core.dart';
+
 import '../offline/sync_models.dart';
 import 'fake_pos_state.dart';
 
@@ -48,6 +50,24 @@ class FakeSyncBackend {
     'local_number_taken',
     PosSyncReasons.deviceTimeClamped,
   };
+
+  /// M5 S1: xodim shu kassada PIN bilan qachon kirgan (xodim id → vaqt). Yozuv bo'lsa, amal undan
+  /// [sessionWindow] dan keyin qilingan bo'lsa xodim tekshiruvi o'tmaydi (`staff_not_signed_in`); yozuv yo'q xodim
+  /// tekshirilmaydi (eski testlar).
+  final Map<int, DateTime> sessionStartedAt = <int, DateTime>{};
+
+  /// Serverdagi `PosSyncApplier::SESSION_WINDOW_HOURS`.
+  static const Duration sessionWindow = Duration(hours: 36);
+
+  /// M5 S1: xodim tekshiruvidan o'tmagan (`staff_unverified`) va schyotga tusha OLMAGAN to'lovlar (ochiq schyot yo'q:
+  /// buyurtma bekor qilingan, schyot to'langan yoki noma'lum) — pul yozilgan, schyotga tushmagan:
+  /// `{op_id, order_uuid, amount, reason, staff_id, claimed_staff_id}`.
+  final List<Map<String, Object?>> unallocated = <Map<String, Object?>>[];
+
+  /// M5 S1 review: xodim tekshiruvidan o'tmagan, lekin ochiq schyotga odatdagi yo'l bilan tushgan to'lovlar (schyot
+  /// to'landi, buyurtma yopiladi): `{op_id, order_uuid, bill_uuid, amount, reason, staff_id, claimed_staff_id}`.
+  /// `staff_id` — faqat shu kassada PIN bilan kirgani ma'lum xodim ([sessionStartedAt]), aks holda `null`.
+  final List<Map<String, Object?>> unverified = <Map<String, Object?>>[];
 
   /// Server kassaning navbati haqida bilgani.
   int pendingReported = 0;
@@ -152,6 +172,16 @@ class FakeSyncBackend {
         out.add(<String, Object?>{...before, 'duplicate': true});
         continue;
       }
+      // As the server: one device never uses a number twice (PosSyncService: 409 `seq_reused`; what came before it
+      // in the batch stays applied)
+      if (received.any((Map<String, Object?> o) => o['seq'] == op['seq'])) {
+        return FakeResponse(409, <String, Object?>{
+          'success': false,
+          'message':
+              "Navbat raqami (${op['seq']}) boshqa amalga berilgan: kassa navbati buzilgan, administratorga ayting.",
+          'data': <String, Object?>{'reason': 'seq_reused', 'seq': op['seq']},
+        });
+      }
       received.add(op);
       final Map<String, Object?> r = _apply(op);
       results[id] = r;
@@ -189,6 +219,124 @@ class FakeSyncBackend {
 
     final String? ref = p['order'] as String?;
     final String? orderUuid = ref == null ? null : (uuids[ref] ?? ref);
+    // M5 S1 (as PosSyncApplier): a failed staff check rejects the operation, except money, which is never rejected
+    // (flagged `staff_unverified`), and the close of an order such a payment paid in full
+    final (String, String)? failed = _staffCheck(type, staff, op);
+    if (failed != null) {
+      final (String why, String text) = failed;
+      // The staff id is only a claim: the row names a person only when they are known to have signed in on this till
+      final int? attributed = _attributable(staff);
+      final Map<String, Object?> row = <String, Object?>{
+        ...op,
+        'staff_id': attributed,
+        'claimed_staff_id': staff,
+      };
+      if (type == 'order.close' &&
+          unverified.any(
+            (Map<String, Object?> u) => u['order_uuid'] == orderUuid,
+          ) &&
+          state.orders[orderUuid]?['closed_at'] != null) {
+        return _result(row, 'applied', null, null, <String, Object?>{
+          'order_uuid': orderUuid,
+          'flags': <Object?>[
+            <String, Object?>{
+              'flag': PosSyncReasons.staffUnverified,
+              'reason': why,
+            },
+          ],
+        });
+      }
+      if (type != 'bill.pay') {
+        return _result(op, 'rejected', why, text, const <String, Object?>{});
+      }
+      final String amount = PosMoney.sum(<PosMoney>[
+        for (final Object? t
+            in (p['tenders'] as List<Object?>?) ?? const <Object?>[])
+          if (t is Map) PosMoney.parse(t['amount']),
+      ]).toApiString();
+      final Map<String, Object?> flag = <String, Object?>{
+        'flag': PosSyncReasons.staffUnverified,
+        'amount': amount,
+        'reason': why,
+        'message': text,
+      };
+      // The bill is open: settled through the normal payment path (the shift's opener stands in for the drawer)
+      final String bill = uuids[p['bill']] ?? '${p['bill']}';
+      // (the server settles it whatever the claimed person may do: here somebody who may take a payment stands in)
+      int? standIn;
+      for (final Object? id in <Object?>[
+        attributed,
+        (state.shift?['opened_by'] as Map?)?['id'],
+        for (final Map<String, Object?> m in state.staff) m['id'],
+      ]) {
+        final Iterable<Map<String, Object?>> who = state.staff.where(
+          (Map<String, Object?> m) => m['id'] == id,
+        );
+        if (standIn == null &&
+            who.isNotEmpty &&
+            state.permissionsOf(who.first).contains('pos.take_payment')) {
+          standIn = who.first['id']! as int;
+        }
+      }
+      final FakeResponse? settled = standIn == null
+          ? null
+          : state.handleAsStaff(
+              standIn,
+              'POST',
+              '/api/v1/pos/bills/$bill/payments',
+              <String, Object?>{
+                'tenders': p['tenders'],
+                'shift_uuid': ?p['shift_uuid'],
+              },
+            );
+      final Map<String, Object?>? paid = settled == null
+          ? null
+          : _data(settled);
+      if (paid != null) {
+        unverified.add(<String, Object?>{
+          'op_id': op['op_id'],
+          'order_uuid': orderUuid,
+          'bill_uuid': bill,
+          'amount': amount,
+          'reason': why,
+          'staff_id': attributed,
+          'claimed_staff_id': staff,
+        });
+        return _result(
+          row,
+          'conflict',
+          PosSyncReasons.staffUnverified,
+          "To'lov ($amount so'm) xodim tekshiruvidan o'tmadi: $text Pul schyotga yozildi: menejer tekshirsin.",
+          <String, Object?>{
+            'order_uuid': orderUuid,
+            'bill_uuid': bill,
+            'fiscal_status':
+                ((paid['bill'] as Map?)?['fiscal'] as Map?)?['status'],
+            'flags': <Object?>[flag],
+          },
+        );
+      }
+      // No open bill to put it on: the money is recorded without one
+      unallocated.add(<String, Object?>{
+        'op_id': op['op_id'],
+        'order_uuid': orderUuid,
+        'amount': amount,
+        'reason': why,
+        'staff_id': attributed,
+        'claimed_staff_id': staff,
+      });
+      return _result(
+        row,
+        'conflict',
+        PosSyncReasons.staffUnverified,
+        "To'lov ($amount so'm) xodim tekshiruvidan o'tmadi: $text Pul yozildi, schyotga tushmadi: menejer "
+            'tekshirsin.',
+        <String, Object?>{
+          'order_uuid': orderUuid,
+          'flags': <Object?>[flag],
+        },
+      );
+    }
     FakeResponse res;
     final Map<String, Object?> refs = <String, Object?>{};
     switch (type) {
@@ -355,6 +503,49 @@ class FakeSyncBackend {
         : _result(op, 'rejected', reason, message, refs);
   }
 
+  /// The server's staff check (`PosSyncApplier::staff`): `(reason, message)` when it fails. Only the rules a test can
+  /// set up: an unknown staff id, a PIN login on this till older than [sessionWindow] before the operation (when
+  /// [sessionStartedAt] names the staff member), a payment without `pos.take_payment`.
+  (String, String)? _staffCheck(
+    String type,
+    int staff,
+    Map<String, Object?> op,
+  ) {
+    Map<String, Object?>? member;
+    for (final Map<String, Object?> s in state.staff) {
+      if (s['id'] == staff) member = s;
+    }
+    if (member == null) {
+      return ('staff_invalid', 'Xodim topilmadi yoki bu kassada ishlamaydi.');
+    }
+    final DateTime? started = sessionStartedAt[staff];
+    final DateTime? at = DateTime.tryParse('${op['occurred_at']}');
+    if (started != null &&
+        at != null &&
+        (at.isBefore(started) || at.difference(started) > sessionWindow)) {
+      return (
+        'staff_not_signed_in',
+        '${member['name']} bu kassada uzilishdan oldin PIN bilan kirmagan.',
+      );
+    }
+    if (type == 'bill.pay' &&
+        !state.permissionsOf(member).contains('pos.take_payment')) {
+      return (
+        'permission_denied',
+        "${member['name']} uchun bu amalga ruxsat yo'q.",
+      );
+    }
+    return null;
+  }
+
+  /// As `PosSyncApplier::attributable`: the claimed staff member is named only when they work here and are known to
+  /// have signed in on this till ([sessionStartedAt]).
+  int? _attributable(int staff) =>
+      sessionStartedAt.containsKey(staff) &&
+          state.staff.any((Map<String, Object?> s) => s['id'] == staff)
+      ? staff
+      : null;
+
   Map<String, Object?> _result(
     Map<String, Object?> op,
     String status,
@@ -372,6 +563,9 @@ class FakeSyncBackend {
     'payload': op['payload'],
     'occurred_at': op['occurred_at'],
     'staff_id': op['staff_id'],
+    // (a failed staff check: what the till claimed, kept apart from the person the row names)
+    if (op.containsKey('claimed_staff_id'))
+      'claimed_staff_id': op['claimed_staff_id'],
   };
 
   Map<String, Object?> _error(Map<String, Object?> e) {
@@ -425,7 +619,11 @@ class FakeSyncBackend {
     'uuid': FakePosState.deviceUuid,
     'name': state.deviceName,
     'prefix': 'K1',
-    'last_seq': received.isEmpty ? 0 : received.last['seq'],
+    'last_seq': received.fold<int>(
+      0,
+      (int last, Map<String, Object?> o) =>
+          (o['seq']! as int) > last ? o['seq']! as int : last,
+    ),
     'pending_ops': pendingReported,
     'oldest_op_at': null,
     'reported_at': state.now().toUtc().toIso8601String(),

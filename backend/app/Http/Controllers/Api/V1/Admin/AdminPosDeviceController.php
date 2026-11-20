@@ -83,23 +83,36 @@ class AdminPosDeviceController extends AdminController
      *
      * `reason`. The device and everything signed in on it stops working at once; a terminal has to be paired again with
      * a new code by the owner. Revoking a revoked device changes nothing. Answers the device.
+     * Wave M5 S1: a till that last reported unsent offline operations (`sync.pending_ops`) answers 409 `pending_ops`
+     * with the count; `confirm_pending: true` revokes it all the same (the operations stay on the till and no longer
+     * arrive by themselves). The audit rows keep the count.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . PosDevices::ROW . '}')]
+    #[ApiDocResponse(409, 'The till has unsent offline operations: confirm with confirm_pending (pending_ops)', type: 'array{success: false, message: string, code: string, data: array{reason: string, pending_ops: int, oldest_op_at: string|null}}')]
     public function revoke(Request $request, string $uuid): JsonResponse
     {
-        $request->validate(['reason' => AdminRules::reason()], UzValidation::messages());
+        $data = $request->validate(['reason' => AdminRules::reason(), 'confirm_pending' => 'nullable|boolean'], UzValidation::messages());
         $device = $this->find($uuid);
         if ($device === null) {
             return $this->notFound();
         }
 
+        $confirmed = (bool) ($data['confirm_pending'] ?? false);
+        $pending = $this->service->pendingOps($device);
+        if ($pending > 0 && !$confirmed) {
+            return $this->refuse(DeviceService::pendingOpsWarning($pending), 'pending_ops', 409, [
+                'pending_ops' => $pending,
+                'oldest_op_at' => $device->sync_oldest_op_at?->toJSON(),
+            ]);
+        }
+
         $wasRevoked = $device->isRevoked();
-        $this->service->revoke($device, $this->member($request));
+        $this->service->revoke($device, $this->member($request), false, $confirmed);
         $device->refresh();
 
         $audit = AdminAudit::for($request)->subject($device)->store((int) $device->store_id)
             ->changes(['revoked' => $wasRevoked], ['revoked' => $device->isRevoked()])
-            ->meta(['type' => $device->type->value, 'name' => $device->name]);
+            ->meta(['type' => $device->type->value, 'name' => $device->name] + ($pending > 0 ? ['pending_ops' => $pending] : []));
         if ($wasRevoked) {
             $audit->skip();
         }

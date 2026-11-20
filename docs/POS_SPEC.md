@@ -1007,12 +1007,41 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
 
 ### 5.4. Chegaralar
 
-- Offline sotuvni boshlash uchun: terminal so'nggi 24 soat ichida server bilan bog'langan va menyu nusxasi 24 soatdan
-  yangi bo'lishi kerak. Aks holda kassa "Internet kerak" deydi.
+- **24 soatlik chegara faqat YANGI buyurtmani to'xtatadi** (M5 S1). Yangi buyurtma ochish uchun terminal so'nggi
+  24 soat ichida server bilan bog'langan va menyu nusxasi 24 soatdan yangi bo'lishi kerak; aks holda kassa "Internet
+  kerak: yangi buyurtma ochilmaydi" deydi. Ochiq buyurtmaga bu chegara ta'sir qilmaydi: bosqich qo'shish, oshxonaga
+  yuborish, schyot tuzish va chop etish, naqd yoki karta to'lovi va buyurtmani yopish chegaradan keyin ham ishlaydi.
+  **To'lov hech qachon to'xtamaydi.** Chegaradan keyingi bosqichni server odatdagidek narxlaydi (`offline_price`,
+  `stale_menu` belgilari).
 - Faqat uzilishdan oldin kirgan xodim(lar) ishlaydi; yangi xodim PIN bilan kira olmaydi (PIN tekshiruvi serverda).
   Shu sababli cheklangan rejimda ekran avtomatik qulflanmaydi. Ilova oflaynda qayta ochilsa hech kim kira olmaydi,
-  lekin navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi. Server har amalda xodimning shu kassada
-  36 soat ichida PIN bilan kirganini va huquqini tekshiradi.
+  lekin navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi.
+- **PIN'siz davom etish** (M5 S1). Xodimning PIN sessiyasi (12 soat) aloqa yo'q paytda tugasa, kassa uni chiqarib
+  yubormaydi: xodim "PIN'siz davom etmoqda" (lentada ismi bilan yoziladi), amallari navbatga `staff_continued: true`
+  belgisi bilan tushadi.
+  - Nima mumkin: yangi buyurtma ochilmaydi. PIN bilan kirilganiga 12 soat to'lguncha ochiq buyurtmani yakunlash
+    (bosqich, yuborish, schyot, to'lov, yopish) mumkin; 12 soatdan keyin faqat schyot, to'lov va buyurtmani yopish
+    (yangi bosqich yo'q, taom o'chirilmaydi). To'lov hech qachon to'xtamaydi. (Serverdagi PIN sessiyasi ham 12 soat,
+    shuning uchun amalda PIN'siz davom etish darhol shu tor qoida bilan boshlanadi.)
+  - Qachon tugaydi: faqat PIN bilan kirish **muvaffaqiyatli bo'lganda**. Aloqa bir lahzaga qaytishi (sinxronlash,
+    tekshiruv so'rovi) hech narsani tugatmaydi. Server eskirgan xodim tokenini rad etsa (401), PIN klaviaturasi
+    chiqadi; lekin PIN bilan kirish tarmoq xatosi bilan tugasa yoki kassa aloqa yana yo'qolganini bilsa, o'sha xodim
+    PIN'siz davom etadi (uzilib-ulanib turgan aloqa kassani hech kim o'ta olmaydigan klaviaturada qoldirmaydi).
+    Server PIN'ni rad etsa (noto'g'ri PIN) — davom ettirilmaydi.
+- Server har amalda xodimning shu kassada 36 soat ichida PIN bilan kirganini va huquqini tekshiradi. Tekshiruvdan
+  o'tmagan **to'lov rad etilmaydi**: ochiq schyot bo'lsa odatdagi yo'l bilan unga tushadi (schyot to'lanadi, undan
+  keyingi `order.close` qabul qilinadi), `staff_unverified` belgisi bilan menejer ro'yxatiga va jurnalga yoziladi;
+  ochiq schyot bo'lmasa (buyurtma bekor qilingan, schyot to'langan yoki noma'lum) pul schyotsiz yoziladi. Pul faqat
+  shu kassada PIN bilan kirgani ma'lum xodim nomiga yoziladi. Tekshiruvdan o'tmagan boshqa amallar rad etiladi.
+- Navbat faqat o'z ulanishiniki (M5 S1). Kassa serverdan uzilsa (401) yoki qayta ulansa, yuborilmagan amallar
+  o'chirilmaydi: diskda alohida saqlanadi va yangi token bilan yuborilmaydi. Ilova ochilganda jurnal qaysi qurilma
+  nomidan yig'ilgani saqlangan terminal bilan solishtiriladi: boshqa qurilmaniki bo'lsa — yuborishdan oldin chetga
+  olinadi; terminal yo'q bo'lsa yoki chetga olib bo'lmagan bo'lsa (disk xatosi; bu holat diskda saqlanadi) — hech
+  narsa yuborilmaydi va o'chirilmaydi.
+- Jurnal yo'qolsa yoki buzilsa, ulanish esa saqlansa, kassa raqamlashni (`seq`) boshidan boshlaydi va server
+  409 `seq_reused` qaytaradi. Kassa serverdagi `last_seq` ni (`GET /pos/sync/status`) qabul qiladi: yangi amallar
+  `last_seq + 1` dan raqamlanadi, serverga hali yetmagan (javob olmagan) amallar qayta raqamlanadi; `op_id` va
+  Idempotency-Key o'zgarmaydi.
 - Ogohlantirishlar: 15 daqiqa — sariq belgi; 2 soat — qizil, menejerga eslatma. Navbatda 500 tadan ortiq buyurtma
   bo'lsa yangi buyurtma bloklanadi (ma'lumotlar jimgina to'planib qolmasligi uchun).
 - Navbat bo'sh bo'lmaguncha va "fiskal kutmoqda" cheklar qolguncha smena yopilmaydi va Z-hisobot chiqmaydi (kassada

@@ -163,7 +163,8 @@ class BillingRepository {
       if (o != null) await o.captureBilling(_id(orderUuid), raw);
       return made;
     } on PosNetworkException catch (e) {
-      if (o != null && o.status.canSell) {
+      // M5 S1: the bill (and the payment after it) never depends on the offline age limits
+      if (o != null) {
         return _localBill(
           o,
           orderUuid,

@@ -75,6 +75,11 @@ class AuthSession {
 
   PairedTerminal? _terminal;
   StaffSession? _staff;
+
+  /// A continued staff member the server's 401 (or the screen lock) sent to the PIN keypad: back in [_staff] when the
+  /// PIN login cannot reach the server; gone when one succeeds or the terminal changes.
+  StaffSession? _setAside;
+  DateTime? _staffSignedInAt;
   UserSession? _user;
   Future<UserSession>? _refreshing;
 
@@ -85,6 +90,40 @@ class AuthSession {
 
   PairedTerminal? get terminal => _terminal;
   StaffSession? get staff => _staff;
+
+  /// M5 S1-e (kassa, internetsiz rejim): xodim tokenining muddati o'tganda sessiya qurilmada o'chirilmaydi, serverning
+  /// javobi hal qiladi. The till has no PIN login without the server, so dropping the staff member on a clock would
+  /// lock the till in the middle of an outage (owner rule: payment is never blocked). With this on, an expired staff
+  /// token is still sent, and while no answer comes the staff member stays as "continued" ([staffContinued]). Off
+  /// (default): unchanged.
+  ///
+  /// M5 S1 review (a flapping link): a continued staff member ends only with a PIN login that SUCCEEDS. A server that
+  /// answers refuses the dead token (401 -> [handleStaffRejected]) and the PIN keypad is shown, but the staff member is
+  /// only set aside: when the PIN login then fails for the network ([signInStaff]), or the app finds the link gone
+  /// again ([resumeStaffContinuation]), they go on as before. Plain server contact (a sync round, a probe) ends
+  /// nothing.
+  bool holdExpiredStaff = false;
+
+  /// The staff token has expired and the staff member is kept only because no PIN login has been possible since
+  /// ([holdExpiredStaff]). The app limits what such a staff member may do.
+  bool get staffContinued =>
+      holdExpiredStaff && (_staff?.isExpired(_clock()) ?? false);
+
+  /// When the signed-in staff member entered the PIN on this device (`null`: nobody is signed in).
+  DateTime? get staffSignedInAt => _staff == null ? null : _staffSignedInAt;
+
+  /// How long after the PIN login a continued staff member keeps the wider set of actions (owner decision: 12 h).
+  static const Duration staffContinuationWindow = Duration(hours: 12);
+
+  /// M5 S1 review (owner answer 3): the staff member is continued ([staffContinued]) and the PIN login is more than
+  /// [staffContinuationWindow] old: only the bill, the payment and the close of open orders (payment is never
+  /// blocked), no new rounds and no voids.
+  bool get staffFinishOnly {
+    if (!staffContinued) return false;
+    final DateTime? at = _staffSignedInAt;
+    return at == null || _clock().difference(at) > staffContinuationWindow;
+  }
+
   UserSession? get user => _user;
   DateTime now() => _clock();
 
@@ -98,6 +137,7 @@ class AuthSession {
     _terminal = stored.terminal;
     _user = stored.user;
     _staff = null;
+    _setAside = null;
   }
 
   // --- Terminal: ulash ---------------------------------------------------------------------------------------
@@ -119,6 +159,7 @@ class AuthSession {
     );
     _terminal = paired;
     _staff = null;
+    _setAside = null;
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalPaired));
     return paired;
@@ -128,6 +169,7 @@ class AuthSession {
   Future<void> forgetTerminal() async {
     _terminal = null;
     _staff = null;
+    _setAside = null;
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalForgotten));
   }
@@ -146,6 +188,7 @@ class AuthSession {
     }
     if (_staff != null) {
       _staff = null;
+      _setAside = null;
       _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'unpair'));
     }
     await forgetTerminal();
@@ -157,6 +200,9 @@ class AuthSession {
   Future<List<StaffMember>> loadStaff() => remote.terminalStaff();
 
   /// PIN bilan kirish. Oldingi xodim sessiyasi serverda ham almashadi.
+  ///
+  /// M5 S1 review: the server could not be reached and a continued staff member was waiting at the keypad
+  /// ([holdExpiredStaff]): they go on ([resumeStaffContinuation]); the error is thrown as before.
   Future<StaffSession> signInStaff({
     int? userId,
     String? staffCode,
@@ -164,22 +210,45 @@ class AuthSession {
   }) async {
     final PairedTerminal? terminal = _terminal;
     if (terminal == null) throw StateError('Terminal ulanmagan.');
-    final StaffSession session = await remote.startStaffSession(
-      terminal.device.uuid,
-      userId: userId,
-      staffCode: staffCode,
-      pin: pin,
-    );
+    final StaffSession session;
+    try {
+      session = await remote.startStaffSession(
+        terminal.device.uuid,
+        userId: userId,
+        staffCode: staffCode,
+        pin: pin,
+      );
+    } on ApiException catch (e) {
+      if (e.isNetworkError) resumeStaffContinuation();
+      rethrow;
+    }
     _staff = session;
+    _setAside = null;
+    _staffSignedInAt = _clock();
     _emit(const AuthEvent(AuthEventKind.staffSignedIn));
     return session;
+  }
+
+  /// The PIN keypad is shown, the server cannot be reached and a continued staff member was set aside
+  /// ([holdExpiredStaff]): they are signed in again, still continued ([AuthEventKind.staffSignedIn], reason
+  /// `continued`). `false`: nobody to bring back (or somebody is signed in).
+  bool resumeStaffContinuation() {
+    final StaffSession? kept = _setAside;
+    if (kept == null || _staff != null || _terminal == null) return false;
+    _setAside = null;
+    _staff = kept;
+    _emit(const AuthEvent(AuthEventKind.staffSignedIn, reason: 'continued'));
+    return true;
   }
 
   /// Ekran qulfi / smena oxiri. Avval qurilmada chiqiladi, keyin serverga aytiladi; tarmoq bo'lmasa ham xodim
   /// chiqib ketgan bo'ladi (token baribir 12 soatda o'ladi).
   Future<void> signOutStaff({String reason = 'logout'}) async {
     final PairedTerminal? terminal = _terminal;
-    if (_staff == null) return;
+    final StaffSession? staff = _staff;
+    if (staff == null) return;
+    // A continued staff member who locks the screen has no PIN login to come back with until the server answers
+    if (staffContinued) _setAside = staff;
     _staff = null;
     _emit(AuthEvent(AuthEventKind.staffSignedOut, reason: reason));
     if (terminal == null) return;
@@ -261,11 +330,12 @@ class AuthSession {
 
   // --- Interceptor uchun ---------------------------------------------------------------------------------------
 
-  /// Xodim tokeni (muddati o'tmagan bo'lsa) yoki shaxsiy ilova tokeni.
+  /// Xodim tokeni (muddati o'tmagan bo'lsa) yoki shaxsiy ilova tokeni. [holdExpiredStaff] yoqilgan bo'lsa muddati
+  /// o'tgan xodim tokeni ham yuboriladi (server 401 bersa sessiya yopiladi).
   String? get currentToken {
     final StaffSession? staff = _staff;
     if (staff != null) {
-      if (!staff.isExpired(_clock())) return staff.token;
+      if (holdExpiredStaff || !staff.isExpired(_clock())) return staff.token;
       _staff = null;
       _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'expired'));
     }
@@ -274,12 +344,19 @@ class AuthSession {
 
   String? get terminalToken => _terminal?.token;
 
-  /// Xodim tokenini server rad etdi (401): sessiya tugagan.
+  /// Xodim tokenini server rad etdi (401): sessiya tugagan. A continued staff member ([staffContinued]) is set aside
+  /// for the case that the PIN login cannot reach the server ([resumeStaffContinuation]).
   void handleStaffRejected(String sentToken) {
-    if (_staff?.token != sentToken) return;
+    final StaffSession? staff = _staff;
+    if (staff == null || staff.token != sentToken) return;
+    if (staffContinued) _setAside = staff;
     _staff = null;
     _emit(
-      const AuthEvent(AuthEventKind.staffSignedOut, reason: 'unauthorized'),
+      AuthEvent(
+        AuthEventKind.staffSignedOut,
+        // A held token ([holdExpiredStaff]) that the server refuses is the plain expiry
+        reason: staff.isExpired(_clock()) ? 'expired' : 'unauthorized',
+      ),
     );
   }
 
@@ -288,6 +365,7 @@ class AuthSession {
     if (_terminal?.token != sentToken) return;
     _terminal = null;
     _staff = null;
+    _setAside = null;
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalRevoked));
   }

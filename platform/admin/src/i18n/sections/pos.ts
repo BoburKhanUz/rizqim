@@ -270,6 +270,8 @@ export const pos = defineSection({
     pos_dev_revokeTitle: "Qurilmani o'chirish",
     pos_dev_revokeText: "{{name}} va unda ochiq barcha sessiyalar darhol to'xtaydi. Terminalni ega yangi kod bilan qayta ulaydi.",
     pos_dev_revokeConfirm: "Ha, o'chirish",
+    pos_dev_revokePendingText: "Qurilmada yuborilmagan amallar bor: {{count}} ta. Baribir o'chirsangiz, ular kassada qoladi va serverga o'zi yetib bormaydi.",
+    pos_dev_revokeAnyway: 'Baribir uzish',
     pos_dev_revokeDone: "Qurilma o'chirildi. Undagi barcha sessiyalar yopildi.",
 
     // Smenalar

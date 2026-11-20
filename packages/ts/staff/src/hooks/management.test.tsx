@@ -168,7 +168,7 @@ describe('settings and device hooks', () => {
     await waitFor(() => expect(live.result.current.isSuccess && all.result.current.isSuccess).toBe(true));
     const revoke = renderHook(() => useRevokeStoreDevice(), { wrapper: wrapperFor(queryClient) });
     await act(async () => {
-      await revoke.result.current.mutateAsync('d-1');
+      await revoke.result.current.mutateAsync({ uuid: 'd-1' });
     });
     await waitFor(() => expect(calls.filter((call) => call.method === 'GET')).toHaveLength(4));
   });

@@ -75,8 +75,19 @@ class StoreDeviceController extends Controller
         return $this->success($device->toPublicArray(), 'Qurilma nomi o\'zgartirildi.');
     }
 
+    /**
+     * Revoke a device
+     *
+     * The device, its token and every session on it stop working at once. Wave M5 S1: a till that last reported
+     * offline operations it has not sent yet (`sync.pending_ops`) is not revoked at once: 409 `pending_ops` with the
+     * count and a warning; send `confirm_pending: true` to revoke it all the same (the operations stay on the till
+     * and no longer arrive by themselves). The audit row `device.revoked` keeps the count.
+     */
+    #[ApiDocResponse(409, 'The till has unsent offline operations: confirm with confirm_pending (pending_ops)', type: 'array{success: false, message: string, data: array{reason: string, pending_ops: int, oldest_op_at: string|null}}')]
     public function revoke(Request $request, string $uuid): JsonResponse
     {
+        $data = $request->validate(['confirm_pending' => 'nullable|boolean']);
+
         /** @var User $user */
         $user = $request->user();
         $device = $this->findManageable($user, $uuid);
@@ -84,7 +95,17 @@ class StoreDeviceController extends Controller
             return $this->error('Qurilma topilmadi.', [], 404);
         }
 
-        $this->devices->revoke($device, $user);
+        $confirmed = (bool) ($data['confirm_pending'] ?? false);
+        $pending = $this->devices->pendingOps($device);
+        if ($pending > 0 && !$confirmed) {
+            return $this->error(DeviceService::pendingOpsWarning($pending), [
+                'reason' => 'pending_ops',
+                'pending_ops' => $pending,
+                'oldest_op_at' => $device->sync_oldest_op_at?->toJSON(),
+            ], 409);
+        }
+
+        $this->devices->revoke($device, $user, false, $confirmed);
 
         return $this->success($device->refresh()->toPublicArray(), "Qurilma o'chirildi. Undagi barcha sessiyalar yopildi.");
     }

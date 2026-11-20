@@ -162,7 +162,7 @@ odamning mobil kirishini o'z hisobiga tushirishi mumkin edi.
 | `GET/PUT /me/notification-preferences` | kirgan foydalanuvchi | xabar turlari va kanallari (Telegram, push) sozlamalari (`docs/PUSH.md`, 5-bo'lim) |
 | `GET /owner/devices` | `devices.view` | do'kon qurilmalari (`type`, `include_revoked`) |
 | `PATCH /owner/devices/{uuid}` | `devices.manage` | nomini o'zgartirish |
-| `POST /owner/devices/{uuid}/revoke` | `devices.manage` | o'chirish: undagi barcha token va sessiyalar darhol yopiladi |
+| `POST /owner/devices/{uuid}/revoke` | `devices.manage` | o'chirish: undagi barcha token va sessiyalar darhol yopiladi. Kassada yuborilmagan oflayn amallar bo'lsa `409 pending_ops` (`data.pending_ops`, `data.oldest_op_at`); `confirm_pending: true` bilan ikkinchi tasdiqdan keyin o'chiriladi (panelda "Baribir uzish") |
 
 Bitta foydalanuvchida ko'pi bilan 20 ta faol qurilma; ortig'i (eng eskisi) avtomatik o'chiriladi. Filialga biriktirilgan
 menejer faqat o'z filialining qurilmalarini ko'radi. Boshqa do'kon qurilmasi 404 bo'ladi.

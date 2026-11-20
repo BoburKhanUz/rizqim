@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSession } from '@/lib/session/client';
-import { mockFetch, renderPage } from '@/test/helpers';
+import { json, mockFetch, renderPage } from '@/test/helpers';
 import { makeBranch, makeDevice, ok, permissions, refusal, signIn } from './testSupport';
 import { SettingsView } from './SettingsView';
 
@@ -315,6 +315,34 @@ describe('SettingsView: devices', () => {
     expect(calls.some((call) => call.url.endsWith('/revoke'))).toBe(false);
     await typing.click(dialog.getByRole('button', { name: "O'chirish" }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent("Kassa 1 o'chirildi.");
+  });
+
+  it('asks a second time before removing a till with unsent operations, then resends with confirm_pending', async () => {
+    const { calls } = base({
+      'GET /api/v1/owner/devices': () => ok([makeDevice()]),
+      'POST /api/v1/owner/devices/dev-1/revoke': async (request) => {
+        const text = await request.clone().text();
+        const body = (text ? JSON.parse(text) : {}) as { confirm_pending?: boolean };
+        return body.confirm_pending
+          ? ok(makeDevice({ revoked_at: '2026-10-21T10:00:00+05:00' }))
+          : json({ success: false, message: 'Kassada 3 ta yuborilmagan amal bor.', data: { reason: 'pending_ops', pending_ops: 3, oldest_op_at: '2026-10-21T08:00:00+05:00' } }, 409);
+      },
+    });
+    const typing = await open();
+    await typing.click(await screen.findByRole('button', { name: "Kassa 1: o'chirish" }));
+    let dialog = within(await screen.findByRole('alertdialog'));
+    await typing.click(dialog.getByRole('button', { name: "O'chirish" }));
+    expect(await dialog.findByText(/Kassada 3 ta yuborilmagan amal bor\./)).toBeInTheDocument();
+    expect(dialog.getByText(/Yuborilmagan amallar: 3 ta/)).toBeInTheDocument();
+    expect(screen.queryByText("Kassa 1 o'chirildi.")).not.toBeInTheDocument();
+
+    dialog = within(screen.getByRole('alertdialog'));
+    await typing.click(dialog.getByRole('button', { name: 'Baribir uzish' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    const revokes = calls.filter((call) => call.url.endsWith('/revoke'));
+    expect(revokes).toHaveLength(2);
+    expect(await revokes[1]!.json()).toEqual({ confirm_pending: true });
     expect(screen.getByRole('status')).toHaveTextContent("Kassa 1 o'chirildi.");
   });
 

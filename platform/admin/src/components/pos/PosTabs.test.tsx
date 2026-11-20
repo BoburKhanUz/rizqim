@@ -160,6 +160,31 @@ describe('DevicesTab', () => {
     expect(await screen.findByText("Qurilma o'chirildi. Undagi barcha sessiyalar yopildi.")).toBeInTheDocument();
   });
 
+  it('asks a second time before revoking a till with unsent operations, then resends with confirm_pending', async () => {
+    const { callsTo } = mockFetch({
+      ...ME(['devices.view', 'stores.manage']),
+      [`GET /pos/devices/${DEVICE}`]: () => ok(deviceRow()),
+      [`POST /pos/devices/${DEVICE}/revoke`]: async (request) => {
+        const body = (await request.clone().json()) as { confirm_pending?: boolean };
+        return body.confirm_pending
+          ? ok(deviceRow({ state: 'revoked', revoked_at: '2026-11-10T14:00:00+05:00' }))
+          : refusal(409, "Kassada 4 ta yuborilmagan amal bor.", { reason: 'pending_ops', pending_ops: 4, oldest_op_at: '2026-11-10T09:00:00+05:00' }, { code: 'pending_ops' });
+      },
+    });
+    const user = userEvent.setup();
+    renderPage(<DevicesTab selected={DEVICE} onSelect={() => {}} />);
+
+    await user.click(await screen.findByRole('button', { name: "Qurilmani o'chirish" }));
+    const dialog = await reasonDialog(user, "Qurilmani o'chirish", "Kassa almashtirildi", "Ha, o'chirish");
+    expect(await within(dialog).findByText(/Qurilmada yuborilmagan amallar bor: 4 ta/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Kassada 4 ta yuborilmagan amal bor.')).toBeInTheDocument();
+    expect(callsTo('POST', `/pos/devices/${DEVICE}/revoke`)[0]?.body).toEqual({ reason: 'Kassa almashtirildi' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Baribir uzish' }));
+    await waitFor(() => expect(callsTo('POST', `/pos/devices/${DEVICE}/revoke`)[1]?.body).toEqual({ reason: 'Kassa almashtirildi', confirm_pending: true }));
+    expect(await screen.findByText("Qurilma o'chirildi. Undagi barcha sessiyalar yopildi.")).toBeInTheDocument();
+  });
+
   it('does not offer to revoke to a member who only reads', async () => {
     mockFetch({ ...ME(['devices.view']), [`GET /pos/devices/${DEVICE}`]: () => ok(deviceRow()) });
     renderPage(<DevicesTab selected={DEVICE} onSelect={() => {}} />);

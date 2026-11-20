@@ -80,6 +80,7 @@ export {
   getApiErrorMessage,
   getApiErrorStatus,
   getApiFieldError,
+  getPendingOps,
   isStaffApiError,
   StaffApiError,
   unwrap,

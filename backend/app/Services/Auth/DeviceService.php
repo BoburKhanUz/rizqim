@@ -132,17 +132,40 @@ class DeviceService
     }
 
     /**
+     * Wave M5 S1: the offline operations a live till last said it has not sent yet (devices.sync_pending_ops, reported
+     * with POST /pos/sync and GET /pos/sync/status). Revoking such a till stops its token, so they would never arrive
+     * by themselves: whoever revokes it is warned first and has to confirm (the owner's and the control centre's
+     * revoke). 0 for anything but a live POS terminal. A till that has been offline since its last report may hold
+     * more than this.
+     */
+    public function pendingOps(Device $device): int
+    {
+        return !$device->isRevoked() && $device->type === DeviceType::POS ? max(0, (int) $device->sync_pending_ops) : 0;
+    }
+
+    /**
+     * The warning shown before a till with unsent operations is revoked (409 `pending_ops`).
+     */
+    public static function pendingOpsWarning(int $pending): string
+    {
+        return "Bu kassada serverga yuborilmagan {$pending} ta amal bor. Avval kassani internetga ulang va navbat bo'shashini kuting. "
+            . "Hozir uzilsa, bu amallar serverga o'zi kelmaydi (kassaning o'zida saqlanib qoladi). Baribir uzish uchun tasdiqlang.";
+    }
+
+    /**
      * Revoke a device: everything bound to it stops working at once. Audited for store devices (terminals, staff apps).
      * P2-33: `$self` — the terminal revoked itself (DELETE /terminal): audited with `self_revoked` and the terminal as
-     * the actor's device.
+     * the actor's device. Wave M5 S1: a till revoked with unsent operations leaves their count in the audit row
+     * (`pending_ops`; `pending_confirmed` when the person was warned and confirmed).
      */
-    public function revoke(Device $device, ?User $actor, bool $self = false): void
+    public function revoke(Device $device, ?User $actor, bool $self = false, bool $pendingConfirmed = false): void
     {
         if ($device->isRevoked()) {
             return;
         }
 
-        DB::transaction(function () use ($device, $actor, $self) {
+        $pending = $this->pendingOps($device);
+        DB::transaction(function () use ($device, $actor, $self, $pending, $pendingConfirmed) {
             $device->forceFill(['revoked_at' => now(), 'revoked_by' => $actor?->id, 'push_token' => null])->save();
             $this->tokens->revokeDevice($device);
 
@@ -151,6 +174,8 @@ class DeviceService
                     'type' => $device->type->value,
                     'name' => $device->name,
                     'self_revoked' => $self ?: null,
+                    'pending_ops' => $pending > 0 ? $pending : null,
+                    'pending_confirmed' => $pending > 0 && $pendingConfirmed ? true : null,
                 ], fn ($value) => $value !== null), ['actor' => $actor] + ($self ? ['device' => $device] : []));
             }
             // P6 review S5: the branch's LAN hub drops the terminal at once (it refetches GET /pos/lan)

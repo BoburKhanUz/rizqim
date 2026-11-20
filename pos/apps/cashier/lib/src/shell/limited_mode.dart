@@ -36,26 +36,46 @@ class OfflineStatusBuilder extends StatelessWidget {
 }
 
 /// Ish ekranining tepasidagi lenta (docs/POS_SPEC.md 5.4): cheklangan rejim, navbat va uning yoshi (15 daqiqa —
-/// sariq, 2 soat — qizil), fiskal cheklar navbati (24 / 40 / 48 soat), nima uchun sotib bo'lmasligi, "Yuborish" va
-/// "Sinxronlash xatolari".
+/// sariq, 2 soat — qizil), fiskal cheklar navbati (24 / 40 / 48 soat), nima uchun YANGI buyurtma ochilmasligi
+/// (24 soatlik chegara; to'lov hech qachon to'xtamaydi), "Yuborish" va "Sinxronlash xatolari".
+///
+/// M5 S1: kassa jurnalining o'qilmagan qatorlari va uzilgan ulanishdan qolgan, serverga yuborilmagan amallar
+/// ([PosOffline.warnings]) ham shu yerda — menejer "Tushunarli" bosguncha.
 class LimitedModeBanner extends StatelessWidget {
   const LimitedModeBanner({super.key});
 
   @override
   Widget build(BuildContext context) => OfflineStatusBuilder(
     builder: (BuildContext context, OfflineStatus s) {
-      if (!s.active && s.errorsCount == 0) return const SizedBox.shrink();
       final PosScope scope = PosScope.of(context);
+      final PosOfflineWarnings warnings =
+          scope.data.offline?.warnings ?? const PosOfflineWarnings();
+      // M5 S1-e: the PIN session ran out during the outage, the staff member goes on without a PIN. More than 12 h
+      // after the PIN login the line says that only the bill, the payment and the close are left (owner answer 3)
+      final String? continued = scope.data.offline?.continuedNotice;
+      if (!s.active &&
+          s.errorsCount == 0 &&
+          warnings.isEmpty &&
+          continued == null) {
+        return const SizedBox.shrink();
+      }
       final DateTime now = scope.services.now();
-      final List<String> lines = <String>[...limitedModeLines(s, now)];
-      final StatusTone tone = !s.active
+      final List<String> lines = <String>[
+        ?continued,
+        ...limitedModeLines(s, now),
+        ...offlineWarningLines(warnings),
+      ];
+      final StatusTone tone = !warnings.isEmpty
+          ? StatusTone.danger
+          : !s.active
           ? StatusTone.info
           : s.level == OfflineLevel.alert ||
                 s.fiscalLevel.index >= FiscalQueueLevel.urgent.index ||
-                !s.canSell
+                !s.canOpenOrders
           ? StatusTone.danger
           : s.level == OfflineLevel.warning ||
-                s.fiscalLevel == FiscalQueueLevel.notice
+                s.fiscalLevel == FiscalQueueLevel.notice ||
+                continued != null
           ? StatusTone.warning
           : StatusTone.info;
       final (Color bg, Color fg) = toneColors(context.rz, tone);
@@ -109,6 +129,13 @@ class LimitedModeBanner extends StatelessWidget {
                     onPressed: () => scope.go(CashierDestination.settings),
                     icon: const Icon(Icons.report_outlined),
                     label: Text('Xatolar (${s.errorsCount})'),
+                  ),
+                if (!warnings.isEmpty && !warnings.held && manager)
+                  TextButton(
+                    key: const ValueKey<String>('offline-warnings-seen'),
+                    onPressed: () =>
+                        unawaited(scope.data.offline?.acknowledgeWarnings()),
+                    child: const Text('Tushunarli'),
                   ),
               ],
             ),
@@ -182,6 +209,7 @@ class SyncPriceBanner extends StatelessWidget {
 /// Lenta sarlavhasi.
 String limitedModeTitle(OfflineStatus s) {
   if (!s.active) {
+    if (s.errorsCount == 0) return 'Diqqat: menejer tekshirsin';
     return 'Sinxronlash xatolari: ${s.errorsCount} ta — menejer ko\'rib chiqsin';
   }
   if (s.online) return 'Aloqa tiklandi: offlayn amallar serverga yuborilmoqda';
@@ -208,7 +236,8 @@ List<String> limitedModeLines(OfflineStatus s, DateTime now) {
           'eng eskisi ${minutesLabel(now.difference(oldest).inMinutes)} oldin',
         if (!s.online && since != null) 'oxirgi aloqa ${hm(since.toLocal())}',
       ].join(' · '),
-    if (s.active && !s.canSell && s.blockReason != null) s.blockReason!,
+    // The 24 h limit: only a NEW order is refused; the text itself says that open orders and payment go on
+    if (s.active && !s.canOpenOrders && s.blockReason != null) s.blockReason!,
     if (s.newOrdersBlocked)
       "Navbatda 500 ta buyurtma: yangi buyurtma internet tiklangach ochiladi.",
     if (s.active) "Faqat naqd va karta. Smena yopish (Z), bo'lish, qaytarish, bron va nasiya — internet bilan.",
@@ -222,6 +251,97 @@ List<String> limitedModeLines(OfflineStatus s, DateTime now) {
     },
     if (s.clockWarning) "Qurilma soati serverdan 5 daqiqadan ko'p farq qiladi: soatni to'g'rilang.",
   ].where((String l) => l.isNotEmpty).toList();
+}
+
+/// M5 S1: menejer ko'rishi kerak bo'lgan ogohlantirishlar — jurnalning o'qilmagan qatorlari (tasdiqlangan sotuv
+/// serverda yo'q bo'lishi mumkin) va uzilgan ulanishdan qolgan, yuborilmagan amallar.
+List<String> offlineWarningLines(PosOfflineWarnings w) => <String>[
+  if (w.damagedLines > 0)
+    "Diqqat: kassa jurnalining ${w.damagedLines} ta qatori o'qilmadi. Tasdiqlangan sotuv serverga yetmagan "
+        "bo'lishi mumkin: menejer kassadagi pul va cheklarni serverdagi sotuvlar bilan solishtirsin.",
+  if (w.orphans.isNotEmpty)
+    orphanQueueMessage(w.orphanOperations, w.orphanPayments),
+  if (w.held) "Kassa serverdan uzilgan: navbatdagi amallar o'chirilmadi, lekin serverga yuborilmayapti. Menejerga ayting.",
+];
+
+/// Kassa serverdan uzilganda (egasi panelda o'chirgan yoki ulanish muddati tugagan) yuborilmay qolgan amallar haqida.
+String orphanQueueMessage(int operations, int payments) =>
+    "Kassa serverdan uzilgan edi: serverga yetmagan $operations ta amal"
+    "${payments > 0 ? " (shundan $payments ta to'lov)" : ''} o'chirilmadi — shu kassada saqlab qo'yildi, lekin "
+    "serverga yuborilmadi: bu sotuvlar serverda yo'q. Menejerga ayting va RIZQIM yordamiga murojaat qiling. "
+    "Ilovani o'chirmang va uning ma'lumotlarini tozalamang.";
+
+/// M5 S1: ulash ekrani ustidagi ogohlantirish — kassa serverdan uzilgan (terminal tokeniga 401) va unda serverga
+/// yetmagan amallar qolgan. Ular o'chirilmaydi ([PosOffline.orphans]); bu yerda kassirga aniq aytiladi.
+class UnsentQueueNotice extends StatelessWidget {
+  const UnsentQueueNotice({
+    super.key,
+    required this.offline,
+    required this.child,
+  });
+
+  final PosOffline? offline;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final PosOffline? o = offline;
+    if (o == null) return child;
+    return StreamBuilder<OfflineStatus>(
+      stream: o.changes,
+      builder: (BuildContext context, AsyncSnapshot<OfflineStatus> _) {
+        final List<PosOrphanQueue> orphans = o.orphans;
+        final String? text = orphans.isNotEmpty
+            ? orphanQueueMessage(
+                orphans.fold(0, (int n, PosOrphanQueue q) => n + q.count),
+                orphans.fold(0, (int n, PosOrphanQueue q) => n + q.payments),
+              )
+            : o.held
+            ? "Kassa serverdan uzildi: navbatdagi ${o.store.pendingCount} ta amal o'chirilmadi, lekin serverga "
+                  "yuborilmayapti. Menejerga ayting va RIZQIM yordamiga murojaat qiling. Ilovani o'chirmang."
+            : null;
+        if (text == null) return child;
+        final (Color bg, Color fg) = toneColors(context.rz, StatusTone.danger);
+        return Material(
+          color: context.rz.surface,
+          child: Column(
+            children: <Widget>[
+              Semantics(
+                liveRegion: true,
+                container: true,
+                label: 'Yuborilmagan amallar',
+                child: Container(
+                  key: const ValueKey<String>('unsent-queue-notice'),
+                  width: double.infinity,
+                  color: Color.alphaBlend(bg, context.rz.surface),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(Icons.report_outlined, color: fg),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              text,
+                              style: RzType.body.copyWith(color: fg),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// Sozlamalardagi "Sinxronlash xatolari" (menejer va ega): serverda rad etilgan yoki farq bilan qo'llangan offlayn

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link2, MonitorSmartphone, Pencil, Ban } from 'lucide-react';
 import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, IconButton, InlineError, fieldClass, formatDateTime, FormError, Notice, Pill } from '@rizqim/ui';
-import { useMenuBranches, useRenameStoreDevice, useRevokeStoreDevice, useStoreDevices, type StoreDevice } from '@rizqim/staff';
+import { getPendingOps, useMenuBranches, useRenameStoreDevice, useRevokeStoreDevice, useStoreDevices, type StoreDevice } from '@rizqim/staff';
 import { isMessageKey } from '@/i18n';
 import { roleLabel } from '@/lib/labels';
 import { useI18n } from '../I18nProvider';
@@ -27,12 +27,15 @@ export function DevicesPanel() {
   const [notice, setNotice] = useState<string | null>(null);
   const revoke = useRevokeStoreDevice();
   const [revokeError, setRevokeError] = useState<string | null>(null);
+  // Set when the server refused the revoke (409 pending_ops): the till has unsent offline operations, so a second, harder confirmation follows
+  const [pending, setPending] = useState<{ count: number; message: string } | null>(null);
   const canManage = access.can('devices.manage');
   const branchName = (id: number | null) => (branches.data ?? []).find((branch) => branch.id === id)?.name ?? '—';
   const typeLabel = (type: string) => (isMessageKey(`devices_type_${type}`) ? t(`devices_type_${type}` as 'devices_type_pos') : type);
   const close = () => {
     setDialog(null);
     setRevokeError(null);
+    setPending(null);
   };
 
   return (
@@ -99,20 +102,27 @@ export function DevicesPanel() {
       {dialog?.kind === 'revoke' && (
         <ConfirmDialog
           title={t('devices_revokeTitle', { name: dialog.device.name })}
-          text={t('devices_revokeText')}
-          confirmLabel={t('devices_revoke')}
+          text={pending ? `${pending.message} ${t('devices_revokePendingText', { count: pending.count })}` : t('devices_revokeText')}
+          confirmLabel={pending ? t('devices_revokeAnyway') : t('devices_revoke')}
           busy={revoke.isPending}
           error={revokeError}
           onClose={close}
           onConfirm={() => {
             setRevokeError(null);
-            revoke.mutate(dialog.device.uuid, {
-              onSuccess: () => {
-                setNotice(t('devices_revokedNotice', { name: dialog.device.name }));
-                close();
+            revoke.mutate(
+              { uuid: dialog.device.uuid, confirmPending: pending !== null },
+              {
+                onSuccess: () => {
+                  setNotice(t('devices_revokedNotice', { name: dialog.device.name }));
+                  close();
+                },
+                onError: (err) => {
+                  const count = getPendingOps(err);
+                  if (count !== undefined) setPending({ count, message: errorText(err, t) });
+                  else setRevokeError(errorText(err, t));
+                },
               },
-              onError: (err) => setRevokeError(errorText(err, t)),
-            });
+            );
           }}
         />
       )}

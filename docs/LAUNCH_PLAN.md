@@ -57,7 +57,7 @@ qarab.
 | Sinov qurilmalari: Android planshet yoki Sunmi, telefon, printer | Pilot | Qurilma kodi faqat CI'da yig'ilgan, haqiqiy qurilmada sinalmagan |
 | Pilot do'kon(lar) | Pilot | — |
 | Server qayerda joylashishi (shaxsiy ma'lumotlar qonuni bo'yicha yurist fikri) | Ochiq ishga tushirish | Huquqiy xavf |
-| Do'konlar internetsiz butun kun ishlashi shartmi | M5 hajmi | M5 tor doirada qilinadi |
+| Do'konlar internetsiz butun kun ishlashi shartmi | M5 hajmi | **Javob (19.11.2026): bir necha soat yetarli.** M5 tor doirada qilinadi |
 | Har do'konning o'rtacha kunlik buyurtmasi (POS va market alohida) | M3 sig'im hisobi | Taxmin bilan hisoblanadi: 150 POS + 20 market buyurtma |
 
 ## Domenlar

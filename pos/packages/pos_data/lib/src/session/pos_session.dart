@@ -63,6 +63,15 @@ class PosSession {
   bool get isPaired => auth.terminal != null;
   bool get isSignedIn => auth.staff != null;
 
+  /// M5 S1-e: xodimning PIN sessiyasi muddati aloqa yo'q paytda tugadi, u "PIN'siz davom etmoqda"
+  /// ([AuthSession.staffContinued]): faqat ochiq buyurtmalarni yakunlash va to'lov olish; PIN bilan kirish
+  /// muvaffaqiyatli bo'lmaguncha shunday qoladi (aloqa bir lahzaga qaytishi buni tugatmaydi).
+  bool get staffContinued => auth.staffContinued;
+
+  /// M5 S1 (egasining qarori): PIN bilan kirilganiga 12 soatdan oshgan "PIN'siz davom etish"
+  /// ([AuthSession.staffFinishOnly]): faqat schyot, to'lov va yopish; yangi bosqich va taom o'chirish yo'q.
+  bool get staffFinishOnly => auth.staffFinishOnly;
+
   /// Oxirgi yuklangan bootstrap (xodim kirmagan yoki hali yuklanmagan — `null`).
   PosBootstrap? get bootstrap =>
       auth.staff == null ? null : bootstrapRepository.current;

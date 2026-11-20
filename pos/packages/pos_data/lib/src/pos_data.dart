@@ -69,6 +69,9 @@ class PosData {
             clock: clock,
             random: random,
             transport: syncTransport,
+            // M5 S1 review: the journal is checked against the terminal restored on this device before the sender
+            // starts (the app restores the saved terminal before it builds PosData)
+            device: () => client.auth.terminal?.device.uuid,
           );
     bootstrap = PosBootstrapRepository(http, clock: clock)..offline = offline;
     approvals = ApprovalService(http);
@@ -103,20 +106,48 @@ class PosData {
         ..staffId = (() => session.staffId)
         ..staffName = (() => session.staffName)
         ..can = session.can
+        ..staffContinued = (() => session.staffContinued)
+        ..staffFinishOnly = (() => session.staffFinishOnly)
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
-      // The journal and copies belong to this pairing: a re-paired till must not send them with its new token
+      // M5 S1-e: a till with the offline mode has no PIN login without the server, so a staff token that expires
+      // during an outage must not sign the staff member out (owner rule: payment is never blocked). The expired token
+      // is kept and still sent. M5 S1 review (a flapping link): server contact alone ends nothing. A 401 on the dead
+      // token shows the PIN keypad, and when the link is found gone again before a PIN login succeeded, the staff
+      // member goes on as before (still restricted)
+      client.auth.holdExpiredStaff = true;
+      _contactSub = connectivity.changes.listen((PosConnectivityState s) {
+        if (!s.online) client.auth.resumeStaffContinuation();
+      });
+      // The journal and copies belong to this pairing: a re-paired till must not send them with its new token.
+      // M5 S1: what the server has not received is never deleted on the way (a 401 on the terminal token, an
+      // unpairing): PosOffline.forget sets it aside on the disk first (PosOffline.orphans)
       _authSub = client.auth.events.listen((AuthEvent e) {
-        if (e.kind == AuthEventKind.terminalRevoked ||
-            e.kind == AuthEventKind.terminalForgotten) {
-          unawaited(o.forget());
+        switch (e.kind) {
+          case AuthEventKind.terminalRevoked:
+            unawaited(o.forget(reason: 'terminal_revoked'));
+          case AuthEventKind.terminalForgotten:
+            unawaited(o.forget());
+          case AuthEventKind.terminalPaired || AuthEventKind.staffSignedIn:
+            final String? device = client.auth.terminal?.device.uuid;
+            if (device != null) {
+              unawaited(
+                o.bindDevice(
+                  device,
+                  paired: e.kind == AuthEventKind.terminalPaired,
+                ),
+              );
+            }
+          default:
+            break;
         }
       });
     }
   }
 
   StreamSubscription<AuthEvent>? _authSub;
+  StreamSubscription<PosConnectivityState>? _contactSub;
 
   PosLanRoute? _lan;
   StreamSubscription<PosEvent>? _lanSub;
@@ -199,6 +230,7 @@ class PosData {
 
   Future<void> dispose() async {
     await _authSub?.cancel();
+    await _contactSub?.cancel();
     await _lanSub?.cancel();
     await _lanEvents.close();
     await displayFeed.dispose();

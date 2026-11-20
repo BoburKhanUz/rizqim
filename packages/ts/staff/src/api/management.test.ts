@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, mockFetch, ok, testApi } from '../test/helpers';
-import { getApiErrorMessage, getApiFieldError, StaffApiError } from './errors';
+import { getApiErrorMessage, getApiFieldError, getPendingOps, StaffApiError } from './errors';
 import {
   createBranch,
   createDeliveryZone,
@@ -177,6 +177,24 @@ describe('terminals', () => {
     expect(new URL(calls[1]!.url).searchParams.get('include_revoked')).toBe('1');
     expect((await renameStoreDevice(api, 'd-1', 'Kassa 2')).name).toBe('Kassa 2');
     expect((await revokeStoreDevice(api, 'd-1')).revoked_at).not.toBeNull();
+  });
+
+  it('revokes a till with unsent operations only after the second confirmation (409 pending_ops, then confirm_pending)', async () => {
+    const { calls } = mockFetch({
+      'POST /api/v1/owner/devices/d-1/revoke': async (request) => {
+        const body = (await request.clone().text()) ? ((await request.clone().json()) as Record<string, unknown>) : {};
+        return body.confirm_pending === true
+          ? ok({ uuid: 'd-1', revoked_at: '2026-10-21T10:00:00+05:00' })
+          : json({ success: false, message: "Kassada 3 ta yuborilmagan amal bor.", data: { reason: 'pending_ops', pending_ops: 3, oldest_op_at: '2026-10-21T08:00:00+05:00' } }, 409);
+      },
+    });
+    const api = testApi();
+    const refused = await revokeStoreDevice(api, 'd-1').catch((err: unknown) => err);
+    expect(getPendingOps(refused)).toBe(3);
+    expect(getApiErrorMessage(refused)).toBe('Kassada 3 ta yuborilmagan amal bor.');
+    expect(getPendingOps(new StaffApiError(409, { data: { reason: 'something_else' } }))).toBeUndefined();
+    expect((await revokeStoreDevice(api, 'd-1', true)).revoked_at).not.toBeNull();
+    expect(await calls[1]!.json()).toEqual({ confirm_pending: true });
   });
 
   it('creates a pairing code', async () => {

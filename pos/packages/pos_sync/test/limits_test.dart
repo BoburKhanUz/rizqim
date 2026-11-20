@@ -67,16 +67,32 @@ void main() {
     expect(status(queuedOrders: 500).newOrdersBlocked, isTrue);
   });
 
-  test('selling offline needs contact and a menu from the last 24 hours', () {
-    expect(status().canSell, isTrue);
+  test('M5 bug 1: the 24-hour limits stop only OPENING a new order, with the reason', () {
+    expect(status().canOpenOrders, isTrue);
+    expect(status().blockReason, isNull);
     final OfflineStatus stale = status(menuAge: const Duration(hours: 25));
-    expect(stale.canSell, isFalse);
+    expect(stale.canOpenOrders, isFalse);
     expect(stale.blockReason, contains('menyu'));
+    expect(stale.blockReason, contains('yangi buyurtma ochilmaydi'));
     final OfflineStatus noContact = status(
       offlineFor: const Duration(hours: 25),
     );
-    expect(noContact.canSell, isFalse);
+    expect(noContact.canOpenOrders, isFalse);
     expect(noContact.blockReason, contains('24 soat'));
+    expect(noContact.blockReason, contains('yangi buyurtma ochilmaydi'));
+    // The reason never says that selling or paying stops
+    expect(noContact.blockReason, contains("to'lov"));
+  });
+
+  test('online, the age limits do not apply (the queue is only draining)', () {
+    final OfflineStatus s = status(
+      online: true,
+      offlineFor: const Duration(hours: 30),
+      menuAge: const Duration(hours: 30),
+    );
+    expect(s.canOpenOrders, isTrue);
+    expect(s.blockReason, isNull);
+    expect(OfflineStatus.initial.canOpenOrders, isTrue);
   });
 
   test('the oldest unsynced sale warns at 24 and 40 hours, well before the 48-hour limit', () {

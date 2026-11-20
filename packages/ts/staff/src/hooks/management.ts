@@ -248,9 +248,9 @@ export function useRenameStoreDevice(options: MutationExtras<StoreDevice, { uuid
   return useDeviceMutation(({ uuid, name }: { uuid: string; name: string }) => renameStoreDevice(api, uuid, name), options);
 }
 
-export function useRevokeStoreDevice(options: MutationExtras<StoreDevice, string> = {}) {
+export function useRevokeStoreDevice(options: MutationExtras<StoreDevice, { uuid: string; confirmPending?: boolean }> = {}) {
   const api = useStaffApi();
-  return useDeviceMutation((uuid: string) => revokeStoreDevice(api, uuid), options);
+  return useDeviceMutation(({ uuid, confirmPending }: { uuid: string; confirmPending?: boolean }) => revokeStoreDevice(api, uuid, confirmPending), options);
 }
 
 // A new code does not change the device list (the terminal appears once it has paired).

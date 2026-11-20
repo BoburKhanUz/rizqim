@@ -160,6 +160,12 @@ class SyncSender {
   /// Navbat to'liq bo'shadi (server holatini qayta yuklash vaqti).
   Future<void> Function()? onDrained;
 
+  /// M5 S1 review (design bug 5): the server's `last_seq` for this device (`GET /pos/sync/status`), `null` when it
+  /// cannot be read. Asked when the server answers 409 `seq_reused`: the journal is behind the server (lost or
+  /// damaged while the pairing survived), the store adopts the number ([SyncStore.adoptServerSeq]) and the queue is
+  /// sent again in the same attempt. Not set: such a refusal fails the attempt as any other.
+  Future<int?> Function()? serverLastSeq;
+
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Future<SyncDrainResult>? _running;
 
@@ -344,6 +350,8 @@ class SyncSender {
           ),
         );
       } on Object catch (e) {
+        // (after a renumbering that changed something the batch cannot collide the same way: no loop)
+        if (await _renumbered(e)) continue;
         failures++;
         lastError = e;
         return SyncDrainResult(sent: sent, left: store.pendingCount, error: e);
@@ -392,6 +400,24 @@ class SyncSender {
       }
     }
     return SyncDrainResult(sent: sent, left: 0);
+  }
+
+  /// The server refused the batch for a number it already holds: adopt its `last_seq`. `true`: the waiting
+  /// operations have new numbers and go again.
+  Future<bool> _renumbered(Object refusal) async {
+    final Future<int?> Function()? ask = serverLastSeq;
+    if (ask == null ||
+        refusal is! SyncRefused ||
+        refusal.reason != 'seq_reused' ||
+        _stopped) {
+      return false;
+    }
+    try {
+      final int? last = await ask();
+      return last != null && !_stopped && await store.adoptServerSeq(last);
+    } on Object {
+      return false;
+    }
   }
 
   void _emit() {
