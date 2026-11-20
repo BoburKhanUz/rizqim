@@ -212,6 +212,154 @@ void main() {
     expect(p.h.data.offline!.active, isFalse);
   });
 
+  /// M5 S2: the till without internet; the server advertises `offline.discount` when [flag] is set.
+  Future<({P22 p, String uuid, SyncStore store})> goOffline(
+    WidgetTester tester, {
+    bool flag = true,
+  }) async {
+    final SyncStore store = await SyncStore.open(MemorySyncStorage());
+    final P22 p = P22(offlineStore: store);
+    p.state.offlineDiscount = flag;
+    p.state.openShift();
+    final String uuid = p.state.seedOrder(tableId: 1, guests: 2);
+    await pumpHome(tester, p.h, size: tall);
+    p.h.adapter.offline = true;
+    p.h.data.floor.load().ignore();
+    for (var i = 0; i < 50 && !p.h.data.offline!.active; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+    expect(p.h.data.offline!.active, isTrue);
+    return (p: p, uuid: uuid, store: store);
+  }
+
+  /// Back online: the offline timers stop (a test may not end with a timer pending).
+  Future<void> backOnline(WidgetTester tester, P22 p) async {
+    p.h.adapter.offline = false;
+    p.h.data.offline!.syncNow().ignore();
+    for (var i = 0; i < 300 && p.h.data.offline!.active; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  List<SyncOperation> discountOps(SyncStore store) => <SyncOperation>[
+    for (final SyncOperation o in store.pending)
+      if (o.type == SyncOpType.orderDiscount) o,
+  ];
+
+  testWidgets(
+    'offline, flag on: the cashier gives 10% alone; the note and the limit show, the total follows, one op is queued',
+    (WidgetTester tester) async {
+      final o = await goOffline(tester);
+      await openPlace(tester, '1-xona');
+      final Finder button = find.byKey(
+        const ValueKey<String>('order-discount'),
+      );
+      expect(tester.widget<TextButton>(button).onPressed, isNotNull);
+      expect(find.byTooltip('Chegirma uchun internet kerak.'), findsNothing);
+
+      await tapKey(tester, 'order-discount');
+      expect(
+        find.text(
+          'Internetsiz chegirma: aloqa tiklangach serverda tekshiriladi.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Sizning chegarangiz: 10%'), findsOneWidget);
+      await giveDiscount(tester, quick: 10);
+
+      // No manager step offline; the discount is on the screen and queued once
+      expect(find.text("Menejer tasdig'i"), findsNothing);
+      expect(find.text('Chegirma 10%'), findsOneWidget);
+      expect(find.text('Chegirma berildi'), findsOneWidget);
+      final List<SyncOperation> ops = discountOps(o.store);
+      expect(ops, hasLength(1));
+      expect(ops.single.payload['order'], o.uuid);
+      expect(ops.single.payload['kind'], 'percent');
+      expect(ops.single.payload['value'], '10.00');
+      expect(ops.single.payload['reason'], 'Doimiy mijoz');
+      expect(ops.single.payload['expected_discount'], '19000.00');
+      // Nothing reached the server
+      expect(order(o.p, o.uuid)['discount_kind'], isNull);
+      await backOnline(tester, o.p);
+    },
+  );
+
+  testWidgets(
+    'offline, flag on: above the limit the dialog says why, nothing can be sent or queued',
+    (WidgetTester tester) async {
+      final o = await goOffline(tester);
+      await openPlace(tester, '1-xona');
+      await tapKey(tester, 'order-discount');
+      await tapKey(tester, 'discount-quick-15');
+      await tapOn(tester, find.widgetWithText(ChoiceChip, 'Ega ruxsati'));
+      final String? refusal = o.p.h.data.offline!.discountRefusal(
+        o.uuid,
+        kind: PosDiscountKind.percent,
+        value: '15',
+        reason: 'Ega ruxsati',
+      );
+      expect(refusal, isNotNull);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey<String>('discount-offline-refusal')),
+            )
+            .data,
+        refusal,
+      );
+      // No manager-PIN promise offline
+      expect(
+        find.byKey(const ValueKey<String>('discount-above-limit')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<RzButton>(
+              find.byKey(const ValueKey<String>('discount-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(discountOps(o.store), isEmpty);
+      await backOnline(tester, o.p);
+    },
+  );
+
+  testWidgets(
+    'offline, flag on: after the bill the discount buttons are off and say why',
+    (WidgetTester tester) async {
+      final o = await goOffline(tester);
+      await openBilling(tester, o.uuid);
+      final Finder button = find.byKey(
+        const ValueKey<String>('billing-discount'),
+      );
+      // Before the bill: it works
+      expect(o.p.h.data.offline!.discountBlock(o.uuid), isNull);
+      expect(tester.widget<RzButton>(button).onPressed, isNotNull);
+      await tapKey(tester, 'offline-single-bill');
+      final String? block = o.p.h.data.offline!.discountBlock(o.uuid);
+      expect(block, contains('Schyot tuzilgan'));
+      expect(tester.widget<RzButton>(button).onPressed, isNull);
+      expect(find.byTooltip(block!), findsWidgets);
+      expect(discountOps(o.store), isEmpty);
+      await backOnline(tester, o.p);
+    },
+  );
+
+  testWidgets('offline, flag off: the old text, the button stays off', (
+    WidgetTester tester,
+  ) async {
+    final o = await goOffline(tester, flag: false);
+    await openPlace(tester, '1-xona');
+    final Finder button = find.byKey(const ValueKey<String>('order-discount'));
+    expect(tester.widget<TextButton>(button).onPressed, isNull);
+    expect(find.byTooltip('Chegirma uchun internet kerak.'), findsOneWidget);
+    expect(discountOps(o.store), isEmpty);
+    await backOnline(tester, o.p);
+  });
+
   testWidgets(
     'on the bill screen: the discount re-makes the bill; the pre-check and the sale receipt show it',
     (WidgetTester tester) async {

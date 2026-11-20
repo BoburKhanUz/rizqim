@@ -52,12 +52,14 @@ Future<DiscountInput?> showDiscountDialog(
   required PosOrder order,
   required bool unlimited,
   required int limitHundredths,
+  PosOffline? offline,
 }) => showDialog<DiscountInput>(
   context: context,
   builder: (BuildContext context) => DiscountDialog(
     order: order,
     unlimited: unlimited,
     limitHundredths: limitHundredths,
+    offline: offline,
   ),
 );
 
@@ -67,9 +69,14 @@ class DiscountDialog extends StatefulWidget {
     required this.order,
     required this.unlimited,
     required this.limitHundredths,
+    this.offline,
   });
 
   final PosOrder order;
+
+  /// M5 S2: kassa internetsiz va server `order.discount` ni qabul qiladi — chegirma navbatga yoziladi: menejer PIN'i
+  /// yo'q, qiymat kassadagi nusxa qoidasi ([PosOffline.discountRefusal]) bilan tekshiriladi. `null` — onlayn.
+  final PosOffline? offline;
 
   /// Xodimda `orders.discount` bor: chegara yo'q.
   final bool unlimited;
@@ -170,8 +177,38 @@ class _DiscountDialogState extends State<DiscountDialog> {
         : v * 10000 > limit * _items.tiyin;
   }
 
+  /// Internetsiz: shu qiymatni berib bo'lmasa — sababi (o'zbekcha), aks holda `null`. Sabab yozilmaguncha faqat
+  /// qiymatga bog'liq sabablar ko'rsatiladi (sabab matni tugmani baribir to'sadi).
+  String? get _offlineRefusal {
+    final PosOffline? off = widget.offline;
+    final int? v = _entered;
+    if (off == null || v == null || v <= 0 || _valueError != null) return null;
+    final String value = v % 100 == 0 ? '${v ~/ 100}' : hundredthsText(v);
+    final String reason = _reason.text.trim();
+    final String? refusal = off.discountRefusal(
+      widget.order.uuid,
+      kind: _kind,
+      value: value,
+      reason: reason.isEmpty ? discountOfflineProbeReason : reason,
+    );
+    return refusal;
+  }
+
+  /// Internetsiz: kassirning o'z chegarasi haqida jumla.
+  String get _offlineLimitText {
+    final PosOffline off = widget.offline!;
+    if (off.discountUnlimited) {
+      return "Siz istalgan chegirmani o'zingiz bera olasiz.";
+    }
+    final String? limit = off.discountLimitPercent;
+    return limit == null
+        ? "Internetsiz sizga chegirma berish mumkin emas."
+        : 'Sizning chegarangiz: $limit%';
+  }
+
   bool get _valid =>
       _entered != null &&
+      _offlineRefusal == null &&
       _entered! > 0 &&
       _valueError == null &&
       _reason.text.trim().isNotEmpty;
@@ -199,6 +236,7 @@ class _DiscountDialogState extends State<DiscountDialog> {
     final String reason = _reason.text.trim();
     final PosMoney? estimate = _estimate;
     final String? error = _valueError;
+    final String? offlineRefusal = _offlineRefusal;
     return AlertDialog(
       title: const Text('Chegirma'),
       content: SizedBox(
@@ -208,11 +246,21 @@ class _DiscountDialogState extends State<DiscountDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
-                discountLimitText(
-                  unlimited: widget.unlimited,
-                  limitHundredths: widget.limitHundredths,
+              if (widget.offline != null) ...<Widget>[
+                Text(
+                  discountOfflineNote,
+                  key: const ValueKey<String>('discount-offline-note'),
+                  style: RzType.body.copyWith(color: c.warningSoftFg),
                 ),
+                const SizedBox(height: 4),
+              ],
+              Text(
+                widget.offline != null
+                    ? _offlineLimitText
+                    : discountLimitText(
+                        unlimited: widget.unlimited,
+                        limitHundredths: widget.limitHundredths,
+                      ),
                 key: const ValueKey<String>('discount-limit'),
                 style: RzType.body.copyWith(color: c.fgMuted),
               ),
@@ -279,7 +327,20 @@ class _DiscountDialogState extends State<DiscountDialog> {
                   style: RzType.body.copyWith(color: c.fg),
                 ),
               ],
-              if (_aboveLimit && error == null) ...<Widget>[
+              if (offlineRefusal != null && error == null) ...<Widget>[
+                const SizedBox(height: 8),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    offlineRefusal,
+                    key: const ValueKey<String>('discount-offline-refusal'),
+                    style: RzType.body.copyWith(color: c.dangerSoftFg),
+                  ),
+                ),
+              ],
+              if (widget.offline == null &&
+                  _aboveLimit &&
+                  error == null) ...<Widget>[
                 const SizedBox(height: 8),
                 Semantics(
                   liveRegion: true,
@@ -385,6 +446,31 @@ class DiscountRules {
 
 /// Internetsiz rejimda chegirma tugmasining izohi.
 const String discountOfflineReason = 'Chegirma uchun internet kerak.';
+
+/// M5 S2: internetsiz chegirma oynasidagi izoh.
+const String discountOfflineNote =
+    'Internetsiz chegirma: aloqa tiklangach serverda tekshiriladi.';
+
+/// Sabab hali yozilmaganda qiymatni tekshirish uchun vaqtinchalik matn (faqat qiymatga bog'liq rad sabablari chiqadi).
+const String discountOfflineProbeReason = '-';
+
+/// M5 S2: internetsiz chegirma imkoni. `null` — onlayn (oddiy yo'l). Aks holda ([limited]): server `order.discount` ni
+/// qabul qilsa va [PosOffline.discountBlock] bo'sh bo'lsa — oynaga beriladigan [PosOffline] ([allowed] `true`); bo'lmasa
+/// tugma o'chiq: [reason] — tugma izohi (server eski bo'lsa — [discountOfflineReason]).
+({PosOffline? offline, bool allowed, String? reason}) discountOfflineMode({
+  required bool limited,
+  required PosOffline? offline,
+  required String orderUuid,
+}) {
+  if (!limited) return (offline: null, allowed: true, reason: null);
+  if (offline == null || !offline.discountEnabled) {
+    return (offline: null, allowed: false, reason: discountOfflineReason);
+  }
+  final String? block = offline.discountBlock(orderUuid);
+  return block == null
+      ? (offline: offline, allowed: true, reason: null)
+      : (offline: null, allowed: false, reason: block);
+}
 
 /// P6-43: promo-kod oynasi (kod; bo'sh bo'lmasa qaytadi). Kod do'konning o'zi bergan chegirma vaucheri: kassir chegirma
 /// limiti ishlamaydi, bitta buyurtmaga bitta kod.

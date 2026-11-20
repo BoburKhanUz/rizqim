@@ -453,11 +453,18 @@ class _OrderPageState extends State<OrderPage> {
     final PosOrder? o = ctl.order;
     if (o == null) return;
     final DiscountRules rules = DiscountRules.of(_scope.session);
+    final mode = discountOfflineMode(
+      limited: limitedMode(context),
+      offline: _scope.data.offline,
+      orderUuid: o.uuid,
+    );
+    if (!mode.allowed) return;
     final DiscountInput? d = await showDiscountDialog(
       context,
       order: o,
       unlimited: rules.unlimited,
       limitHundredths: rules.limitHundredths,
+      offline: mode.offline,
     );
     if (d == null || !mounted) return;
     await ctl.discount(d.kind, d.value, reason: d.reason, approve: _approve);
@@ -742,14 +749,24 @@ class _OrderPageState extends State<OrderPage> {
             ),
           ),
         if (o != null && DiscountRules.of(_scope.session).allowed)
-          Tooltip(
-            message: limited ? discountOfflineReason : 'Chegirma',
-            child: TextButton.icon(
-              key: const ValueKey<String>('order-discount'),
-              onPressed: canChange ? _discount : null,
-              icon: const Icon(Icons.percent_rounded),
-              label: const Text('Chegirma'),
-            ),
+          Builder(
+            builder: (BuildContext context) {
+              // M5 S2: offline the button works when the server takes offline discounts and the order allows one
+              final mode = discountOfflineMode(
+                limited: limited,
+                offline: _scope.data.offline,
+                orderUuid: o.uuid,
+              );
+              return Tooltip(
+                message: mode.reason ?? 'Chegirma',
+                child: TextButton.icon(
+                  key: const ValueKey<String>('order-discount'),
+                  onPressed: canEdit && mode.allowed ? _discount : null,
+                  icon: const Icon(Icons.percent_rounded),
+                  label: const Text('Chegirma'),
+                ),
+              );
+            },
           ),
         // P6-43: the store's promo code (the vouchers module, online)
         if (o != null &&
@@ -864,7 +881,14 @@ class _OrderPageState extends State<OrderPage> {
       onRemoveDiscount:
           (DiscountRules.of(_scope.session).allowed ||
                   promoCodeOf(ctl.order) != null) &&
-              !limitedMode(context)
+              (!limitedMode(context) ||
+                  (ctl.order != null &&
+                      promoCodeOf(ctl.order) == null &&
+                      discountOfflineMode(
+                        limited: true,
+                        offline: _scope.data.offline,
+                        orderUuid: ctl.order!.uuid,
+                      ).allowed))
           ? () => unawaited(_removeDiscount())
           : null,
       // P6-21: a course order always fires its courses (the module only gates new course numbers)
