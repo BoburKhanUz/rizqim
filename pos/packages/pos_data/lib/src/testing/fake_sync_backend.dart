@@ -8,6 +8,11 @@ import 'fake_pos_state.dart';
 /// marta; javob — haqiqiy backend'dagi shakl (`results[].status`, `refs`). Rad etilgan va farqli amallar "Sinxronlash
 /// xatolari"da (`GET /pos/sync/errors`, `.../resolve`).
 ///
+/// M5 S2: `order.discount` — internetsiz berilgan chegirma onlayn qoidaning o'zi bilan, menejer tasdig'isiz
+/// qo'llanadi (`refs.discount`, `discount_kind`, `discount_value`, belgi `offline_discount`); server qabul qilmasa —
+/// `rejected` `discount_not_allowed` (`refs.cause`), keyingi schyot to'liq narxda (`amount_mismatch`, ma'lumot
+/// uchun), to'lov baribir olinadi va kam chiqqani `conflict` `underpaid` bo'ladi.
+///
 /// ```dart
 /// final FakePosState state = FakePosState();
 /// FakeCashierBackend(state);
@@ -49,6 +54,9 @@ class FakeSyncBackend {
     'amount_mismatch',
     'local_number_taken',
     PosSyncReasons.deviceTimeClamped,
+    // M5 S2
+    'offline_discount',
+    'discount_mismatch',
   };
 
   /// M5 S1: xodim shu kassada PIN bilan qachon kirgan (xodim id → vaqt). Yozuv bo'lsa, amal undan
@@ -339,6 +347,8 @@ class FakeSyncBackend {
     }
     FakeResponse res;
     final Map<String, Object?> refs = <String, Object?>{};
+    // Flags the operation earns by itself (as PosSyncApplier), before the ones a test asks for ([flagNext])
+    final List<Map<String, Object?>> own = <Map<String, Object?>>[];
     switch (type) {
       case 'order.open':
         res = state.handleAsStaff(
@@ -436,6 +446,17 @@ class FakeSyncBackend {
           if (b is Map && b['status'] != 'void' && b['status'] != 'paid') {
             uuids[p['bill']! as String] = b['uuid']! as String;
             refs['bill_uuid'] = b['uuid'];
+            // As the server: the bill's total, and a note when the till expected another one
+            final PosMoney total = PosMoney.parse(b['total']);
+            refs['bill_total'] = total.toApiString();
+            final PosMoney? expected = PosMoney.tryParse(p['expected_total']);
+            if (expected != null && expected != total) {
+              own.add(<String, Object?>{
+                'flag': 'amount_mismatch',
+                'device_total': expected.toApiString(),
+                'server_total': total.toApiString(),
+              });
+            }
           }
         }
       case 'bill.pay':
@@ -453,6 +474,105 @@ class FakeSyncBackend {
         final Map<String, Object?>? r = _data(res);
         refs['fiscal_status'] =
             ((r?['bill'] as Map?)?['fiscal'] as Map?)?['status'];
+        // As the server: the money is taken as it is; what the bill still lacks is for the manager (`underpaid`)
+        final PosMoney left = PosMoney.parse(
+          (r?['bill'] as Map?)?['due_amount'],
+        );
+        if (r != null && left.isPositive) {
+          own.add(<String, Object?>{
+            'flag': 'underpaid',
+            'amount': left.toApiString(),
+            'server_total': PosMoney.parse((r['bill'] as Map?)?['total'])
+                .toApiString(),
+          });
+        }
+      case 'order.discount':
+        // M5 S2 (PosSyncApplier::discount): the online rule itself, without an approval token
+        Map<String, Object?> refusedDiscount(
+          String cause,
+          String message,
+        ) => _result(
+          op,
+          'rejected',
+          'discount_not_allowed',
+          "Chegirma serverda qabul qilinmadi: $message Schyot to'liq narxda hisoblanadi: menejer chegirmani "
+              'onlayn bersin yoki farqni hal qilsin.',
+          <String, Object?>{
+            'cause': cause,
+            if (p['kind'] is String) 'kind': p['kind'],
+            'value': ?PosMoney.tryParse(p['value'])?.toApiString(),
+            'expected_discount': ?PosMoney.tryParse(p['expected_discount'])
+                ?.toApiString(),
+          },
+        );
+        final Map<String, Object?> member = state.staff.firstWhere(
+          (Map<String, Object?> s) => s['id'] == staff,
+        );
+        final List<String> perms = state.permissionsOf(member);
+        if (!perms.contains('orders.discount') &&
+            !perms.contains('orders.manage')) {
+          return refusedDiscount(
+            'permission_denied',
+            "${member['name']} uchun bu amalga ruxsat yo'q.",
+          );
+        }
+        if (!state.orders.containsKey(orderUuid)) {
+          return refusedDiscount(
+            'order_not_found',
+            'Buyurtma serverda topilmadi.',
+          );
+        }
+        final PosMoney? value = PosMoney.tryParse(p['value']);
+        if (value == null) {
+          return refusedDiscount(
+            'value_invalid',
+            "Chegirma qiymati noto'g'ri.",
+          );
+        }
+        res = state.handleAsStaff(
+          staff,
+          'POST',
+          '/api/v1/pos/orders/$orderUuid/discount',
+          <String, Object?>{
+            'version': _version(orderUuid!),
+            'kind': p['kind'],
+            'value': value.toApiString(),
+            'reason': ?p['reason'],
+          },
+        );
+        final Map<String, Object?>? order = _data(res);
+        if (order == null) {
+          final Map<String, Object?> body =
+              (res.body as Map?)?.cast<String, Object?>() ??
+              <String, Object?>{};
+          return refusedDiscount(
+            ((body['data'] as Map?)?['reason'] as String?) ?? 'invalid',
+            body['message'] as String? ?? 'Rad etildi.',
+          );
+        }
+        final PosMoney applied = PosMoney.parse(order['discount']);
+        final bool removed = order['discount_kind'] == null;
+        refs
+          ..['discount'] = applied.toApiString()
+          ..['discount_kind'] = removed ? null : p['kind']
+          ..['discount_value'] = removed ? null : value.toApiString();
+        if (!removed) {
+          own.add(<String, Object?>{
+            'flag': 'offline_discount',
+            'amount': applied.toApiString(),
+            'kind': p['kind'],
+            'value': value.toApiString(),
+            'staff_id': staff,
+          });
+        }
+        final PosMoney? expected = PosMoney.tryParse(p['expected_discount']);
+        if (expected != null && expected != applied) {
+          own.add(<String, Object?>{
+            'flag': 'discount_mismatch',
+            'device_discount': expected.toApiString(),
+            'server_discount': applied.toApiString(),
+          });
+        }
       default:
         res = const FakeResponse(200, <String, Object?>{
           'data': <String, Object?>{},
@@ -466,8 +586,10 @@ class FakeSyncBackend {
       for (final MapEntry<String, int> e in lines.entries) e.key: e.value,
     };
     if (res.status >= 200 && res.status < 300) {
-      final List<Map<String, Object?>> flags =
-          flagNext.remove(type) ?? const <Map<String, Object?>>[];
+      final List<Map<String, Object?>> flags = <Map<String, Object?>>[
+        ...own,
+        ...?flagNext.remove(type),
+      ];
       if (flags.isNotEmpty) refs['flags'] = flags;
       final List<Map<String, Object?>> attention = <Map<String, Object?>>[
         for (final Map<String, Object?> f in flags)
@@ -613,6 +735,7 @@ class FakeSyncBackend {
     'order.close': 'Buyurtma yopildi',
     'order.course_send': 'Kurs oshxonaga yuborildi',
     'order.weight': "Og'irlik kiritildi",
+    'order.discount': 'Chegirma berildi',
   };
 
   Map<String, Object?> _device() => <String, Object?>{

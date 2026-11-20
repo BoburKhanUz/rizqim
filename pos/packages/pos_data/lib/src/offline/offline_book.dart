@@ -215,6 +215,9 @@ class OfflineOrderBook {
         s.order['bill_requested_at'] ??= op.occurredAt
             .toUtc()
             .toIso8601String();
+      // M5 S2: a discount given offline (its amount is worked out in recalculate, with every line change)
+      case SyncOpType.orderDiscount:
+        s.discount(op);
     }
     s.recalculate();
     s.touch(op);
@@ -228,6 +231,61 @@ class OfflineOrderBook {
     for (final Object? e in (v as List<Object?>?) ?? const <Object?>[])
       if (e is Map) e.cast<String, Object?>(),
   ];
+}
+
+/// M5 S2 (docs/scale/M5_DESIGN.md 3-bo'lim): buyurtma chegirmasining hisobi — serverdagi bilan tiyingacha bir xil
+/// (`PosChargesCalculator::discountOf`, `PosOrderService::cashierMayDiscount`). Ikkala tomon bitta fayl bilan
+/// tekshiriladi: `backend/tests/Fixtures/offline_discount_vectors.json`.
+abstract final class OfflineDiscount {
+  /// Promo-kod chegirmasining sababi shu bilan boshlanadi (`promo:KOD`): uni faqat server hisoblaydi (kodning
+  /// minimal summasi va chegarasi kassada yo'q).
+  static const String promoPrefix = 'promo:';
+
+  /// Qiymat yuzdan birlarda: foiz `"12.5"` → 1250, summa `"25000.50"` → 2 500 050 (tiyin). Manfiy, ikkidan ortiq
+  /// kasr raqamli yoki o'qib bo'lmaydigan qiymat — `null`.
+  static int? hundredths(Object? value) {
+    if (value == null) return null;
+    try {
+      final int h = percentHundredths(value is num ? value : '$value');
+      return h < 0 ? null : h;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Qiymat serverdagi ko'rinishda: `"10.00"`, `"25000.50"`.
+  static String canonical(int hundredths) => PosMoney(hundredths).toApiString();
+
+  /// Chegirma summasi [items] dan (bekor qilinmagan taomlar jami; qadoq, xizmat haqi, xona puli hech qachon
+  /// chegirilmaydi): foiz — `items × value / 100`, bir marta butun so'mga half-up; summa — butun so'mga half-up; har
+  /// ikkalasi taomlar jamidan ko'p emas (tiyingacha). Turi yoki qiymati yo'q — 0.
+  static PosMoney amount(String? kind, Object? value, PosMoney items) {
+    final int? h = hundredths(value);
+    if (h == null || (kind != 'percent' && kind != 'amount')) {
+      return PosMoney.zero;
+    }
+    if (!items.isPositive) return PosMoney.zero;
+    final PosMoney discount = kind == 'percent'
+        // tiyin × (percent × 100) / 10 000 = tiyin; / 100 more = so'm, rounded once
+        ? PosMoney(divideHalfUp(items.tiyin * h, 1000000) * 100)
+        : PosMoney(h).roundToSom();
+    return discount > items ? items : discount;
+  }
+
+  /// Kassir (`orders.discount` siz) shu chegirmani filial chegarasi [limit] (`cashier_discount_max_percent`) ichida
+  /// bera oladimi: foiz — `value ≤ limit`; summa — `value × 100 ≤ items × limit`, aniq (qiymat yozilganidek,
+  /// yaxlitlashdan oldin). Chegara yo'q yoki 0 — yo'q.
+  static bool withinLimit(
+    String kind,
+    String value,
+    PosMoney items,
+    String? limit,
+  ) {
+    final int? h = hundredths(value);
+    final int max = hundredths(limit) ?? 0;
+    if (h == null || max <= 0) return false;
+    return kind == 'percent' ? h <= max : h * 10000 <= items.tiyin * max;
+  }
 }
 
 /// Bitta buyurtmaning lokal holati (serverdagi JSON shaklida) va uning schyotlari.
@@ -540,6 +598,39 @@ class OfflineOrderState {
     item['weighed_at'] = op.occurredAt.toUtc().toIso8601String();
   }
 
+  /// M5 S2: internetsiz berilgan chegirma (`order.discount`): turi va qiymati buyurtmada qoladi, summasi
+  /// [recalculate] da har qator o'zgarishida qayta hisoblanadi. Qiymat 0 — chegirma olib tashlanadi.
+  void discount(SyncOperation op) {
+    final Map<String, Object?> p = op.payload;
+    final Object? kind = p['kind'];
+    final int? h = OfflineDiscount.hundredths(p['value']);
+    final bool given =
+        h != null && h > 0 && (kind == 'percent' || kind == 'amount');
+    order
+      ..['discount_kind'] = given ? kind : null
+      ..['discount_value'] = given ? OfflineDiscount.canonical(h) : null
+      ..['discount_reason'] = given ? p['reason'] : null
+      ..['discount_by'] = given ? op.staffId : null;
+    if (!given) order['discount'] = '0.00';
+  }
+
+  /// The order's discount on [itemsTotal]: by its kind and value when it has them (given at the till, online or
+  /// offline); else, and for a promo code, the amount the server stored.
+  PosMoney _discountOn(PosMoney itemsTotal) {
+    final String? kind = order['discount_kind'] as String?;
+    final Object? value = order['discount_value'];
+    final bool promo = '${order['discount_reason'] ?? ''}'.startsWith(
+      OfflineDiscount.promoPrefix,
+    );
+    if (kind == null ||
+        promo ||
+        OfflineDiscount.hundredths(value) == null ||
+        (kind != 'percent' && kind != 'amount')) {
+      return PosMoney.parse(order['discount']);
+    }
+    return OfflineDiscount.amount(kind, value, itemsTotal);
+  }
+
   void voidLine(SyncOperation op) {
     final Map<String, Object?>? item = line(op.payload['line']);
     if (item == null || item['kitchen_status'] == 'void') return;
@@ -612,7 +703,8 @@ class OfflineOrderState {
       for (final Map<String, Object?> i in items)
         if (i['kitchen_status'] != 'void') PosMoney.parse(i['total_price']),
     ]);
-    final PosMoney discount = PosMoney.parse(order['discount']);
+    // M5 S2: a percent (or an amount) is taken again from the lines as they stand, as the server does
+    final PosMoney discount = _discountOn(itemsTotal);
     final PosMoney gap = itemsTotal - discount;
     final PosMoney after = gap.isPositive ? gap : PosMoney.zero;
     final Map<String, Object?> charges =
@@ -686,6 +778,7 @@ class OfflineOrderState {
 
     order
       ..['subtotal'] = itemsTotal.toApiString()
+      ..['discount'] = discount.toApiString()
       ..['service_charge_amount'] = service.toApiString()
       ..['place_fee_amount'] = place.toApiString()
       ..['room_fee_amount'] = room.toApiString()
