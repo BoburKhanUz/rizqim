@@ -1,0 +1,332 @@
+{
+  "version": 1,
+  "about": "Wave M5 S2 (docs/scale/M5_DESIGN.md section 3): the discount of a POS order as the server computes it (PosChargesCalculator::discountOf, PosOrderService::cashierMayDiscount). The backend test tests/Feature/PosSync/OfflineDiscountVectorsTest.php and the till's Dart test read this one file, so both sides agree to the tiyin. Money is a decimal string with two decimals.",
+  "rules": {
+    "percent": "discount = items x value / 100, computed exactly, rounded once to whole so'm, half-up; then at most the items",
+    "amount": "discount = value rounded to whole so'm, half-up; then at most the items (to the tiyin)",
+    "items": "the sum of the order's lines that are not void; packaging, the service charge, the room fee and the place fee are never discounted",
+    "after_discount": "items - discount: what the service charge and the minimum-spend top-up are computed on",
+    "cashier_limit": "a cashier (pos.take_payment without orders.discount) may give: percent -> value <= limit; amount -> value x 100 <= items x limit, exactly (the value as typed, before rounding). No limit (null) or 0: none. Holding orders.discount: any discount",
+    "recompute": "kind and value are kept on the order; the amount is computed again from the items after every line change"
+  },
+  "operation": {
+    "type": "order.discount",
+    "payload": {
+      "order": "<order uuid: the till's or the server's>",
+      "kind": "percent",
+      "value": "10",
+      "reason": "Doimiy mijoz",
+      "expected_discount": "4100.00"
+    },
+    "remove": {
+      "order": "<order uuid>",
+      "kind": "percent",
+      "value": "0",
+      "expected_discount": "0.00"
+    }
+  },
+  "amounts": [
+    {
+      "name": "10 % of a round bill",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "10",
+      "discount": "4100.00",
+      "after_discount": "36900.00"
+    },
+    {
+      "name": "half a so'm rounds up",
+      "items": "12345.00",
+      "kind": "percent",
+      "value": "10",
+      "discount": "1235.00",
+      "after_discount": "11110.00"
+    },
+    {
+      "name": "a fractional percent, .625 rounds up",
+      "items": "33333.00",
+      "kind": "percent",
+      "value": "12.5",
+      "discount": "4167.00",
+      "after_discount": "29166.00"
+    },
+    {
+      "name": "two decimals of percent",
+      "items": "100000.00",
+      "kind": "percent",
+      "value": "33.33",
+      "discount": "33330.00",
+      "after_discount": "66670.00"
+    },
+    {
+      "name": "below half a so'm rounds down",
+      "items": "15.00",
+      "kind": "percent",
+      "value": "7",
+      "discount": "1.00",
+      "after_discount": "14.00"
+    },
+    {
+      "name": "exactly half a so'm rounds up",
+      "items": "1.00",
+      "kind": "percent",
+      "value": "50",
+      "discount": "1.00",
+      "after_discount": "0.00"
+    },
+    {
+      "name": "100 % takes all the dishes",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "100",
+      "discount": "41000.00",
+      "after_discount": "0.00"
+    },
+    {
+      "name": "dishes with tiyin (a weighed line)",
+      "items": "20000.50",
+      "kind": "percent",
+      "value": "10",
+      "discount": "2000.00",
+      "after_discount": "18000.50"
+    },
+    {
+      "name": "the smallest percent, under half a so'm",
+      "items": "4999.00",
+      "kind": "percent",
+      "value": "0.01",
+      "discount": "0.00",
+      "after_discount": "4999.00"
+    },
+    {
+      "name": "the smallest percent, exactly half a so'm",
+      "items": "5000.00",
+      "kind": "percent",
+      "value": "0.01",
+      "discount": "1.00",
+      "after_discount": "4999.00"
+    },
+    {
+      "name": "a large bill",
+      "items": "1234567.00",
+      "kind": "percent",
+      "value": "15",
+      "discount": "185185.00",
+      "after_discount": "1049382.00"
+    },
+    {
+      "name": "550.5 rounds up",
+      "items": "18350.00",
+      "kind": "percent",
+      "value": "3",
+      "discount": "551.00",
+      "after_discount": "17799.00"
+    },
+    {
+      "name": "550.47 rounds down",
+      "items": "18349.00",
+      "kind": "percent",
+      "value": "3",
+      "discount": "550.00",
+      "after_discount": "17799.00"
+    },
+    {
+      "name": "nothing ordered yet",
+      "items": "0.00",
+      "kind": "percent",
+      "value": "10",
+      "discount": "0.00",
+      "after_discount": "0.00"
+    },
+    {
+      "name": "a fixed amount",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "5000",
+      "discount": "5000.00",
+      "after_discount": "36000.00"
+    },
+    {
+      "name": "an amount with 50 tiyin rounds up to whole so'm",
+      "items": "100000.00",
+      "kind": "amount",
+      "value": "25000.50",
+      "discount": "25001.00",
+      "after_discount": "74999.00"
+    },
+    {
+      "name": "an amount with 49 tiyin rounds down",
+      "items": "100000.00",
+      "kind": "amount",
+      "value": "25000.49",
+      "discount": "25000.00",
+      "after_discount": "75000.00"
+    },
+    {
+      "name": "an amount above the dishes left (lines were voided) is capped",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "50000",
+      "discount": "41000.00",
+      "after_discount": "0.00"
+    },
+    {
+      "name": "the cap is the dishes to the tiyin, after rounding the amount",
+      "items": "5000.75",
+      "kind": "amount",
+      "value": "5000.50",
+      "discount": "5000.75",
+      "after_discount": "0.00"
+    },
+    {
+      "name": "half a so'm as an amount",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "0.50",
+      "discount": "1.00",
+      "after_discount": "40999.00"
+    }
+  ],
+  "limits": [
+    {
+      "name": "a percent at the limit",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "10",
+      "limit": "10.00",
+      "allowed": true
+    },
+    {
+      "name": "a percent one hundredth above the limit",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "10.01",
+      "limit": "10.00",
+      "allowed": false
+    },
+    {
+      "name": "an amount exactly at the limit",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "4100",
+      "limit": "10.00",
+      "allowed": true
+    },
+    {
+      "name": "an amount one so'm above the limit",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "4101",
+      "limit": "10.00",
+      "allowed": false
+    },
+    {
+      "name": "an amount above the limit by tiyin, though it rounds down to the limit",
+      "items": "41000.00",
+      "kind": "amount",
+      "value": "4100.40",
+      "limit": "10.00",
+      "allowed": false
+    },
+    {
+      "name": "an amount at the limit to the tiyin, though it rounds up above it",
+      "items": "12345.00",
+      "kind": "amount",
+      "value": "1234.50",
+      "limit": "10.00",
+      "allowed": true
+    },
+    {
+      "name": "a fractional limit, percent",
+      "items": "33333.00",
+      "kind": "percent",
+      "value": "12.5",
+      "limit": "12.50",
+      "allowed": true
+    },
+    {
+      "name": "a fractional limit, amount just under items x limit / 100",
+      "items": "33333.00",
+      "kind": "amount",
+      "value": "4166.62",
+      "limit": "12.50",
+      "allowed": true
+    },
+    {
+      "name": "a fractional limit, amount just over",
+      "items": "33333.00",
+      "kind": "amount",
+      "value": "4166.63",
+      "limit": "12.50",
+      "allowed": false
+    },
+    {
+      "name": "the limit switched off (null): a cashier gives none",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "1",
+      "limit": null,
+      "allowed": false
+    },
+    {
+      "name": "a zero limit: a cashier gives none",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "1",
+      "limit": "0.00",
+      "allowed": false
+    },
+    {
+      "name": "a limit of 100",
+      "items": "41000.00",
+      "kind": "percent",
+      "value": "100",
+      "limit": "100.00",
+      "allowed": true
+    }
+  ],
+  "sequences": [
+    {
+      "name": "a percent follows the lines",
+      "kind": "percent",
+      "value": "10",
+      "steps": [
+        {
+          "items": "41000.00",
+          "discount": "4100.00"
+        },
+        {
+          "items": "59000.00",
+          "discount": "5900.00"
+        },
+        {
+          "items": "12345.00",
+          "discount": "1235.00"
+        },
+        {
+          "items": "0.00",
+          "discount": "0.00"
+        }
+      ]
+    },
+    {
+      "name": "an amount stays, capped by what is left",
+      "kind": "amount",
+      "value": "30000",
+      "steps": [
+        {
+          "items": "41000.00",
+          "discount": "30000.00"
+        },
+        {
+          "items": "23000.00",
+          "discount": "23000.00"
+        },
+        {
+          "items": "59000.00",
+          "discount": "30000.00"
+        }
+      ]
+    }
+  ]
+}

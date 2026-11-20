@@ -1853,6 +1853,7 @@ Amal turlari va `payload`:
 | `order.close` | `pos.take_payment` | `order` |
 | `order.course_send` (P6-21) | `orders.manage` | `order`, `course_no` — kursning ushlab turilgan qatorlari; yuboriladigani qolmagan — `applied`, `refs.sent: []` |
 | `order.weight` (P6-25) | `orders.manage` | `order`, `line`, `quantity` — haqiqiy og'irlik; serverda shu orada tortilgan — `rejected` `line_weighed` |
+| `order.discount` (M5 S2) | `orders.discount` yoki `orders.manage` (onlayn yo'ldagidek; qolganini chegirma qoidasi hal qiladi) | `order`, `kind` (`percent`/`amount`), `value` (`"10"`, `"50000.00"`; `"0"` — chegirmani olib tashlash), `reason` (majburiy, `value` 0 dan tashqari), `expected_discount?` (kassa hisoblagan summa) — "Internetsiz chegirma" bo'limiga qarang |
 
 `order` va `bill` — qurilma bergan UUID yoki serverdagi UUID (onlayn ochilgan buyurtma). `items[]` — onlayn
 buyurtmadagi kabi qator, qo'shimcha: `line_id` (qurilma UUID'si → `order_items.client_line_id`), `unit_price`
@@ -1889,7 +1890,7 @@ Rad etish sabablari (`reason`): `order_not_found`, `order_closed`, `line_not_fou
 shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_required`, `tenders_required`,
 `tender_not_offline` (oflayn faqat naqd va karta), `amount_invalid`, `channel_invalid`, `type_unknown`,
 `terminal_without_branch`, `variant_not_found`, `modifier_not_found` (P3-35: qo'shimcha bu do'konniki emas),
-`invalid_payload` (P3-35), xodim sabablari.
+`invalid_payload` (P3-35), `discount_not_allowed` (M5 S2), xodim sabablari.
 
 ### Ziddiyat qoidalari
 
@@ -1941,6 +1942,9 @@ shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_
   `pos.offline_close_staff_unverified` (`claimed_staff_id`). To'liq to'lanmagan buyurtmaning `order.close` i va pul
   bo'lmagan boshqa amallar avvalgidek `rejected`.
 - `local_number` band bo'lsa — `local_number_taken` (ma'lumot uchun), buyurtma raqamsiz ochiladi.
+- **Internetsiz chegirma** (M5 S2) — pastdagi alohida bo'lim: `order.discount` rad etilsa (`discount_not_allowed`)
+  keyingi `bill.create` to'liq narxda qo'llanadi (`amount_mismatch`), `bill.pay` yoziladi va buyurtma rad etilgan
+  chegirma summasiga `underpaid` bo'ladi.
 
 Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offline` blokida ko'rinadi:
 `{"local_number": "K1-0041", "created_at": "...", "synced_at": "...", "flags": [...]}` (oflayn ochilmagan buyurtmada
@@ -1949,6 +1953,69 @@ Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offli
 **Fiskal chek** sinxronlashda, tranzaksiyadan keyin ro'yxatdan o'tadi; sotuv vaqti sifatida oflayn to'lov vaqti
 (`payments.offline_paid_at` → `fiscal_receipts.sold_at`) yuboriladi. Provayder javob bermasa chek odatdagidek
 "fiskal kutmoqda" navbatida qoladi.
+
+### Internetsiz chegirma (M5 S2)
+
+Kassa internetsiz chegirma beradi va uni navbatga `order.discount` amali sifatida yozadi (docs/scale/M5_DESIGN.md §3).
+Kassa bu amalni **faqat** `GET /pos/bootstrap` javobida `offline.discount: true` bo'lsa taklif qiladi (server amalni
+bilmasa butun paket 422 bo'ladi). Amal faqat kassaning o'zidan keladi: markaz (hub) orqali uzatilmaydi
+(`relay_not_allowed`); pul amali emas.
+
+```json
+{"op_id": "uuid", "seq": 43, "type": "order.discount", "occurred_at": "2026-10-22T17:05:00Z", "staff_id": 7,
+ "payload": {"order": "uuid", "kind": "percent", "value": "10", "reason": "Doimiy mijoz", "expected_discount": "4100.00"}}
+```
+
+- Server amalni onlayn chegirma bilan **bir xil qoida** orqali qo'llaydi (`PosOrderService::discount`): `orders.discount`
+  — har qanday; kassir (`pos.take_payment`) — filialning **hozirgi** `cashier_discount_max_percent` gacha va schyot
+  chiqmaguncha; `value: "0"` — olib tashlash (`orders.manage`); sabab majburiy; to'lovi olinayotgan schyot bo'lsa
+  mumkin emas; ofitsiant qoidasi. **Menejer tasdig'i (approval token) oflaynda yo'q**: chegaradan yuqori chegirma rad
+  etiladi. Alohida "oflayn shift" yo'q (ega qarori, 19.11.2026).
+- Qo'llandi: `status: applied`, `refs.discount` (server hisoblagan summa), `refs.discount_kind`,
+  `refs.discount_value` (olib tashlanganda ikkalasi `null`), `refs.flags`: `{flag: "offline_discount", amount, kind,
+  value, staff_id}` (ma'lumot uchun; buyurtmaning `sync_flags` iga ham yoziladi, buyurtmaning avvalgi shunday belgisi
+  almashtiriladi) va `expected_discount` serverdagi summadan farq qilsa `{flag: "discount_mismatch", device_discount,
+  server_discount}` (ma'lumot uchun, `conflict` emas).
+- Rad etildi: `status: rejected`, `reason: discount_not_allowed`, `refs.cause` — qoidaning o'z sababi
+  (`approval_required` — chegaradan yuqori yoki huquq yetmaydi, `permission_denied` — huquq olib qo'yilgan,
+  `paid_bill_affected`, `order_closed`, `order_not_found`, `value_invalid`, `invalid` — sabab yozilmagan yoki tur
+  noto'g'ri, `waiter_...` ofitsiant qoidasi), `refs.kind`, `refs.value`, `refs.expected_discount`. Boshqa hech narsa
+  o'zgarmaydi: keyingi `bill.create` to'liq narxda (`amount_mismatch`), `bill.pay` yoziladi, buyurtma chegirma
+  summasiga `underpaid` (`conflict`). Menejer chegirmani onlayn beradi yoki farqni kassir bilan hal qiladi.
+  `staff_invalid` va `staff_not_signed_in` avvalgidek o'z sababi bilan rad etiladi.
+- Foiz chegirma keyingi har bir qator o'zgarishida qayta hisoblanadi (keyingi `order.round` dan keyin ham).
+  Hisob: foiz — `taomlar × foiz / 100`, butun so'mgacha, yarmi yuqoriga; summa — butun so'mgacha, yarmi yuqoriga;
+  taomlar summasidan oshmaydi. Kassa va server uchun umumiy vektorlar:
+  `backend/tests/Fixtures/offline_discount_vectors.json` (`amounts`, `limits`, `sequences`; PHP testi —
+  `OfflineDiscountVectorsTest`, Dart testi shu faylni o'qiydi).
+- **Audit**: qoidaning o'z yozuvi `pos.order.discount` (eski va yangi qiymat) va ikkinchisi `pos.offline_discount`
+  (`offline: true`, `op_id`, `device` (uuid), `device_time` — qurilma aytgan vaqt, `used_time` — tuzatilgan vaqt,
+  `kind`, `value`, `expected_discount`, `applied_discount`, olib tashlanganda `removed: true`).
+- **Hisobotdagi belgi**: buyurtma chegirmasi "internetsiz" hisoblanadi, agar audit jurnalida shu buyurtma bo'yicha
+  oxirgi chegirma qarori (`pos.order.discount`, `pos.order.promo`, `pos.offline_discount`) `pos.offline_discount`
+  bo'lsa (keyin onlayn o'zgartirilgan chegirma oddiy chegirma). X/Z hisobotda `discounts.offline: {count, amount}` —
+  smenada to'langan schyotlarning shunday chegirmalari (`discounts.count/amount` ichida ham bor; M5 S2 dan oldin
+  saqlangan Z hisobotda bu kalit yo'q). Egaga boradigan Z xabarida alohida qator: "Internetsiz chegirma: N ta, S so'm".
+- **Egaga xabar**: sinxronlash orqali kelgan chegirma uchun alohida "Chegirma berildi" xabari **yuborilmaydi**.
+  Buning o'rniga har bir kassa va har bir uzilish uchun **bitta** yig'ma xabar (`pos_alerts`, do'konning admin chati
+  va egalar): nechta buyurtmaga, jami qancha, kim bergan. Qoida: kassaning oxirgi yig'ma xabaridan keyin qo'llangan
+  `order.discount` amallari (buyurtmaga bittadan — oxirgisi; uzilish ichida olib tashlangan chegirma aytilmaydi; summa —
+  buyurtmadagi hozirgi chegirma); xabar kassa navbati bo'shagan paket oxirida yuboriladi (`queue.size` − paketdagi
+  amallar = 0; kassa `queue` yubormasa — har paket oxirida), navbat hali bo'shamagan bo'lsa kutadi, lekin birinchi
+  chegirma serverga yetganidan 30 daqiqadan ko'p emas (shunda keyingi paket yuboradi). `alerts.discount_percent`
+  chegarasi yig'ma xabarga qo'llanmaydi. Audit: `pos.offline_discount_summary` (`count`, `amount`, `through_op`,
+  `ops`, `by_staff`). Matn:
+
+```
+🏷 Internetsiz berilgan chegirmalar: 3 ta, jami 26 600 so'm
+Filial: Chilonzor
+Kassa: Kassa 1
+Vaqti: 22.10.2026 17:35 – 17:52
+Kim berdi:
+• Dilshod — 1 ta, 20 500 so'm
+• Aziza — 2 ta, 6 100 so'm
+Bu chegirmalar kassa internetsiz ishlagan vaqtda berilgan va aloqa tiklangach serverga yozildi. Batafsil: smena hisobotidagi "Internetsiz chegirma" qatori.
+```
 
 ### GET /pos/sync/status
 
@@ -1986,7 +2053,9 @@ qatorning xizmat haqi qoidalari `{by_order_type, large_group_min_guests, large_g
 `service_charge_rules` moduli bilan, aks holda `null`; `service_charge_notice` — schyotdagi e'lon), `places[]` (`table_id`, `hall_id`, `room_fee`, `min_spend`, `min_spend_mode`), `guest_items[]`
 (`hall_id`, `variant_uuid`, `quantity_per_guest`, `sort_order`) va `limits` (`batch_size` 50, `warn_after_minutes` 15,
 `alert_after_minutes` 120, `max_queued_orders` 500, `menu_max_age_hours` 24, `contact_max_age_hours` 24,
-`fiscal_warn_hours` [24, 40], `fiscal_limit_hours` 48, `clock_skew_warn_seconds` 300).
+`fiscal_warn_hours` [24, 40], `fiscal_limit_hours` 48, `clock_skew_warn_seconds` 300). M5 S2: `discount` (bool) —
+`true` bo'lsa server `order.discount` amalini qabul qiladi va kassa internetsiz chegirma taklif qilishi mumkin; kalit
+yo'q yoki `false` bo'lsa kassa oflaynda chegirma bermaydi (eski server).
 
 ### Smenani yopish
 

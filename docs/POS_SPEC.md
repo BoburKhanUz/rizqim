@@ -261,7 +261,7 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
   Chegirma butun so'mgacha yaxlitlanadi; xizmat haqi chegirmadan keyingi summadan olinadi. Schyotlarga taomlar
   summasiga proporsional bo'linadi, fiskal chekda har bir taom qatori chegirmadan keyingi summada, chek jami schyot
   jamiga teng; X va Z hisobotida "Chegirma" (chegirmali schyotlar soni va summasi). Qiymat 0 — chegirmani olib
-  tashlash. Internetsiz rejimda chegirma yo'q.
+  tashlash. Internetsiz rejimda chegirma: 5.2 (M5 S2, menejer PIN'isiz).
 - **Hisobni bo'lish:** (a) taom bo'yicha (qatorlarni bir nechta schyotga taqsimlash, kasr miqdor ham), (b) mehmon
   bo'yicha (qatordagi mehmon raqami), (c) teng N ulushga (qoldiq tiyin birinchi schyotga). Xona puli, xizmat haqi va
   joy narxi schyotlar orasida proporsional bo'linadi. Har bir schyot alohida to'lanadi va **har biri alohida sotuv
@@ -344,6 +344,7 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
 | Butun buyurtmani bekor qilish | sabab majburiy; to'lov bo'lsa avval qaytarish | `orders.cancel` |
 | Chegirma (summa yoki %) | sabab majburiy; to'lovi olingan schyot bo'lsa rad etiladi (409 `paid_bill_affected`) | `orders.discount` — har qanday; kassir (`pos.take_payment`) — filialning `cashier_discount_max_percent` gacha (standart 10%, summa — taomlarga nisbatan foizi), schyot chiqmaguncha; undan ko'pi — menejer PIN (P3-37) |
 | Chegirmani olib tashlash (qiymat 0) | — | `orders.manage` |
+| **Internetsiz chegirma** (M5 S2; kassa oflayn, 5.2) | o'sha qoidalar; sabab majburiy; faqat schyot tuzilguncha | onlayn bilan bir xil huquqlar, lekin **menejer PIN'i yo'q**: `orders.discount` — har qanday, kassir — `cashier_discount_max_percent` gacha, undan ko'pi oflaynda berilmaydi. Alohida oflayn "shift" yo'q |
 | Xizmat haqini olib tashlash | sabab majburiy | `orders.discount` (yo'q bo'lsa menejer PIN) |
 | Xona puli yoki minimal summa farqini olib tashlash | sabab majburiy | `orders.discount` (yo'q bo'lsa menejer PIN) |
 | Schyotni qayta chiqarish | "NUSXA" belgisi | `pos.reprint_bill` (kassirda ham bor, P3-37) |
@@ -362,6 +363,11 @@ yuborilgandan keyingi o'chirish, `alerts.discount_percent` (standart 10%) dan ka
 dan kam bo'lmagan kassadan chiqim (P3-37), buyurtmani bekor qilish, qaytarish, avansni ushlab qolish,
 nasiyaga yopish, xona puli yoki xizmat haqini olib tashlash, choy va nonsiz yopilgan xona, N soatdan ko'p ochiq xona
 yoki stol (chegaralar sozlanadi).
+
+Internetsiz berilgan chegirma (M5 S2, ega qarori 19.11.2026): har biri uchun alohida xabar yuborilmaydi; aloqa
+tiklangach egaga har kassa va har uzilish uchun **bitta yig'ma xabar** boradi (nechta, jami summa, kim bergan), va bu
+chegirmalar hisobotlarda alohida ko'rinadi (X/Z: `discounts.offline`, Z xabarida "Internetsiz chegirma" qatori;
+jurnalda `pos.offline_discount`).
 
 ### 2.11. Chop etish
 
@@ -973,8 +979,18 @@ almashinuvi, yangi xodimning kirishi, smenani yopish va Z-hisobot.
   qator narxi, modifikatorlar, xizmat haqi, joy narxi, xona puli, minimal summa va choy-non (bootstrap'ning `offline`
   qismidan). P6-22: xizmat haqi qoidalari ham (18.1: buyurtma turi, katta guruh, kuver, stolovaya qulfi) — kassa ularni
   PosChargesCalculator bilan bir xil qo'llaydi (`OfflinePricing.serviceCharge`), shuning uchun oflayn schyot
-  `amount_mismatch` bilan qaytmaydi. Offline chegirma, schyotni bo'lish, qaytarish, mehmon sonini o'zgartirish, ko'chirish, birlashtirish va
+  `amount_mismatch` bilan qaytmaydi. Offline schyotni bo'lish, qaytarish, mehmon sonini o'zgartirish, ko'chirish, birlashtirish va
   bekor qilish **yo'q** (sababi bilan o'chirilgan tugma). Server sinxronlashda narxni o'zi hisoblaydi.
+- **Chegirma oflaynda** (M5 S2): bootstrap `offline.discount: true` desa kassa chegirma beradi (foiz yoki summa,
+  sabab majburiy, faqat schyot tuzilguncha) — huquqlar onlayndagidek, faqat menejer PIN'isiz: `orders.discount` — har
+  qanday, kassir — bootstrap'dagi `cashier_discount_max_percent` gacha, undan ko'pi oflaynda berilmaydi. Navbatga
+  `order.discount` amali yoziladi (markaz orqali uzatilmaydi). Kassa summani server bilan bir xil hisoblaydi (foiz:
+  taomlar × foiz / 100, butun so'mgacha, yarmi yuqoriga; har qator o'zgarishida qayta; umumiy vektorlar
+  `backend/tests/Fixtures/offline_discount_vectors.json`), shuning uchun schyot summasi server bilan tiyingacha mos
+  keladi. Server amalni onlayn qoidaning o'zi bilan qo'llaydi va ikkinchi audit yozuvini (`pos.offline_discount`)
+  qo'shadi; rad etsa (chegara shu orada pasaytirilgan, huquq olib qo'yilgan) amal "Sinxronlash xatolari"ga
+  `discount_not_allowed` bilan tushadi, schyot to'liq narxda tuziladi, to'lov baribir yoziladi va buyurtma chegirma
+  summasiga "kam to'langan" bo'ladi. Promokod, vaucher, xizmat haqi yoki xona pulini olib tashlash oflaynda yo'q.
 - Internet qaytgach navbat **tartib bilan** `POST /pos/sync` ga yuboriladi (bir paketda ko'pi bilan 50 amal, kassa
   terminal tokeni bilan). Har bir amal idempotent (`op_id`): ikki marta yuborilsa ham bir marta qo'llanadi. Oflaynda
   kassa serverni 15–60 soniyada bir `GET /pos/sync/status` bilan tekshiradi. Amal turlari va javoblar — docs/API.md,

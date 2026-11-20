@@ -144,7 +144,7 @@ class PosShiftsTest extends TestCase
         $this->assertSame([['channel' => 'pos_hall', 'orders' => 1, 'amount' => '220000.00']], $report['by_channel']);
         $this->assertSame($this->waiter->id, $report['by_waiter'][0]['waiter_id']);
         $this->assertSame('20000.00', $report['by_waiter'][0]['service_charge']);
-        $this->assertSame(['count' => 1, 'amount' => '10000.00'], $report['discounts']);
+        $this->assertSame(['count' => 1, 'amount' => '10000.00', 'offline' => ['count' => 0, 'amount' => '0.00']], $report['discounts']);
         $this->assertSame(['count' => 1, 'amount' => '15000.00'], $report['voids']);
         $this->assertSame('5000.00', $report['refunds']['amount']);
         $this->assertSame('50000.00', $report['deposits']['applied']['amount']);

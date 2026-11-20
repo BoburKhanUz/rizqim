@@ -106,6 +106,10 @@ final class ShiftOwnerSummary
         }
         $lines[] = 'Qaytarish: ' . $uzs($report['refunds']['amount'] ?? 0);
         $lines[] = 'Chegirma: ' . $uzs($report['discounts']['amount'] ?? 0);
+        // Wave M5 S2: the discounts given without internet, on their own line
+        if ((int) ($report['discounts']['offline']['count'] ?? 0) > 0) {
+            $lines[] = '  Internetsiz chegirma: ' . (int) $report['discounts']['offline']['count'] . ' ta, ' . $uzs($report['discounts']['offline']['amount'] ?? 0);
+        }
         $lines[] = "O'chirilgan taomlar: " . (int) ($report['voids']['count'] ?? 0) . ' ta, ' . $uzs($report['voids']['amount'] ?? 0);
         $lines[] = 'Kassadan chiqim: ' . $uzs(Money::sum(
             $report['cash']['cash_out'] ?? 0,

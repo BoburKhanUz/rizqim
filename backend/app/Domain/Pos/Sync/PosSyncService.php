@@ -84,11 +84,14 @@ final class PosSyncService
                 // Wave M5 S1: a batch refused half-way (op_id_conflict, seq_reused) still applied what came before it:
                 // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
                 $this->report($device, $results, null, $skew);
+                app(OfflineDiscounts::class)->afterBatch($device, $results);
 
                 throw $e;
             }
 
             $this->report($device, $results, $queue, $skew);
+            // Wave M5 S2: one message to the owner about the discounts this outage's queue carried (never fails the batch)
+            app(OfflineDiscounts::class)->afterBatch($device, $results);
 
             return ['results' => $results, 'duplicates' => $duplicates, 'stopped_at' => $stoppedAt, 'clock_skew_seconds' => $skew];
         } finally {

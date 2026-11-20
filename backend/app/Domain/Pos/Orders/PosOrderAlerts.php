@@ -34,9 +34,33 @@ class PosOrderAlerts
     /** Hall orders looked at per run of the long-open check */
     public const LONG_OPEN_BATCH = 500;
 
+    /** Wave M5 S2: inside withoutDiscountAlert() (a discount arriving through POST /pos/sync). */
+    private static bool $discountAlertMuted = false;
+
     public function __construct(
         protected PosOwnerAlerts $alerts,
     ) {}
+
+    /**
+     * Wave M5 S2 (owner answer 8.1-1): runs $callback without the per-discount alert. A discount given without internet
+     * reaches the server with the till's queue; the owner hears of those once per till and outage
+     * (App\Domain\Pos\Sync\OfflineDiscounts::summarize), not once per discount.
+     *
+     * @template T
+     *
+     * @param  \Closure(): T  $callback
+     * @return T
+     */
+    public static function withoutDiscountAlert(\Closure $callback): mixed
+    {
+        $before = self::$discountAlertMuted;
+        self::$discountAlertMuted = true;
+        try {
+            return $callback();
+        } finally {
+            self::$discountAlertMuted = $before;
+        }
+    }
 
     /**
      * @return array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}
@@ -96,6 +120,9 @@ class PosOrderAlerts
      */
     public function discountGiven(Order $order, string $kind, Money $value, Money $percent, string $reason, User $actor, ?int $approvedBy): void
     {
+        if (self::$discountAlertMuted) {
+            return;
+        }
         $threshold = $this->thresholds($order->branch)['discount_percent'];
         if ($threshold === null || $percent->isLessThan($threshold)) {
             return;
