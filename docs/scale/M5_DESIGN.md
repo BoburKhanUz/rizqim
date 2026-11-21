@@ -654,6 +654,27 @@ Scenarios, each as a `pos_data` test against the fake backend and, where marked 
    request with a new header.
 10. Vector tests shared by PHP and Dart: discount rounding, HMAC chain.
 
+**Where each scenario lives (as built, S6-b).** `pos_data` files are in `pos/packages/pos_data/test`, `pos_sync` in
+`pos/packages/pos_sync/test`, PHP in `backend/tests`, the real stack in `e2e/pos/test`. "Fully" means the scenario as
+worded is proved at that level; nothing is duplicated, a row names the test that proves each part.
+
+| # | Fake backend (Dart) | Server (PHP) | Real stack (`scripts/pos-e2e.sh`) |
+|---|---|---|---|
+| 1 | `m5_s2_discount_test.dart`: "scenario 1: a cashier gives 10 % offline ..." (open, round, discount follows the round, bill, cash, close, sync; the till's total is the server's to the tiyin, `offline_discount` flag in refs) | `Feature/PosSync/PosSyncOfflineDiscountTest::test_an_offline_discount_is_applied_audited_and_the_bill_matches_the_tills` (both audit rows) | `offline_scenarios_test.dart`: "scenario 1 ..." (sync request read from the `signed` text, order, bill and payment equal the till's, one fiscal receipt, `pos.order.discount` and `pos.offline_discount` rows in the owner's audit log) |
+| 2 | `m5_s1_test.dart`: "bug 1: ... after 25 h without contact a new order is refused; a round, the bill, a cash payment and the close ... work"; `pos_sync` `limits_test.dart`: "M5 bug 1: the 24-hour limits stop only OPENING a new order" | - | - |
+| 3 | `m5_s1_test.dart`: "bug 4 on the till: a payment taken 37 h after the PIN login ..."; `m5_s1_fix_test.dart` (12 h, no PIN) | `PosSyncStaffUnverifiedTest::test_a_payment_37_hours_after_the_pin_login_is_recorded_as_staff_unverified` (moves the server clock 37 h), `PosSyncStaffUnverifiedSettleTest` | `offline_scenarios_test.dart`: "scenario 3 ..." (the server clock cannot be moved on the stack, so the stack proves the same check for a cashier with no PIN session on the till inside the 36 h window: payment conflict `staff_unverified`, bill paid, order closed, audit `pos.offline_payment_staff_unverified`) |
+| 4 | `m5_s2_discount_test.dart`: "scenario 4a ..." and "scenario 4b ..." | `PosSyncOfflineDiscountTest::test_a_refused_discount_is_rejected_and_the_bill_and_the_payment_are_still_taken` | - |
+| 5 | `pos_sync` `journal_damage_test.dart`: "two good operations written after a failed append survive a restart", "a flipped byte in a middle line: the later lines survive" | - | - |
+| 6 | `m5_s6_scenarios_test.dart`: "scenario 6 ..." (5 queued, 401, every op still on the disk, the file holds all 5 and verifies under the key); `m5_s1_test.dart` "bug 2: a 401 on the terminal token"; `pos_sync` `export_test.dart` | `PosSyncImportTest::test_a_file_is_applied_as_its_till_and_audited`, `test_the_same_file_twice_changes_nothing`; `SyncExportVectorsTest` | `offline_scenarios_test.dart`: "scenario 6 ..." (5 ops queued, owner disconnects the till, 401, nothing deleted, the till is paired again and writes the file, the owner imports it, second import changes nothing) |
+| 7 | `m5_s6_scenarios_test.dart`: "scenario 7 ..." (amount changed, CRC fixed: `bad`, observe applies, enforce `payment_unverified`; a removed line: `chain_gap`); `m5_s3_fix_test.dart` chain tests | `PosSyncSignatureTest::test_a_line_edited_by_hand_is_bad_and_in_observe_mode_still_applied`, `test_a_removed_line_is_a_chain_gap_...`; `PosSyncSignatureEnforceTest` | `offline_scenarios_test.dart`: "scenario 7 ..." (three tests: observe, enforce, removed line; the owner switches enforce on and back) |
+| 8 | `pos_sync` `mirror_storage_test.dart`: "restoring on start: a lost journal gets back every verified operation from the copy" (queue and chain intact), `mirror_review_fix_test.dart` | - | - |
+| 9 | - | `PosReleases/PosReleaseRouteInventoryTest` (no 426 on any till route; a whole sale below the minimum: shift, bill, payment, refund, close, sync), `PosReleaseTerminalTest` (pairing 426, `devices.app_version` follows the header) | - |
+| 10 | `m5_s2_discount_test.dart` "shared vectors", `pos_sync` `signature_test.dart` "the shared vectors", `export_test.dart` "vector file" | `OfflineDiscountVectorsTest`, `Unit/PosSync/SyncSignatureVectorsTest`, `SyncExportVectorsTest` | - |
+
+Notes. Scenario 1 does not wait three hours: the length of the outage changes nothing the till computes (the 24 h
+limits have their own scenario 2). The real-stack file pairs a till of its own per scenario (the owner's pairing-code
+route lets 5 through a minute, so the file waits for the limit once) and never touches the seeded tills.
+
 ### 7.2 Risks, ranked
 
 1. **A till updates before the server** and sends `order.discount` or a signed envelope the server does not know:

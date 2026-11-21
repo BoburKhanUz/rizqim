@@ -880,9 +880,11 @@ void main() {
           expect(table.statusWire, 'free', reason: run.table);
         }
         final List<PosOpenOrder> closed = await till.pos.orders.closedOrders();
+        // (every party of the evening is among them; other files of the stack close orders on this branch too: the
+        // offline scenarios of M5 S6-b)
         expect(
           closed.map((o) => o.uuid).toSet(),
-          runs.map((r) => r.order.uuid).toSet(),
+          containsAll(runs.map((r) => r.order.uuid).toSet()),
         );
 
         booking = await till.pos.bookings.get(booking.uuid);
