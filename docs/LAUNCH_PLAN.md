@@ -66,7 +66,7 @@ Egasi qarori (19.11.2026): asosiy domen **rizqim.uz** (rizqim.com va rizq.im ham
 
 | Domen | Vazifasi | Holat |
 |---|---|---|
-| rizqim.uz | Asosiy landing sahifa | Landing hali yo'q, P to'lqinida yoziladi; egasining logo va dizayn konsepti: [brand/](brand/README.md) (21.11.2026) |
+| rizqim.uz | Asosiy landing sahifa | Landing va "Hamkor bo'lish" sahifasi tayyor (infra/landing, 21.11.2026), serverga joylash kutilmoqda; egasining logo va dizaynlari: [brand/](brand/README.md) |
 | app.rizqim.uz | Telegram Mini App (mijozlar) | Hozir Mini App API bilan bitta manzilda ishlaydi; alohida domenga ko'chirish P to'lqinida |
 | api.rizqim.uz | Backend API; jonli aloqa (WebSocket) ham shu yerda | Tayyor, sozlama kerak |
 | business.rizqim.uz | Hamkor paneli (restoran egasi va xodimlari) | Tayyor (hujjatlarda `panel.<domen>`) |
