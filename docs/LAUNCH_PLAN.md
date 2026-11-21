@@ -139,5 +139,7 @@ Egasi qarori (21.11.2026, yakuniy): hozircha **faqat ishchi server** (production
 
 Egasi qarori (21.11.2026): Click va Payme bilan birga **Paylov** ham ulanadi (onlayn to'lov va uning fiskal cheki; Paylov hujjatida naqd to'lovni OFD da ro'yxatdan o'tkazish usuli ham bor, rasmiy hujjatdan tasdiqlash kerak).
 
+Egasi qarori (21.11.2026): **UzQR** (dinamik QR, kassada) haqiqiy integratsiyasi kerak: tizimda asos va sinov drayveri bor, haqiqiy drayver bank yoki to'lov tashkiloti tanlangach yoziladi (avval tadqiqot). Paylov tekshiruvi: [research/reports/Paylov tekshiruvi.md](research/reports/Paylov%20tekshiruvi.md) — Mini App onlayn to'lovi uchun mos, kassadagi QR va naqd chek uchun hozircha yo'q.
+
 Serversiz ishlar tartibi: fiskal xatlar -> landing PR -> avtomatik o'rnatish va domenlar -> Click/Payme -> qurilmalar ro'yxati va qo'llanmalar ->
 sinov serveri tayyorgarligi -> o'z virtual kassamiz texnik ishi.
