@@ -47,6 +47,7 @@ export function ShiftReportView({ shift, report, branchName }: { shift: Shift; r
   const denominations = Object.entries(shift.counted_breakdown ?? {}).sort(([a], [b]) => Number(b) - Number(a));
   // P6-15: the portions written off at this till (null when there were none)
   const writeOffs = readShiftWriteOffs(report);
+  const continued = report.continued;
 
   return (
     <article className="flex flex-col gap-4" aria-label={title}>
@@ -230,6 +231,8 @@ export function ShiftReportView({ shift, report, branchName }: { shift: Shift; r
             <Figure label={t('shift_discounts')} value={`${money(report.discounts.amount)} (${report.discounts.count})`} />
             <Figure label={t('shift_voids')} value={`${money(report.voids.amount)} (${report.voids.count})`} />
             <Figure label={t('shift_refundsCount')} value={`${money(report.refunds.amount)} (${report.refunds.count})`} />
+            {/* S6: payments a till took after its staff member went on without a PIN during an outage; old Z reports have no such key */}
+            {continued && continued.count > 0 && <Figure label={t('shift_continued')} value={`${money(continued.amount)} (${continued.count})`} tone="warning" />}
           </dl>
         </Section>
       </div>

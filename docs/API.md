@@ -2518,7 +2518,9 @@ staff_id, op_id, at}` (ma'lumot uchun, `conflict` emas; buyurtmaga bir marta, ha
 `payments`: shu amal olgan to'lovlar uuid'lari), X/Z hisobotda `continued: {count, amount}` — smenadagi shunday
 to'lovlar (S6 dan oldin saqlangan Z hisobotda bu kalit yo'q), "Sinxronlash xatolari" (`GET /pos/sync/errors`,
 `/pos/sync/errors/{op_id}`, `GET /pos/sync/status` `errors[]`, admin `GET /admin/pos/sync-errors`) qatorida
-`staff_continued: bool`.
+`staff_continued: bool`. Belgilangan to'lov xodim tekshiruvidan o'tmay (`staff_unverified`, `payment_unverified`, qutqaruv
+fayli `suspect`) schyotga yoki schyotsiz yozilganda ham buyurtma `staff_continued` belgisini `payments` bilan oladi va
+`continued` ga kiradi (qaytarilgan to'lov oldingidek sanaladi).
 
 ### Smenani yopish
 

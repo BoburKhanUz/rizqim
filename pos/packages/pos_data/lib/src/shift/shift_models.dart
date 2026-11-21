@@ -235,6 +235,12 @@ class PosShiftReport {
   final Map<String, Object?> raw;
 }
 
+/// X/Z ning `continued` qismi (S6): PIN'siz davom etilgan xodim olgan to'lovlar (soni va summasi). Kalit yo'q
+/// (eski server yoki eski Z hisobot) yoki soni 0 — bo'sh ([PosReportTotal.count] == 0).
+extension PosShiftReportContinued on PosShiftReport {
+  PosReportTotal get continued => PosReportTotal.of(PosJson(raw), 'continued');
+}
+
 /// Hisobotdagi soni va summasi (ba'zida naqd qismi bilan).
 class PosReportTotal {
   const PosReportTotal({

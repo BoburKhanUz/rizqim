@@ -380,6 +380,14 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
               ),
               if (v.averageBill.isPositive)
                 StatTile(label: "O'rtacha chek", value: v.averageBill.format()),
+              // S6: payments taken after going on without a PIN during an outage (hidden at 0 / old servers)
+              if (v.continued.count > 0)
+                StatTile(
+                  key: const ValueKey<String>('stat-continued'),
+                  label: "PIN'siz davom etilgan (${v.continued.count})",
+                  value: v.continued.amount.format(),
+                  tone: StatusTone.warning,
+                ),
             ],
           ),
         const SizedBox(height: 16),

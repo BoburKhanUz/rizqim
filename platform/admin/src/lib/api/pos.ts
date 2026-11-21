@@ -444,6 +444,8 @@ export interface SyncRow {
   status: 'rejected' | 'conflict';
   reason: string | null;
   message: string | null;
+  // Wave M5 S6: queued by a staff member who went on without a PIN ("PIN'siz davom etilgan"); absent on an older server
+  staff_continued?: boolean;
   store: Named | null;
   device: { uuid: string; name: string | null } | null;
   staff: { id: number; name: string | null } | null;

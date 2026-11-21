@@ -191,6 +191,18 @@ void main() {
       ).get(serverBill.fiscal.receiptUuid!);
       expect(receipt.total, serverBill.total);
       expect(receipt.type, 'sale');
+      // ...and exactly one for the order: one bill, one receipt uuid (the server's receipts of an order are its bills'),
+      // and the replay of the sync (the same operations again) does not issue another
+      final Set<String> receipts = <String>{
+        for (final PosBill b in (await pos.billing.bills(serverOrder)).bills)
+          ?b.fiscal.receiptUuid,
+      };
+      expect(receipts, <String>{serverBill.fiscal.receiptUuid!});
+      expect(
+        (await pos.billing.bills(serverOrder)).bills,
+        hasLength(1),
+        reason: 'one bill: one fiscal receipt',
+      );
 
       // The audit: the discount (twice-audited: the decision and the offline mark)
       expect(await auditOf('pos.order.discount', till), isNotEmpty);
@@ -469,6 +481,32 @@ void main() {
       expect(server.payments, hasLength(1));
       expect(server.payments.single.amount, const PosMoney.som(1000));
       expect(server.total, bill.total);
+
+      // On the manager's list ("Sinxronlash xatolari"): the payment, a conflict for its short amount, with the
+      // manager's PIN on this till
+      await till.signIn('manager');
+      final PosSyncErrorsPage list = await till.pos.offline!.serverErrors();
+      final PosSyncError row = list.errors.singleWhere(
+        (PosSyncError e) => e.opId == pay.opId,
+        orElse: () => fail(
+          'the edited payment is not on the manager\'s list: '
+          '${list.errors.map((e) => '${e.type}/${e.status}/${e.reason}')}',
+        ),
+      );
+      expect(row.status, 'conflict');
+      expect(row.reason, 'underpaid');
+      expect(row.amount, '1000');
+      // The same row as the server sends it: the signature verdict and the mark are on it. (The platform admin's
+      // monitoring alert `pos_sync_signature` is the platform team's: not readable with an owner's token.)
+      final Object? raw = await till.pos.http.get<Object?>(
+        '/v1/pos/sync/errors',
+        (Object? data) => data,
+      );
+      final Map<String, Object?> sent = asList(asMap(raw)['errors'])
+          .map(asMap)
+          .singleWhere((Map<String, Object?> e) => e['op_id'] == pay.opId);
+      expect(sent['sig_status'], 'bad');
+      expect(sent['staff_continued'], isFalse);
     });
 
     test('enforce: the same edit is recorded and flagged payment_unverified, never dropped', () async {
@@ -544,6 +582,32 @@ void main() {
           isFalse,
           reason: 'nothing is dropped',
         );
+        // Where the money landed: the bill the till made was among the lines taken away, so the server does not know
+        // it; the payment is recorded all the same, once
+        final SyncOperation paid = queued.firstWhere(
+          (SyncOperation o) => o.type == SyncOpType.billPay,
+        );
+        final Map<String, Object?> answer = till.wire.resultOf(paid.opId)!;
+        expect(answer['status'], 'conflict');
+        expect(answer['reason'], 'payment_unallocated');
+        final Map<String, Object?> refs = asMap(answer['refs']);
+        expect(
+          refs['payments'],
+          hasLength(1),
+          reason: 'recorded once: $answer',
+        );
+        final Map<String, Object?> flag = asMap(
+          asList(refs['flags']).singleWhere(
+            (Object? f) => asMap(f)['flag'] == 'payment_unallocated',
+          ),
+        );
+        expect(
+          PosMoney.parse('${flag['amount']}'),
+          bill.total,
+          reason: 'the whole sale landed unallocated, on the order',
+        );
+        // not on a bill: the server has no bill for the order
+        expect((await till.pos.billing.bills(order.uuid)).bills, isEmpty);
       },
     );
   });

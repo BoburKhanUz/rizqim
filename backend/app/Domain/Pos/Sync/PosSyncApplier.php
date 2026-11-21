@@ -404,6 +404,12 @@ final class PosSyncApplier
                     ...($outcome['flags'] ?? []),
                     ...($clamped !== null ? [$clamped] : []),
                 ];
+                // Wave M5 S6-a: a marked payment that failed the staff check is still "PIN'siz davom etilgan" in the
+                // X/Z report (refunded ones stay counted as for any other: ContinuedStaff::ofShift)
+                $continued = ContinuedStaff::flag($order, $payload, $attributed?->id, $created->pluck('uuid')->all());
+                if ($continued !== null) {
+                    $flags[] = $continued;
+                }
                 $this->audit->record($signature !== null ? 'pos.offline_payment_unverified' : 'pos.offline_payment_staff_unverified', $order, [], [], $unverified + [
                     'amount' => $amount,
                     'reason' => $e->reason,
@@ -1236,7 +1242,7 @@ final class PosSyncApplier
 
         $staffUnverified = $unverified !== null;
 
-        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message, $staffUnverified, $unverified) {
+        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message, $staffUnverified, $unverified, $payload) {
             // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
             $shift = $shift !== null ? PosShift::lockForMoney((int) $shift->id) : null;
@@ -1286,6 +1292,11 @@ final class PosSyncApplier
             $flags = [['flag' => $flag, 'amount' => $amount->toString(), 'reason' => $reason, 'message' => $message]];
             if ($staffUnverified && $canceled) {
                 $flags[] = ['flag' => 'refund_needed', 'amount' => $amount->toString(), 'reason' => 'order_closed', 'message' => 'Buyurtma serverda bekor qilingan.'];
+            }
+            // Wave M5 S6-a: the report's `continued` counts it (see staffUnverified())
+            $continued = ContinuedStaff::flag($order, $payload, $staff?->id, array_map(fn (Payment $payment) => (string) $payment->uuid, $created));
+            if ($continued !== null) {
+                $flags[] = $continued;
             }
             $this->flag($order, $flags, (string) $base['op_id']);
 

@@ -74,6 +74,7 @@ final class ShiftReport {
     this.vouchers = const <ReportAmount>[],
     this.qrProviders = const <ReportAmount>[],
     this.banquets = const <ReportAmount>[],
+    this.continued,
   });
 
   final ShiftReportKind kind;
@@ -152,6 +153,9 @@ final class ShiftReport {
 
   /// P6-41: QR to'lovlar provayder bo'yicha (Click, Payme, UzQR, qo'lda tasdiqlangan statik QR).
   final List<ReportAmount> qrProviders;
+
+  /// S6: PIN'siz davom etilgan xodim olgan to'lovlar (soni va summasi); null yoki soni 0 — chop etilmaydi.
+  final ReportAmount? continued;
 
   PosMoney get netSales => sales - refunds;
 

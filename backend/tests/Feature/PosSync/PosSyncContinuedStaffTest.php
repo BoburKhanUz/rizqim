@@ -6,7 +6,9 @@ use App\Domain\Pos\Sync\ContinuedStaff;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PosSyncOperation;
+use App\Services\Auth\DeviceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -20,8 +22,10 @@ use Tests\TestCase;
  */
 class PosSyncContinuedStaffTest extends TestCase
 {
+    use BuildsExportFiles;
     use PosSyncFixtures;
     use RefreshDatabase;
+    use SignsOperations;
 
     private const MARK = ['staff_continued' => true, 'staff_resumed' => true];
 
@@ -135,10 +139,117 @@ class PosSyncContinuedStaffTest extends TestCase
             ->assertJsonPath('data.results.0.reason', 'staff_not_signed_in')
             ->assertJsonPath('data.results.1.status', 'conflict')
             ->assertJsonPath('data.results.1.reason', 'staff_unverified');
+        // ...and still counted in the X report (S6 review: it was missed)
+        $this->assertSame(['count' => 1, 'amount' => '5000.00'], $this->continued());
 
         // A marked discount is refused as before (M5 S2)
         $this->sync([
             $this->op('order.discount', ['order' => $order, 'kind' => 'percent', 'value' => '5'] + self::MARK),
         ])->assertOk()->assertJsonPath('data.results.0.status', 'rejected');
+    }
+
+    /** The `continued` of the till's shift. @return array{count: int, amount: string} */
+    private function continued(): array
+    {
+        // What the X/Z report's `continued` shows (the endpoint itself is read in the first tests, inside the PIN window)
+        return ContinuedStaff::ofShift($this->shift->fresh());
+    }
+
+    /** @return list<string> the payment uuids the order's `staff_continued` flags name */
+    private function flaggedPayments(string $orderUuid): array
+    {
+        $order = Order::where('external_id', $orderUuid)->firstOrFail();
+        $uuids = [];
+        foreach ((array) $order->sync_flags as $flag) {
+            if ($flag['flag'] === ContinuedStaff::FLAG) {
+                array_push($uuids, ...($flag['payments'] ?? []));
+            }
+        }
+
+        return $uuids;
+    }
+
+    public function test_a_marked_payment_that_failed_the_staff_check_and_took_the_open_bill_is_counted(): void
+    {
+        $sale = $this->finishedWithoutPin();
+        $this->sync(array_slice($sale['ops'], 0, 2))->assertOk();
+        Carbon::setTestNow(now()->addHours(37));
+        $pay = $this->op('bill.pay', $sale['ops'][2]['payload']);
+        $this->sync([$pay])->assertOk()->assertJsonPath('data.results.0.reason', 'staff_unverified');
+
+        $payment = Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->sole();
+        $this->assertNotNull($payment->bill_id);
+        $this->assertSame([$payment->uuid], $this->flaggedPayments($sale['order']));
+        $this->assertSame(['count' => 1, 'amount' => '41000.00'], $this->continued());
+    }
+
+    public function test_a_marked_payment_recorded_unallocated_is_counted(): void
+    {
+        $sale = $this->finishedWithoutPin();
+        $this->sync(array_slice($sale['ops'], 0, 2))->assertOk();
+        // A bill the server does not know: staffUnverified -> unallocated
+        $pay = $this->op('bill.pay', ['order' => $sale['order'], 'bill' => (string) Str::uuid(), 'shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => '9000']]] + self::MARK, $this->owner);
+        $this->sync([$pay])->assertOk()->assertJsonPath('data.results.0.reason', 'staff_unverified');
+
+        $payment = Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->sole();
+        $this->assertNull($payment->bill_id);
+        $this->assertSame([$payment->uuid], $this->flaggedPayments($sale['order']));
+        $this->assertSame(['count' => 1, 'amount' => '9000.00'], $this->continued());
+        // An unmarked one beside it is not
+        $plain = $this->op('bill.pay', ['order' => $sale['order'], 'bill' => (string) Str::uuid(), 'shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => '1000']]], $this->owner);
+        $this->sync([$plain])->assertOk();
+        $this->assertSame(['count' => 1, 'amount' => '9000.00'], $this->continued());
+    }
+
+    public function test_a_refunded_marked_payment_stays_counted_as_for_any_other(): void
+    {
+        $sale = $this->finishedWithoutPin();
+        $this->sync(array_slice($sale['ops'], 0, 3))->assertOk();
+        Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->update(['status' => 'refunded']);
+
+        $this->assertSame(['count' => 1, 'amount' => '41000.00'], $this->continued());
+    }
+
+    public function test_in_enforce_a_marked_badly_signed_payment_is_counted_on_its_bill_and_unallocated(): void
+    {
+        $this->store->forceFill(['pos_sync_enforce_signatures' => true])->save();
+        $sale = $this->finishedWithoutPin();
+        $key = $this->till['sync_key'];
+        $uuid = (string) $this->till['device']->uuid;
+        $envelopes = $this->signed($sale['ops'], $key, $uuid);
+        $envelopes[2]['signed'] = str_replace('"amount":"41000"', '"amount":"40000"', $envelopes[2]['signed'], $count);
+        $this->assertSame(1, $count);
+        $this->sync($envelopes)->assertOk()->assertJsonPath('data.results.2.reason', 'payment_unverified');
+        $this->assertSame(['count' => 1, 'amount' => '40000.00'], $this->continued());
+
+        // A bill the server does not know: a second marked payment of a forged line goes unallocated, counted too
+        $again = $this->signed([$this->op('bill.pay', ['order' => $sale['order'], 'bill' => (string) Str::uuid(), 'shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => '7000']]] + self::MARK)], $key, $uuid);
+        $again[0]['signed'] = str_replace('"amount":"7000"', '"amount":"6000"', $again[0]['signed'], $count);
+        $this->assertSame(1, $count);
+        $this->sync($again)->assertOk()->assertJsonPath('data.results.0.reason', 'payment_unverified');
+        $this->assertNull(Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->orderByDesc('id')->first()->bill_id);
+        $this->assertSame(['count' => 2, 'amount' => '46000.00'], $this->continued());
+    }
+
+    public function test_a_marked_payment_of_a_rescue_file_made_after_the_disconnect_is_counted(): void
+    {
+        $sale = $this->finishedWithoutPin();
+        Carbon::setTestNow(now()->subMinutes(15));
+        app(DeviceService::class)->revoke($this->till['device'], $this->owner, false, true);
+        Carbon::setTestNow(Carbon::parse('2026-10-22 13:00:00', 'UTC'));
+
+        $key = $this->till['sync_key'];
+        $lines = $this->signed($sale['ops'], $key, (string) $this->till['device']->uuid);
+        $file = self::exportFile((string) $this->till['device']->uuid, $key['kid'], (string) base64_decode($key['key'], true), $lines);
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
+        $response = $this->actingAs($this->owner, 'sanctum')->post('/api/v1/owner/pos/sync/import', [
+            'file' => UploadedFile::fake()->createWithContent('rizqim-navbat.rzq', $file),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $this->assertNotSame('rejected', $response->json('data.results.2.status'));
+        $payment = Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->sole();
+        $this->assertSame([$payment->uuid], $this->flaggedPayments($sale['order']));
+        $this->assertSame(1, ContinuedStaff::ofShift($this->shift->fresh())['count']);
     }
 }

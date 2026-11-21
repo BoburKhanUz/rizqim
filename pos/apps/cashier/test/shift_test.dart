@@ -7,6 +7,68 @@ import 'support/p22.dart';
 
 void main() {
   testWidgets(
+    "the shift screen shows a PIN'siz davom etilgan tile when there are some",
+    (WidgetTester tester) async {
+      final P22 p = P22();
+      p.backend.continuedReport = <String, Object?>{
+        'count': 2,
+        'amount': '90000.00',
+      };
+      await pumpHome(tester, p.h);
+      await openSection(tester, 'Smena');
+      await enter(tester, 'opening-cash', '100000');
+      await tapKey(tester, 'shift-open');
+      expect(
+        find.byKey(const ValueKey<String>('stat-continued')),
+        findsOneWidget,
+      );
+      expect(find.text("PIN'siz davom etilgan (2)"), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    "X report and its print show \"PIN'siz davom etilgan\" only when payments were taken without a PIN",
+    (WidgetTester tester) async {
+      final P22 p = P22();
+      await pumpHome(tester, p.h);
+      await openSection(tester, 'Smena');
+      await enter(tester, 'opening-cash', '100000');
+      await tapKey(tester, 'shift-open');
+
+      // Old server / none taken: no line, no tile, nothing printed
+      expect(
+        find.byKey(const ValueKey<String>('stat-continued')),
+        findsNothing,
+      );
+      await tapKey(tester, 'x-report');
+      expect(find.byKey(const ValueKey<String>('x-continued')), findsNothing);
+      expect(find.text("PIN'siz davom etilgan"), findsNothing);
+      await tapButton(tester, 'Chop etish');
+      expect(p.receipts.last, isNot(contains("PIN'SIZ DAVOM ETILGAN")));
+      await tapButton(tester, 'Yopish');
+
+      p.backend.continuedReport = <String, Object?>{
+        'count': 0,
+        'amount': '0.00',
+      };
+      await tapKey(tester, 'x-report');
+      expect(find.text("PIN'siz davom etilgan"), findsNothing);
+      await tapButton(tester, 'Yopish');
+
+      p.backend.continuedReport = <String, Object?>{
+        'count': 3,
+        'amount': '120000.00',
+      };
+      await tapKey(tester, 'x-report');
+      expect(find.text("PIN'siz davom etilgan"), findsOneWidget);
+      expect(find.text("To'lovlar (3)"), findsOneWidget);
+      await tapButton(tester, 'Chop etish');
+      expect(p.receipts.last, contains("PIN'SIZ DAVOM ETILGAN"));
+      expect(p.receipts.last, contains("To'lovlar (3):"));
+    },
+  );
+
+  testWidgets(
     'open a shift with opening cash, cash out for bozorlik (no manager), X report view and print',
     (WidgetTester tester) async {
       final P22 p = P22();

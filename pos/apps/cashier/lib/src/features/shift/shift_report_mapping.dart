@@ -104,6 +104,9 @@ class ShiftReportView {
         ReportAmount(qrProviderLabel(p.provider), p.amount, count: p.count),
   ];
 
+  /// S6: PIN'siz davom etilgan xodim olgan to'lovlar; 0 bo'lsa yoki kalit yo'q (eski Z) — ko'rsatilmaydi.
+  PosReportTotal get continued => report.continued;
+
   /// P6-43: smenadagi sertifikatlar.
   PosShiftVouchers get vouchers => report.vouchers;
 
@@ -247,6 +250,9 @@ class ShiftReportView {
       vouchers: voucherLines,
       banquets: banquetLines,
       qrProviders: qrProviderLines,
+      continued: continued.count > 0
+          ? ReportAmount("To'lovlar", continued.amount, count: continued.count)
+          : null,
       countedCash: counted,
       denominations: <CashDenomination>[
         if (denominations != null)

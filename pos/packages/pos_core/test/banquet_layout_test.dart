@@ -163,6 +163,45 @@ void main() {
         expect(l.texts.join(' '), contains('kafolatlangan 200'));
       });
 
+      test("X/Z: payments taken without a PIN have their own section only when there are some", () {
+        final ShiftReport base = shiftReport(ShiftReportKind.z);
+        ShiftReport withContinued(ReportAmount? c) => ShiftReport(
+          kind: base.kind,
+          header: base.header,
+          shiftNumber: base.shiftNumber,
+          printedAt: base.printedAt,
+          openedAt: base.openedAt,
+          sales: base.sales,
+          receiptsCount: base.receiptsCount,
+          tenders: base.tenders,
+          openingCash: base.openingCash,
+          cashSales: base.cashSales,
+          continued: c,
+        );
+        final PrintLayout l = layoutShiftReport(
+          withContinued(
+            const ReportAmount("To'lovlar", PosMoney.som(120000), count: 3),
+          ),
+          paper,
+        );
+        expectFits(l);
+        expect(l.texts.join('\n'), contains("PIN'SIZ DAVOM ETILGAN"));
+        expect(l.texts.join('\n'), contains("To'lovlar (3):"));
+        expect(
+          layoutShiftReport(withContinued(null), paper).texts.join('\n'),
+          isNot(contains("PIN'SIZ")),
+        );
+        expect(
+          layoutShiftReport(
+            withContinued(
+              const ReportAmount("To'lovlar", PosMoney.zero, count: 0),
+            ),
+            paper,
+          ).texts.join('\n'),
+          isNot(contains("PIN'SIZ")),
+        );
+      });
+
       test('X/Z: the banquet advances have their own section', () {
         final ShiftReport base = shiftReport(ShiftReportKind.x);
         final ShiftReport r = ShiftReport(

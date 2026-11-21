@@ -75,6 +75,9 @@ class FakeCashierBackend {
   final List<Map<String, Object?>> batchWriteOffs = <Map<String, Object?>>[];
 
   /// P6-16: smart-kassada provayderning o'z karta jami (`source: provider`); `null` — Rizqim'dagi karta pulning o'zi.
+  /// X/Z `continued` ({count, amount}: payments taken without a PIN, S6); null = the key is missing (an old server).
+  Map<String, Object?>? continuedReport;
+
   int? providerCardTotal;
 
   /// P6-16: filialning farq chegarasi (so'm). Server uni kassaga yubormaydi (review P6 S#5): faqat yakuniy hisobotda.
@@ -2059,6 +2062,7 @@ class FakeCashierBackend {
             'amount': _m(sumOf(tender(t))),
           },
       ],
+      if (continuedReport != null) 'continued': continuedReport,
       if (tender('qr').isNotEmpty)
         'qr_providers': <Object?>[
           for (final String provider in <String>{

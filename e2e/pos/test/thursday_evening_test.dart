@@ -880,11 +880,14 @@ void main() {
           expect(table.statusWire, 'free', reason: run.table);
         }
         final List<PosOpenOrder> closed = await till.pos.orders.closedOrders();
-        // (every party of the evening is among them; other files of the stack close orders on this branch too: the
-        // offline scenarios of M5 S6-b)
+        // Exactly the evening's own parties among the hall orders: the takeaway orders other files close on this
+        // branch (the offline scenarios of M5 S6-b) are not parties of this evening
         expect(
-          closed.map((o) => o.uuid).toSet(),
-          containsAll(runs.map((r) => r.order.uuid).toSet()),
+          closed
+              .where((PosOpenOrder o) => o.channel == PosChannel.hall.wire)
+              .map((o) => o.uuid)
+              .toSet(),
+          runs.map((r) => r.order.uuid).toSet(),
         );
 
         booking = await till.pos.bookings.get(booking.uuid);
