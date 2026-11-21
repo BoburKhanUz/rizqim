@@ -5,6 +5,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import '../bootstrap/bootstrap_models.dart';
 import '../bootstrap/bootstrap_repository.dart';
 import '../entitlements/entitlements_models.dart';
+import '../http/connectivity.dart';
 import 'approvals.dart';
 
 /// Kassa yoki ofitsiant terminalining holati.
@@ -32,9 +33,40 @@ class PosSession {
     required this.auth,
     required this.bootstrapRepository,
     required this.approvals,
-  }) {
+    this.connectivity,
+    bool Function()? resumeSupported,
+    DateTime? Function()? lastKnownTime,
+    this.shiftChanged,
+  }) : _resumeSupported = resumeSupported ?? (() => false),
+       _lastKnownTime = lastKnownTime ?? (() => null) {
     _authSub = auth.events.listen(_onAuth);
+    // M5 S6-a: the server answered: a staff member resumed without a PIN stops at once, a PIN login is required
+    // (M5 S6 review 2 MEDIUM: the record is kept, a link gone again before a PIN login offers "Davom etish" again)
+    _contactSub = connectivity?.changes.listen((PosConnectivityState s) {
+      if (s.online) auth.endStaffResume();
+    });
   }
+
+  /// M5 S6 (review 2 HIGH): every change of the open shift is told to the till's offline copy (pos_data `PosData`
+  /// binds `PosOffline.rememberShift`), so that after a restart during the outage the shift opened after the PIN
+  /// login is known.
+  final void Function(PosShiftSummary? shift)? shiftChanged;
+
+  /// Server bilan aloqa (kassa): [resumeOffer] faqat server javob bermayotganda.
+  final PosConnectivity? connectivity;
+  final bool Function() _resumeSupported;
+  final DateTime? Function() _lastKnownTime;
+  StreamSubscription<PosConnectivityState>? _contactSub;
+
+  /// M5 S6-a: what a staff member resumed after a restart may do, whatever else their stored permissions say: look at
+  /// and finish an open order (bill, pre-check, payment, close) and nothing more. No discount, void, cancel, refund,
+  /// shift, cash movement, reprint or unpairing (PosOffline refuses a new order, a round and a void on its own).
+  static const Set<String> resumePermissions = <String>{
+    PosPermissions.ordersView,
+    PosPermissions.ordersManage,
+    PosPermissions.takePayment,
+    PosPermissions.menuView,
+  };
 
   final AuthSession auth;
   final PosBootstrapRepository bootstrapRepository;
@@ -72,6 +104,45 @@ class PosSession {
   /// ([AuthSession.staffFinishOnly]): faqat schyot, to'lov va yopish; yangi bosqich va taom o'chirish yo'q.
   bool get staffFinishOnly => auth.staffFinishOnly;
 
+  /// M5 S6-a: the staff member was resumed without a PIN after an app restart ([resumeStaff]); continued and
+  /// finish-only too.
+  bool get staffResumed => auth.staffResumed;
+
+  /// Owner decision Q1 (21.11.2026): the resumed staff member ([staffResumed]) is past the 12 h after their PIN login
+  /// and goes on only to take payment and close open orders (`AuthSession.staffResumeWindowOver`).
+  bool get staffResumeWindowOver => auth.staffResumeWindowOver;
+
+  /// M5 S6-a (owner answer 3): "Davom etish: (ism)" on the PIN keypad. Offered only when all of these hold: the till
+  /// has the offline mode and its last bootstrap said the server records the mark (`offline.staff_resume`), the
+  /// server does not answer right now (the last request failed), nobody is signed in, and the kept staff member's PIN
+  /// login was at most 12 h ago by a clock that has not gone back (not in the future, not before the till's last server
+  /// contact or newest queued operation). `null`: not offered.
+  PosStaffResumeOffer? get resumeOffer {
+    if (!_resumeSupported()) return null;
+    final PosConnectivity? c = connectivity;
+    if (c == null || c.state.online) return null;
+    final StaffResumeRecord? r = auth.resumableStaff;
+    if (r == null) return null;
+    final DateTime? seen = _lastKnownTime();
+    if (seen != null && auth.now().isBefore(seen)) return null;
+    return PosStaffResumeOffer(
+      staffId: r.userId,
+      name: r.userName,
+      signedInAt: r.signedInAt,
+      until: r.until,
+    );
+  }
+
+  /// "Davom etish" pressed: the kept staff member goes on without a PIN, restricted ([resumePermissions], finish-only),
+  /// until the server answers, a PIN login, a sign-out or the end of the 12 h. `false`: not offered ([resumeOffer]).
+  bool resumeStaff() {
+    if (resumeOffer == null) return false;
+    return auth.resumeStaff(
+      allowedPermissions: resumePermissions,
+      notBefore: _lastKnownTime(),
+    );
+  }
+
   /// Oxirgi yuklangan bootstrap (xodim kirmagan yoki hali yuklanmagan — `null`).
   PosBootstrap? get bootstrap =>
       auth.staff == null ? null : bootstrapRepository.current;
@@ -99,7 +170,8 @@ class PosSession {
       !can(permission) && PosPermissions.approvable.contains(permission);
 
   /// Terminalni uzish faqat menejer va egaga (`devices.manage`).
-  bool get canUnpair => can(PosPermissions.devicesManage);
+  /// M5 S6-a: never by a staff member resumed without a PIN.
+  bool get canUnpair => !staffResumed && can(PosPermissions.devicesManage);
 
   /// Shu terminalda ochiq smena (bootstrap'dan yoki [updateShift] dan).
   PosShiftSummary? get shift => _shiftOverridden ? _shift : bootstrap?.shift;
@@ -138,9 +210,15 @@ class PosSession {
   }
 
   /// Smena ochildi, yopildi yoki `shift.changed` dan keyin qayta so'raldi.
+  ///
+  /// M5 S6: the till's offline copy of the shift follows ([shiftChanged]); a shift that was open and is now gone
+  /// (closed) ends what is kept for a restart ([AuthSession.forgetResumableStaff]).
   void updateShift(PosShiftSummary? shift) {
+    final bool closed = shift == null && this.shift != null;
     _shift = shift;
     _shiftOverridden = true;
+    shiftChanged?.call(shift);
+    if (closed) auth.forgetResumableStaff();
     _emit();
   }
 
@@ -179,6 +257,26 @@ class PosSession {
 
   Future<void> dispose() async {
     await _authSub.cancel();
+    await _contactSub?.cancel();
     await _changes.close();
   }
+}
+
+/// M5 S6-a: who may go on without a PIN after the app restarted during an outage ([PosSession.resumeOffer]).
+class PosStaffResumeOffer {
+  const PosStaffResumeOffer({
+    required this.staffId,
+    required this.name,
+    required this.signedInAt,
+    required this.until,
+  });
+
+  final int staffId;
+  final String name;
+
+  /// When this staff member entered the PIN on this till (device clock, UTC).
+  final DateTime signedInAt;
+
+  /// The last moment (12 h after the PIN login).
+  final DateTime until;
 }

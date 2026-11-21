@@ -259,6 +259,12 @@ class _TerminalHomeState extends State<TerminalHome> {
           'idle' => "Ekranga uzoq tegilmagani uchun ekran qulflandi. Davom etish uchun PIN tering.",
           'expired' ||
           'unauthorized' => 'Sessiya tugadi. PIN bilan qayta kiring.',
+          // M5 S6-a: the PIN-less continuation after a restart is over
+          'resume_ended' =>
+            "Internet tiklandi: PIN'siz davom etish tugadi. PIN bilan kiring.",
+          'resume_expired' => "PIN'siz davom etish muddati tugadi (PIN bilan kirilganidan 12 soat). PIN bilan kiring.",
+          // M5 S6 (review 1 M2): the device clock went back while resumed
+          'resume_clock' => "Qurilma soati orqaga surildi: PIN'siz davom etish to'xtatildi. PIN bilan kiring.",
           _ => null,
         };
       default:
@@ -333,6 +339,7 @@ class _TerminalHomeState extends State<TerminalHome> {
           connectivity: _s.data.connectivity,
           notice: _notice,
           clock: _s.clock,
+          session: _session,
         );
     }
   }

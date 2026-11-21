@@ -239,6 +239,15 @@ class Terminal {
     );
   }
 
+  /// A terminal the test paired itself (S6-b: a fresh till per scenario, so that revoking or editing one never touches
+  /// the seeded tills the other files use).
+  static Terminal adopt(
+    String label,
+    StackConfig config,
+    RizqimClient client,
+    PosData pos,
+  ) => Terminal._(label, config, client, pos);
+
   PosBootstrap get bootstrap => pos.session.bootstrap!;
 
   /// The staff member types the PIN, then the app loads its bootstrap.

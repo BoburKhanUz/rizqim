@@ -201,6 +201,66 @@ Section 9 is a short note of what a "whole day" answer would change later; it ha
   and taking payment (no new orders, no discount). No PIN hash is stored. The server's own check is unchanged (it
   already attributes by `staff_id` and the sign-in audit). The exposure equals an unlocked till, which limited mode
   already is (POS_SPEC 5.4: no auto-lock offline).
+  *As built (S6-a, 21.11.2026).* Kept: secure-storage key `rizqim.pos.staff_resume.v1` = `{v: 1, staff_id, name,
+  permissions, signed_in_at}` (rizqim_api `StaffResumeRecord`, written at every successful PIN login on a till with the
+  offline mode; no PIN, hash or token). Deleted on every sign-out (screen lock, shift end, 401 on the staff token, token
+  expiry), unpair, forget, terminal 401, a new pairing, the end of the mode, and when unusable. Offered
+  (`PosSession.resumeOffer`) only when: the kept bootstrap said `offline.staff_resume: true`, the last request failed
+  (the PIN keypad reports its failed staff list), nobody is signed in, and `signed_in_at <= now <= signed_in_at + 12 h`
+  by a device clock that is not behind the till's last server contact or newest queued operation (a PIN login in the
+  future or a clock set back: the record is dropped). Resumed (`PosSession.resumeStaff`): no staff token (none is sent
+  on this run), permissions cut to `orders.view`, `orders.manage`, `pos.take_payment`, `menu.view` (no discount, void,
+  cancel, refund, shift, cash movement, reprint, unpairing), and finish-only: no new order, round or void, discount
+  refused; the bill, the pre-check, the payment and the close go through. Every queued operation carries
+  `staff_continued: true, staff_resumed: true`. It ends at the first server answer (`PosConnectivity` online: signed out,
+  record deleted, PIN keypad with "Internet tiklandi"), at a PIN login, a sign-out, or when the 12 h are over (signed
+  out, `resume_expired`). Server (`ContinuedStaff`): bootstrap `offline.staff_resume: true`; the order's informational
+  `staff_continued` sync flag (once, plus one per `bill.pay` with its `payments`), the X/Z report's `continued:
+  {count, amount}`, `staff_continued: bool` on the sync-error rows. The 36 h staff check is unchanged.
+  *As built (S6 fixes F-till, 21.11.2026; supersedes the deletion and end rules above).* The record is deleted only at
+  a PIN login (replaced by the new one), a sign-out the server hears (`DELETE` of the staff session answered, or 401),
+  the 12 h end, the end of the shift (`PosSession.updateShift` from an open shift to none:
+  `AuthSession.forgetResumableStaff`), unpair, forget, terminal 401, a new pairing, staff 401, a clock found set back,
+  and when unusable. A lock, a sign-out or the idle lock while the server is out of reach keeps it, so the PIN keypad
+  offers "Davom etish" again (also to a PIN-signed staff member who locked during the outage). The first server answer
+  (any answer: a 502 or a captive portal counts) sends a resumed staff member to the PIN keypad (`resume_ended`) but
+  keeps the record: when the link is found gone again before a PIN login, the offer is back. While resumed, every look
+  at the staff member (`AuthSession.staff` / `staffResumed`, read before each action and each queued operation) ends
+  the resume when the device clock is behind the highest time seen this run or the `notBefore` of the resume
+  (`resume_clock`, record deleted), or when the 12 h are over by the device clock or by a monotonic stopwatch
+  (`AuthSession.monotonic`) that counts from the resume what the device clock left of the 12 h then. The payment and
+  the close that follows it are one action: who acts is read once at its start (`PosOffline._acting`), the end never
+  falls between them. The open shift has its own small copy on the till (`PosOffline.rememberShift`, doc `shift`),
+  written at every shift change and every server bootstrap, also while operations are queued (the bootstrap copy is
+  not), and read back into the stored bootstrap after a restart: the shift opened after the PIN login is known. Safety
+  net: a resumed staff member with no known shift still takes the payment; `bill.pay` is queued without `shift_uuid`
+  and the server takes the till's current shift (`PosSyncApplier::openShiftOf`). The rule for the 12 h end is in ONE
+  place, `AuthSession._resumeWindowOver`.
+  *As built (owner decision Q1, 21.11.2026: option 2; supersedes "the 12 h end" above).* Past the 12 h, while still
+  offline, the resumed staff member STAYS resumed in a "past the window" state (`AuthSession.staffResumeWindowOver`,
+  `PosSession.staffResumeWindowOver`) when the server records the mark: bootstrap `offline.staff_window_over: true`
+  (pos_data `PosOfflineSettings.staffWindowOver`, bound to `AuthSession.resumePastWindow`). Only the payment and the
+  close of open orders are allowed, plus the bill an open order needs before it can be paid (`bill.create`; our
+  reading of "take payment and close open orders": without it an unbilled open table could not be paid, and a bill
+  only states what is already on the order). Everything else (new order, round, void, discount, send to the kitchen,
+  course send, weight, served, bill request, kitchen actions) is refused with reason `staff_window_over` and an Uzbek
+  message, in `PosOffline._guard` (`finishing:` only for pay and bill) and again in `PosOffline._enqueue` (only
+  `bill.create`, `bill.pay`, `order.close` are queued). Each operation queued past the window carries
+  `staff_window_over: true` besides `staff_continued`/`staff_resumed`; who acts and the mark are read once per
+  pay+close action (`_acting`), so a payment begun inside the window and its close stay unmarked together. The banner
+  says the 12 h are over and only payment and closing are left (and that these payments go to the manager). The
+  device clock set back still ends it at once (`resume_clock`, record deleted); so do the first server answer
+  (`resume_ended`, record kept as above), a PIN login, a sign-out the server hears, the shift's end and the terminal's
+  end. The past-the-window state is in memory only: a lock or the idle lock on the same run offers "Davom etish" again
+  (still past the window), an app restart past the 12 h offers nothing. Server (`PosSyncApplier::apply`,
+  `ContinuedStaff::pastWindow`): a `bill.pay` with the mark that passed the 36 h staff check is recorded the way of a
+  payment whose staff check failed (`staffUnverified()`: onto its open bill, else unallocated), status `conflict`,
+  reason `staff_unverified`, flag reason `staff_window_over`, audit `pos.offline_payment_staff_unverified`, the person
+  attributed as usual: never rejected, never dropped. The mark only narrows (a till that leaves it out is no worse
+  than before). `bill.create` and `order.close` are applied as today. The order still gets the `staff_continued` flag
+  (with `window_over: true`) and the payment is in the X/Z `continued` count. A server without
+  `offline.staff_window_over` (S6-a as first shipped) would apply such a payment silently, so the till keeps the old
+  hard end (`resume_expired`) for it.
 
 Rejected: raising the limits to 48-72 h (not asked for; section 9); making the limits a per-store setting (one more
 owner setting to audit, no pilot need); offline PIN verification with hashes on the device (deliberately absent today,
@@ -654,6 +714,27 @@ Scenarios, each as a `pos_data` test against the fake backend and, where marked 
    request with a new header.
 10. Vector tests shared by PHP and Dart: discount rounding, HMAC chain.
 
+**Where each scenario lives (as built, S6-b).** `pos_data` files are in `pos/packages/pos_data/test`, `pos_sync` in
+`pos/packages/pos_sync/test`, PHP in `backend/tests`, the real stack in `e2e/pos/test`. "Fully" means the scenario as
+worded is proved at that level; nothing is duplicated, a row names the test that proves each part.
+
+| # | Fake backend (Dart) | Server (PHP) | Real stack (`scripts/pos-e2e.sh`) |
+|---|---|---|---|
+| 1 | `m5_s2_discount_test.dart`: "scenario 1: a cashier gives 10 % offline ..." (open, round, discount follows the round, bill, cash, close, sync; the till's total is the server's to the tiyin, `offline_discount` flag in refs) | `Feature/PosSync/PosSyncOfflineDiscountTest::test_an_offline_discount_is_applied_audited_and_the_bill_matches_the_tills` (both audit rows) | `offline_scenarios_test.dart`: "scenario 1 ..." (sync request read from the `signed` text, order, bill and payment equal the till's, one fiscal receipt, `pos.order.discount` and `pos.offline_discount` rows in the owner's audit log) |
+| 2 | `m5_s1_test.dart`: "bug 1: ... after 25 h without contact a new order is refused; a round, the bill, a cash payment and the close ... work"; `pos_sync` `limits_test.dart`: "M5 bug 1: the 24-hour limits stop only OPENING a new order" | - | - |
+| 3 | `m5_s1_test.dart`: "bug 4 on the till: a payment taken 37 h after the PIN login ..."; `m5_s1_fix_test.dart` (12 h, no PIN) | `PosSyncStaffUnverifiedTest::test_a_payment_37_hours_after_the_pin_login_is_recorded_as_staff_unverified` (moves the server clock 37 h), `PosSyncStaffUnverifiedSettleTest` | `offline_scenarios_test.dart`: "scenario 3 ..." (the server clock cannot be moved on the stack, so the stack proves the same check for a cashier with no PIN session on the till inside the 36 h window: payment conflict `staff_unverified`, bill paid, order closed, audit `pos.offline_payment_staff_unverified`) |
+| 4 | `m5_s2_discount_test.dart`: "scenario 4a ..." and "scenario 4b ..." | `PosSyncOfflineDiscountTest::test_a_refused_discount_is_rejected_and_the_bill_and_the_payment_are_still_taken` | - |
+| 5 | `pos_sync` `journal_damage_test.dart`: "two good operations written after a failed append survive a restart", "a flipped byte in a middle line: the later lines survive" | - | - |
+| 6 | `m5_s6_scenarios_test.dart`: "scenario 6 ..." (5 queued, 401, every op still on the disk, the file holds all 5 and verifies under the key); `m5_s1_test.dart` "bug 2: a 401 on the terminal token"; `pos_sync` `export_test.dart` | `PosSyncImportTest::test_a_file_is_applied_as_its_till_and_audited`, `test_the_same_file_twice_changes_nothing`; `SyncExportVectorsTest` | `offline_scenarios_test.dart`: "scenario 6 ..." (5 ops queued, owner disconnects the till, 401, nothing deleted, the till is paired again and writes the file, the owner imports it, second import changes nothing) |
+| 7 | `m5_s6_scenarios_test.dart`: "scenario 7 ..." (amount changed, CRC fixed: `bad`, observe applies, enforce `payment_unverified`; a removed line: `chain_gap`); `m5_s3_fix_test.dart` chain tests | `PosSyncSignatureTest::test_a_line_edited_by_hand_is_bad_and_in_observe_mode_still_applied`, `test_a_removed_line_is_a_chain_gap_...`; `PosSyncSignatureEnforceTest` | `offline_scenarios_test.dart`: "scenario 7 ..." (three tests: observe, enforce, removed line; the owner switches enforce on and back) |
+| 8 | `pos_sync` `mirror_storage_test.dart`: "restoring on start: a lost journal gets back every verified operation from the copy" (queue and chain intact), `mirror_review_fix_test.dart` | - | - |
+| 9 | - | `PosReleases/PosReleaseRouteInventoryTest` (no 426 on any till route; a whole sale below the minimum: shift, bill, payment, refund, close, sync), `PosReleaseTerminalTest` (pairing 426, `devices.app_version` follows the header) | - |
+| 10 | `m5_s2_discount_test.dart` "shared vectors", `pos_sync` `signature_test.dart` "the shared vectors", `export_test.dart` "vector file" | `OfflineDiscountVectorsTest`, `Unit/PosSync/SyncSignatureVectorsTest`, `SyncExportVectorsTest` | - |
+
+Notes. Scenario 1 does not wait three hours: the length of the outage changes nothing the till computes (the 24 h
+limits have their own scenario 2). The real-stack file pairs a till of its own per scenario (the owner's pairing-code
+route lets 5 through a minute, so the file waits for the limit once) and never touches the seeded tills.
+
 ### 7.2 Risks, ranked
 
 1. **A till updates before the server** and sends `order.discount` or a signed envelope the server does not know:
@@ -706,6 +787,10 @@ All nine as recommended, with these additions:
 2. Shared secret per till (HMAC-SHA256), no new library.
 3. Yes: continue as the last staff member, at most 12 h, only closing open tables and taking payment. Such operations
    are marked "PIN'siz davom etilgan" in reports.
+   Owner decision Q1 (21.11.2026, answer "2"): after the 12 h, while still offline, the resumed member may still take
+   payment and close open orders (nothing else); those operations are marked and the server records the payments as
+   `staff_unverified` conflicts for the manager (never rejected, never dropped). A clock moved back still ends it. As
+   built: section 2, "App restart during an outage".
 4. Record and warn first; later refuse per store setting. Payments are never dropped.
 5. Warn + second confirmation; the data stays on the till and can be exported to a file.
 6. Create the real Android signing key NOW (no live store or installed till yet, so switching costs nothing today),

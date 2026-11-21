@@ -568,7 +568,16 @@ class FakeSyncBackend {
     final String? orderUuid = ref == null ? null : (uuids[ref] ?? ref);
     // M5 S1 (as PosSyncApplier): a failed staff check rejects the operation, except money, which is never rejected
     // (flagged `staff_unverified`), and the close of an order such a payment paid in full
-    final (String, String)? failed = _staffCheck(type, staff, op);
+    // Owner decision Q1 (as PosSyncApplier): a payment marked past the 12 h (`staff_window_over`) passed the staff
+    // check but goes the same way (a `staff_unverified` conflict, settled on its open bill); its close is applied
+    final (String, String)? failed =
+        _staffCheck(type, staff, op) ??
+        (type == 'bill.pay' && p['staff_window_over'] == true
+            ? (
+                'staff_window_over',
+                "PIN'siz davom etilgan, PIN bilan kirilganiga 12 soatdan oshgan.",
+              )
+            : null);
     if (failed != null) {
       final (String why, String text) = failed;
       // The staff id is only a claim: the row names a person only when they are known to have signed in on this till

@@ -129,6 +129,15 @@ class ShiftReportBody extends StatelessWidget {
               muted: t.label.startsWith('  '),
             ),
         ],
+        // S6: payments a staff member took after going on without a PIN during an outage (owner answer: marked in reports)
+        if (v.continued.count > 0) ...<Widget>[
+          title("PIN'siz davom etilgan"),
+          AmountRow(
+            key: const ValueKey<String>('x-continued'),
+            label: "To'lovlar (${v.continued.count})",
+            amount: v.continued.amount,
+          ),
+        ],
         title('Avans va nasiya'),
         AmountRow(label: 'Olingan avanslar', amount: v.depositsTaken),
         AmountRow(label: 'Sotuvda ayirilgan avans', amount: v.depositsApplied),

@@ -120,6 +120,22 @@ describe('the Z report', () => {
     expect(calls.some((call) => call.url.includes('x-report'))).toBe(false);
   });
 
+  it("shows \"PIN'siz davom etilgan\" (count and amount) only when there were some", async () => {
+    const withContinued = await openZ({ [`GET /api/v1/pos/shifts/${Z.uuid}`]: () => ok({ ...Z, summary: report({ continued: { count: 3, amount: '120000.00' } }) }) });
+    expect(within(withContinued.article).getByText("PIN'siz davom etilgan")).toBeInTheDocument();
+    expect(within(withContinued.article).getByText("120 000 so'm (3)")).toBeInTheDocument();
+  });
+
+  it("leaves the PIN'siz davom etilgan line out at 0 and for an old Z report without the key", async () => {
+    const zero = await openZ({ [`GET /api/v1/pos/shifts/${Z.uuid}`]: () => ok({ ...Z, summary: report({ continued: { count: 0, amount: '0.00' } }) }) });
+    expect(within(zero.article).queryByText("PIN'siz davom etilgan")).not.toBeInTheDocument();
+  });
+
+  it("leaves the PIN'siz davom etilgan line out when the report has no such key", async () => {
+    const old = await openZ();
+    expect(within(old.article).queryByText("PIN'siz davom etilgan")).not.toBeInTheDocument();
+  });
+
   it('shows "no difference" and "over" in words too', async () => {
     const { article, typing } = await openZ({ [`GET /api/v1/pos/shifts/${Z.uuid}`]: () => ok({ ...Z, difference: '0.00', summary: report() }) });
     expect(within(article).getByText("Farq yo'q")).toBeInTheDocument();

@@ -264,6 +264,27 @@ describe('SyncTab', () => {
     await waitFor(() => expect(callsTo('GET', '/pos/sync-errors').at(-1)?.query.get('status')).toBe('rejected'));
   });
 
+  it("marks a row queued without a PIN with a small \"PIN'siz\" badge, and only that row", async () => {
+    mockFetch({
+      ...ME(['devices.view', 'stores.manage']),
+      'GET /pos/sync-errors': () => ok(page([syncRow({ staff_continued: true, message: 'Pul yozildi' }), syncRow({ op_id: 'op2', staff_continued: false, message: 'Boshqa' }), syncRow({ op_id: 'op3', message: 'Eski server' })])),
+      [`GET /pos/sync-errors/${OP}`]: () => ok(syncCard({ staff_continued: true })),
+    });
+    renderPage(<SyncTab selected={null} onSelect={() => {}} />);
+
+    const list = await screen.findByRole('list', { name: "Sinxron xatolari ro'yxati" });
+    expect(within(list).getAllByText("PIN'siz")).toHaveLength(1);
+  });
+
+  it("shows the \"PIN'siz\" badge on the card of such an operation", async () => {
+    mockFetch({
+      ...ME(['devices.view', 'stores.manage']),
+      [`GET /pos/sync-errors/${OP}`]: () => ok(syncCard({ staff_continued: true })),
+    });
+    renderPage(<SyncTab selected={OP} onSelect={() => {}} />);
+    expect(await screen.findByText("PIN'siz")).toBeInTheDocument();
+  });
+
   it('resolves an error from its card', async () => {
     const { callsTo } = mockFetch({
       ...ME(['devices.view', 'stores.manage']),

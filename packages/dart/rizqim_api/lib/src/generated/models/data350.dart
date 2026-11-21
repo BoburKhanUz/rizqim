@@ -23,6 +23,7 @@ class Data350 {
     required this.reason,
     required this.message,
     required this.sigStatus,
+    required this.staffContinued,
     required this.staff,
     required this.device,
     required this.originDevice,
@@ -53,6 +54,8 @@ class Data350 {
   final String? message;
   @JsonKey(name: 'sig_status')
   final String? sigStatus;
+  @JsonKey(name: 'staff_continued')
+  final bool staffContinued;
   final Staff28? staff;
   final Device23? device;
   @JsonKey(name: 'origin_device')

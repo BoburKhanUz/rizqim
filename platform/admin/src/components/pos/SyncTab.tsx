@@ -84,6 +84,7 @@ function SyncListRow({ row, onSelect }: { row: SyncRow; onSelect: () => void }) 
                 {row.type_label} · {row.store?.name ?? '—'}
               </span>
               <Pill tone={SYNC_TONE[row.status] ?? 'neutral'}>{t(row.status === 'rejected' ? 'pos_sync_rejectedOne' : 'pos_sync_conflictOne')}</Pill>
+              {row.staff_continued && <Pill tone="neutral">{t('pos_sync_continued')}</Pill>}
               {row.resolution && <Pill tone="success">{t(row.resolution === 'resolved' ? 'pos_sync_resolvedOne' : 'pos_sync_dismissedOne')}</Pill>}
             </span>
             {row.message && <span className="break-words text-footnote text-fg">{row.message}</span>}
@@ -123,6 +124,7 @@ function SyncCardView({ opId, onBack }: { opId: string; onBack: () => void }) {
             {op.type_label} · {op.store?.name ?? '—'}
           </h2>
           <Pill tone={SYNC_TONE[op.status] ?? 'neutral'}>{t(op.status === 'rejected' ? 'pos_sync_rejectedOne' : 'pos_sync_conflictOne')}</Pill>
+          {op.staff_continued && <Pill tone="neutral">{t('pos_sync_continued')}</Pill>}
           {op.resolution && <Pill tone="success">{t(op.resolution === 'resolved' ? 'pos_sync_resolvedOne' : 'pos_sync_dismissedOne')}</Pill>}
         </div>
         {op.message && <p className="mb-3 break-words text-body text-fg">{op.message}</p>}

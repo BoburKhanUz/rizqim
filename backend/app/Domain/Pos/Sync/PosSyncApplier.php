@@ -203,6 +203,13 @@ final class PosSyncApplier
 
                 return $closed;
             }
+            if ($type->isMoney() && ContinuedStaff::pastWindow($payload)) {
+                // Owner decision Q1 (21.11.2026, option 2): money taken by a staff member resumed without a PIN after
+                // the 12 h since their PIN login (`staff_window_over`) passed the staff check above, but is the
+                // manager's to confirm: recorded the way of a payment whose staff check failed (onto its open bill,
+                // else unallocated), a `staff_unverified` conflict. The mark only narrows: never rejected or dropped
+                return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, new PosSyncException(ContinuedStaff::WINDOW_OVER, "PIN'siz davom etilgan, PIN bilan kirilganiga 12 soatdan oshgan."));
+            }
         } catch (PosSyncException $e) {
             // Wave M4 T-1: the row links only a user of this store (the error list shows the linked user's name); an id
             // of anybody else stays only in what the till sent
@@ -234,6 +241,14 @@ final class PosSyncApplier
             return DB::transaction(function () use ($acting, $type, $staff, $keyed, $happenedAt, $clamped, $base, $suspect, &$bills) {
                 $outcome = $this->run($acting, $type, $staff, $keyed, $happenedAt, $base);
                 $bills = $outcome['bills'] ?? [];
+                // Wave M5 S6-a: queued by a staff member who went on without a PIN: "PIN'siz davom etilgan" on the
+                // order (informational; the staff check above did not change)
+                $continued = ($outcome['order'] ?? null) instanceof Order
+                    ? ContinuedStaff::flag($outcome['order'], $keyed, (int) $staff->id, $outcome['new_payments'] ?? [])
+                    : null;
+                if ($continued !== null) {
+                    $outcome['flags'] = [...($outcome['flags'] ?? []), $continued];
+                }
                 if ($suspect !== null) {
                     $outcome = self::suspected($outcome, $suspect);
                 }
@@ -396,6 +411,12 @@ final class PosSyncApplier
                     ...($outcome['flags'] ?? []),
                     ...($clamped !== null ? [$clamped] : []),
                 ];
+                // Wave M5 S6-a: a marked payment that failed the staff check is still "PIN'siz davom etilgan" in the
+                // X/Z report (refunded ones stay counted as for any other: ContinuedStaff::ofShift)
+                $continued = ContinuedStaff::flag($order, $payload, $attributed?->id, $created->pluck('uuid')->all());
+                if ($continued !== null) {
+                    $flags[] = $continued;
+                }
                 $this->audit->record($signature !== null ? 'pos.offline_payment_unverified' : 'pos.offline_payment_staff_unverified', $order, [], [], $unverified + [
                     'amount' => $amount,
                     'reason' => $e->reason,
@@ -616,7 +637,7 @@ final class PosSyncApplier
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base  the operation's row so far (op_id, the device's time as sent)
-     * @return array{status?: PosSyncStatus, reason?: ?string, error?: ?string, result: array<string, mixed>, order?: ?Order, bills?: list<OrderBill>, flags?: list<array<string, mixed>>}
+     * @return array{status?: PosSyncStatus, reason?: ?string, error?: ?string, result: array<string, mixed>, order?: ?Order, bills?: list<OrderBill>, new_payments?: list<string>, flags?: list<array<string, mixed>>}
      */
     private function run(Device $device, PosSyncOperationType $type, User $staff, array $payload, ?Carbon $occurredAt, array $base = []): array
     {
@@ -1161,6 +1182,8 @@ final class PosSyncApplier
             $paidAt = $shift->opened_at->copy();
         }
         $tipStaff = isset($payload['tip_staff_id']) && is_numeric($payload['tip_staff_id']) ? (int) $payload['tip_staff_id'] : null;
+        // Wave M5 S6-a: which payments this operation takes (ContinuedStaff counts them for the shift report)
+        $known = Payment::where('bill_id', $bill->id)->pluck('uuid')->all();
         $tillWaiter = isset($payload['waiter_id']) && is_numeric($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
         $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt, $tipStaff, offlineWaiterId: $tillWaiter, staffUnverified: $staffUnverified, attributed: $attributed);
         $paymentUuids = Payment::where('bill_id', $bill->id)->where('offline_paid_at', '!=', null)->orderBy('id')->pluck('uuid')->all();
@@ -1169,7 +1192,7 @@ final class PosSyncApplier
             'bill_uuid' => $bill->uuid,
             'payments' => $paymentUuids,
             'fiscal_status' => $bill->getAttribute('fiscal_status'),
-        ]) + ['bills' => [$bill]];
+        ]) + ['bills' => [$bill], 'new_payments' => Payment::where('bill_id', $bill->id)->whereNotIn('uuid', $known)->orderBy('id')->pluck('uuid')->map(fn ($uuid) => (string) $uuid)->all()];
     }
 
     /**
@@ -1226,7 +1249,7 @@ final class PosSyncApplier
 
         $staffUnverified = $unverified !== null;
 
-        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message, $staffUnverified, $unverified) {
+        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message, $staffUnverified, $unverified, $payload) {
             // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
             $shift = $shift !== null ? PosShift::lockForMoney((int) $shift->id) : null;
@@ -1276,6 +1299,11 @@ final class PosSyncApplier
             $flags = [['flag' => $flag, 'amount' => $amount->toString(), 'reason' => $reason, 'message' => $message]];
             if ($staffUnverified && $canceled) {
                 $flags[] = ['flag' => 'refund_needed', 'amount' => $amount->toString(), 'reason' => 'order_closed', 'message' => 'Buyurtma serverda bekor qilingan.'];
+            }
+            // Wave M5 S6-a: the report's `continued` counts it (see staffUnverified())
+            $continued = ContinuedStaff::flag($order, $payload, $staff?->id, array_map(fn (Payment $payment) => (string) $payment->uuid, $created));
+            if ($continued !== null) {
+                $flags[] = $continued;
             }
             $this->flag($order, $flags, (string) $base['op_id']);
 

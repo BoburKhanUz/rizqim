@@ -22131,6 +22131,8 @@ export interface operations {
                                 status: string;
                                 reason: string | null;
                                 message: string | null;
+                                sig_status: string | null;
+                                staff_continued: boolean;
                                 store: {
                                     id: number;
                                     name: string;
@@ -57653,6 +57655,10 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                continued?: {
+                                    count: number;
+                                    amount: string;
+                                };
                                 voids: {
                                     count: number;
                                     amount: string;
@@ -57880,6 +57886,10 @@ export interface operations {
                                             count: number;
                                             amount: string;
                                         };
+                                    };
+                                    continued?: {
+                                        count: number;
+                                        amount: string;
                                     };
                                     voids: {
                                         count: number;
@@ -58150,6 +58160,10 @@ export interface operations {
                                         count: number;
                                         amount: string;
                                     };
+                                };
+                                continued?: {
+                                    count: number;
+                                    amount: string;
                                 };
                                 voids: {
                                     count: number;
@@ -58703,6 +58717,10 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                continued?: {
+                                    count: number;
+                                    amount: string;
+                                };
                                 voids: {
                                     count: number;
                                     amount: string;
@@ -59028,6 +59046,10 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                continued?: {
+                                    count: number;
+                                    amount: string;
+                                };
                                 voids: {
                                     count: number;
                                     amount: string;
@@ -59316,6 +59338,7 @@ export interface operations {
                                 reason: string | null;
                                 message: string | null;
                                 sig_status: string | null;
+                                staff_continued: boolean;
                                 staff: {
                                     id: number;
                                     name: string | null;
@@ -59414,6 +59437,7 @@ export interface operations {
                             reason: string | null;
                             message: string | null;
                             sig_status: string | null;
+                            staff_continued: boolean;
                             staff: {
                                 id: number;
                                 name: string | null;
@@ -59510,6 +59534,7 @@ export interface operations {
                                 reason: string | null;
                                 message: string | null;
                                 sig_status: string | null;
+                                staff_continued: boolean;
                                 staff: {
                                     id: number;
                                     name: string | null;

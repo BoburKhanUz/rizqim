@@ -25540,6 +25540,15 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "sig_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "staff_continued": {
+                                                                "type": "boolean"
+                                                            },
                                                             "store": {
                                                                 "type": [
                                                                     "object",
@@ -25705,6 +25714,8 @@
                                                             "status",
                                                             "reason",
                                                             "message",
+                                                            "sig_status",
+                                                            "staff_continued",
                                                             "store",
                                                             "device",
                                                             "staff",
@@ -155642,6 +155653,21 @@
                                                                 "amount"
                                                             ]
                                                         },
+                                                        "continued": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "amount": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "count",
+                                                                "amount"
+                                                            ]
+                                                        },
                                                         "voids": {
                                                             "type": "object",
                                                             "properties": {
@@ -156644,6 +156670,21 @@
                                                                                     "count",
                                                                                     "amount"
                                                                                 ]
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "count",
+                                                                            "amount"
+                                                                        ]
+                                                                    },
+                                                                    "continued": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "count": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "amount": {
+                                                                                "type": "string"
                                                                             }
                                                                         },
                                                                         "required": [
@@ -157715,6 +157756,21 @@
                                                                         "count",
                                                                         "amount"
                                                                     ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "count",
+                                                                "amount"
+                                                            ]
+                                                        },
+                                                        "continued": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "amount": {
+                                                                    "type": "string"
                                                                 }
                                                             },
                                                             "required": [
@@ -160108,6 +160164,21 @@
                                                                 "amount"
                                                             ]
                                                         },
+                                                        "continued": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "amount": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "count",
+                                                                "amount"
+                                                            ]
+                                                        },
                                                         "voids": {
                                                             "type": "object",
                                                             "properties": {
@@ -161572,6 +161643,21 @@
                                                                 "amount"
                                                             ]
                                                         },
+                                                        "continued": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "amount": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "count",
+                                                                "amount"
+                                                            ]
+                                                        },
                                                         "voids": {
                                                             "type": "object",
                                                             "properties": {
@@ -162682,6 +162768,9 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "staff_continued": {
+                                                                "type": "boolean"
+                                                            },
                                                             "staff": {
                                                                 "type": [
                                                                     "object",
@@ -162865,6 +162954,7 @@
                                                             "reason",
                                                             "message",
                                                             "sig_status",
+                                                            "staff_continued",
                                                             "staff",
                                                             "device",
                                                             "origin_device",
@@ -163044,6 +163134,9 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "staff_continued": {
+                                                    "type": "boolean"
                                                 },
                                                 "staff": {
                                                     "type": [
@@ -163228,6 +163321,7 @@
                                                 "reason",
                                                 "message",
                                                 "sig_status",
+                                                "staff_continued",
                                                 "staff",
                                                 "device",
                                                 "origin_device",
@@ -163415,6 +163509,9 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "staff_continued": {
+                                                                "type": "boolean"
+                                                            },
                                                             "staff": {
                                                                 "type": [
                                                                     "object",
@@ -163598,6 +163695,7 @@
                                                             "reason",
                                                             "message",
                                                             "sig_status",
+                                                            "staff_continued",
                                                             "staff",
                                                             "device",
                                                             "origin_device",

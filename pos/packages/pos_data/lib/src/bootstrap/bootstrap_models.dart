@@ -696,6 +696,18 @@ class PosShiftSummary {
   final String? deviceId;
 
   bool get isOpen => status == 'open';
+
+  /// The bootstrap `shift` shape ([PosShiftSummary.fromJson] reads it back). M5 S6: the till's offline copy of the
+  /// open shift (`PosOffline.rememberShift`).
+  Map<String, Object?> toJson() => <String, Object?>{
+    'uuid': uuid,
+    'status': status,
+    'business_date': ?businessDate,
+    'opened_at': ?openedAt?.toUtc().toIso8601String(),
+    'opened_by': ?openedBy,
+    'opening_cash': openingCash.toApiString(),
+    'device_id': ?deviceId,
+  };
 }
 
 /// `entitlements` bloki (yo'q yoki o'qib bo'lmasa — `null`: bootstrapni yiqitmaydi, ekranlar ochiq qoladi).

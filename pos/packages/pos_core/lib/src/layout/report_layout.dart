@@ -64,6 +64,13 @@ PrintLayout layoutShiftReport(ShiftReport r, PaperWidth paper) {
     }
   }
 
+  final ReportAmount? continued = r.continued;
+  if (continued != null && (continued.count ?? 0) > 0) {
+    // S6: payments taken by a staff member who went on without a PIN during an outage
+    section("PIN'SIZ DAVOM ETILGAN");
+    amount("To'lovlar", continued.amount, count: continued.count);
+  }
+
   if (r.vouchers.isNotEmpty) {
     // P6-43: a certificate sold is an advance (not a sale); redeemed is the prepaid part of the sale receipts
     section('SERTIFIKATLAR');

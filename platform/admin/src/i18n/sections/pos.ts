@@ -385,6 +385,8 @@ export const pos = defineSection({
     pos_sync_conflictOne: 'Farq bilan qabul qilindi',
     pos_sync_resolvedOne: 'Hal qilindi',
     pos_sync_dismissedOne: 'Yopilgan',
+    // Wave M5 S6: the operation was queued by a staff member who went on without a PIN ("PIN'siz davom etilgan")
+    pos_sync_continued: "PIN'siz",
     pos_sync_listLabel: "Sinxron xatolari ro'yxati",
     pos_sync_empty: "Sinxron xatosi yo'q",
     pos_sync_emptyText: "Hamma oflayn amallar to'g'ri qabul qilingan yoki hal qilingan.",

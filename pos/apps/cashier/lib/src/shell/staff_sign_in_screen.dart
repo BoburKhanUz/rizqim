@@ -24,6 +24,7 @@ class StaffSignInScreen extends StatefulWidget {
     this.realtime,
     this.notice,
     this.clock,
+    this.session,
   });
 
   final AuthSession auth;
@@ -34,6 +35,9 @@ class StaffSignInScreen extends StatefulWidget {
   /// Nima uchun bu ekran ochildi (masalan, "Ekranga uzoq tegilmagani uchun chiqildi").
   final String? notice;
   final DateTime Function()? clock;
+
+  /// M5 S6-a: "Davom etish" after an app restart during an outage ([PosSession.resumeOffer]); `null`: never offered.
+  final PosSession? session;
 
   @override
   State<StaffSignInScreen> createState() => _StaffSignInScreenState();
@@ -47,19 +51,35 @@ class _StaffSignInScreenState extends State<StaffSignInScreen> {
   PinFailure? _failure;
   final Map<int, DateTime> _lockedUntil = <int, DateTime>{};
   Timer? _ticker;
+  StreamSubscription<PosConnectivityState>? _contactSub;
+  String? _resumeError;
 
   DateTime _now() => (widget.clock ?? DateTime.now)();
 
   @override
   void initState() {
     super.initState();
+    // M5 S6-a: the offer follows the server's reachability
+    _contactSub = widget.connectivity.changes.listen((_) {
+      if (mounted) setState(() {});
+    });
     unawaited(_load());
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    unawaited(_contactSub?.cancel());
     super.dispose();
+  }
+
+  void _resume() {
+    final bool ok = widget.session?.resumeStaff() ?? false;
+    if (!ok && mounted) {
+      setState(
+        () => _resumeError = "PIN'siz davom etib bo'lmadi: muddat tugagan yoki aloqa qaytgan. PIN bilan kiring.",
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -90,6 +110,8 @@ class _StaffSignInScreenState extends State<StaffSignInScreen> {
         if (staff.length == 1) _selected = staff.single;
       });
     } on ApiException catch (e) {
+      // M5 S6-a: the server is not there (the indicator and "Davom etish" follow it)
+      if (e.isNetworkError) widget.connectivity.reportFailure(e);
       if (!mounted) return;
       setState(() {
         _loadError = e;
@@ -195,7 +217,56 @@ class _StaffSignInScreenState extends State<StaffSignInScreen> {
               text: widget.notice!,
               tone: StatusTone.neutral,
             ),
+          ?_resumeCard(context),
           Expanded(child: _body(context)),
+        ],
+      ),
+    );
+  }
+
+  /// M5 S6-a (owner answer 3): the last staff member may go on without a PIN, only to finish open orders and take
+  /// payment, for at most 12 h after their PIN login.
+  Widget? _resumeCard(BuildContext context) {
+    final PosStaffResumeOffer? offer = widget.session?.resumeOffer;
+    if (offer == null) return null;
+    final RzColors c = context.rz;
+    final DateTime until = offer.until.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return Container(
+      key: const ValueKey<String>('staff-resume'),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(c.warningSoft, c.surface),
+        borderRadius: BorderRadius.circular(RzRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            "Internet yo'q: PIN bilan kirib bo'lmaydi.",
+            style: RzType.headline.copyWith(color: c.warningSoftFg),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "${offer.name} PIN'siz davom etishi mumkin: faqat ochiq buyurtmalarni yakunlash va to'lov olish "
+            "(yangi buyurtma, taom qo'shish va chegirma yo'q). Soat ${two(until.hour)}:${two(until.minute)} gacha "
+            "(PIN bilan kirilganidan 12 soat). Amallar hisobotda \"PIN'siz davom etilgan\" deb belgilanadi.",
+            style: RzType.body.copyWith(color: c.warningSoftFg),
+          ),
+          if (_resumeError != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              _resumeError!,
+              style: RzType.body.copyWith(color: c.dangerSoftFg),
+            ),
+          ],
+          const SizedBox(height: 12),
+          RzButton(
+            label: 'Davom etish: ${offer.name}',
+            icon: Icons.play_arrow_rounded,
+            onPressed: _resume,
+          ),
         ],
       ),
     );
