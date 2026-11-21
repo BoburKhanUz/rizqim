@@ -257,6 +257,8 @@ Muhim:
 
 - Amal paytida aloqa uzilsa, ilova "Aloqa yo'q. Hozircha faqat ko'rish mumkin: aloqa qaytgach amalni takrorlang" deydi. Aloqa qaytgach
   **xuddi shu amalni qayta bosing**: u ikki marta yozilmaydi (aynan o'sha so'rov yuboriladi — oraliqda ekran yangilangan bo'lsa ham).
+- Kassadagi internetsiz rejim va "PIN'siz davom etish" haqida — [Internet uzilsa: qisqa varaq](internet-uzilsa.md).
+- Telefonda ham yangi versiya haqida xabar chiqishi mumkin (**Yangilash** / **Keyinroq**): u ishni to'xtatmaydi.
 - Telefon amallarni keyinga **saqlab qo'ymaydi** (ofitsiant ilovasi internetsiz faqat ko'rish uchun). Yuborilmagan taomni takror kiritishga to'g'ri keladi.
 - "Buyurtmani boshqa qurilma o'zgartirdi. Ro'yxat yangilandi, amalni qayta bajaring" chiqsa, kassir yoki hamkasbingiz shu buyurtmani
   o'zgartirgan. Buyurtmani qayta ko'ring va amalni takrorlang.

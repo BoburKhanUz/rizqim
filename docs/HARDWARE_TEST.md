@@ -1,16 +1,65 @@
-# Haqiqiy uskunada sinash ro'yxati
+# Pilot qurilmalari ro'yxati va haqiqiy uskunada sinash
 
 Phase 6 ("Uskunalar va lokal tarmoq") kodi emulyator va soxta printerlar bilan tekshirilgan, lekin **haqiqiy printer, skaner,
 Sunmi va lokal tarmoq bilan hali sinalmagan**. Shu ro'yxat pilotdan oldin (yoki yangi uskuna sotib olinganda) bir marta
 bajariladi. Har qadam: nima qilish, nimani ko'rish kerak, va `[ ]` — o'tdi/o'tmadi belgisi. O'tmagan qadamni yozib qo'ying
-(pastdagi 14-bo'lim) va `docs/guides/uskunalar.md` dagi "TEKSHIRILMAGAN" belgisini faqat o'tgandan keyin olib tashlang.
+(pastdagi 15-bo'lim) va `docs/guides/uskunalar.md` dagi "TEKSHIRILMAGAN" belgisini faqat o'tgandan keyin olib tashlang.
+
+Bu hujjat ikki qismdan iborat: (1) **pilot qurilmalari** — har turdagi qurilmani sotib olishdan oldin nimani tasdiqlash (pastdagi
+jadval) va (2) **sinov skripti** — 0–14-bo'limlar: qurilmaning o'zida qadamma-qadam. M5 imkoniyatlari (ulash, internetsiz 3 soat,
+internetsiz qayta ishga tushirish va "Davom etish", navbatni faylga saqlash va yuklash, qisqa hisobot, yangilanish xabari) — 14-bo'lim.
+**[HQ]** belgisi: faqat haqiqiy qurilmada tekshiriladi.
 
 Foydalanuvchi uchun qo'llanma — [guides/uskunalar.md](guides/uskunalar.md). Texnik asos — [POS_SPEC.md](POS_SPEC.md) 2.12
 (qurilmalar), 5 (internetsiz ishlash, 5.5 lokal ko'prik) va [PHASE6_PLAN.md](PHASE6_PLAN.md) 8-bo'lim.
 
 > **Eslatma.** Bu hujjatdagi ko'pchilik qadam hali yozilayotgan yoki sinalmagan imkoniyatga tegishli: Bluetooth va Android USB
 > printer, printer qidirish va "Sinov cheki", skaner, D2 ikkinchi ekrani, lokal ko'prik (LAN bridge). Ekrandagi yozuvlar
-> bir oz farq qilishi mumkin — farqni qayd qiling (14-bo'lim), qadamni o'tkazib yubormang.
+> bir oz farq qilishi mumkin — farqni qayd qiling (15-bo'lim), qadamni o'tkazib yubormang.
+
+## Pilot qurilmalari: nima sotib olish va nimani tasdiqlash
+
+Pilotdan oldin har qurilma turi uchun quyidagini **sotuvchidan so'rab emas, qurilmaning o'zida** tasdiqlang. Belgi: **[HQ]** —
+faqat haqiqiy qurilmada tekshiriladi (emulyator, CI yoki soxta printer bilan tekshirib bo'lmaydi). Ilovalarning to'rtalasi ham
+(kassa, ofitsiant, oshxona ekrani, mijoz ekrani) bir xil sinovdan o'tadi.
+
+**Umumiy qoidalar (hamma Android uchun).**
+
+- **Ilova fayli.** Release Android fayllari ikki xil chiqadi: `arm64-v8a` (64 bit, asosiy) va `armeabi-v7a` (32 bit, eski va ba'zi
+  Sunmi-sinfi kassalar uchun). Reyestrda faqat arm64 fayli turadi, 32-bitli qurilma uchun fayl shu papkada alohida
+  ([OPERATIONS.md](OPERATIONS.md) 26-bo'lim). Sotib olishdan oldin **qurilma 64 bitlimi yoki 32 bitlimi** — aniqlang (Sozlamalar →
+  Qurilma haqida → protsessor/"Android versiyasi", yoki sotuvchining texnik varag'i). **[HQ]** Ikkala fayl ham haqiqiy qurilmada o'rnatilib,
+  ishga tushishi kerak: qaysi fayl qaysi qurilmaga mosligini jadvalga yozing.
+- **Android versiyasi.** Eng kam versiya Flutter (CI'da 3.47.5) sozlamasiga bog'liq (`minSdk = flutter.minSdkVersion`); hujjatda aniq
+  raqam yozilmagan. **[HQ]** Ilova qurilmada o'rnatilib ochilishi — yagona ishonchli tekshiruv. Android 12+ da Bluetooth printer uchun
+  **Yaqin atrofdagi qurilmalar** ruxsati kerak; Android 9 va undan eski qurilmalarda zaxira papkasini boshqa ilovalar o'qiy oladi
+  ([OPERATIONS.md](OPERATIONS.md) 25-bo'lim): bunday qurilmaga boshqa ilova o'rnatmang.
+- **Play xizmatlari yo'q.** Ba'zi Sunmi-sinfi kassalarda Google Play yo'q: ilova do'konsiz, `.apk` fayl bilan o'rnatiladi
+  (**pos.rizqim.uz**). Yangilanish ham shu yo'l bilan. **[HQ]**
+- **Xotira.** Kassada kamida bir necha yuz MB bo'sh joy bo'lsin (navbat, zaxira nusxasi va fayllar) — aniq minimum hujjatda yo'q; sinovda
+  "Zaxira" kartasi xato bermasligini tekshiring.
+- **Soat.** Avtomatik vaqt va vaqt zonasi yoqiq. Kassa soati serverdan 5 daqiqadan ko'p farq qilsa ogohlantirish chiqadi.
+- **Quvvat.** Kassa va router uchun UPS (10-bo'lim). Planshet/telefon doim quvvatda.
+
+| Qurilma | Nima sotib olish / tasdiqlash | Minimal talab va izoh | Test bo'limi |
+|---|---|---|---|
+| **Android kassa (Sunmi-sinfi: V2, V2 Pro, D2)** | Ichki 58 mm printer, kassa qutisi porti (RJ11), ichki skaner; D2'da ikkinchi ekran | 32/64 bit va Android versiyasini aniqlang; `arm64-v8a` yoki `armeabi-v7a` faylini tanlang **[HQ]**; Play xizmatlari bo'lmasligi mumkin; ichki printer kod sahifasi (o'zbek harflari) **[HQ]** | 1, 14 |
+| **Android planshet (asosiy kassa — markaz)** | 8-10" ekran, doimiy quvvat, Wi-Fi 5 GHz, USB OTG (USB printer uchun), Bluetooth | 64 bit afzal; markaz bo'lgani uchun uyqu rejimi va quvvat tejash o'chiq; xotira va Wi-Fi barqarorligi **[HQ]** | 2, 3, 7, 8, 14 |
+| **Windows kassa (monoblok yoki kompyuter)** | Windows 10/11 **64 bit** (zip faqat `windows-x64`); USB portlar, ikkinchi monitor chiqishi (mijoz ekrani uchun) | Faqat CI'da yig'ilgan, haqiqiy kompyuterda hali sinalmagan **[HQ]**; uyqu va avtomatik qayta yuklash o'chiq (Faol soatlar); kompyuterda **OneDrive "Hujjatlar" zaxirasi o'chiq** (zaxira papkasi `Hujjatlar\RIZQIM`) | 5, 8, 14 |
+| **Ofitsiant telefoni** | Oddiy Android telefon (har ofitsiantga yoki umumiy), Wi-Fi; quvvat tejash ilova uchun o'chiq | 32/64 bit va Android versiyasi; Xiaomi/Samsung'da fon rejimi va multicast **[HQ]**; ilova internetsiz faqat ko'rish uchun, lokal tarmoq bo'lsa markazga ulanadi | 7, 8, 14 |
+| **Oshxona ekrani (KDS)** | 10" va undan katta planshet yoki monitor, devorga mahkamlanadi, doimiy quvvat | Ekran o'chmasligi; masofadan o'qiladigan shrift **[HQ]**; ilova yangilash xabari — kichik belgi | 4, 8, 12 |
+| **Mijoz ekrani** | Sunmi D2 ikkinchi ekrani, planshet, televizor yoki Windows'ning ikkinchi monitori | To'liq ekran, avtomatik ochilish, kassaga ulanish **[HQ]** | 1.4, 5.2, 8 |
+| **Chek printeri USB** | 80 mm termal (ESC/POS), avtokesgich, kassa qutisi porti; Android uchun USB OTG, Windows uchun drayver | Windows'da printer nomi panelda **aynan** bir xil; kabel uzilsa chek yo'qolmaydi **[HQ]** | 3, 5.1 |
+| **Chek printeri LAN** | 80 mm, port 9100, routerda doimiy IP | O'zi chop etadi: internet uzilsa ham marka chiqadi **[HQ]**; o'zbek harflari kod sahifasi (`cp866`/`cp1251` yoki "Matnni rasm sifatida") **[HQ]** | 4.1, 8 |
+| **Chek printeri Bluetooth** | 58 mm, Android sozlamalarida avval juftlanadi | Android 12+ ruxsati; 5-8 m masofa; 20 chek ketma-ket **[HQ]** | 2 |
+| **Yorliq printeri** | Xprinter/Gprinter (TSPL), LAN, 40×30 mm yorliq | Haqiqiy TSPL printerda hali sinalmagan **[HQ]**; kalibrlash | 4.2 |
+| **Kassa qutisi** | Printerga RJ11 bilan ulanadi | Naqd to'lovda ochiladi **[HQ]** | 1.2, 5.1 |
+| **Shtrixkod skaneri** | USB yoki Bluetooth, "klaviatura (HID)" rejimi, kod oxirida Enter | 1D va 2D (QR); Windows'da klaviatura tilidan qat'i nazar to'g'ri **[HQ]** | 1.3, 5.3, 6 |
+| **Router** | Wi-Fi 5 (5 GHz) yoki 6, 4+ LAN port, **"AP/client isolation" o'chiriladigan**, DHCP rezervatsiya | Qurilmalar bir-birini ko'rishi **[HQ]**; LAN printerlarga doimiy IP; **WAN kabelini sug'urib internetni uzish mumkin** (8-bo'lim mashqi) | 0, 7, 8 |
+| **4G zaxira modem** | Routerning WAN'iga ulanadigan yoki router ichidagi SIM; ikkinchi operator afzal | Asosiy internet uzilganda zaxiraga o'tishi **[HQ]**; o'tish paytida kassa "Internetsiz rejim" ko'rsatsa — bu normal, qaytgach o'zi yuboriladi; 4G tarif va signal darajasi | 8, 14 |
+
+> Eslatma: yuqoridagi jadvalda hujjatda **yo'q** aniq raqamlar (Android eng kam versiyasi, xotira hajmi) ataylab yozilmadi: ularni
+> pilotda qurilmaning o'zida aniqlab, shu jadvalga yozing.
 
 ## 0. Tayyorgarlik
 
@@ -21,7 +70,7 @@ Foydalanuvchi uchun qo'llanma — [guides/uskunalar.md](guides/uskunalar.md). Te
 
 | Qurilma | Model / OS | Ilova | Ulangan filial | Izoh |
 |---|---|---|---|---|
-| Sunmi (kassa) | | kassa | | |
+| Sunmi (kassa) | | kassa | | 32/64 bit: |
 | Android planshet (asosiy kassa — markaz) | | kassa | | |
 | Windows monoblok | | kassa (markaz) + mijoz ekrani (2-monitor) | | |
 | Ofitsiant telefon 1 | | ofitsiant | | |
@@ -43,7 +92,7 @@ Foydalanuvchi uchun qo'llanma — [guides/uskunalar.md](guides/uskunalar.md). Te
 - [ ] Hamma qurilma bitta Wi-Fi tarmog'ida (router: ulangan qurilmalar bir-birini ko'ra olishi kerak, "AP isolation" /
   "client isolation" **o'chiq**). Routerda LAN printerlarga doimiy IP berilgan.
 - [ ] Ilovalar so'nggi versiyada; qurilma vaqti to'g'ri (avtomatik vaqt yoqiq — lokal ko'prik vaqt oynasi ±2 daqiqa).
-- [ ] Har qadamni **telefon kamerasi** bilan suratga oling (chek, ekran). Qayd qilish ro'yxati — 14-bo'lim.
+- [ ] Har qadamni **telefon kamerasi** bilan suratga oling (chek, ekran). Qayd qilish ro'yxati — 15-bo'lim.
 
 Uzbek harflarini tekshirish uchun sinov matni (har printerda chiqarib ko'ring): `O'zbekiston, g'isht, o'rik, Ch Sh Ng, ʻ ʼ`.
 
@@ -349,7 +398,131 @@ Router, printer va kassa uchun UPS'ning to'g'ri ishlashini va ma'lumot yo'qolmas
 - [ ] Ofitsiant telefoni ega/menejer web sessiyasida ko'rinmaydigan hech narsa saqlamagan (filial kaliti ega panelida ko'rsatilmaydi).
 - [ ] Qurilma bekor qilingach (panelda **Qurilmani o'chirish**): u lokal tarmoqqa ulana olmaydi (keyingi bootstrap/kalit yangilashdan keyin).
 
-## 14. Nimani qayd qilish kerak
+## 14. M5: internetsiz rejim, navbat fayli va yangilanish (kassa)
+
+M5 imkoniyatlari avtomatik testlar bilan tekshirilgan (`pos_data`, `pos_sync`, backend, partner paneli), lekin **haqiqiy qurilmada,
+haqiqiy printer va routerda hali sinalmagan** **[HQ]**. Bu bo'lim har kassa turida (Sunmi-sinfi, Android planshet, Windows) bir
+marta bajariladi; ofitsiant/KDS/mijoz ekrani uchun faqat 14.1 va 14.8. Qo'llanma: [guides/kassa.md](guides/kassa.md#20-internet-uzilsa),
+[guides/internet-uzilsa.md](guides/internet-uzilsa.md). Texnik asos: [scale/M5_DESIGN.md](scale/M5_DESIGN.md) 2, 4, 5, 6-bo'limlar.
+
+**Boshlanish holati:** kassa ulangan, smena ochiq, kassirning PIN'i bor, printer ishlaydi, sinov do'koni va sinov menejeri bor.
+Soat va daqiqalarni yozib boring. Natijalar qaydi — 15-bo'lim.
+
+### 14.1. Ulash (pairing) va versiya
+
+- [ ] Panelda **Sozlamalar → Qurilmalar → Ulash kodini yaratish** (kassa turi). Qurilmada kassa ilovasini oching, kodni (`ABCD-EFGH`)
+  kiriting: kassa ulandi, PIN ekrani chiqdi. Kod 10 daqiqada eskiradi va bir marta ishlaydi.
+- [ ] PIN bilan kiring, smenani oching. Qurilma panelda "Qurilmalar"da ko'rinadi, **ilova versiyasi** (`versiya+build`) to'g'ri.
+- [ ] 32-bitli qurilma bo'lsa: `armeabi-v7a` fayli o'rnatildi va ishga tushdi; 64-bitli: `arm64-v8a`. Qaysi fayl o'rnatilganini yozing.
+- [ ] **Sozlamalar → Zaxira** kartasi ko'rinadi: "Zaxira papkasi: ..." yozuvi va "Oxirgi nusxa: soat". "Zaxira papkasi yo'q" chiqsa — yozing.
+
+### 14.2. Internetsiz 3 soat
+
+Maqsad: bir necha soatlik uzilishda savdo to'xtamasligini ko'rish. Routerdagi **internet (WAN) kabelini** oling, Wi-Fi qolsin
+(LAN printer ishlayveradi). Vaqtni yozing.
+
+- [ ] 30 soniya ichida kassa tepasida **"Internetsiz rejim: sotuv davom etadi"** va **"Navbatda N ta amal"**. Ilova qotmadi.
+- [ ] **15 daqiqadan** keyin lenta sariq ("aloqa 15 daqiqadan ko'p yo'q"); **2 soatdan** keyin qizil ("... menejerga ayting").
+- [ ] 3 soat davomida kamida **15 ta buyurtma**: zal, olib ketish, **Tez kassa**; har biri raqami bilan (`#K1-001`...) ochildi; oshxonaga
+  yuborildi, marka LAN printerda chiqdi.
+- [ ] **Naqd** to'lovlar (kamida 5) va **karta terminali** to'lovlari (kamida 3): to'lov o'tdi, buyurtma yopildi, stol bo'shadi. Mehmonga
+  **schyot (pre-chek)** chiqdi; fiskal chek chiqmadi (to'g'ri).
+- [ ] Kichik chegirma (filialda kassir chegirmasi chegarasi belgilangan bo'lsa): chegaragacha beriladi, schyot tuzilgunga qadar, sabab yozib,
+  menejer PIN'isiz; chegaradan kattasi rad etiladi. Chegara belgilanmagan bo'lsa — "internetsiz chegirma berilmaydi". Qaysi biri bo'lganini yozing.
+- [ ] Kassa **ishlamasligi kerak bo'lgan** amallarni rad etadi (aniq sabab bilan): hisobni bo'lish, QR, nasiya, qaytarish, bekor qilish,
+  yuborilgan taomni o'chirish, smena yopish (Z), kassani uzish.
+- [ ] Ekran o'zi qulflanmadi (internetsiz paytda qulf yo'q); kassadan chiqmadingiz.
+- [ ] **24 soat cheklovi** (qisqartirilgan sinov: qurilma soatini o'zgartirmang). Real 24 soatlik sinov pilotda kuzatiladi:
+  24 soatdan keyin **yangi buyurtma** "Internet kerak: yangi buyurtma ochilmaydi" deydi, lekin ochiq buyurtmaga schyot, to'lov va yopish **ishlaydi**.
+  Bu qadam uchun kassani 24 soat internetsiz qoldirish kerak: o'tkazilmasa — "tekshirilmadi" deb yozing.
+
+### 14.3. Navbatni faylga saqlash (Zaxira) va qisqa hisobot
+
+Internetsiz 2 soatdan keyin (yoki oldinroq qo'lda).
+
+- [ ] 2 soatdan keyin kassa o'zi pastda xabar chiqardi: **"Internet uzoq vaqtdan beri yo'q. Navbatni faylga saqlab qo'yish mumkin."** va
+  **Faylga saqlash** tugmasi; shu paytda **qisqa hisobot** chop etildi (printer sozlangan bo'lsa).
+- [ ] **Sozlamalar → Zaxira → Qisqa hisobotni chop etish**: chekda **QISQA HISOBOT — Internetsiz rejim**, uzilgan vaqt, chop etilgan vaqt,
+  Buyurtmalar, To'lovlar, **Naqd**, **Karta**, **Jami**, (choy puli bo'lsa) **Kassadagi naqd** va **Terminal (karta)**, buyurtmalar ro'yxati,
+  pastda "Bu fiskal chek emas. Internet qaytgach navbat serverga yuboriladi." Raqamlar **kassadagi pul va terminal jami bilan mos**.
+  O'zbek harflari to'g'ri. Printer sozlanmagan bo'lsa (sinov uchun printerni o'chirib ko'ring): "chek printeri sozlanmagan" xabari.
+- [ ] **Navbatni faylga saqlash**: "Navbat faylga saqlandi (N ta amal, shundan M ta to'lov)" va fayl joyi; fayl nomi `rizqim-navbat-....rzq`.
+  Faylning joyi: Android — kartadagi papka; Windows — `Hujjatlar\RIZQIM\<kassa uuid>\`. Tekshiring: fayl papkada **bor**.
+- [ ] Faylni fleshkaga yoki telefonga ko'chiring (Android: fayl menejeri yoki USB; Windows: fleshka). **Ochib saqlamang.**
+- [ ] Ikkinchi marta bosing: yangi fayl nomi `-2` bilan (eskisi ustidan yozilmaydi).
+
+### 14.4. Qayta ishga tushirish internetsiz va "Davom etish"
+
+Internet hali uzilgan, smena ochiq, kamida 2 ta ochiq (to'lanmagan) buyurtma bor.
+
+- [ ] Kassa ilovasini **majburan yoping** va qayta oching (yoki qurilmani o'chirib yoqing). Navbat va ochiq buyurtmalar joyida.
+- [ ] PIN ekrani: **"Internet yo'q: PIN bilan kirib bo'lmaydi."**; ismingiz bilan **Davom etish: <ism>** tugmasi va "Soat HH:MM gacha
+  (PIN bilan kirilganidan 12 soat)" yozuvi.
+- [ ] **Davom etish** bosildi: tepada **"PIN'siz davom etilmoqda: <ism> (ilova internetsiz qayta ishga tushdi)..."** lentasi.
+- [ ] Ruxsat etilgan: ochiq buyurtmaga **schyot**, **naqd va karta to'lovi**, **buyurtmani yopish** — o'tdi.
+- [ ] Rad etilishi kerak (aniq sabab bilan): yangi buyurtma, yangi taom, taomni o'chirish, chegirma.
+- [ ] Ekran qulfiga o'ting (yoki PIN ekraniga qayting): **Davom etish** yana taklif qilinadi.
+- [ ] (Imkon bo'lsa, sinov uchun PIN bilan kirilganidan 12 soat o'tgan holat — real soat bilan, qurilma soatini **o'zgartirmasdan**): 12 soatdan
+  keyin, internet hali yo'q bo'lsa, lenta "PIN bilan kirilganiga 12 soat o'tdi: endi faqat to'lov olish va ochiq buyurtmani yopish mumkin" deydi;
+  to'lov olish va yopish **baribir ishlaydi**; boshqa hamma amal rad etiladi. 12 soatdan keyin ilovani qayta ochsangiz — **Davom etish chiqmaydi**.
+  Real sinov uzoq: o'tkazilmasa "tekshirilmadi".
+- [ ] Qurilma soatini orqaga suring (faqat sinov kassasida, keyin to'g'rilang): "Qurilma soati orqaga surildi: PIN'siz davom etish to'xtatildi. PIN bilan kiring." chiqadi.
+- [ ] Smenani yopish internetsiz mumkin emas (kutilgan).
+
+### 14.5. Internet qaytdi: navbat va hisobot
+
+- [ ] Kabelni ulang, vaqtni yozing. Lenta: **"Aloqa tiklandi: offlayn amallar serverga yuborilmoqda"**; kassa PIN ekraniga o'tdi (**"Internet tiklandi: PIN'siz davom etish tugadi. PIN bilan kiring."**).
+- [ ] PIN bilan kiring. **Yuborish** bosing (yoki kuting): navbat bo'shaydi, lenta yo'qoladi.
+- [ ] Offlayn to'langan buyurtmalarning **sotuv cheklari kassada o'zi chiqdi**, har biri **bir marta**; ilovani qayta ochish ularni qayta chiqarmaydi.
+- [ ] **X hisobot**: **"PIN'siz davom etilgan"** bo'limi, to'lovlar soni va summasi 14.4 dagiga mos.
+- [ ] Panelda (business.rizqim.uz): hamma buyurtma bor, **takrori yo'q**, summalar mos; **Sinxronlash xatolari** bo'sh yoki har xato sababi tushunarli;
+  "PIN'siz davom etilgan" to'lovlar (12 soatdan keyingilari) menejerga tekshirish uchun tushgan.
+- [ ] **Z hisobot** (smena yopildi): kassa farqi 0.
+
+### 14.6. Navbat faylini menejer yuklaydi
+
+Bu qadam kassa **o'zi sinxronlamaydigan** holatni taqlid qiladi: sinov uchun yangi (sinov) kassa yoki panelda uzilgan sinov kassa; haqiqiy
+ishlab turgan kassaning faylini ham yuklab ko'rish mumkin — takroriy yozuvlar "Avval kelgan" bo'ladi.
+
+- [ ] Internetsiz (yoki internet bor holda ham) 14.3 dagi faylni oling. Menejer: **business.rizqim.uz → Qurilmalar → Navbat faylini yuklash**
+  (`devices.manage` huquqi; kassa PIN sessiyasi emas). Faqat ega yoki shu filial menejeri ko'radi.
+- [ ] **Navbat fayli (.rzq)** → fayl → **Yuklash**. Natija: **Yozildi**, **Avval kelgan**, **Rad etilgan**, **Ziddiyat**, **O'tkazib yuborilgan** soni.
+  Faylni **ikkinchi marta** yuklang: hammasi "Avval kelgan", yangi yozuv yo'q.
+- [ ] Fayl katta bo'lsa "Fayl to'liq o'qilmadi: N ta amal qoldi" → **Shu faylni yana yuklash** → 0 gacha.
+- [ ] **Buzilgan fayl**: nusxada bir belgini o'zgartiring (Bloknotda saqlang) va yuklang: rad etiladi (butun fayl, hech narsa yozilmaydi).
+- [ ] **Boshqa do'kon** kassasining fayli: rad etiladi. Filial menejeri boshqa filial kassasining faylini yuklay olmaydi.
+- [ ] Yuklashdan keyin panelda kassaning navbat hisobi kamaydi: smena yopish mumkin. Jurnalda `pos.sync_imported` yozuvi.
+- [ ] Zaxira papkasini kassa o'chiq holda ko'ring: `.rzq` fayllar va nusxa yozuvlari bor; (Android 9 va eski, Windows OneDrive'da) papkaga kim kira olishini yozing.
+- [ ] **Jurnal zaxirasidan tiklash** (faqat sinov kassasida): navbat bor paytda zaxira papkasidagi jurnalni o'chiring/zararlang, kassani qayta oching:
+  Zaxira kartasi "N ta amal zaxiradan tiklandi" deydi, buyurtmalar yo'qolmagan.
+
+### 14.7. Chop etish va qog'oz
+
+- [ ] Qisqa hisobot va sotuv cheklari o'zbek harflari bilan, 58 va 80 mm da qirqilmagan. **[HQ]**
+- [ ] Qog'oz tugagan printerda: "Chek chop etilmadi" banneri, qog'oz → **Qayta urinish** → chiqdi. Qisqa hisobot uchun ham.
+
+### 14.8. Yangilanish xabari
+
+- [ ] Reyestrga sinov versiyasi qo'shiladi (RIZQIM xodimi, [OPERATIONS.md](OPERATIONS.md) 26-bo'lim; sinov do'konida). Kassada ilova ochilganda yoki ~6 soatda:
+  **"Yangi versiya mavjud"**, "X versiyasi chiqdi", tugmalar **Yangilash** va **Keyinroq**; Sozlamalarda tinch qator.
+- [ ] Ochiq buyurtma yoki to'lov paytida xabar **chiqmaydi** (buyurtma ustidan yopmaydi). Savdo xabarga qaramay davom etadi.
+- [ ] Navbatda amal bor yoki to'lov ochiq bo'lsa **Yangilash** o'chiq va tagida: **"Avval navbat serverga yetsin: internet qaytgach kuting."** /
+  **"Avval joriy to'lovni yakunlang."**
+- [ ] Navbat bo'sh: **Yangilash** havolani ochdi, `.apk` yuklandi va **eski ilova ustidan** o'rnatildi (ulanish, PIN, navbat va zaxira joyida; qayta ulash so'ralmadi).
+  Android'da yagona imzo kaliti (debug emas) bilan o'rnatilgan bo'lishi shart: debug fayl yangilanmaydi. **[HQ]**
+- [ ] **Majburiy** versiya (minimum) qo'yilganda: qizil, yopilmaydigan xabar "Ilovani yangilash kerak"; ilova ochilganda, smena yopilgach va smena ochish
+  ekranida butun oyna, **Davom etish** doim ishlaydi va savdo/smena/to'lov to'xtamaydi. Yangi kassani ulash esa rad etiladi (426 `app_outdated`, havola bilan).
+- [ ] Oshxona ekrani va mijoz ekranida kichik **Yangilash kerak** belgisi (xabar emas).
+- [ ] Ofitsiant ilovasida ham xabar (**Yangilash** / **Keyinroq**) chiqadi va ishni to'xtatmaydi.
+
+### 14.9. Xavfsizlik va chegara holatlari
+
+- [ ] Kassani panelda **uzishga** urining, navbatda yuborilmagan amal bor: panel ogohlantiradi / rad etadi ("navbat serverga yetsin" yoki tasdiq so'raydi). Uzmasdan oldin faylni oling.
+- [ ] Soat 5 daqiqadan ko'p noto'g'ri qurilmada: "Qurilma soati serverdan 5 daqiqadan ko'p farq qiladi: soatni to'g'rilang."
+- [ ] Zaxira papkasiga begona ilova kira oladimi (Android 9 va eski)? Natijani yozing.
+- [ ] 4G modem: asosiy WAN'ni uzing, modemga o'tish bo'ladimi, o'tish davomida kassa "Internetsiz rejim"ga tushadimi va qaytgach navbat o'zi ketadimi? Vaqtni yozing.
+
+## 15. Nimani qayd qilish kerak
 
 Har o'tmagan qadam uchun:
 
@@ -378,6 +551,7 @@ Natijalar jadvali:
 | 9. Avtomatik schyot | | | |
 | 10. Elektr o'chishi | | | |
 | 11–13. Aralash, chidamlilik, xavfsizlik | | | |
+| 14. M5: internetsiz rejim, navbat fayli, yangilanish | | | |
 
 Hammasi o'tgach: `docs/guides/uskunalar.md` va boshqa qo'llanmalardagi "TEKSHIRILMAGAN" belgilarini olib tashlang, o'tmagan
 imkoniyatlarni qo'llanmada "hozircha qo'llab-quvvatlanmaydi" deb yozing.
