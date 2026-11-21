@@ -102,6 +102,8 @@ export interface CallOptions {
 export interface Envelope<T> {
   data: T;
   meta: Record<string, unknown>;
+  // The server's own sentence for the answer (Uzbek), '' when it sent none
+  message: string;
 }
 
 function urlOf(path: string, query?: CallOptions['query']): string {
@@ -151,7 +153,7 @@ async function send(method: string, path: string, options: CallOptions, retried:
   }
 
   const record = isRecord(body) ? body : {};
-  return { data: 'data' in record ? record.data : body, meta: isRecord(record.meta) ? record.meta : {} };
+  return { data: 'data' in record ? record.data : body, meta: isRecord(record.meta) ? record.meta : {}, message: typeof record.message === 'string' ? record.message : '' };
 }
 
 export const call = (method: string, path: string, options: CallOptions = {}) => send(method, path, options, false);

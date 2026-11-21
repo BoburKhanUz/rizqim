@@ -275,6 +275,27 @@ describe('admin proxy', () => {
       expect(calls).toHaveLength(1);
     });
 
+    it('passes the till queue file (M5 S4) on to the import path only, with room for a slow import', async () => {
+      const calls: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: string | URL, init: RequestInit) => {
+          calls.push(`${new Headers(init.headers).get('Content-Type')?.split(';')[0]} ${String(input)}`);
+          return reply({ success: true, data: { complete: true } }, 200);
+        }),
+      );
+      const form = new FormData();
+      form.set('reason', 'Kassa buzildi');
+      form.set('file', new Blob(['{}'], { type: 'application/octet-stream' }), 'navbat.rzq');
+      const upload = (path: string) =>
+        new NextRequest(`http://localhost:3100/api/backend/${path}`, { method: 'POST', headers: { Host: 'localhost:3100', Origin: 'http://localhost:3100', Cookie: `${SESSION_COOKIE}=tok` }, body: form });
+      expect((await forward(upload('v1/admin/pos/sync-import'), ['v1', 'admin', 'pos', 'sync-import'])).status).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatch(/^multipart\/form-data .*\/v1\/admin\/pos\/sync-import$/);
+      expect((await forward(upload('v1/admin/pos/devices/x/revoke'), ['v1', 'admin', 'pos', 'devices', 'x', 'revoke'])).status).toBe(415);
+      expect(calls).toHaveLength(1);
+    });
+
     it('passes the Excel export on as a file, but never a file from another path or of another type', async () => {
       const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       stubBackend(() => new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Type': xlsx, 'Content-Disposition': 'attachment; filename=rizqim-daromad-2026-10.xlsx' } }));

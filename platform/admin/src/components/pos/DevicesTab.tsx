@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, MonitorSmartphone, Search } from 'lucide-react';
+import { ChevronRight, MonitorSmartphone, Search, Upload } from 'lucide-react';
 import { Card, CardSkeletons, cx, Field, fieldClass, InlineError, Notice, Pill, Button } from '@rizqim/ui';
 import { ApiError } from '@/lib/api/client';
 import { DEFAULT_DEVICE_FILTERS, DEVICE_STATES, useDevice, useDevices, useRevokeDevice, type DeviceFilters, type DeviceRow } from '@/lib/api/pos';
@@ -13,6 +13,7 @@ import { useT } from '../I18nProvider';
 import { DEVICE_LABEL, DEVICE_TONE, minutesSince } from './posModel';
 import { BackButton, Chip, ChipRow, Facts, ListState, Pager, ReasonDialog } from './PosParts';
 import { deviceTypeLabel } from './deviceLabels';
+import { SyncImportDialog } from './SyncImportDialog';
 
 // Qurilmalar (P4-24): every store's devices, online or offline by the last contact (10 minutes), the app version and the
 // versions older than the newest in use. Revoking (stores.manage) asks for a reason and the step-up.
@@ -36,6 +37,8 @@ function SeenText({ row }: { row: DeviceRow }) {
 
 function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
   const t = useT();
+  const { can } = useCan();
+  const [importing, setImporting] = useState(false);
   const [filters, setFilters] = useState<DeviceFilters>(DEFAULT_DEVICE_FILTERS);
   const [search, setSearch] = useState('');
   useEffect(() => {
@@ -88,7 +91,15 @@ function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
           )}
         </Field>
       </div>
-      <ExportButton list="devices" query={{ state: filters.state, type: filters.type, outdated: filters.outdated, store_id: filters.store_id, q: filters.q }} />
+      <div className="flex flex-wrap items-center gap-2">
+        <ExportButton list="devices" query={{ state: filters.state, type: filters.type, outdated: filters.outdated, store_id: filters.store_id, q: filters.q }} />
+        {can('stores.manage') && (
+          <Button variant="secondary" icon={Upload} onClick={() => setImporting(true)}>
+            {t('pos_import_open')}
+          </Button>
+        )}
+      </div>
+      {importing && <SyncImportDialog onClose={() => setImporting(false)} />}
 
       <ListState
         loading={!page}

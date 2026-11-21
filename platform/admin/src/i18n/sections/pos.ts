@@ -288,6 +288,23 @@ export const pos = defineSection({
     pos_dev_revokeAnyway: 'Baribir uzish',
     pos_dev_revokeDone: "Qurilma o'chirildi. Undagi barcha sessiyalar yopildi.",
 
+    // Kassa navbat faylini import qilish (M5 S4)
+    pos_import_open: 'Navbat faylini import qilish',
+    pos_import_title: 'Kassa navbatini fayldan tiklash',
+    pos_import_text: "Kassadan olingan «.rzq» faylni tanlang. Kassa qaysi do'konniki ekani fayldan topiladi; server amallarni o'sha kassa nomidan qo'llaydi. Faylni ikkinchi marta yuklash zararsiz.",
+    pos_import_file: 'Navbat fayli (.rzq)',
+    pos_import_fileHint: "8 MB gacha. Faylni ochib saqlamang: bitta bayt o'zgarsa ham server uni rad etadi.",
+    pos_import_submit: 'Import qilish',
+    pos_import_retry: 'Shu faylni yana yuklash',
+    pos_import_applied: 'Yozildi: {{count}}',
+    pos_import_duplicate: 'Avval kelgan: {{count}}',
+    pos_import_rejected: 'Rad etilgan: {{count}}',
+    pos_import_conflict: 'Ziddiyat: {{count}}',
+    pos_import_skipped: "O'tkazib yuborilgan: {{count}}",
+    pos_import_skippedLine: '{{line}}-qator: {{message}}',
+    pos_import_skippedMore: "Yana {{count}} ta qator o'tkazib yuborilgan.",
+    pos_import_incomplete: "Fayl to'liq o'qilmadi: {{count}} ta amal qoldi. Shu faylni yana bir marta yuklang.",
+
     // Smenalar
     pos_shift_kindFilter: 'Smena turi',
     pos_shift_kind_difference: 'Kassa farqi bor',

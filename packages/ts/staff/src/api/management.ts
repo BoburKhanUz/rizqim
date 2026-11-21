@@ -199,6 +199,18 @@ export async function revokeStoreDevice(api: StaffApi, uuid: string, confirmPend
   return body.data as StoreDevice;
 }
 
+export type SyncImportResult = OkData<'syncImport.store'> & { message: string };
+
+// POST /owner/pos/sync/import (devices.manage, multipart `file`): the `.rzq` queue file a till wrote. The server applies every
+// operation as that till, once by its `op_id`, so the same file may be sent again (`complete: false` asks for exactly that).
+// A whole-file refusal is a 404/422 StaffApiError whose `message` is Uzbek and `reason` says why (file_mac_invalid, ...).
+export async function importSyncFile(api: StaffApi, file: File | Blob): Promise<SyncImportResult> {
+  const form = new FormData();
+  form.append('file', file, 'name' in file ? file.name : 'navbat.rzq');
+  const body = unwrap(await api.client.POST('/v1/owner/pos/sync/import', { body: form as never, bodySerializer: (value: unknown) => value as FormData }));
+  return { ...(body.data as OkData<'syncImport.store'>), message: body.message };
+}
+
 // A one-time code (ABCD-EFGH, `expires_at`) a POS or kitchen display types in to join this store.
 export async function createPairingCode(api: StaffApi, input: PairingCodeInput): Promise<PairingCode> {
   const body = unwrap(await api.client.POST('/v1/owner/devices/pairing-codes', { body: input }));
