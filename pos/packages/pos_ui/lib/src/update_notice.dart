@@ -62,6 +62,46 @@ class PosUpdateBanner extends StatelessWidget {
         ? PosUpdateTexts.required(release)
         : PosUpdateTexts.available(release);
     final bool dismissible = !red && onDismiss != null;
+    final Widget textColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          style: RzType.body.copyWith(color: fg, fontWeight: FontWeight.w700),
+        ),
+        Text(text, style: RzType.footnote.copyWith(color: fg)),
+        if (!gate.allowed && gate.reason != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              gate.reason!,
+              key: const ValueKey<String>('pos-update-reason'),
+              style: RzType.footnote.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
+    );
+    final Widget icon = Icon(
+      red ? Icons.system_update_rounded : Icons.info_outline_rounded,
+      color: fg,
+      size: 22,
+    );
+    final List<Widget> buttons = <Widget>[
+      RzButton(
+        label: PosUpdateTexts.update,
+        variant: red ? RzButtonVariant.secondary : RzButtonVariant.primary,
+        onPressed: gate.allowed ? onUpdate : null,
+      ),
+      if (dismissible)
+        RzButton(
+          label: PosUpdateTexts.later,
+          variant: RzButtonVariant.ghost,
+          onPressed: onDismiss,
+        ),
+    ];
     return Semantics(
       liveRegion: true,
       container: true,
@@ -71,64 +111,53 @@ class PosUpdateBanner extends StatelessWidget {
         color: bg,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Icon(
-                red ? Icons.system_update_rounded : Icons.info_outline_rounded,
-                color: fg,
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints box) {
+              // A phone (under 600 px): the buttons go under the text, so it keeps the whole width
+              if (box.maxWidth + 32 < narrowWidth) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text(
-                      title,
-                      style: RzType.body.copyWith(
-                        color: fg,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        icon,
+                        const SizedBox(width: 12),
+                        Expanded(child: textColumn),
+                      ],
                     ),
-                    Text(text, style: RzType.footnote.copyWith(color: fg)),
-                    if (!gate.allowed && gate.reason != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          gate.reason!,
-                          key: const ValueKey<String>('pos-update-reason'),
-                          style: RzType.footnote.copyWith(
-                            color: fg,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: buttons,
+                    ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              RzButton(
-                label: PosUpdateTexts.update,
-                variant: red
-                    ? RzButtonVariant.secondary
-                    : RzButtonVariant.primary,
-                onPressed: gate.allowed ? onUpdate : null,
-              ),
-              if (dismissible) ...<Widget>[
-                const SizedBox(width: 8),
-                RzButton(
-                  label: PosUpdateTexts.later,
-                  variant: RzButtonVariant.ghost,
-                  onPressed: onDismiss,
-                ),
-              ],
-            ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  icon,
+                  const SizedBox(width: 12),
+                  Expanded(child: textColumn),
+                  const SizedBox(width: 12),
+                  for (int i = 0; i < buttons.length; i++) ...<Widget>[
+                    if (i > 0) const SizedBox(width: 8),
+                    buttons[i],
+                  ],
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+  /// Below this width the buttons sit under the text.
+  static const double narrowWidth = 600;
 }
 
 /// A small corner mark for screens without room for a banner (KDS, customer display): an icon, red for

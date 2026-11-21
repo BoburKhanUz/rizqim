@@ -20,8 +20,14 @@ abstract final class AppConfig {
     'RIZQIM_REVERB_ORIGIN',
   );
 
-  /// pubspec.yaml'dagi versiya bilan bir xil bo'lishi kerak; ulashda backend'ga yuboriladi.
+  /// pubspec.yaml'dagi versiya bilan bir xil bo'lishi kerak (scripts/check-app-versions.sh tekshiradi).
   static const String version = '0.2.0';
+
+  /// pubspec.yaml'dagi qurilish raqami (`0.2.0+2` dagi `2`); versiya bilan birga serverga yuboriladi.
+  static const int build = 2;
+
+  /// `<version>+<build>`: `X-Rizqim-App-Version` sarlavhasi va ulash so'rovi uchun (M5 S5).
+  static const String fullVersion = '$version+$build';
 
   /// Real-time ishlamayotganda chiptalar shu oraliqda qayta so'raladi.
   static const Duration pollInterval = Duration(seconds: 15);

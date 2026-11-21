@@ -160,4 +160,54 @@ void main() {
     );
     expect((box().decoration as BoxDecoration).color, ctx.rz.danger);
   });
+
+  testWidgets(
+    '412 px phone: both buttons sit under the text, nothing overflows',
+    (WidgetTester tester) async {
+      setScreen(tester, const Size(412, 800));
+      int dismissed = 0;
+      await tester.pumpWidget(
+        host(
+          PosUpdateBanner(
+            release: rel(PosReleaseState.updateAvailable),
+            gate: closed,
+            onUpdate: () {},
+            onDismiss: () => dismissed++,
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final Rect text = tester.getRect(
+        find.textContaining('1.4.0+7 versiyasi'),
+      );
+      final Rect update = tester.getRect(find.text('Yangilash'));
+      final Rect later = tester.getRect(find.text('Keyinroq'));
+      expect(update.top, greaterThanOrEqualTo(text.bottom));
+      expect(later.top, greaterThanOrEqualTo(text.bottom));
+      expect(later.right, lessThanOrEqualTo(412));
+      // The text keeps the width of the banner (not squeezed by the buttons)
+      expect(text.width, greaterThan(250));
+      await tester.tap(find.text('Keyinroq'));
+      expect(dismissed, 1);
+    },
+  );
+
+  testWidgets('wide screen: the buttons stay beside the text', (
+    WidgetTester tester,
+  ) async {
+    setScreen(tester, const Size(1024, 768));
+    await tester.pumpWidget(
+      host(
+        PosUpdateBanner(
+          release: rel(PosReleaseState.updateAvailable),
+          gate: PosUpdateGate.open,
+          onUpdate: () {},
+          onDismiss: () {},
+        ),
+      ),
+    );
+    final Rect text = tester.getRect(find.textContaining('1.4.0+7 versiyasi'));
+    final Rect update = tester.getRect(find.text('Yangilash'));
+    expect(update.left, greaterThan(text.right));
+  });
 }

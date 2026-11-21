@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -12,9 +13,18 @@ import '../pairing_code_formatter.dart';
 /// Mijoz ekranini ulash: ega yoki menejer panelda (Sozlamalar → Qurilmalar → "Ulash kodini yaratish", turi "Mijoz
 /// ekrani") olgan 8 belgili kod. Mijoz ekrani bepul: qurilmalar soniga kirmaydi.
 class PairingScreen extends StatefulWidget {
-  const PairingScreen({super.key, required this.auth});
+  const PairingScreen({
+    super.key,
+    required this.auth,
+    this.openUrl = _openLink,
+  });
 
   final AuthSession auth;
+
+  /// M5 S5: opens the download link of a newer app version (replaceable in tests).
+  final Future<bool> Function(Uri url) openUrl;
+
+  static Future<bool> _openLink(Uri url) => openLink(url);
 
   @override
   State<PairingScreen> createState() => _PairingScreenState();
@@ -24,6 +34,9 @@ class _PairingScreenState extends State<PairingScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _busy = false;
   String? _error;
+
+  /// M5 S5: the download link when the server says this version is below the minimum (426).
+  Uri? _downloadUrl;
 
   bool get _valid => PairingCode.normalize(_controller.text) != null;
 
@@ -38,17 +51,22 @@ class _PairingScreenState extends State<PairingScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _downloadUrl = null;
     });
     try {
       await widget.auth.pairTerminal(
         _controller.text,
         name: 'Mijoz ekrani',
         platform: defaultTargetPlatform.name,
-        appVersion: AppConfig.version,
+        appVersion: AppConfig.fullVersion,
         // P6 B: the server's default LAN hub is a cashier till, never a waiter's phone
         app: 'customer_display',
       );
       // AuthGate ekranni o'zi almashtiradi
+    } on AppOutdatedException catch (e) {
+      // M5 S5: first, before the general ApiException: the message and the way to the new version
+      final String? url = e.url;
+      _fail(e.message, download: url == null ? null : Uri.tryParse(url));
     } on InvalidPairingCodeException catch (e) {
       _fail(e.message);
     } on ApiException catch (e) {
@@ -61,11 +79,12 @@ class _PairingScreenState extends State<PairingScreen> {
     }
   }
 
-  void _fail(String message) {
+  void _fail(String message, {Uri? download}) {
     if (!mounted) return;
     setState(() {
       _busy = false;
       _error = message;
+      _downloadUrl = download;
     });
   }
 
@@ -128,12 +147,26 @@ class _PairingScreenState extends State<PairingScreen> {
                       hintText: 'ABCD-EFGH',
                       labelText: 'Ulash kodi',
                     ),
-                    onChanged: (_) => setState(() => _error = null),
+                    onChanged: (_) => setState(() {
+                      _error = null;
+                      _downloadUrl = null;
+                    }),
                     onSubmitted: (_) => unawaited(_submit()),
                   ),
                   if (_error != null) ...<Widget>[
                     const SizedBox(height: 12),
                     InlineError(message: _error!),
+                  ],
+                  if (_downloadUrl != null) ...<Widget>[
+                    const SizedBox(height: 12),
+                    RzButton(
+                      key: const ValueKey<String>('pairing-download'),
+                      label: 'Yuklab olish',
+                      icon: Icons.download_rounded,
+                      variant: RzButtonVariant.secondary,
+                      fullWidth: true,
+                      onPressed: () => unawaited(widget.openUrl(_downloadUrl!)),
+                    ),
                   ],
                   const SizedBox(height: 20),
                   RzButton(

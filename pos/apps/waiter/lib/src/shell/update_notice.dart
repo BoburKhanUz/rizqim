@@ -64,36 +64,13 @@ class _UpdateBannerSlotState extends State<UpdateBannerSlot> {
                 widget.services.updatePrefs.dismissedOn == today) {
               return const SizedBox.shrink();
             }
-            final PosUpdateBanner banner = PosUpdateBanner(
+            return PosUpdateBanner(
               release: notice,
               gate: updateGateOf(widget.services),
               onUpdate: () => openUpdate(widget.services, notice),
-            );
-            if (notice.isRequired) return banner;
-            // A phone: PosUpdateBanner's own "Keyinroq" would sit beside "Yangilash" and leave the text no room, so
-            // the dismissal is a row under it (the banner is given no onDismiss)
-            final RzColors c = context.rz;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                banner,
-                Material(
-                  color: Color.alphaBlend(c.infoSoft, c.surface),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: RzButton(
-                        label: PosUpdateTexts.later,
-                        variant: RzButtonVariant.ghost,
-                        onPressed: () => unawaited(
-                          widget.services.updatePrefs.dismiss(today),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              onDismiss: notice.isRequired
+                  ? null
+                  : () => unawaited(widget.services.updatePrefs.dismiss(today)),
             );
           },
         );

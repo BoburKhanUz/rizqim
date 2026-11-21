@@ -14,6 +14,7 @@ Future<void> main() async {
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
     app: 'kds',
+    appVersion: AppConfig.fullVersion,
   );
   final KdsSettingsController settings = KdsSettingsController(
     PrefsSettingsStore(),

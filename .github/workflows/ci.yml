@@ -1247,6 +1247,10 @@ jobs:
       - name: Format
         run: dart format --output=none --set-exit-if-changed .
 
+      # M5 S5: AppConfig.version/build of the four POS apps equal their pubspec.yaml version (sent to the server)
+      - name: POS app versions
+        run: scripts/check-app-versions.sh
+
       - name: Analyze
         run: flutter analyze
 
