@@ -4,26 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'preparing2.dart';
-import 'ready2.dart';
+import 'qr6.dart';
 
 part 'data335.g.dart';
 
 @JsonSerializable()
 class Data335 {
-  const Data335({
-    required this.businessDate,
-    required this.preparing,
-    required this.ready,
-  });
+  const Data335({required this.qr});
 
   factory Data335.fromJson(Map<String, Object?> json) =>
       _$Data335FromJson(json);
 
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  final List<Preparing2> preparing;
-  final List<Ready2> ready;
+  final Qr6 qr;
 
   Map<String, Object?> toJson() => _$Data335ToJson(this);
 }

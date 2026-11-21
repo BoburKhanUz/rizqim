@@ -7,11 +7,15 @@ part of 'data220.dart';
 // **************************************************************************
 
 Data220 _$Data220FromJson(Map<String, dynamic> json) => Data220(
-  events: (json['events'] as List<dynamic>)
-      .map((e) => Events.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  token: json['token'] as String,
+  permission: json['permission'] as String,
+  expiresAt: json['expires_at'] as String,
+  approvedBy: ApprovedBy.fromJson(json['approved_by'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data220ToJson(Data220 instance) => <String, dynamic>{
-  'events': instance.events,
+  'token': instance.token,
+  'permission': instance.permission,
+  'expires_at': instance.expiresAt,
+  'approved_by': instance.approvedBy,
 };

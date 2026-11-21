@@ -7,15 +7,25 @@ part of 'data275.dart';
 // **************************************************************************
 
 Data275 _$Data275FromJson(Map<String, dynamic> json) => Data275(
-  session: json['session'] == null
-      ? null
-      : Session2.fromJson(json['session'] as Map<String, dynamic>),
-  todayMinutes: (json['today_minutes'] as num).toInt(),
-  businessDate: json['business_date'] as String,
+  channel: Channel6.fromJson(json['channel'] as String),
+  menuVersion: json['menu_version'] as String,
+  branch: Branch18.fromJson(json['branch'] as Map<String, dynamic>),
+  categories: (json['categories'] as List<dynamic>)
+      .map((e) => Category.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  availability: Availability.fromJson(
+    json['availability'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data275ToJson(Data275 instance) => <String, dynamic>{
-  'session': instance.session,
-  'today_minutes': instance.todayMinutes,
-  'business_date': instance.businessDate,
+  'channel': instance.channel,
+  'menu_version': instance.menuVersion,
+  'branch': instance.branch,
+  'categories': instance.categories,
+  'products': instance.products,
+  'availability': instance.availability,
 };

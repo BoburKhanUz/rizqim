@@ -6,10 +6,14 @@ part of 'device12.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Device12 _$Device12FromJson(Map<String, dynamic> json) =>
-    Device12(uuid: json['uuid'] as String, name: json['name'] as String);
+Device12 _$Device12FromJson(Map<String, dynamic> json) => Device12(
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+);
 
 Map<String, dynamic> _$Device12ToJson(Device12 instance) => <String, dynamic>{
   'uuid': instance.uuid,
+  'type': instance.type,
   'name': instance.name,
 };

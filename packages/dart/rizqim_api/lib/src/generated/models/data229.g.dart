@@ -7,23 +7,29 @@ part of 'data229.dart';
 // **************************************************************************
 
 Data229 _$Data229FromJson(Map<String, dynamic> json) => Data229(
-  event: Event.fromJson(json['event'] as Map<String, dynamic>),
-  summary: Summary5.fromJson(json['summary'] as Map<String, dynamic>),
+  daysBefore: (json['days_before'] as num).toInt(),
+  rulePercent: json['rule_percent'] as String,
+  paid: json['paid'] as String,
+  computedRetained: json['computed_retained'] as String,
+  retained: json['retained'] as String,
+  refund: json['refund'] as String,
+  overridden: json['overridden'] as bool,
+  cashRefund: json['cash_refund'] as String,
+  transferRefund: json['transfer_refund'] as String,
   rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Rows4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  cancellation: json['cancellation'] == null
-      ? null
-      : Cancellation.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data229ToJson(Data229 instance) => <String, dynamic>{
-  'event': instance.event,
-  'summary': instance.summary,
+  'days_before': instance.daysBefore,
+  'rule_percent': instance.rulePercent,
+  'paid': instance.paid,
+  'computed_retained': instance.computedRetained,
+  'retained': instance.retained,
+  'refund': instance.refund,
+  'overridden': instance.overridden,
+  'cash_refund': instance.cashRefund,
+  'transfer_refund': instance.transferRefund,
   'rows': instance.rows,
-  'entries': instance.entries,
-  'cancellation': instance.cancellation,
 };

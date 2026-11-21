@@ -4,26 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'booking2.dart';
-import 'payment.dart';
-import 'fiscal29.dart';
+import 'channel4.dart';
 
 part 'data266.g.dart';
 
 @JsonSerializable()
 class Data266 {
-  const Data266({
-    required this.booking,
-    required this.payment,
-    required this.fiscal,
-  });
+  const Data266({required this.channel, required this.queued});
 
   factory Data266.fromJson(Map<String, Object?> json) =>
       _$Data266FromJson(json);
 
-  final Booking2 booking;
-  final Payment payment;
-  final Fiscal29 fiscal;
+  final Channel4 channel;
+  final bool queued;
 
   Map<String, Object?> toJson() => _$Data266ToJson(this);
 }

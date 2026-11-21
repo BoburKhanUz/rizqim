@@ -4,33 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'events3.dart';
-import 'dishes4.dart';
-import 'osh4.dart';
+import 'ingredients4.dart';
+import 'kazans.dart';
 
 part 'data225.g.dart';
 
 @JsonSerializable()
 class Data225 {
   const Data225({
-    required this.branchId,
-    required this.from,
-    required this.to,
-    required this.events,
-    required this.dishes,
-    required this.osh,
+    required this.persons,
+    required this.personsPerKg,
+    required this.oshKg,
+    required this.ingredients,
+    required this.kazans,
+    required this.kazanCapacityKg,
   });
 
   factory Data225.fromJson(Map<String, Object?> json) =>
       _$Data225FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final List<Events3> events;
-  final List<Dishes4> dishes;
-  final Osh4 osh;
+  final int persons;
+  @JsonKey(name: 'persons_per_kg')
+  final String personsPerKg;
+  @JsonKey(name: 'osh_kg')
+  final String oshKg;
+  final List<Ingredients4> ingredients;
+  final List<Kazans> kazans;
+  @JsonKey(name: 'kazan_capacity_kg')
+  final String kazanCapacityKg;
 
   Map<String, Object?> toJson() => _$Data225ToJson(this);
 }

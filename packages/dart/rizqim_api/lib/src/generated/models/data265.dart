@@ -4,19 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'channel4.dart';
+import 'lines32.dart';
+import 'room_fee4.dart';
+import 'channels4.dart';
 
 part 'data265.g.dart';
 
 @JsonSerializable()
 class Data265 {
-  const Data265({required this.channel, required this.queued});
+  const Data265({
+    required this.text,
+    required this.lines,
+    required this.roomFee,
+    required this.channels,
+  });
 
   factory Data265.fromJson(Map<String, Object?> json) =>
       _$Data265FromJson(json);
 
-  final Channel4 channel;
-  final bool queued;
+  final String text;
+  final List<Lines32> lines;
+  @JsonKey(name: 'room_fee')
+  final RoomFee4? roomFee;
+  final Channels4 channels;
 
   Map<String, Object?> toJson() => _$Data265ToJson(this);
 }

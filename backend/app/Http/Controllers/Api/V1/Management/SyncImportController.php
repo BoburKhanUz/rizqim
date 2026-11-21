@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1\Management;
 
 use App\Domain\Pos\Sync\PosSyncImport;
 use App\Domain\Pos\Sync\PosSyncImportException;
-use App\Domain\Pos\Sync\SyncExportFile;
 use App\Models\User;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;

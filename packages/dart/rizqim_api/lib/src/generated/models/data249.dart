@@ -4,18 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'requests.dart';
+
 part 'data249.g.dart';
 
 @JsonSerializable()
 class Data249 {
-  const Data249({required this.requestId, required this.claimed});
+  const Data249({required this.requests});
 
   factory Data249.fromJson(Map<String, Object?> json) =>
       _$Data249FromJson(json);
 
-  @JsonKey(name: 'request_id')
-  final String requestId;
-  final bool claimed;
+  final List<Requests> requests;
 
   Map<String, Object?> toJson() => _$Data249ToJson(this);
 }

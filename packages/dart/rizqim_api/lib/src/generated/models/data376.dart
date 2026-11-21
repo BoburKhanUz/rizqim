@@ -8,13 +8,24 @@ part 'data376.g.dart';
 
 @JsonSerializable()
 class Data376 {
-  const Data376({required this.key, required this.kid});
+  const Data376({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.staffCode,
+    required this.photoUrl,
+  });
 
   factory Data376.fromJson(Map<String, Object?> json) =>
       _$Data376FromJson(json);
 
-  final String key;
-  final int kid;
+  final int id;
+  final String name;
+  final String role;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'photo_url')
+  final String? photoUrl;
 
   Map<String, Object?> toJson() => _$Data376ToJson(this);
 }

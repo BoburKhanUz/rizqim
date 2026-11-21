@@ -469,6 +469,9 @@ multipart upload `file`. (The owner path is under `/owner/pos/` like the panel's
   kept within the last 48 h (`PosSyncApplier::deviceTime`, `SESSION_WINDOW_HOURS` 36). A file imported more than
   about 3.5 days after the cashier last signed in on that till has its sales rejected `staff_not_signed_in` and its
   payments recorded `staff_unverified`; the runbook tells support to import within three days.
+- Open: a till that no longer starts cannot write the file (its key is in that device's secure storage, and the
+  mirror holds journal lines, not a sealed file). Rescuing such a disk needs a server-side path that trusts the
+  per-operation MACs alone; not built (docs/OPERATIONS.md §25 sends it to the developers).
 
 ## 6. Proposal E: versions and updates
 

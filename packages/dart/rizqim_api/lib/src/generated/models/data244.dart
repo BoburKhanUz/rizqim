@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff11.dart';
+import 'staff10.dart';
 
 part 'data244.g.dart';
 
@@ -15,7 +15,7 @@ class Data244 {
   factory Data244.fromJson(Map<String, Object?> json) =>
       _$Data244FromJson(json);
 
-  final List<Staff11> staff;
+  final List<Staff10> staff;
 
   Map<String, Object?> toJson() => _$Data244ToJson(this);
 }

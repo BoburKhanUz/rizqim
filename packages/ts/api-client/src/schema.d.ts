@@ -2548,6 +2548,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/pos/sync-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a till's queue file (any store)
+         * @description A multipart upload: `file` (the `.rzq` file a till wrote, at most 8 MB and 10 000 operations) and `reason`. The
+         *     same import as the owner's `POST /owner/pos/sync/import`, for a till of any store: found by the file's header,
+         *     the file's MAC checked, every operation applied as that till once by its `op_id`. The answer is the same
+         *     (`results`, `skipped`, `totals`, `complete`; `complete: false` — upload the same file again). Refused whole with
+         *     422 (`not_export_file`, `version_unsupported`, `file_too_large`, `not_a_till`, `key_unavailable`,
+         *     `file_mac_invalid`) or 404 (`device_not_found`).
+         */
+        post: operations["admin.pos.sync_imported"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/refund-requests": {
         parameters: {
             query?: never;
@@ -7100,6 +7125,41 @@ export interface paths {
          */
         put: operations["syncSigning.update"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/sync/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a till's queue file
+         * @description A multipart upload: `file`, the `.rzq` file a till wrote (at most 8 MB and 10 000 operations). The server finds
+         *     the till by the file's header (it may be disconnected or its token expired; its key is kept 30 days after it was
+         *     disconnected), checks the file's MAC and then applies every operation as that till, exactly like
+         *     `POST /pos/sync`: once by its `op_id` (a file uploaded twice, or after the till sent a part of it, changes
+         *     nothing: `duplicate: true`), with the same signature check (`sig_status`) and store mode — a payment is recorded,
+         *     never dropped. `results`: one entry per operation that has a row on the server, as the sync endpoint answers it,
+         *     with its `line` in the file, the `device` it was applied as and `renumbered_from` (its number in the file when
+         *     that number already belonged to another operation and it was given the next free one). `skipped`: lines nothing
+         *     was recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device this store does
+         *     not have; `repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is recorded
+         *     rejected `device_revoked` (a payment is still recorded, as a conflict). `complete: false`: the time for one request
+         *     ran out (`stopped_reason: time_budget`), the till itself is syncing (`sync_in_progress`) or the database failed
+         *     (`database`); `totals.pending` operations are left: upload the same file again.
+         *     The whole file is refused (nothing applied) with 422 and `data.reason`: `not_export_file`, `version_unsupported`,
+         *     `file_too_large`, `not_a_till`, `key_unavailable` (no key to check it with), `file_mac_invalid`; a till that is
+         *     not this store's: 404 `device_not_found`.
+         */
+        post: operations["syncImport.store"];
         delete?: never;
         options?: never;
         head?: never;
@@ -21670,6 +21730,118 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "admin.pos.sync_imported": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The .rzq file written by the till ("Navbatni faylga saqlash"), at most 8 MB.
+                     */
+                    file: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            server_time: string;
+                            complete: boolean;
+                            stopped_reason: string | null;
+                            file: {
+                                version: number;
+                                device: string;
+                                kid: number;
+                                created_at: string | null;
+                                count: number;
+                                first_seq: number | null;
+                                last_seq: number | null;
+                            };
+                            device: {
+                                uuid: string;
+                                name: string | null;
+                                prefix: string | null;
+                                last_seq: number;
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                                revoked_at: string | null;
+                            };
+                            totals: {
+                                operations: number;
+                                applied: number;
+                                conflict: number;
+                                rejected: number;
+                                duplicate: number;
+                                skipped: number;
+                                pending: number;
+                                renumbered: number;
+                            };
+                            results: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                duplicate: boolean;
+                                sig_status: string | null;
+                                refs: {
+                                    [key: string]: unknown;
+                                };
+                                line: number;
+                                device: string;
+                                renumbered_from: number | null;
+                            }[];
+                            skipped: {
+                                line: number;
+                                op_id: string | null;
+                                seq: number | null;
+                                device: string | null;
+                                reason: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such till (device_not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The whole file is refused: not_export_file, version_unsupported, file_too_large, not_a_till, key_unavailable, file_mac_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "admin.refund_requests": {
         parameters: {
             query?: {
@@ -36004,6 +36176,117 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "syncImport.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The .rzq file written by the till ("Navbatni faylga saqlash"), at most 8 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            server_time: string;
+                            complete: boolean;
+                            stopped_reason: string | null;
+                            file: {
+                                version: number;
+                                device: string;
+                                kid: number;
+                                created_at: string | null;
+                                count: number;
+                                first_seq: number | null;
+                                last_seq: number | null;
+                            };
+                            device: {
+                                uuid: string;
+                                name: string | null;
+                                prefix: string | null;
+                                last_seq: number;
+                                pending_ops: number;
+                                oldest_op_at: string | null;
+                                reported_at: string | null;
+                                clock_skew_seconds: number | null;
+                                clock_warning: boolean;
+                                revoked_at: string | null;
+                            };
+                            totals: {
+                                operations: number;
+                                applied: number;
+                                conflict: number;
+                                rejected: number;
+                                duplicate: number;
+                                skipped: number;
+                                pending: number;
+                                renumbered: number;
+                            };
+                            results: {
+                                op_id: string;
+                                seq: number;
+                                type: string;
+                                status: string;
+                                reason: string | null;
+                                message: string | null;
+                                duplicate: boolean;
+                                sig_status: string | null;
+                                refs: {
+                                    [key: string]: unknown;
+                                };
+                                line: number;
+                                device: string;
+                                renumbered_from: number | null;
+                            }[];
+                            skipped: {
+                                line: number;
+                                op_id: string | null;
+                                seq: number | null;
+                                device: string | null;
+                                reason: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The till of the file is not this store's (device_not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The whole file is refused: not_export_file, version_unsupported, file_too_large, not_a_till, key_unavailable, file_mac_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "tips.report": {

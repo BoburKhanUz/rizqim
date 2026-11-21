@@ -7,33 +7,21 @@ part of 'data297.dart';
 // **************************************************************************
 
 Data297 _$Data297FromJson(Map<String, dynamic> json) => Data297(
-  v: (json['v'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  keyId: (json['key_id'] as num).toInt(),
-  role: LanRole.fromJson(json['role'] as String),
-  device: json['device'] as String,
-  deviceKey: json['device_key'] as String,
-  beaconKey: json['beacon_key'] as String,
-  hub: Hub5.fromJson(json['hub'] as Map<String, dynamic>),
-  hubSecret: json['hub_secret'] as String?,
-  devices: (json['devices'] as List<dynamic>?)
-      ?.map((e) => Devices4.fromJson(e as Map<String, dynamic>))
+  generatedAt: json['generated_at'] as String,
+  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls12.fromJson(e as Map<String, dynamic>))
       .toList(),
-  grant: json['grant'] as String?,
-  clockWindowSeconds: (json['clock_window_seconds'] as num).toInt(),
+  untabledOrders: (json['untabled_orders'] as List<dynamic>)
+      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data297ToJson(Data297 instance) => <String, dynamic>{
-  'v': instance.v,
   'branch_id': instance.branchId,
-  'key_id': instance.keyId,
-  'role': instance.role,
-  'device': instance.device,
-  'device_key': instance.deviceKey,
-  'beacon_key': instance.beaconKey,
-  'hub': instance.hub,
-  'hub_secret': instance.hubSecret,
-  'devices': instance.devices,
-  'grant': instance.grant,
-  'clock_window_seconds': instance.clockWindowSeconds,
+  'generated_at': instance.generatedAt,
+  'overdue_after_hours': instance.overdueAfterHours,
+  'halls': instance.halls,
+  'untabled_orders': instance.untabledOrders,
 };

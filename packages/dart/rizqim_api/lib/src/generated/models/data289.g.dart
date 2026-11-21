@@ -7,27 +7,13 @@ part of 'data289.dart';
 // **************************************************************************
 
 Data289 _$Data289FromJson(Map<String, dynamic> json) => Data289(
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  code: json['code'] as String,
-  dailyLimit: json['daily_limit'] as String?,
-  mealsPerDay: (json['meals_per_day'] as num?)?.toInt(),
-  isActive: json['is_active'] as bool,
-  note: json['note'] as String?,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  created: (json['created'] as num).toInt(),
+  members: (json['members'] as List<dynamic>)
+      .map((e) => Members2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data289ToJson(Data289 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'phone': instance.phone,
-  'code': instance.code,
-  'daily_limit': instance.dailyLimit,
-  'meals_per_day': instance.mealsPerDay,
-  'is_active': instance.isActive,
-  'note': instance.note,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'created': instance.created,
+  'members': instance.members,
 };

@@ -21,7 +21,7 @@ Data367 _$Data367FromJson(Map<String, dynamic> json) => Data367(
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items71.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items70.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   acceptedAt: json['accepted_at'] as String?,
@@ -35,10 +35,10 @@ Data367 _$Data367FromJson(Map<String, dynamic> json) => Data367(
       : PickupStatus.fromJson(json['pickup_status'] as String),
   assembly: json['assembly'] == null
       ? null
-      : Assembly3.fromJson(json['assembly'] as Map<String, dynamic>),
+      : Assembly2.fromJson(json['assembly'] as Map<String, dynamic>),
   pickup: json['pickup'] == null
       ? null
-      : Pickup32.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup31.fromJson(json['pickup'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data367ToJson(Data367 instance) => <String, dynamic>{

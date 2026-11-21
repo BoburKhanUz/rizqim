@@ -18,6 +18,9 @@ class Results {
     required this.duplicate,
     required this.sigStatus,
     required this.refs,
+    required this.line,
+    required this.device,
+    required this.renumberedFrom,
   });
 
   factory Results.fromJson(Map<String, Object?> json) =>
@@ -34,6 +37,10 @@ class Results {
   @JsonKey(name: 'sig_status')
   final String? sigStatus;
   final Map<String, dynamic> refs;
+  final int line;
+  final String device;
+  @JsonKey(name: 'renumbered_from')
+  final int? renumberedFrom;
 
   Map<String, Object?> toJson() => _$ResultsToJson(this);
 }

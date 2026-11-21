@@ -7,13 +7,15 @@ part of 'data215.dart';
 // **************************************************************************
 
 Data215 _$Data215FromJson(Map<String, dynamic> json) => Data215(
-  branchId: (json['branch_id'] as num).toInt(),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: UserRole.fromJson(json['role'] as String),
+  branchId: (json['branch_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data215ToJson(Data215 instance) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
   'branch_id': instance.branchId,
-  'entries': instance.entries,
 };

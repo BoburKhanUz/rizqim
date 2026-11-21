@@ -7,29 +7,27 @@ part of 'data161.dart';
 // **************************************************************************
 
 Data161 _$Data161FromJson(Map<String, dynamic> json) => Data161(
-  branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
+  serverTime: json['server_time'] as String,
+  complete: json['complete'] as bool,
+  stoppedReason: json['stopped_reason'] as String?,
+  file: File.fromJson(json['file'] as Map<String, dynamic>),
+  device: Device10.fromJson(json['device'] as Map<String, dynamic>),
   totals: Totals.fromJson(json['totals'] as Map<String, dynamic>),
-  byDay: (json['by_day'] as List<dynamic>)
-      .map((e) => ByDay.fromJson(e as Map<String, dynamic>))
+  results: (json['results'] as List<dynamic>)
+      .map((e) => Results.fromJson(e as Map<String, dynamic>))
       .toList(),
-  byStaff: (json['by_staff'] as List<dynamic>)
-      .map((e) => ByStaff2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  undistributed: json['undistributed'] as String,
-  staff: (json['staff'] as List<dynamic>)
-      .map((e) => Staff.fromJson(e as Map<String, dynamic>))
+  skipped: (json['skipped'] as List<dynamic>)
+      .map((e) => Skipped.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data161ToJson(Data161 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
+  'server_time': instance.serverTime,
+  'complete': instance.complete,
+  'stopped_reason': instance.stoppedReason,
+  'file': instance.file,
+  'device': instance.device,
   'totals': instance.totals,
-  'by_day': instance.byDay,
-  'by_staff': instance.byStaff,
-  'undistributed': instance.undistributed,
-  'staff': instance.staff,
+  'results': instance.results,
+  'skipped': instance.skipped,
 };

@@ -16,6 +16,9 @@ Results _$ResultsFromJson(Map<String, dynamic> json) => Results(
   duplicate: json['duplicate'] as bool,
   sigStatus: json['sig_status'] as String?,
   refs: json['refs'] as Map<String, dynamic>,
+  line: (json['line'] as num).toInt(),
+  device: json['device'] as String,
+  renumberedFrom: (json['renumbered_from'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$ResultsToJson(Results instance) => <String, dynamic>{
@@ -28,4 +31,7 @@ Map<String, dynamic> _$ResultsToJson(Results instance) => <String, dynamic>{
   'duplicate': instance.duplicate,
   'sig_status': instance.sigStatus,
   'refs': instance.refs,
+  'line': instance.line,
+  'device': instance.device,
+  'renumbered_from': instance.renumberedFrom,
 };

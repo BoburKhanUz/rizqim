@@ -11,7 +11,7 @@ _$PutV1PosBanquetsUuidPaymentsResponseFromJson(Map<String, dynamic> json) =>
     PutV1PosBanquetsUuidPaymentsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data235.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data236.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1PosBanquetsUuidPaymentsResponseToJson(

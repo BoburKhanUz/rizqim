@@ -4,20 +4,27 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'entries2.dart';
+import 'user_role.dart';
 
 part 'data215.g.dart';
 
 @JsonSerializable()
 class Data215 {
-  const Data215({required this.branchId, required this.entries});
+  const Data215({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.branchId,
+  });
 
   factory Data215.fromJson(Map<String, Object?> json) =>
       _$Data215FromJson(json);
 
+  final int id;
+  final String name;
+  final UserRole role;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final List<Entries2> entries;
+  final int? branchId;
 
   Map<String, Object?> toJson() => _$Data215ToJson(this);
 }

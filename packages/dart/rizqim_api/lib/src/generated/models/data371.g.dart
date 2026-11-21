@@ -6,12 +6,9 @@ part of 'data371.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
-  rating: json['rating'] as String,
-  reviewCount: (json['review_count'] as num).toInt(),
-);
+Data371 _$Data371FromJson(Map<String, dynamic> json) =>
+    Data371(received: json['received'] as bool);
 
 Map<String, dynamic> _$Data371ToJson(Data371 instance) => <String, dynamic>{
-  'rating': instance.rating,
-  'review_count': instance.reviewCount,
+  'received': instance.received,
 };
