@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -9,7 +11,7 @@ plugins {
 // builds are untouched and a local `flutter run --release` still signs with the debug key. The release workflow sets
 // ORG_GRADLE_PROJECT_requireReleaseSigning so that a missing file fails the build instead of falling back to the debug key.
 val keyPropertiesFile = rootProject.file("key.properties")
-val keyProperties = java.util.Properties()
+val keyProperties = Properties()
 if (keyPropertiesFile.exists()) {
     keyPropertiesFile.inputStream().use { keyProperties.load(it) }
 } else if (project.hasProperty("requireReleaseSigning")) {
