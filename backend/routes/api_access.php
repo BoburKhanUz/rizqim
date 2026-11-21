@@ -24,6 +24,8 @@ Route::post('/auth/phone/verify', [PhoneLoginController::class, 'verify'])->midd
 // P1-36: a phone holding several staff accounts (two stores): finish the sign-in with the chosen one
 Route::post('/auth/phone/select-account', [PhoneLoginController::class, 'selectAccount'])->middleware('throttle:otp-verify');
 Route::post('/devices/pair', [TerminalController::class, 'pair'])->middleware('throttle:device-pair');
+// Wave M5 S5-a: the public manifest of POS app releases (pos.rizqim.uz reads it): no auth, cached, throttled per address
+Route::get('/pos/releases', [\App\Http\Controllers\Api\V1\Device\PosReleaseManifestController::class, 'index'])->middleware('throttle:pos-releases');
 
 // A signed-in user (Mini App, apps, staff PIN session)
 Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {

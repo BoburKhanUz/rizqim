@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminPosDeviceController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosFiscalController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosInvoiceController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosOverviewController;
+use App\Http\Controllers\Api\V1\Admin\AdminPosReleaseController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosShiftController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosSyncErrorController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosSyncImportController;
@@ -40,6 +41,9 @@ Route::prefix('pos')->name('pos.')->group(function () {
         Route::get('/fiscal-receipts/{uuid}', [AdminPosFiscalController::class, 'show'])->whereUuid('uuid')->name('fiscal_receipt');
         Route::get('/sync-errors', [AdminPosSyncErrorController::class, 'index'])->name('sync_errors');
         Route::get('/sync-errors/{opId}', [AdminPosSyncErrorController::class, 'show'])->whereUuid('opId')->name('sync_error');
+        // Wave M5 S5-a: the registry of POS app releases (read)
+        Route::get('/releases', [AdminPosReleaseController::class, 'index'])->name('releases');
+        Route::get('/releases/{uuid}', [AdminPosReleaseController::class, 'show'])->whereUuid('uuid')->name('release');
     });
 
     Route::middleware(['admin.can:stores.manage', 'admin.recent'])->group(function () {
@@ -48,5 +52,11 @@ Route::prefix('pos')->name('pos.')->group(function () {
         Route::post('/sync-errors/{opId}/resolve', [AdminPosSyncErrorController::class, 'resolve'])->whereUuid('opId')->name('sync_error_resolved');
         // Wave M5 S4-b: a till's rescue file imported for any store (docs/OPERATIONS.md, the rescue runbook)
         Route::post('/sync-import', [AdminPosSyncImportController::class, 'store'])->name('sync_imported');
+        // Wave M5 S5-a: publishing a POS app version, changing it, withdrawing it (RIZQIM team only, owner answer 9)
+        Route::post('/releases', [AdminPosReleaseController::class, 'store'])->name('release_created');
+        Route::patch('/releases/{uuid}', [AdminPosReleaseController::class, 'update'])->whereUuid('uuid')->name('release_updated');
+        Route::post('/releases/{uuid}/withdraw', [AdminPosReleaseController::class, 'withdraw'])->whereUuid('uuid')->name('release_withdrawn');
+        Route::post('/releases/{uuid}/restore', [AdminPosReleaseController::class, 'restore'])->whereUuid('uuid')->name('release_restored');
+        Route::delete('/releases/{uuid}', [AdminPosReleaseController::class, 'destroy'])->whereUuid('uuid')->name('release_deleted');
     });
 });

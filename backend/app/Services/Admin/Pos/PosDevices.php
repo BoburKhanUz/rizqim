@@ -2,8 +2,11 @@
 
 namespace App\Services\Admin\Pos;
 
+use App\Domain\Pos\Releases\AppVersion;
+use App\Domain\Pos\Releases\PosAppReleases;
 use App\Domain\Pos\Sync\PosSyncService;
 use App\Domain\Pos\Sync\SyncSignatureStatus;
+use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
 use App\Models\Device;
 use App\Models\Store;
@@ -14,8 +17,12 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * P4-24 Qurilmalar: the devices of every store (the terminals and the staff's app installs) with their online state
- * and app version. Online = seen in the last 10 minutes (the same limit the Bugun "offline" source uses). There is no
- * release registry, so "outdated" means older than the newest version seen on an active device of the same type.
+ * and app version. Online = seen in the last 10 minutes (the same limit the Bugun "offline" source uses).
+ *
+ * Wave M5 S5-a: "latest" comes from the release registry (pos_app_releases, App\Domain\Pos\Releases\PosAppReleases),
+ * per app and platform (`latest_versions` is keyed "<app>/<platform>", e.g. `cashier/android`), no longer guessed from
+ * the fleet. A device whose app and platform the registry knows nothing about has no `latest_version` and is never
+ * "outdated" (an empty registry marks nothing).
  *
  * Wave M5 S3-d (docs/scale/M5_DESIGN.md §4): `sync.signatures` — what the signatures of the till's offline operations
  * were worth in the last SIGNATURE_DAYS days (ok, missing: unsigned, bad, chain_gap: after a lost line), the number of
@@ -88,16 +95,15 @@ class PosDevices
     }
 
     /**
-     * The newest app version per device type among the active devices.
+     * The latest registered version per app and platform ("cashier/android" => "1.4.0+7").
      *
      * @return array<string, string>
      */
     public function latestVersions(): array
     {
         $latest = [];
-        foreach ($this->versionsSeen() as $type => $versions) {
-            usort($versions, fn (string $a, string $b) => version_compare($b, $a));
-            $latest[$type] = $versions[0];
+        foreach (app(PosAppReleases::class)->latestRows() as $key => $release) {
+            $latest[$key] = $release->label();
         }
         ksort($latest);
 
@@ -105,41 +111,72 @@ class PosDevices
     }
 
     /**
+     * Devices whose reported version is older than the registry's latest for their app and platform. The version
+     * order is decided in PHP over the distinct versions seen (as before), then the query keeps those versions.
+     *
      * @param  Builder<Device>  $query
      */
     private function onlyOutdated(Builder $query): void
     {
+        $latest = app(PosAppReleases::class)->latestRows();
         $outdated = [];
-        foreach ($this->versionsSeen() as $type => $versions) {
-            usort($versions, fn (string $a, string $b) => version_compare($b, $a));
-            $newest = $versions[0];
-            $old = array_values(array_filter($versions, fn (string $version) => version_compare($version, $newest) < 0));
-            if ($old !== []) {
-                $outdated[$type] = $old;
+        foreach ($this->versionsSeen() as $row) {
+            $release = $latest[$row['app'] . '/' . $row['platform']] ?? null;
+            $current = AppVersion::parse($row['version']);
+            if ($release !== null && $current !== null && AppVersion::compare($current, ['version' => (string) $release->version, 'build' => (int) $release->build]) < 0) {
+                $outdated[] = $row;
             }
         }
 
         $query->where(function (Builder $inner) use ($outdated) {
             $inner->whereRaw('1 = 0');
-            foreach ($outdated as $type => $versions) {
-                $inner->orWhere(fn (Builder $one) => $one->where('devices.type', $type)->whereIn('devices.app_version', $versions));
+            foreach ($outdated as $row) {
+                $app = DeviceApp::from($row['app']);
+                $inner->orWhere(function (Builder $one) use ($app, $row) {
+                    $one->where('devices.type', $app->deviceType()->value)
+                        ->whereRaw('lower(devices.platform) = ?', [$row['platform']])
+                        ->where('devices.app_version', $row['version'])
+                        ->where(function (Builder $named) use ($app) {
+                            $named->where('devices.app', $app->value);
+                            // A device with no recorded app runs its type's default app
+                            if ($app === self::defaultApp($app->deviceType())) {
+                                $named->orWhereNull('devices.app');
+                            }
+                        });
+                });
             }
         });
     }
 
+    private static function defaultApp(DeviceType $type): ?DeviceApp
+    {
+        return match ($type) {
+            DeviceType::POS => DeviceApp::CASHIER,
+            DeviceType::KDS => DeviceApp::KDS,
+            DeviceType::DISPLAY => DeviceApp::CUSTOMER_DISPLAY,
+            default => null,
+        };
+    }
+
     /**
-     * @return array<string, list<string>> type => the distinct versions on active devices
+     * @return list<array{app: string, platform: string, version: string}> the distinct (app, platform, version) on active devices the registry can judge
      */
     private function versionsSeen(): array
     {
+        $releases = app(PosAppReleases::class);
         $seen = [];
         $rows = $this->base()->whereNull('revoked_at')->whereNotNull('app_version')->where('app_version', '!=', '')
-            ->distinct()->get(['type', 'app_version']);
+            ->distinct()->get(['type', 'app', 'platform', 'app_version']);
         foreach ($rows as $row) {
-            $seen[$row->type->value][] = (string) $row->app_version;
+            $app = $releases->appOf($row);
+            $platform = PosAppReleases::platformOf($row->platform);
+            if ($app === null || $platform === null) {
+                continue;
+            }
+            $seen[$app->value . '/' . $platform . '/' . $row->app_version] = ['app' => $app->value, 'platform' => $platform, 'version' => (string) $row->app_version];
         }
 
-        return $seen;
+        return array_values($seen);
     }
 
     /**
@@ -233,8 +270,13 @@ class PosDevices
     public function row(Device $device, Carbon $now, array $latest, ?array $signatures = null): array
     {
 
-        $newest = $latest[$device->type->value] ?? null;
+        $releases = app(PosAppReleases::class);
+        $app = $releases->appOf($device);
+        $platform = PosAppReleases::platformOf($device->platform);
+        $newest = $app !== null && $platform !== null ? ($latest[$app->value . '/' . $platform] ?? null) : null;
         $version = filled($device->app_version) ? (string) $device->app_version : null;
+        $current = AppVersion::parse($version);
+        $newestParts = AppVersion::parse($newest);
 
         return [
             'uuid' => (string) $device->uuid,
@@ -247,7 +289,7 @@ class PosDevices
             'platform' => $device->platform,
             'app_version' => $version,
             'latest_version' => $newest,
-            'outdated' => $version !== null && $newest !== null && version_compare($version, $newest) < 0,
+            'outdated' => $current !== null && $newestParts !== null && AppVersion::compare($current, $newestParts) < 0,
             'state' => $this->state($device, $now),
             'last_seen_at' => $device->last_seen_at?->toIso8601String(),
             'paired_at' => $device->created_at?->toIso8601String(),

@@ -16,6 +16,7 @@ class V1DevicesPairRequestBody {
     this.platform,
     this.appVersion,
     this.app,
+    this.pendingOperations,
   });
 
   factory V1DevicesPairRequestBody.fromJson(Map<String, Object?> json) =>
@@ -27,6 +28,8 @@ class V1DevicesPairRequestBody {
   @JsonKey(name: 'app_version')
   final String? appVersion;
   final DeviceApp? app;
+  @JsonKey(name: 'pending_operations')
+  final int? pendingOperations;
 
   Map<String, Object?> toJson() => _$V1DevicesPairRequestBodyToJson(this);
 }

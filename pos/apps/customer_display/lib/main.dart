@@ -13,6 +13,7 @@ Future<void> main() async {
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
     app: 'customer_display',
+    appVersion: AppConfig.fullVersion,
   );
   final DisplaySettingsController settings = DisplaySettingsController(
     PrefsSettingsStore(),

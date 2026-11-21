@@ -189,6 +189,9 @@ class AccessServiceProvider extends ServiceProvider
                 ->by('net:' . IpUtils::anonymize((string) $request->ip(), 1, 8)),
         ]);
 
+        // GET /pos/releases (public manifest): per address, the response itself is cached for 5 minutes
+        RateLimiter::for('pos-releases', fn (Request $request) => Limit::perMinute(max(1, (int) config('pos.releases.manifest_per_minute', 30)))->by('ip:' . $request->ip()));
+
         RateLimiter::for('pairing-code', fn (Request $request) => [
             Limit::perMinute(5)->by('minute:' . $byUser($request)),
             Limit::perHour(30)->by('hour:' . $byUser($request)),

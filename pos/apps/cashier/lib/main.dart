@@ -19,6 +19,7 @@ Future<void> main() async {
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
     app: 'cashier',
+    appVersion: AppConfig.fullVersion,
   );
   final ShellSettingsController settings = ShellSettingsController(
     PrefsShellSettingsStore(),

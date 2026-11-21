@@ -5,6 +5,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'app_config.dart';
 import 'lan/waiter_lan.dart';
 import 'services.dart';
 import 'shell/home_shell.dart';
@@ -102,7 +103,9 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final PairedTerminal? terminal = _auth.terminal;
-    if (terminal == null) return PairingScreen(auth: _auth);
+    if (terminal == null) {
+      return PairingScreen(auth: _auth, openUrl: widget.services.linkOpener);
+    }
     return TerminalHome(
       key: ValueKey<String>(terminal.device.uuid),
       services: widget.services,
@@ -132,6 +135,7 @@ class _TerminalHomeState extends State<TerminalHome> {
 
   PosRealtime? _realtime;
   WaiterLan? _lan;
+  bool _ownsReleases = false;
   late final StreamSubscription<AuthEvent> _authSub;
   late final StreamSubscription<PosSessionPhase> _phaseSub;
   String? _notice;
@@ -155,6 +159,15 @@ class _TerminalHomeState extends State<TerminalHome> {
       );
       unawaited(_lan!.start());
     }
+    // M5 S5: the update notice is read once the phone is paired (now and every 6 h); a notice only, never a gate
+    if (_s.releases == null) {
+      _ownsReleases = true;
+      _s.releases = PosReleaseRepository.fromClient(
+        _s.client,
+        appVersion: AppConfig.fullVersion,
+      );
+      unawaited(_s.releases!.start());
+    }
     _authSub = _s.auth.events.listen(_onAuth);
     _phaseSub = _session.changes.listen((_) {
       if (mounted) setState(() {});
@@ -164,6 +177,11 @@ class _TerminalHomeState extends State<TerminalHome> {
 
   @override
   void dispose() {
+    // Unpaired (or the app closed): the version reads stop
+    if (_ownsReleases) {
+      _s.releases?.dispose();
+      _s.releases = null;
+    }
     unawaited(_authSub.cancel());
     unawaited(_phaseSub.cancel());
     unawaited(_realtime?.dispose());

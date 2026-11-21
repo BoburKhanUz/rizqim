@@ -404,6 +404,24 @@ services:
       retries: 3
       start_period: 30s
 
+  # pos.rizqim.uz: POS ilovalarini yuklab olish sahifasi (infra/pos-site, statik nginx). Sahifa GET /api/v1/pos/releases ni
+  # (faqat shu manzilni) backend'dan oladi; ilova fayllari POS_FILES_DIR (standart ./pos-files) papkasidan /files/<ilova>/<platforma>/
+  # bo'yicha beriladi (faqat o'qish). Tashqi TLS proksi pos.<domen> ni POS_SITE_PORT ga yo'naltiradi. docs/OPERATIONS.md, "POS ilovalarini chiqarish"
+  pos-site:
+    build:
+      context: ./infra/pos-site
+    restart: unless-stopped
+    volumes:
+      - ${POS_FILES_DIR:-./pos-files}:/usr/share/nginx/html/files:ro
+    ports:
+      - "${POS_SITE_BIND:-127.0.0.1}:${POS_SITE_PORT:-8090}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # Hamkor veb-panel (partner/web, Next.js; restoran egasi va xodimlari, SMS kod bilan kiradi). Tashqi TLS proksi uni
   # alohida hostda beradi: panel.<domen> -> PARTNER_WEB_PORT (Mini App FRONTEND_PORT da bo'lgani kabi). Sozlamalar
   # runtime'da o'qiladi (image har muhitda bir xil): Next serveri backend'ga compose tarmog'i ichida (API_BASE_URL),

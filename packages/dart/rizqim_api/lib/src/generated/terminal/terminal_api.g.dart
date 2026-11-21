@@ -121,6 +121,33 @@ class _TerminalApi implements TerminalApi {
   }
 
   @override
+  Future<GetV1PosReleasesResponse> posReleaseManifestIndex() async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GetV1PosReleasesResponse>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/releases',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GetV1PosReleasesResponse _value;
+    try {
+      _value = GetV1PosReleasesResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<GetV1TerminalResponse> terminalShow() async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};

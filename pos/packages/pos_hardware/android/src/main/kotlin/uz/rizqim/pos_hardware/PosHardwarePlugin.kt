@@ -18,6 +18,7 @@ import io.flutter.plugin.common.MethodChannel
  * | `uz.rizqim.pos_hardware/scanner` (events) | [ScannerStream] | lib/src/scanner/barcode_scanner.dart |
  * | `uz.rizqim.pos_hardware/customer_screen` | [CustomerScreen] | lib/src/display/customer_screen.dart |
  * | `uz.rizqim.pos_hardware/multicast` | [WifiMulticast] | lib/src/network/wifi_multicast_lock.dart |
+ * | `uz.rizqim.pos_hardware/link` | [LinkOpener] | lib/src/link/open_link.dart |
  *
  * The activity is needed for the Bluetooth permission dialog and the second-screen window; without one (a background
  * engine) those answer `false` and everything else works.
@@ -44,12 +45,14 @@ class PosHardwarePlugin : FlutterPlugin, ActivityAware {
         val u = UsbPrinters(context).also { usb = it }
         val screen = CustomerScreen(context).also { customerScreen = it }
         val wifi = WifiMulticast(context).also { multicast = it }
+        val link = LinkOpener(context)
         for ((name, handler) in listOf(
             SunmiPrinter.CHANNEL to s,
             BLUETOOTH_CHANNEL to bt,
             USB_CHANNEL to u,
             CustomerScreen.CHANNEL to screen,
             WifiMulticast.CHANNEL to wifi,
+            LinkOpener.CHANNEL to link,
         )) {
             channels.add(MethodChannel(messenger, name).also { it.setMethodCallHandler(handler) })
         }

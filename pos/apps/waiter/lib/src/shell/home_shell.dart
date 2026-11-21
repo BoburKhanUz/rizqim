@@ -19,6 +19,7 @@ import '../services.dart';
 import 'connection_indicator.dart';
 import 'plan_notice.dart';
 import 'unpair_dialog.dart';
+import 'update_notice.dart';
 import 'waiter_scope.dart';
 
 /// Ofitsiantning ish ekrani (telefon): yuqorida kim kirgani, filial, aloqa belgisi, qulf va menyu; ostida "Mening
@@ -60,6 +61,42 @@ class _HomeShellState extends State<HomeShell> {
     // P4-21: the plan is read again now and then, so paying the invoice removes the notice
     _plan.start();
     if (_session.clockOn) unawaited(_clock.refresh());
+    // M5 S5: the full notice at app start (once per run), when the server says the version is below the minimum
+    final PosReleaseRepository? releases = widget.services.releases;
+    if (releases != null) {
+      _releaseSub = releases.changes.listen((_) => _startNotice());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startNotice());
+    }
+  }
+
+  StreamSubscription<Object?>? _releaseSub;
+
+  /// M5 S5: once per run, the home screen shows the `update_required` notice ("Davom etish" closes it). Review M1:
+  /// only while the home screen is the top route; read under an order or another page, it waits until the phone is
+  /// back home.
+  void _startNotice() {
+    final WaiterServices s = widget.services;
+    if (!mounted || s.startNoticeShown) return;
+    if (s.releases?.notice?.isRequired != true) return;
+    if (!updateNoticeCanOpen(context, s)) {
+      _noticeDeferred = true;
+      return;
+    }
+    _noticeDeferred = false;
+    s.startNoticeShown = true;
+    unawaited(showUpdateRequiredNotice(context, s));
+  }
+
+  bool _noticeDeferred = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Depends on the route's "is current": a page popped back home brings the deferred start notice
+    final bool current = ModalRoute.isCurrentOf(context) != false;
+    if (_noticeDeferred && current) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startNotice());
+    }
   }
 
   @override
@@ -67,6 +104,7 @@ class _HomeShellState extends State<HomeShell> {
     _plan.dispose();
     _clock.dispose();
     unawaited(_sub.cancel());
+    unawaited(_releaseSub?.cancel());
     super.dispose();
   }
 
@@ -245,6 +283,8 @@ class _HomeShellState extends State<HomeShell> {
                 session: widget.services.session,
                 now: widget.services.now,
               ),
+              // M5 S5: a new version; red and permanent when required, once a day when available
+              UpdateBannerSlot(services: widget.services),
               // P6-23: a waiter who has not clocked in yet sees it at once
               if (_session.clockOn)
                 ListenableBuilder(

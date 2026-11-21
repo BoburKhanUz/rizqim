@@ -28,6 +28,7 @@ use Tests\TestCase;
 class AdminExportTest extends TestCase
 {
     use AdminPosFixtures;
+    use \Tests\Feature\PosReleases\PosReleaseFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -303,6 +304,8 @@ class AdminExportTest extends TestCase
         $this->invoice(['number' => 'OB-X-1', 'status' => 'issued', 'due_date' => now('Asia/Tashkent')->subDays(4)->toDateString(), 'period' => '2026-09']);
         $this->invoice(['number' => 'OB-X-2', 'status' => 'paid', 'paid_amount' => '249000.00', 'paid_at' => now(), 'period' => '2026-10']);
         $this->invoice(['number' => 'OB-X-3', 'status' => 'issued', 'period' => '2026-10'], $this->foreignStore);
+        // Wave M5 S5-a: "outdated" is judged against the release registry
+        $this->release('1.2.0');
         $this->device(['name' => 'Online', 'last_seen_at' => now()->subMinutes(2)]);
         $this->device(['name' => '=Offline', 'last_seen_at' => now()->subHours(3), 'app_version' => '1.0.0']);
 

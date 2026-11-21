@@ -74,3 +74,10 @@ Artisan::command('pos:erase-sync-keys', function () {
     $this->info(\App\Domain\Pos\Sync\SyncSignature::eraseExpired() . ' disconnected device sync key(s) erased');
 })->purpose('Erase the offline queue signing keys of devices disconnected more than 30 days ago');
 Schedule::command('pos:erase-sync-keys')->daily()->withoutOverlapping(30);
+
+// Wave M5 S5-a (owner answer 8): a till below the minimum app version past the 14-day grace period: the owner is told
+// once per till and per minimum (App\Domain\Pos\Releases\PosAppOutdatedNotice). The till is never stopped
+Artisan::command('pos:notify-outdated-apps', function (\App\Domain\Pos\Releases\PosAppOutdatedNotice $notice) {
+    $this->info($notice->run() . ' outdated-app owner message(s) sent');
+})->purpose('Tell store owners about tills running an app version below the minimum, once per till and minimum');
+Schedule::command('pos:notify-outdated-apps')->dailyAt('05:11')->withoutOverlapping(30);

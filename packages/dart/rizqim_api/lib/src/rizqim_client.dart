@@ -25,6 +25,10 @@ import 'sync/conditional_get.dart';
 /// [app] — POS ilovasi (`cashier`, `waiter`, `kds`, `customer_display`): har so'rovda [appHeader] sarlavhasida
 /// yuboriladi (P6 review S4: server uni ilovasi yozilmagan eski terminalga yozib qo'yadi, kassadan boshqa ilovaga
 /// lokal ko'prik markazi roli va kaliti berilmaydi).
+///
+/// [appVersion] — `<version>+<build>` (masalan `1.4.0+7`, ilovaning `AppConfig` qiymati): har so'rovda
+/// [appVersionHeader] sarlavhasida yuboriladi (M5 S5: server uni `devices.app_version` ga yozadi). Berilmasa
+/// sarlavha yuborilmaydi.
 class RizqimClient {
   factory RizqimClient({
     required String baseUrl,
@@ -33,6 +37,7 @@ class RizqimClient {
     DateTime Function()? clock,
     Duration refreshSkew = const Duration(seconds: 30),
     String? app,
+    String? appVersion,
   }) {
     final Dio http = dio ?? Dio();
     http.options
@@ -41,6 +46,9 @@ class RizqimClient {
       ..receiveTimeout = const Duration(seconds: 30)
       ..headers['Accept'] = 'application/json';
     if (app != null) http.options.headers[appHeader] = app;
+    if (appVersion != null && appVersion.isNotEmpty) {
+      http.options.headers[appVersionHeader] = appVersion;
+    }
     final AuthSession auth = AuthSession(
       remote: AuthRemote(http),
       store: store,
@@ -71,6 +79,9 @@ class RizqimClient {
 
   /// Ilova o'zini aytadigan sarlavha (backend `DeviceApp::HEADER`).
   static const String appHeader = 'X-Rizqim-App';
+
+  /// Ilova versiyasi sarlavhasi (backend `X-Rizqim-App-Version`, `<version>+<build>`).
+  static const String appVersionHeader = 'X-Rizqim-App-Version';
 
   final Dio dio;
   final AuthSession auth;

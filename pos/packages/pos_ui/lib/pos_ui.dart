@@ -18,3 +18,4 @@ export 'src/quantity.dart';
 export 'src/room_summary_card.dart';
 export 'src/scan_listener.dart';
 export 'src/tile_button.dart';
+export 'src/update_notice.dart';

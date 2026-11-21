@@ -4,20 +4,74 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'shift5.dart';
-import 'report3.dart';
+import 'device19.dart';
+import 'opened_by7.dart';
+import 'closed_by10.dart';
+import 'summary12.dart';
+import 'bank_terminal2.dart';
 
 part 'data346.g.dart';
 
 @JsonSerializable()
 class Data346 {
-  const Data346({required this.shift, required this.report});
+  const Data346({
+    required this.uuid,
+    required this.status,
+    required this.branchId,
+    required this.device,
+    required this.businessDate,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
+    required this.closedAt,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
+    required this.difference,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
+    required this.summary,
+    required this.bankTerminal,
+  });
 
   factory Data346.fromJson(Map<String, Object?> json) =>
       _$Data346FromJson(json);
 
-  final Shift5 shift;
-  final Report3 report;
+  final String uuid;
+  final String status;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final Device19? device;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy7? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy10? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
+  final String? difference;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
+  final Summary12? summary;
+  @JsonKey(name: 'bank_terminal')
+  final BankTerminal2? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data346ToJson(this);
 }

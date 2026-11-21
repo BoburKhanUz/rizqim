@@ -115,6 +115,11 @@ services:
       - ./infra/staging/10-noindex.sh:/docker-entrypoint.d/10-noindex.sh:ro
       - ./infra/staging/robots.txt:/usr/share/nginx/html/robots.txt:ro
 
+  # POS ilovalarini yuklab olish sahifasi (statik nginx)
+  pos-site:
+    mem_limit: 32m
+    cpus: 0.1
+
   # Hamkor veb-panel: kirish SMS kod bilan (staging'da SMS faqat logga: kodni backend logidan oling)
   partner-web:
     mem_limit: 256m

@@ -12,6 +12,7 @@ Future<void> main() async {
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
     app: 'waiter',
+    appVersion: AppConfig.fullVersion,
   );
   // Terminal tokeni qurilmadan qaytariladi: qayta ishga tushganda qayta ulash shart emas
   await client.auth.restore();
@@ -22,6 +23,8 @@ Future<void> main() async {
         client: client,
         realtimeFactory: defaultRealtime,
         lanStore: SecureStorageStore(),
+        // M5 S5: the day the "new version" banner was dismissed (a small value, kept like the LAN keys)
+        prefsStore: SecureStorageStore(),
       ),
     ),
   );

@@ -15,6 +15,7 @@ export 'src/escpos/code_page.dart';
 export 'src/escpos/esc_pos_builder.dart';
 export 'src/escpos/esc_pos_decoder.dart';
 export 'src/escpos/layout_renderer.dart';
+export 'src/link/open_link.dart';
 export 'src/network/wifi_multicast_lock.dart';
 export 'src/pos_printers.dart';
 export 'src/printer/lan_transport.dart'

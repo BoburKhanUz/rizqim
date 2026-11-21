@@ -8,6 +8,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../features/billing/cashier_ui.dart';
+import '../features/billing/payment_activity.dart';
 import '../features/billing/payment_page.dart';
 import '../features/order/frequent_items.dart';
 import '../features/order/kitchen_tickets.dart';
@@ -27,6 +28,7 @@ import '../shell/approval_dialog.dart';
 import '../shell/destinations.dart';
 import '../shell/pos_scope.dart';
 import '../shell/routes.dart';
+import '../shell/update_notice.dart';
 import 'counter_controller.dart';
 import 'counter_format.dart';
 import 'counter_queue.dart';
@@ -107,6 +109,7 @@ class _CounterPageState extends State<CounterPage> {
     );
     ctl.addListener(_publishDisplay);
     ctl.addListener(_syncPlate);
+    ctl.addListener(_syncPaying);
     unawaited(ctl.load());
     unawaited(ctl.queue.topUp());
     if (scope.session.queueCalling) {
@@ -130,6 +133,18 @@ class _CounterPageState extends State<CounterPage> {
         unawaited(ctl.refreshAvailability());
       }
     });
+  }
+
+  /// M5 S5 (review M1): a sale waiting for its payment ("To'lov kutilmoqda") is a payment in progress.
+  PaymentHold? _awaiting;
+
+  void _syncPaying() {
+    if (_ctl?.stage == CounterStage.awaitingPayment) {
+      _awaiting ??= _scope.services.payments.begin();
+    } else {
+      _awaiting?.release();
+      _awaiting = null;
+    }
   }
 
   CounterStage? _shownStage;
@@ -190,6 +205,8 @@ class _CounterPageState extends State<CounterPage> {
   void dispose() {
     _ctl?.removeListener(_publishDisplay);
     _ctl?.removeListener(_syncPlate);
+    _ctl?.removeListener(_syncPaying);
+    _awaiting?.release();
     _plate.dispose();
     unawaited(_noticeSub?.cancel());
     unawaited(_boardErrors?.cancel());
@@ -357,7 +374,17 @@ class _CounterPageState extends State<CounterPage> {
 
   // --- to'lov ---------------------------------------------------------------------------------------------------------
 
+  /// M5 S5 (review M1): the whole pay flow (bill, payment, talon) is a payment in progress.
   Future<void> _pay() async {
+    final PaymentHold hold = _scope.services.payments.begin();
+    try {
+      await _payFlow();
+    } finally {
+      hold.release();
+    }
+  }
+
+  Future<void> _payFlow() async {
     final CounterController ctl = _ctl!;
     final PosBill? bill = await ctl.checkout(approve: _approve);
     if (bill == null || !mounted) return;
@@ -453,6 +480,8 @@ class _CounterPageState extends State<CounterPage> {
       );
       if (closed != null && mounted) {
         showPosMessage(context, 'Smena yopildi.');
+        // M5 S5: the full `update_required` notice after a shift close ("Davom etish" closes it)
+        unawaited(showUpdateRequiredNotice(context, scope.services));
       }
     });
   }

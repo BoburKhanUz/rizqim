@@ -1132,3 +1132,35 @@ qilish shart emas: navbat o'zi ketadi.
   papkani istisno qiling, kassa kompyuteriga begonalarni qo'ymang, eski Android kassalarga boshqa ilova o'rnatmang.
 - Kassa umuman ishga tushmasa (disk buzilgan), fayl yozib bo'lmaydi: imzo kaliti shu kassaning himoyalangan
   xotirasida. Bu holat hozircha dasturchi orqali (M5 S4 ochiq masalasi).
+
+## 26. POS ilovalarini chiqarish (M5 S5)
+
+Kassa, Ofitsiant, Oshxona ekrani va Mijoz ekrani ilovalarining yangi versiyasi do'konsiz, pos.rizqim.uz orqali tarqatiladi.
+Kassalar yangilanish xabarini serverdan oladi (reyestrdagi qator bo'yicha), shuning uchun fayl **va** reyestr qatori ikkalasi
+bo'lishi kerak. Hech qanday xabar savdoni to'xtatmaydi.
+
+**Bir martalik tayyorgarlik** (kassalar o'rnatilishidan oldin, keyinga qoldirib bo'lmaydi):
+
+1. Android imzo kalitini yarating va xavfsiz joyda saqlang (parol menejeri, ikki nusxa): `keytool -genkeypair -v -keystore release.keystore -alias rizqim -keyalg RSA -keysize 4096 -validity 10000`. **Kalit yo'qolsa yoki o'zgarsa, o'rnatilgan kassalarni joyida yangilab bo'lmaydi** (ularni o'chirib qayta o'rnatish kerak, ma'lumot yo'qoladi). Debug kalit bilan chiqarilgan fayl ham yangilanmaydi.
+2. GitHub repository secrets: `ANDROID_KEYSTORE_BASE64` (`base64 -w0 release.keystore`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ular bo'lmasa Android qadami «imzo kaliti hali yo'q» deb to'xtaydi va hech narsa chiqarilmaydi.
+3. Serverda `.env` ga `POS_SITE_PORT` (standart 8090) va kerak bo'lsa `POS_FILES_DIR` (standart `./pos-files`) yozing, `docker compose up -d --build pos-site`. Tashqi TLS proksi `pos.rizqim.uz` ni shu portga yo'naltiradi (boshqa saytlar kabi). Sahifa `https://pos.rizqim.uz/` da ochilishini tekshiring.
+
+**Har yangi versiya:**
+
+1. **Versiyani ko'taring.** Chiqariladigan ilovaning `pos/apps/<ilova>/pubspec.yaml` dagi `version:` (masalan `1.4.0+7`; build raqami har safar oshadi) va shu ilovaning `lib/src/app_config.dart` dagi `version`/`build` bir xil bo'lsin (`scripts/check-app-versions.sh` tekshiradi). O'zgarishni main ga qo'shing.
+2. **Tag qo'ying.** `git tag pos-v1.4.0 && git push origin pos-v1.4.0`. Har ilovaning versiyasi o'z pubspec'idan olinadi; tag faqat ishni boshlaydi va GitHub release nomi bo'ladi.
+3. **Ishning tugashini kuting** (Actions > «Release POS apps»; taxminan 30–60 daqiqa). Android uchun to'rt ilova, Windows uchun to'rt ilova va oxirida «GitHub release» qadami. Qizil bo'lsa: «imzo kaliti hali yo'q» — yuqoridagi 2-qadam; boshqa xato bo'lsa jurnalni o'qing, tuzatib yangi tag qo'ying (eski tagni o'chirmang va ustidan yozmang).
+4. **Fayllarni oling va tekshiring.** GitHub release'dan hamma faylni yuklab oling. Har fayl yonida `.sha256` bor: `sha256sum -c fayl.sha256`.
+5. **pos.rizqim.uz ga ko'chiring.** Serverda `POS_FILES_DIR` ichiga `<ilova>/<platforma>/` papkalar bo'yicha: `cashier/android/`, `cashier/windows/`, `waiter/...`, `kds/...`, `customer_display/...` (ilova nomlari shu to'rtta, platforma `android` yoki `windows`). Papkada `rizqim-<ilova>-<versiya>+<build>-arm64-v8a.apk` (va `-armeabi-v7a.apk`) yoki `...-windows-x64.zip` bo'ladi. Eski fayllarni o'chirmang: kerak bo'lsa orqaga qaytarish mumkin. Fayl ochilishini tekshiring: `https://pos.rizqim.uz/files/cashier/android/<fayl>`.
+6. **Reyestrga qator qo'shing.** Boshqaruv markazi > POS va obunalar > **Versiyalar** > «Versiya qo'shish»: ilova, platforma, versiya, build, fayl manzili (`https://pos.rizqim.uz/files/...`), SHA-256 (`.sha256` fayldan), hajmi baytda (`stat -c %s fayl`), izoh (nima o'zgardi, qisqa). Sabab yozing va 2FA kodini tasdiqlang. Har ilova va platforma uchun alohida qator. Android uchun reyestrga asosiy `arm64-v8a` faylni yozing; 32-bitli eski kassalar (`armeabi-v7a`) uchun fayl o'sha papkada turadi, havolasini qo'lda bering. Qator qo'shilishi bilan sahifada ko'rinadi va kassalarda «yangi versiya bor» xabari chiqadi (kuniga bir marta yopiladigan xabar).
+7. **Tekshiring.** https://pos.rizqim.uz da yangi versiya ko'rinadi; Boshqaruv markazi > Qurilmalar da «Eskirgan» soni o'zgarganini ko'ring.
+
+**Minimum qachon qo'yiladi.** Oddiy yangilanishda qo'ymang: kassalar faqat xabar oladi. «Minimal versiya» (qatorni tahrirlab yoki yaratishda yoqing) faqat eski versiya haqiqiy muammo bo'lganda: xavfsizlik yoki pul xatosi, server bilan mos kelmaslik. Minimum qo'yilsa:
+
+- undan eski versiyadagi kassalarda qizil, yopilmaydigan xabar chiqadi (savdo davom etadi, «Davom etish» doim ishlaydi) va yangi kassani ulash 426 `app_outdated` bilan to'xtaydi;
+- «Qachondan» maydoni bo'sh bo'lsa 14 kun beriladi; shundan keyin ega Telegram'da xabar oladi (qaysi kassalar eskirgan). Shoshilinch bo'lsa sanani qisqartiring, lekin kassa egalariga avval xabar bering;
+- kassa hech qachon to'xtatilmaydi, ya'ni minimum «majburlash» emas, faqat qat'iy eslatma.
+
+**Versiyani qaytarib olish.** Muammoli versiyani reyestrda «Olib tashlash» (sabab bilan): u sahifadan va xabardan chiqadi, avvalgi versiya yana «eng yangi» bo'ladi; o'rnatilgan kassalar ishlashda davom etadi. «O'chirish» faqat xato qo'shilgan qator uchun. Olib tashlangan minimum o'z kuchini yo'qotadi.
+
+**Cheklovlar.** Windows hozircha o'rnatuvchisiz zip: papkani yoyib .exe faylini ishga tushiring (`cashier.exe`, `waiter.exe`, `kds.exe`, `customer_display.exe`), `%APPDATA%` va `Documents\RIZQIM` (kassaning ulanishi va navbati) ga tegmang. Zip eski papka ustiga yoyiladi. O'rnatuvchi (Inno Setup) keyingi qadam.

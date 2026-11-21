@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:pos_lan/pos_lan.dart';
+import 'package:pos_ui/pos_ui.dart' show PosUpdateMark;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -36,6 +38,8 @@ class DisplayServices {
     this.lanEnabled = true,
     this.lanLinkFactory,
     this.lanStore,
+    this.releases,
+    this.linkOpener = _openLink,
   }) : sound = sound ?? SilentReadySound(),
        pos = PosData(client, clock: clock);
 
@@ -61,6 +65,15 @@ class DisplayServices {
 
   /// LAN kalitlari va qo'lda kiritilgan markaz manzili saqlanadigan joy (`null` — faqat shu ishga tushish).
   final SecureKeyValueStore? lanStore;
+
+  /// M5 S5: versiya xabari ([PosReleaseRepository]). Ulangandan keyin [TerminalHome] ishga tushiradi va terminal
+  /// uzilganda to'xtatadi; testlar tayyor bergan bo'lsa, unga tegilmaydi.
+  PosReleaseRepository? releases;
+
+  /// M5 S5: yangi versiya havolasini ochadi (ulash ekranidagi "Yuklab olish"); testlarda almashtiriladi.
+  Future<bool> Function(Uri url) linkOpener;
+
+  static Future<bool> _openLink(Uri url) => openLink(url);
 }
 
 /// Mijoz ekrani ilovasi: ulanmagan — ulash, ulangan — ekran. Standart mavzu qorong'i.
@@ -126,7 +139,9 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final PairedTerminal? terminal = _auth.terminal;
-    if (terminal == null) return PairingScreen(auth: _auth);
+    if (terminal == null) {
+      return PairingScreen(auth: _auth, openUrl: widget.services.linkOpener);
+    }
     return TerminalHome(
       key: ValueKey<String>(terminal.device.uuid),
       services: widget.services,
@@ -156,6 +171,7 @@ class _TerminalHomeState extends State<TerminalHome> {
   late final PosRealtime? _realtime;
   late final DisplayController _controller;
   DisplayLan? _lan;
+  bool _ownsReleases = false;
 
   @override
   void initState() {
@@ -185,10 +201,24 @@ class _TerminalHomeState extends State<TerminalHome> {
       announceHold: s.announceHold,
       lan: _lan,
     )..start();
+    // M5 S5: the update notice is read once the screen is paired (now and every 6 h); a corner mark only, never a gate
+    if (s.releases == null) {
+      _ownsReleases = true;
+      s.releases = PosReleaseRepository.fromClient(
+        s.client,
+        appVersion: AppConfig.fullVersion,
+      );
+      unawaited(s.releases!.start());
+    }
   }
 
   @override
   void dispose() {
+    // Unpaired (or the app closed): the version reads stop
+    if (_ownsReleases) {
+      widget.services.releases?.dispose();
+      widget.services.releases = null;
+    }
     _controller.dispose();
     _lan?.dispose();
     unawaited(_realtime?.dispose());
@@ -197,7 +227,41 @@ class _TerminalHomeState extends State<TerminalHome> {
   }
 
   @override
-  Widget build(BuildContext context) => DisplayScreen(controller: _controller);
+  Widget build(BuildContext context) => Stack(
+    children: <Widget>[
+      Positioned.fill(child: DisplayScreen(controller: _controller)),
+      UpdateCornerMark(releases: widget.services.releases),
+    ],
+  );
+}
+
+/// M5 S5: the small corner mark when a newer version exists (red when this one is below the minimum). Only a mark:
+/// it takes no taps, covers a few pixels in the bottom-left corner and shows nothing without a notice. Place it as a
+/// child of a [Stack].
+class UpdateCornerMark extends StatelessWidget {
+  const UpdateCornerMark({super.key, required this.releases});
+
+  final PosReleaseRepository? releases;
+
+  @override
+  Widget build(BuildContext context) {
+    final PosReleaseRepository? repo = releases;
+    return Positioned(
+      left: 8,
+      bottom: 8,
+      child: repo == null
+          ? const SizedBox.shrink()
+          : StreamBuilder<PosAppRelease?>(
+              stream: repo.changes,
+              initialData: repo.release,
+              builder: (BuildContext context, _) {
+                final PosAppRelease? notice = repo.notice;
+                if (notice == null) return const SizedBox.shrink();
+                return IgnorePointer(child: PosUpdateMark(release: notice));
+              },
+            ),
+    );
+  }
 }
 
 /// Ilova sozlamalaridan real-time ([AppConfig.reverbKey] bo'sh bo'lsa `null`).

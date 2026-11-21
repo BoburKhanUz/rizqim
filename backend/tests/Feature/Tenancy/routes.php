@@ -841,6 +841,7 @@ $notTenant = [
     'POST api/v1/admin/auth/2fa/verify' => 'admin sign-in step before the admin guard: no tenant data',
     'POST api/v1/admin/auth/invite/accept' => 'admin sign-in step before the admin guard: no tenant data',
     'POST api/v1/devices/pair' => 'unauthenticated: the one-time pairing code is the credential and names its own store',
+    'GET api/v1/pos/releases' => 'public manifest of POS app releases (M5 S5): platform-wide, no store data, no auth',
     'GET /' => 'web root',
     'GET up' => 'health probe',
     'GET health' => 'health probe',

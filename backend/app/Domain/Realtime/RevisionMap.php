@@ -47,7 +47,7 @@ final class RevisionMap
      * @var array<string, list<string>>
      */
     public const QUIET_COLUMNS = [
-        'devices' => ['last_seen_at', 'sync_reported_at', 'sync_clock_skew_seconds', 'updated_at'],
+        'devices' => ['last_seen_at', 'sync_reported_at', 'sync_clock_skew_seconds', 'app_outdated_notified_release_id', 'updated_at'],
         'users' => ['platform_last_login_at', 'remember_token', 'two_factor_last_timestep', 'updated_at'],
     ];
 
@@ -248,6 +248,7 @@ final class RevisionMap
         'audit_logs' => [[self::NONE, 'append-only audit log']],
         'cache' => [[self::NONE, 'framework cache table']],
         'cache_locks' => [[self::NONE, 'framework cache locks']],
+        'pos_app_releases' => [[self::NONE, 'RIZQIM team app release registry (control centre, not revision-scoped); tills read it from GET /terminal every 6 h']],
         'device_pairing_codes' => [[self::NONE, 'one-time pairing codes; the device row created by pairing is touched']],
         'external_refs' => [[self::NONE, 'integration id mapping; the orders it maps are touched themselves']],
         'failed_jobs' => [[self::NONE, 'queue bookkeeping']],

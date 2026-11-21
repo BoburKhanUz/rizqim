@@ -45,16 +45,21 @@ class AuthRemote {
   /// `POST /v1/devices/pair`. Kod chiziqcha bilan yoki usiz, har qanday harf bilan berilishi mumkin. [app] (P6 B
   /// bosqichi) — qaysi POS ilovasi ulanmoqda: `cashier`, `waiter`, `kds`, `customer_display` (filialning lokal tarmoq
   /// markazi sukut bo'yicha kassa bo'ladi, ofitsiant telefoni emas).
+  ///
+  /// [pendingOperations] (M5 S5, review M3): serverga yetmagan navbat amallari soni (chetga olinganlari ham). `> 0`
+  /// bo'lsa server eski versiyani 426 bilan rad etmaydi (navbat yo'qolmasin); `null` — yuborilmaydi.
   Future<PairedTerminal> pair(
     String code, {
     String? name,
     String? platform,
     String? appVersion,
     String? app,
+    int? pendingOperations,
   }) async {
     final String? normalized = PairingCode.normalize(code);
     if (normalized == null) throw const InvalidPairingCodeException();
     final Map<String, Object?> data = await _send(
+      pairing: true,
       () => _dio.post<Object?>(
         '/v1/devices/pair',
         data: <String, Object?>{
@@ -63,6 +68,7 @@ class AuthRemote {
           'platform': ?platform,
           'app_version': ?appVersion,
           'app': ?app,
+          'pending_operations': ?pendingOperations,
         },
         options: scoped(AuthScope.none),
       ),
@@ -181,9 +187,10 @@ class AuthRemote {
   }
 
   Future<Map<String, Object?>> _send(
-    Future<Response<Object?>> Function() call,
-  ) async {
-    final Response<Object?> response = await _raw(call);
+    Future<Response<Object?>> Function() call, {
+    bool pairing = false,
+  }) async {
+    final Response<Object?> response = await _raw(call, pairing: pairing);
     final Object? data = (response.data as Map<Object?, Object?>?)?['data'];
     if (data is! Map) {
       throw ApiException(
@@ -195,11 +202,21 @@ class AuthRemote {
   }
 
   Future<Response<Object?>> _raw(
-    Future<Response<Object?>> Function() call,
-  ) async {
+    Future<Response<Object?>> Function() call, {
+    bool pairing = false,
+  }) async {
     try {
       return await call();
     } on DioException catch (e) {
+      // M5 S5: a version below the minimum is refused at pairing with 426 and the download link
+      final Response<Object?>? r = e.response;
+      if (pairing && r != null) {
+        final AppOutdatedException? outdated = AppOutdatedException.tryFrom(
+          r,
+          cause: e,
+        );
+        if (outdated != null) throw outdated;
+      }
       throw ApiException.from(e);
     }
   }

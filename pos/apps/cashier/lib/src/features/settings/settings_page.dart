@@ -16,6 +16,7 @@ import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../../shell/unpair_dialog.dart';
+import '../../shell/update_notice.dart';
 import '../billing/cashier_ui.dart';
 import 'cashier_prefs.dart';
 import 'printer_discovery_page.dart';
@@ -126,6 +127,8 @@ class _SettingsPageState extends State<SettingsPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          // M5 S5: a quiet line when a newer version exists
+          UpdateSettingsLine(services: scope.services),
           // P3-31: offline operations the server rejected or applied with a difference (managers settle them)
           if (scope.data.offline != null &&
               scope.session.can('orders.cancel')) ...<Widget>[

@@ -124,3 +124,52 @@ class ApiException implements Exception {
   String toString() =>
       'ApiException($statusCode${reason != null ? ', $reason' : ''}): $message';
 }
+
+/// `POST /v1/devices/pair` ilova versiyasi minimumdan past bo'lgani uchun rad etildi (426 `app_outdated`, M5 S5).
+/// [message] foydalanuvchiga ko'rsatiladi, [url] — yuklab olish havolasi; yangilangandan keyin ulash qayta uriniladi.
+/// [ApiException] ning avlodi: eski `on ApiException` ishlovchilari ishlashda davom etadi.
+class AppOutdatedException extends ApiException {
+  const AppOutdatedException({
+    required super.message,
+    this.current,
+    this.minimum,
+    this.url,
+    super.cause,
+  }) : super(statusCode: 426, reason: reasonCode);
+
+  /// `data.reason`.
+  static const String reasonCode = 'app_outdated';
+
+  /// Terminal yuborgan versiya (`1.0.0+3`); yuborilmagan bo'lsa `null`.
+  final String? current;
+
+  /// Qo'llab-quvvatlanadigan eng past versiya.
+  final String? minimum;
+
+  /// Yangi versiyani yuklab olish havolasi (https).
+  final String? url;
+
+  /// [response] 426 `app_outdated` bo'lsa, shu xato; aks holda `null`.
+  static AppOutdatedException? tryFrom(
+    Response<Object?> response, {
+    Object? cause,
+  }) {
+    if (response.statusCode != 426) return null;
+    final ApiException base = ApiException.fromResponse(response);
+    if (base.reason != reasonCode) return null;
+    final Object? body = response.data;
+    final Object? data = body is Map ? body['data'] : null;
+    String? text(String key) {
+      final Object? v = data is Map ? data[key] : null;
+      return v is String && v.isNotEmpty ? v : null;
+    }
+
+    return AppOutdatedException(
+      message: base.message,
+      current: text('current'),
+      minimum: text('minimum'),
+      url: text('url'),
+      cause: cause,
+    );
+  }
+}

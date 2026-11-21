@@ -587,6 +587,11 @@ jobs:
           dockerfile: infra/backup/Dockerfile
           failure-threshold: error
 
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/pos-site/Dockerfile
+          failure-threshold: error
+
       # The build itself fails if redis/uv do not load (backend/Dockerfile); then check Reverb really gets the libuv loop
       - name: Backend image has ext-uv and Reverb uses it
         run: |
@@ -1246,6 +1251,10 @@ jobs:
 
       - name: Format
         run: dart format --output=none --set-exit-if-changed .
+
+      # M5 S5: AppConfig.version/build of the four POS apps equal their pubspec.yaml version (sent to the server)
+      - name: POS app versions
+        run: scripts/check-app-versions.sh
 
       - name: Analyze
         run: flutter analyze

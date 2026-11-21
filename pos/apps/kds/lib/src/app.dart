@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pos_data/pos_data.dart'
+    show PosAppRelease, PosReleaseRepository;
+import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:pos_lan/pos_lan.dart';
+import 'package:pos_ui/pos_ui.dart' show PosUpdateMark;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -37,6 +41,8 @@ class KdsServices {
     this.livePollInterval = AppConfig.livePollInterval,
     this.lanEnabled = true,
     this.lanLinkFactory,
+    this.releases,
+    this.linkOpener = _openLink,
   }) : sound = sound ?? SilentTicketSound(),
        stations = stations ?? StationSelectionController(MemorySettingsStore());
 
@@ -55,6 +61,15 @@ class KdsServices {
 
   /// Testlar uchun: ko'prikni boshqa vaqtlar yoki topish bilan yaratish.
   final LanLink Function(KitchenSetupService setup)? lanLinkFactory;
+
+  /// M5 S5: versiya xabari ([PosReleaseRepository]). Ulangandan keyin [TerminalHome] ishga tushiradi va terminal
+  /// uzilganda to'xtatadi; testlar tayyor bergan bo'lsa, unga tegilmaydi.
+  PosReleaseRepository? releases;
+
+  /// M5 S5: yangi versiya havolasini ochadi (ulash ekranidagi "Yuklab olish"); testlarda almashtiriladi.
+  Future<bool> Function(Uri url) linkOpener;
+
+  static Future<bool> _openLink(Uri url) => openLink(url);
 
   /// P4-21: tarif (tarifda KDS bormi, to'lanmagan hisob-faktura xabari). Xodim kirganda ishga tushadi.
   late final KdsPlanController plan = KdsPlanController(
@@ -221,7 +236,9 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final PairedTerminal? terminal = _auth.terminal;
-    if (terminal == null) return PairingScreen(auth: _auth);
+    if (terminal == null) {
+      return PairingScreen(auth: _auth, openUrl: widget.services.linkOpener);
+    }
     return TerminalHome(
       key: ValueKey<String>(terminal.device.uuid),
       services: widget.services,
@@ -257,6 +274,7 @@ class _TerminalHomeState extends State<TerminalHome> {
   late final StreamSubscription<AuthEvent> _authSub;
   StreamSubscription<RealtimeEvent>? _eventSub;
   String? _notice;
+  bool _ownsReleases = false;
 
   /// Hech kim kirmagan paytda oshxonaga kelgan buyurtmalar.
   final ValueNotifier<int> _waiting = ValueNotifier<int>(0);
@@ -286,11 +304,25 @@ class _TerminalHomeState extends State<TerminalHome> {
       lan.addListener(_onLan);
     }
     _authSub = _auth.events.listen(_onAuth);
+    // M5 S5: the update notice is read once the screen is paired (now and every 6 h); a corner mark only, never a gate
+    if (_s.releases == null) {
+      _ownsReleases = true;
+      _s.releases = PosReleaseRepository.fromClient(
+        _s.client,
+        appVersion: AppConfig.fullVersion,
+      );
+      unawaited(_s.releases!.start());
+    }
     if (_auth.staff != null) _openBoard();
   }
 
   @override
   void dispose() {
+    // Unpaired (or the app closed): the version reads stop
+    if (_ownsReleases) {
+      _s.releases?.dispose();
+      _s.releases = null;
+    }
     _s.plan.stop();
     _ingredients?.dispose();
     unawaited(_authSub.cancel());
@@ -412,6 +444,15 @@ class _TerminalHomeState extends State<TerminalHome> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: _screen()),
+        UpdateCornerMark(releases: _s.releases),
+      ],
+    );
+  }
+
+  Widget _screen() {
     final KitchenBoardController? board = _board;
     if (board != null && _auth.staff != null) {
       return KitchenBoardScreen(
@@ -449,3 +490,32 @@ BranchRealtime? defaultRealtime(RizqimClient client, PairedTerminal terminal) =>
       reverbUrl: AppConfig.reverbUrl,
       origin: AppConfig.reverbOrigin,
     );
+
+/// M5 S5: the small corner mark when a newer version exists (red when this one is below the minimum). Only a mark:
+/// it takes no taps, covers a few pixels in the bottom-left corner and shows nothing without a notice. Place it as a
+/// child of a [Stack].
+class UpdateCornerMark extends StatelessWidget {
+  const UpdateCornerMark({super.key, required this.releases});
+
+  final PosReleaseRepository? releases;
+
+  @override
+  Widget build(BuildContext context) {
+    final PosReleaseRepository? repo = releases;
+    return Positioned(
+      left: 8,
+      bottom: 8,
+      child: repo == null
+          ? const SizedBox.shrink()
+          : StreamBuilder<PosAppRelease?>(
+              stream: repo.changes,
+              initialData: repo.release,
+              builder: (BuildContext context, _) {
+                final PosAppRelease? notice = repo.notice;
+                if (notice == null) return const SizedBox.shrink();
+                return IgnorePointer(child: PosUpdateMark(release: notice));
+              },
+            ),
+    );
+  }
+}

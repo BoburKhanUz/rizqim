@@ -2405,6 +2405,82 @@ Kod: `App\Domain\Pos\Sync\PosSyncImport`, `SyncExportFile`, `SyncSignature::file
 `tests/Unit/PosSync/SyncExportVectorsTest.php`, `tests/Feature/PosSync/PosSyncImportTest.php`,
 `PosSyncImportAdminTest.php`.
 
+### Ilova versiyalari va yangilash xabari (M5 S5)
+
+Reyestr: `pos_app_releases` (`app`: `cashier`, `waiter`, `kds`, `customer_display`; `platform`: `android`, `windows`;
+`version`, `build`, `file_url`, `sha256`, `size_bytes`, `notes`, `released_at`, `is_minimum`, `minimum_from`,
+`withdrawn_at`). "Latest" = olib tashlanmagan eng yuqori versiya (versiya, keyin build), "minimum" = `is_minimum` li
+eng yuqori qator. **Hech narsa sotuvni to'xtatmaydi:** smena, buyurtma, hisob, to'lov, chek, qaytarish, offlayn navbat va
+sinxronlash versiyaga bog'liq emas (`tests/Feature/PosReleases/PosReleaseRouteInventoryTest.php` marshrutlarda versiya
+tekshiruvi yo'qligini isbotlaydi: router hal qilgan middleware (`api` guruhi bilan) va global middleware nomi hamda
+manba kodi bo'yicha, va xatti-harakat bo'yicha — minimum allaqachon amalda, ilova `0.0.1+0`: terminalning har bir
+marshruti hech qachon 426 qaytarmaydi, smena ochish, buyurtma, hisob, to'lov, qaytarish, sinxronlash, smena yopish
+to'liq o'tadi).
+
+**Terminal versiyasi.** Ilovalar har so'rovda `X-Rizqim-App-Version: <version>+<build>` (masalan `1.4.0+7`) yuboradi.
+`DeviceTokenGuard` uni `devices.app_version` ga mavjud yurak urishi saqlashi (daqiqada ko'pi bilan bir marta) ichida va
+faqat o'zgarganda yozadi: qo'shimcha yozuv yo'q (o'zgarish ko'pi bilan bir daqiqada ko'rinadi). Tushunarsiz qiymat
+yoki 32 belgidan uzuni e'tiborga olinmaydi; versiya hech qachon so'rovni (autentifikatsiya, `last_seen_at`) buzmaydi.
+
+**`GET /v1/terminal`** (terminal tokeni) javobiga `data.app_release` qo'shildi:
+`{current, latest, minimum, state, url, notes, minimum_from}` yoki `null`.
+- `current` — terminal yuborgan versiya (`1.4.0+7`, hali yubormagan bo'lsa `null`). Shu so'rovning
+  `X-Rizqim-App-Version` sarlavhasi o'qilsa `current` va `state` undan hisoblanadi (yangilangan ilova bir daqiqa ichida
+  eski versiya deb ko'rilmaydi), aks holda saqlangan versiyadan; `latest`, `minimum` — `1.4.0+7`
+  ko'rinishida (`minimum`: minimum e'lon qilinmagan bo'lsa `null`); `url` — eng yangi build faylining havolasi;
+  `notes` — o'zbekcha izoh; `minimum_from` — ISO vaqt (minimum bo'lmasa `null`).
+- `state`: `ok` (eng yangisi yoki versiya noma'lum); `update_available` (yangisi bor, yoki minimumdan past lekin
+  `minimum_from` hali kelmagan); `update_required` (minimumdan past **va** `minimum_from` o'tgan: qizil xabar).
+  `minimum_from` — minimum e'lon qilingan kundan 14 kun keyin (ega javobi 8), xodim boshqa kun tanlamasa.
+- `null`: terminalning ilovasi va platformasi uchun reyestrda reliz yo'q (yoki terminal platformasini aytmagan): ilova
+  hech qanday xabar ko'rsatmaydi. Ilova `app` ni qurilmadagi yozuvdan, bo'lmasa `X-Rizqim-App` dan, bo'lmasa terminal
+  turidan oladi.
+
+**`POST /v1/devices/pair`** — `app`, `platform` va `app_version` (yoki `X-Rizqim-App-Version`) berilgan, reyestrda shu
+ilova va platforma uchun minimum bor, versiya undan past **va** `minimum_from` o'tgan bo'lsa (`GET /terminal` holati
+`update_required` bo'ladigan holat) **426** va kod **sarflanmaydi**. Ixtiyoriy `pending_operations` (butun son, >= 0):
+terminalda hali yuborilmagan amallar soni (yetim navbatlar bilan). `> 0` bo'lsa 426 **hech qachon** qaytmaydi: terminal
+ulanadi, navbatni yuboradi, keyin qizil xabar ko'rsatadi. Imtiyoz davrida (`minimum_from` dan oldin) ham ulanadi:
+`{success: false, message, data: {reason: "app_outdated", current, minimum, url}}` (`url` — eng yangi build). Ma'lumot
+yetishmasa yoki minimum bo'lmasa ulash avvalgidek ishlaydi (ulash — sozlash, pul yo'li emas).
+
+**`GET /v1/pos/releases`** (ochiq, tokensiz; pos.rizqim.uz sahifasi o'qiydi): 5 daqiqa keshlanadi
+(`Cache-Control: public, max-age=300`; reyestr o'zgarsa kesh darhol tozalanadi), manzil bo'yicha daqiqada 30 ta
+(`POS_RELEASE_MANIFEST_PER_MINUTE`, undan keyin 429). Javob: `{success: true, data: {releases: [{app, platform, version,
+build, file_url, sha256, size_bytes, notes, released_at, is_minimum, minimum_from, is_latest}]}}` — olib tashlanmaganlari,
+ichki id siz, ilova, platforma, keyin eng yangisi birinchi. Reyestr bo'sh bo'lsa `releases: []`.
+
+**Boshqaruv markazi** (`/api/v1/admin/pos/releases`, faqat RIZQIM jamoasi; o'qish `admin.devices.view`, yozish
+`admin.stores.manage` + step-up + `reason`; har bir yozuv `admin.pos.release_*` nomi bilan jurnalga yoziladi, qatorning
+oldingi va keyingi maydonlari bilan):
+- `GET /pos/releases?app=&platform=&withdrawn=` -> `data: {data: [qator]}` (olib tashlanganlari ham, `withdrawn_at`).
+  Qator: `{uuid, app, platform, version, build, label, file_url, sha256, size_bytes, notes, released_at, is_minimum,
+  minimum_from, withdrawn_at, is_latest, created_at}`. `GET /pos/releases/{uuid}` — bitta qator, 404 `not_found`.
+- `POST /pos/releases` `{app, platform, version, build?, file_url (https), sha256, size_bytes, notes?, released_at?,
+  is_minimum?, minimum_from?, reason}` -> 201 qator (`admin.pos.release_created`); bir xil (app, platform, version, build)
+  ikkinchi marta (bir vaqtda ikki so'rov bo'lsa ham): 409 `release_exists`. `is_minimum` va `minimum_from` bo'lmasa: hozirdan 14 kun keyin.
+- `PATCH /pos/releases/{uuid}` `{notes?, file_url?, sha256?, size_bytes?, released_at?, is_minimum?, minimum_from?,
+  reason}` (`admin.pos.release_updated`); app, platform, versiya va build o'zgarmaydi. `is_minimum: false` `minimum_from`
+  ni tozalaydi.
+- `POST /pos/releases/{uuid}/withdraw` va `/restore` `{reason}` (`admin.pos.release_withdrawn`, `release_restored`):
+  olib tashlangan reliz "latest"/"minimum" emas va manifestdan chiqadi; qaytadan qilsa o'zgarish ham, jurnal yozuvi ham yo'q.
+- `DELETE /pos/releases/{uuid}` `{reason}` -> `{uuid}` (`admin.pos.release_deleted`): xato qo'shilgan qator uchun.
+- `GET /pos/devices`: `latest_version`, `outdated`, `counts.outdated` endi reyestrdan (ilova va platforma bo'yicha);
+  `latest_versions` kaliti `<app>/<platform>` (`cashier/android`), qiymati `1.4.0+7`. Reyestr bo'sh bo'lsa hech kim
+  "eskirgan" emas.
+
+**Ega xabari.** `php artisan pos:notify-outdated-apps` (har kuni 05:11 UTC): minimumdan past versiyada ishlayotgan
+va `minimum_from` o'tgan terminallar haqida do'konning admin chatiga va har bir egaga **bitta** xabar (terminal nomlari,
+filial, versiya -> minimum, yuklab olish havolasi). Har terminal uchun har bir minimum e'lonida bir marta
+(`devices.app_outdated_notified_release_id`); yuqoriroq yangi minimum yangi davr. 30 kundan beri ko'rinmagan,
+bekor qilingan terminallar tilga olinmaydi. Terminal hech qachon to'xtatilmaydi. Terminal faqat xabar muvaffaqiyatli
+jo'natilgandan keyin "xabar berilgan" deb belgilanadi (jo'natib bo'lmasa keyingi ishga tushishda yana urinadi); bitta
+do'kondagi xato boshqa do'konlarga xabar yuborishni to'xtatmaydi.
+
+Kod: `App\Domain\Pos\Releases\PosAppReleases`, `AppVersion`, `AppReleaseState`, `PosAppOutdatedNotice`;
+`App\Models\PosAppRelease`; `Admin\AdminPosReleaseController`; `Device\PosReleaseManifestController`. Testlar:
+`tests/Feature/PosReleases/*`.
+
 ### GET /pos/sync/errors va resolve
 
 `GET /pos/sync/errors?branch_id=&device=&all=&page=` — yangisi birinchi, sahifada 50 ta; `all=1` hal qilinganlarini

@@ -1,0 +1,252 @@
+# M5 S5-d: POS app release. A tag `pos-v<version>` (for example pos-v1.4.0) builds the four apps (Kassa, Ofitsiant, Oshxona
+# ekrani, Mijoz ekrani) and attaches the files to a GitHub release:
+#   - Android: release APK per ABI (arm64-v8a and armeabi-v7a), signed with the release key from the repository secrets;
+#   - Windows: the release build folder zipped (an installer comes later);
+#   - a .sha256 file next to every file.
+# Publishing is a separate, manual step: copy the files to pos.rizqim.uz/files and add the registry row in the control
+# centre (docs/OPERATIONS.md, "POS ilovalarini chiqarish").
+#
+# Android signing secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+# Without them the Android job FAILS ("imzo kaliti hali yo'q"): a debug-signed release can never be updated in place on a till
+# (POS design, 1.5), so no such file is ever built. The apps' android/app/build.gradle.kts refuses the debug key here
+# (ORG_GRADLE_PROJECT_requireReleaseSigning) and the job checks the certificate of every APK again.
+name: Release POS apps
+
+on:
+  push:
+    tags:
+      - 'pos-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pos-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  android:
+    name: Android release APK (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [cashier, waiter, kds, customer_display]
+    steps:
+      # First: no point in checking out and building when the key is missing
+      - name: The signing key exists
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::imzo kaliti hali yo'q: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS va ANDROID_KEY_PASSWORD repository secrets'ga qo'shilmaguncha release APK qurilmaydi (debug kalit bilan release chiqarilmaydi)."
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: AppConfig versions match the pubspecs
+        run: scripts/check-app-versions.sh
+
+      - name: Write the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: pos/apps/${{ matrix.app }}/android
+        run: |
+          set -euo pipefail
+          # release.keystore and key.properties are git-ignored (android/.gitignore)
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > key.properties
+
+      # The apps use ndkVersion = flutter.ndkVersion; same resolution and install as the android-build job of ci.yml
+      - name: Resolve NDK version
+        id: ndk
+        run: |
+          set -euo pipefail
+          version="$(grep -hoE 'val ndkVersion: String = "[0-9]+\.[0-9]+\.[0-9]+"' "$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "::error::Could not find the NDK version pinned by Flutter $FLUTTER_VERSION"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install Android NDK
+        env:
+          NDK_VERSION: ${{ steps.ndk.outputs.version }}
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          ndk_dir="$ANDROID_HOME/ndk/$NDK_VERSION"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          for attempt in 1 2 3; do
+            if [ -f "$ndk_dir/source.properties" ]; then
+              break
+            fi
+            echo "Installing ndk;$NDK_VERSION (attempt $attempt of 3)"
+            if "$sdkmanager" --install "ndk;$NDK_VERSION"; then
+              continue
+            fi
+            echo "::warning::NDK install attempt $attempt failed, cleaning up and retrying"
+            rm -rf "$ndk_dir" "$ANDROID_HOME/.temp"
+            sleep 10
+          done
+          test -f "$ndk_dir/source.properties"
+
+      - name: Build release APKs (arm64-v8a and armeabi-v7a)
+        working-directory: pos/apps/${{ matrix.app }}
+        env:
+          # Makes android/app/build.gradle.kts fail instead of falling back to the debug key
+          ORG_GRADLE_PROJECT_requireReleaseSigning: 'true'
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
+
+      - name: Name the files, check the signature, write the checksums
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          line="$(sed -n -E 's/^version:[[:space:]]*([^[:space:]#]+).*/\1/p' "pos/apps/$APP/pubspec.yaml" | head -n 1)"
+          apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          out="dist/$APP"
+          mkdir -p "$out"
+          found=0
+          for abi in arm64-v8a armeabi-v7a; do
+            src="pos/apps/$APP/build/app/outputs/flutter-apk/app-$abi-release.apk"
+            test -f "$src"
+            dest="$out/rizqim-$APP-$line-$abi.apk"
+            cp "$src" "$dest"
+            certs="$("$apksigner" verify --print-certs "$dest")"
+            echo "$certs"
+            if echo "$certs" | grep -qi "Android Debug"; then
+              echo "::error::$dest is signed with the debug key: imzo kaliti hali yo'q yoki noto'g'ri"
+              exit 1
+            fi
+            (cd "$out" && sha256sum "$(basename "$dest")" > "$(basename "$dest").sha256")
+            found=$((found + 1))
+          done
+          test "$found" -eq 2
+
+      # The key never outlives the job's use of it, also when a step above failed or the run was cancelled
+      - name: Remove the signing key
+        if: always()
+        env:
+          APP: ${{ matrix.app }}
+        run: rm -f "pos/apps/$APP/android/release.keystore" "pos/apps/$APP/android/key.properties"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.app }}
+          path: dist/${{ matrix.app }}
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows release build (${{ matrix.app }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [cashier, waiter, kds, customer_display]
+    steps:
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build the Windows release
+        working-directory: pos/apps/${{ matrix.app }}
+        run: flutter build windows --release
+
+      # An installer (Inno Setup) comes later; for now the build folder is zipped as it is
+      - name: Zip the build and write the checksum
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          line="$(sed -n -E 's/^version:[[:space:]]*([^[:space:]#]+).*/\1/p' "pos/apps/$APP/pubspec.yaml" | head -n 1)"
+          out="dist/$APP"
+          mkdir -p "$out"
+          name="rizqim-$APP-$line-windows-x64.zip"
+          release_dir="pos/apps/$APP/build/windows/x64/runner/Release"
+          test -d "$release_dir"
+          powershell -NoProfile -Command "Compress-Archive -Path '$release_dir/*' -DestinationPath '$out/$name'"
+          (cd "$out" && sha256sum "$name" > "$name.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.app }}
+          path: dist/${{ matrix.app }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: GitHub release
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the release with the files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ls -l dist
+          gh release create "$TAG" dist/* --repo "$REPO" --verify-tag --title "POS ilovalari $TAG" \
+            --notes "Fayllar va SHA-256 qiymatlari ilova qilingan. Chop etish: fayllarni pos.rizqim.uz/files ga ko'chiring va boshqaruv markazida POS > Versiyalar ga qator qo'shing (docs/OPERATIONS.md, \"POS ilovalarini chiqarish\")."

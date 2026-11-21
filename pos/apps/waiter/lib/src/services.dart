@@ -1,8 +1,10 @@
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
+import 'storage/update_notice_prefs.dart';
 
 /// Ulangan telefon uchun real-time (kalit sozlanmagan yoki terminal filialsiz bo'lsa `null`).
 typedef RealtimeFactory = PosRealtime? Function(
@@ -23,7 +25,11 @@ class WaiterServices {
     this.lanEnabled = true,
     this.lanLinkFactory,
     this.lanStore,
-  }) : data = data ?? PosData(client, clock: clock);
+    this.releases,
+    this.linkOpener = _openLink,
+    SecureKeyValueStore? prefsStore,
+  }) : data = data ?? PosData(client, clock: clock),
+       updatePrefs = UpdateNoticePrefs(prefsStore);
 
   final RizqimClient client;
 
@@ -42,6 +48,24 @@ class WaiterServices {
 
   /// Qo'lda kiritilgan markaz manzili saqlanadigan joy (`null` — faqat shu ishga tushish).
   final SecureKeyValueStore? lanStore;
+
+  /// M5 S5: versiya xabari ([PosReleaseRepository]). Ulangandan keyin [TerminalHome] ishga tushiradi va terminal
+  /// uzilganda to'xtatadi; testlarda soxtasi beriladi (shunda [TerminalHome] unga tegmaydi).
+  PosReleaseRepository? releases;
+
+  /// M5 S5: yuklab olish havolasini ochadi ("Yangilash", "Yuklab olish"); testlarda almashtiriladi.
+  Future<bool> Function(Uri url) linkOpener;
+
+  static Future<bool> _openLink(Uri url) => openLink(url);
+
+  /// M5 S5: "Yangi versiya" lentasi qaysi kuni yopilgani (qurilmada saqlanadi).
+  final UpdateNoticePrefs updatePrefs;
+
+  /// M5 S5: ilova ishga tushganda to'liq xabar ko'rsatildimi (bir ishga tushirishda bir marta).
+  bool startNoticeShown = false;
+
+  /// M5 S5: to'liq xabar dialogi hozir ochiq.
+  bool noticeOpen = false;
 
   AuthSession get auth => client.auth;
   PosSession get session => data.session;

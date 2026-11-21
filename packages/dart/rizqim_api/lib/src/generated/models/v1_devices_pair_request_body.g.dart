@@ -14,6 +14,7 @@ V1DevicesPairRequestBody _$V1DevicesPairRequestBodyFromJson(
   platform: json['platform'] as String?,
   appVersion: json['app_version'] as String?,
   app: json['app'] == null ? null : DeviceApp.fromJson(json['app'] as String),
+  pendingOperations: (json['pending_operations'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$V1DevicesPairRequestBodyToJson(
@@ -24,4 +25,5 @@ Map<String, dynamic> _$V1DevicesPairRequestBodyToJson(
   'platform': instance.platform,
   'app_version': instance.appVersion,
   'app': instance.app,
+  'pending_operations': instance.pendingOperations,
 };
