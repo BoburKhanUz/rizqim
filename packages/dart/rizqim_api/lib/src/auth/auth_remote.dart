@@ -45,12 +45,16 @@ class AuthRemote {
   /// `POST /v1/devices/pair`. Kod chiziqcha bilan yoki usiz, har qanday harf bilan berilishi mumkin. [app] (P6 B
   /// bosqichi) — qaysi POS ilovasi ulanmoqda: `cashier`, `waiter`, `kds`, `customer_display` (filialning lokal tarmoq
   /// markazi sukut bo'yicha kassa bo'ladi, ofitsiant telefoni emas).
+  ///
+  /// [pendingOperations] (M5 S5, review M3): serverga yetmagan navbat amallari soni (chetga olinganlari ham). `> 0`
+  /// bo'lsa server eski versiyani 426 bilan rad etmaydi (navbat yo'qolmasin); `null` — yuborilmaydi.
   Future<PairedTerminal> pair(
     String code, {
     String? name,
     String? platform,
     String? appVersion,
     String? app,
+    int? pendingOperations,
   }) async {
     final String? normalized = PairingCode.normalize(code);
     if (normalized == null) throw const InvalidPairingCodeException();
@@ -64,6 +68,7 @@ class AuthRemote {
           'platform': ?platform,
           'app_version': ?appVersion,
           'app': ?app,
+          'pending_operations': ?pendingOperations,
         },
         options: scoped(AuthScope.none),
       ),

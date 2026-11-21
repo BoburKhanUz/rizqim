@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +98,41 @@ void main() {
       expect(find.byType(RoomsPage), findsOneWidget);
       expect(find.byKey(_banner), findsOneWidget);
       expect(find.text('Keyinroq'), findsNothing);
+    },
+  );
+
+  // Review M1: a required notice read while an order (another page) is open waits until the phone is back home
+  testWidgets(
+    'update_required read under another page: the notice waits for the home screen',
+    (WidgetTester tester) async {
+      PosAppRelease? answer;
+      final WaiterHarness h = WaiterHarness();
+      h.services.releases = PosReleaseRepository(fetch: () async => answer);
+      await pumpHome(tester, h);
+      final NavigatorState nav = Navigator.of(
+        tester.element(find.byType(RoomsPage)),
+      );
+      unawaited(
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('Buyurtma sahifasi')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      answer = _release('update_required');
+      await h.services.releases!.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('Buyurtma sahifasi'), findsOneWidget);
+      expect(find.byKey(_notice), findsNothing);
+
+      nav.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(_notice), findsOneWidget);
+      await tester.tap(find.byKey(_continue));
+      await tester.pumpAndSettle();
+      expect(find.byKey(_notice), findsNothing);
     },
   );
 

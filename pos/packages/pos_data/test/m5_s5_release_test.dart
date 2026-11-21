@@ -177,6 +177,63 @@ void main() {
     repo.dispose();
   });
 
+  // Review M2: an updated till must not show the old version's notice while the server still holds the old one
+  group('a notice for another version is hidden', () {
+    test(
+      'appVersion differs from release.current: no notice, release kept',
+      () async {
+        final PosReleaseRepository repo = PosReleaseRepository(
+          fetch: () async => rel('update_required'),
+          appVersion: '1.4.0+7',
+        );
+        await repo.refresh();
+        expect(repo.release!.current, '1.0.0+1');
+        expect(repo.notice, isNull);
+        repo.dispose();
+      },
+    );
+
+    test(
+      'appVersion equal to release.current, or no current: notice shown',
+      () async {
+        final PosReleaseRepository same = PosReleaseRepository(
+          fetch: () async => rel('update_required'),
+          appVersion: '1.0.0+1',
+        );
+        await same.refresh();
+        expect(same.notice!.isRequired, isTrue);
+        same.dispose();
+        final PosReleaseRepository unknown = PosReleaseRepository(
+          fetch: () async => const PosAppRelease(
+            state: PosReleaseState.updateAvailable,
+            latest: '1.4.0+7',
+            url: 'https://pos.rizqim.uz/a.apk',
+          ),
+          appVersion: '1.0.0+1',
+        );
+        await unknown.refresh();
+        expect(unknown.notice, isNotNull);
+        unknown.dispose();
+      },
+    );
+
+    test('fromClient compares with the version the client sends', () async {
+      final Dio dio = Dio()..httpClientAdapter = _Adapter();
+      final RizqimClient client = RizqimClient(
+        baseUrl: 'https://api.test/api',
+        store: MemoryKeyValueStore(),
+        dio: dio,
+        appVersion: '1.4.0+7',
+      );
+      addTearDown(client.auth.dispose);
+      final PosReleaseRepository repo = PosReleaseRepository.fromClient(client);
+      await repo.refresh();
+      expect(repo.release, isNotNull);
+      expect(repo.notice, isNull);
+      repo.dispose();
+    });
+  });
+
   group('canUpdateNow', () {
     test('open with an empty queue and no payment', () {
       final PosUpdateGate g = canUpdateNow(

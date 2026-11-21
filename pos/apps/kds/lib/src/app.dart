@@ -307,7 +307,10 @@ class _TerminalHomeState extends State<TerminalHome> {
     // M5 S5: the update notice is read once the screen is paired (now and every 6 h); a corner mark only, never a gate
     if (_s.releases == null) {
       _ownsReleases = true;
-      _s.releases = PosReleaseRepository.fromClient(_s.client);
+      _s.releases = PosReleaseRepository.fromClient(
+        _s.client,
+        appVersion: AppConfig.fullVersion,
+      );
       unawaited(_s.releases!.start());
     }
     if (_auth.staff != null) _openBoard();

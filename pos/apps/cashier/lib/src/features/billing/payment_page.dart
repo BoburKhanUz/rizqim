@@ -17,6 +17,7 @@ import '../accounts/account_form.dart';
 import 'billing_page.dart';
 import 'cashier_ui.dart';
 import 'corporate_tender.dart';
+import 'payment_activity.dart';
 import 'payment_messages.dart';
 import 'qr_payment_panel.dart';
 import 'receipts.dart';
@@ -193,7 +194,11 @@ class _PaymentPageState extends State<PaymentPage> {
     // The scanner: a certificate or a talon code goes into the open field (keyboard scanners type into a focused
     // field themselves; this is for the scan heard elsewhere and the broadcast scanners)
     _scans ??= _scope.services.hardware.scans.stream.listen(_onScan);
+    // M5 S5 (review M1): an open payment page is a payment in progress ("Yangilash" waits for it)
+    _paying ??= _scope.services.payments.begin();
   }
+
+  PaymentHold? _paying;
 
   void _onScan(BarcodeScan scan) {
     if (!mounted || _busy || limitedMode(context)) return;
@@ -225,6 +230,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   void dispose() {
+    _paying?.release();
     unawaited(_scans?.cancel());
     _voucher.dispose();
     _corporate.dispose();

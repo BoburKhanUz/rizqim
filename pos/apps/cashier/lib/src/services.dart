@@ -8,6 +8,7 @@ import 'package:pos_lan/pos_lan.dart' show LanBillPrints, LanRemoteOp;
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
+import 'features/billing/payment_activity.dart';
 import 'features/billing/qr_offline_guard.dart';
 import 'features/settings/cashier_prefs.dart';
 import 'hardware/cashier_hardware.dart';
@@ -79,6 +80,9 @@ class CashierServices {
 
   /// M5 S5: to'liq xabar dialogi hozir ochiq (ikkitasi ustma-ust chiqmasin).
   bool noticeOpen = false;
+
+  /// M5 S5 (review M1): to'lov jarayonda (to'lov sahifasi, tez kassaning to'lovi): "Yangilash" kutadi.
+  final PaymentActivity payments = PaymentActivity();
 
   /// Review P6 wave 4 (C3): offlayn to'lov va kutilayotgan dinamik QR (`null` — oflayn rejim yo'q yoki [data] tashqaridan).
   QrOfflineGuard? qrGuard;

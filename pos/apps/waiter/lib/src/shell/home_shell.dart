@@ -71,13 +71,32 @@ class _HomeShellState extends State<HomeShell> {
 
   StreamSubscription<Object?>? _releaseSub;
 
-  /// M5 S5: once per run, the home screen shows the `update_required` notice ("Davom etish" closes it).
+  /// M5 S5: once per run, the home screen shows the `update_required` notice ("Davom etish" closes it). Review M1:
+  /// only while the home screen is the top route; read under an order or another page, it waits until the phone is
+  /// back home.
   void _startNotice() {
     final WaiterServices s = widget.services;
     if (!mounted || s.startNoticeShown) return;
     if (s.releases?.notice?.isRequired != true) return;
+    if (!updateNoticeCanOpen(context, s)) {
+      _noticeDeferred = true;
+      return;
+    }
+    _noticeDeferred = false;
     s.startNoticeShown = true;
     unawaited(showUpdateRequiredNotice(context, s));
+  }
+
+  bool _noticeDeferred = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Depends on the route's "is current": a page popped back home brings the deferred start notice
+    final bool current = ModalRoute.isCurrentOf(context) != false;
+    if (_noticeDeferred && current) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startNotice());
+    }
   }
 
   @override

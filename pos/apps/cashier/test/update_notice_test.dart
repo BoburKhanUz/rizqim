@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
 import 'package:rizqim_cashier/src/features/settings/cashier_prefs.dart';
+import 'package:rizqim_cashier/src/shell/pairing_screen.dart';
 import 'package:rizqim_cashier/src/shell/update_notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'offline_test.dart' show drive;
 import 'support/harness.dart';
 import 'support/p22.dart';
 
@@ -234,4 +236,84 @@ void main() {
     expect(opened.single.toString(), endsWith('/cashier/android/new.apk'));
     expect(find.text('Kassani ulash'), findsOneWidget);
   });
+
+  // Review M3: a till cut off with unsent operations (a payment among them) tells the server how many it holds at
+  // pairing, and "Yuklab olish" waits until the queue has reached the server
+  testWidgets(
+    'pairing with a queue: pending_operations is sent, "Yuklab olish" is disabled with the queue reason',
+    (WidgetTester tester) async {
+      DateTime Function() clock = () => DateTime.utc(2026, 10, 22, 13);
+      final SyncStore store = await SyncStore.open(
+        MemorySyncStorage(),
+        clock: () => clock(),
+      );
+      final P22 p = P22(offlineStore: store);
+      clock = () => p.h.now;
+      p.state.openShift();
+      final List<Uri> opened = <Uri>[];
+      p.h.services.linkOpener = (Uri u) async {
+        opened.add(u);
+        return true;
+      };
+      final String room = p.state.seedOrder(tableId: 1, guests: 2);
+      await pumpHome(tester, p.h);
+      await drive(tester, p.h.data.orders.get(room));
+      p.h.adapter.offline = true;
+      await drive(tester, p.h.data.floor.load());
+      await tester.pumpAndSettle();
+      final PosOrder order = await drive(tester, p.h.data.orders.get(room));
+      final PosBilling billing = await drive(
+        tester,
+        p.h.data.billing.createBills(room, version: order.version),
+      );
+      await drive(
+        tester,
+        p.h.data.billing.pay(
+          billing.bills.single.uuid,
+          tenders: <PosTenderInput>[
+            PosTenderInput.cash(billing.bills.single.total),
+          ],
+          shiftUuid: p.state.shift!['uuid']! as String,
+        ),
+      );
+      p.state.paired = false;
+      p.h.adapter.offline = false;
+      await drive(tester, p.h.data.offline!.syncNow());
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(PairingScreen), findsOneWidget);
+      final int held = pendingOperationsOf(p.h.data.offline);
+      expect(held, greaterThan(0));
+
+      Object? sent;
+      p.h.adapter.respond = (RequestOptions o) {
+        if (o.method == 'POST' && o.uri.path.endsWith('/v1/devices/pair')) {
+          sent = o.data;
+          return const FakeResponse(426, <String, Object?>{
+            'success': false,
+            'message': 'Ilova eskirgan.',
+            'data': <String, Object?>{
+              'reason': 'app_outdated',
+              'current': '0.1.0+1',
+              'minimum': '0.2.0+5',
+              'url': 'https://pos.rizqim.uz/files/cashier/android/new.apk',
+            },
+          });
+        }
+        return null;
+      };
+      await tester.enterText(find.byType(TextField), 'ABCD-EFGH');
+      await tester.pump();
+      await tester.tap(buttonLabeled('Ulash'));
+      await tester.pumpAndSettle();
+      expect((sent! as Map<Object?, Object?>)['pending_operations'], held);
+
+      expect(find.text(PosUpdateReasons.queued), findsOneWidget);
+      await tester.tap(buttonLabeled('Yuklab olish'));
+      await tester.pump();
+      expect(opened, isEmpty);
+    },
+  );
 }

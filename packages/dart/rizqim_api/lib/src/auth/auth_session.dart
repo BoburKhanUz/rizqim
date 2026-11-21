@@ -143,12 +143,14 @@ class AuthSession {
   // --- Terminal: ulash ---------------------------------------------------------------------------------------
 
   /// Kod bilan terminalni ulaydi va tokenni saqlaydi. [code] ni [AuthRemote.pair] normallashtiradi.
+  /// [pendingOperations] — [AuthRemote.pair] ga qarang.
   Future<PairedTerminal> pairTerminal(
     String code, {
     String? name,
     String? platform,
     String? appVersion,
     String? app,
+    int? pendingOperations,
   }) async {
     final PairedTerminal paired = await remote.pair(
       code,
@@ -156,6 +158,7 @@ class AuthSession {
       platform: platform,
       appVersion: appVersion,
       app: app,
+      pendingOperations: pendingOperations,
     );
     _terminal = paired;
     _staff = null;

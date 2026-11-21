@@ -80,15 +80,14 @@ class _UpdateBannerSlotState extends State<UpdateBannerSlot> {
 }
 
 /// The full notice for `update_required` at app start. "Davom etish" always closes it; so does a tap outside it and
-/// the back button. Nothing happens if there is no required notice, if another notice is open, or if [context] is gone.
+/// the back button. Nothing happens if there is no required notice, if another notice is open, if [context] is gone
+/// or if its route is not the top one (an order or another page over it: review M1).
 Future<void> showUpdateRequiredNotice(
   BuildContext context,
   WaiterServices services,
 ) async {
-  final PosAppRelease? r = services.releases?.notice;
-  if (r == null || !r.isRequired || services.noticeOpen || !context.mounted) {
-    return;
-  }
+  if (!updateNoticeCanOpen(context, services)) return;
+  final PosAppRelease r = services.releases!.notice!;
   services.noticeOpen = true;
   try {
     await showDialog<void>(
@@ -117,3 +116,10 @@ Future<void> showUpdateRequiredNotice(
     services.noticeOpen = false;
   }
 }
+
+/// [showUpdateRequiredNotice] would open now: a required notice, none open, and [context]'s route is the top one.
+bool updateNoticeCanOpen(BuildContext context, WaiterServices services) =>
+    context.mounted &&
+    services.releases?.notice?.isRequired == true &&
+    !services.noticeOpen &&
+    ModalRoute.isCurrentOf(context) != false;

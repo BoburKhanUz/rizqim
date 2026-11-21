@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pos_data/pos_data.dart'
+    show OfflineStatus, PosOffline, PosUpdateReasons, pendingOperationsOf;
 import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
@@ -17,9 +19,14 @@ class PairingScreen extends StatefulWidget {
     super.key,
     required this.auth,
     this.openUrl = _openLink,
+    this.offline,
   });
 
   final AuthSession auth;
+
+  /// M5 S5 (review M3): the till's offline queue. Its unsent operations (sets kept aside included) go with the
+  /// pairing request (the server then never refuses an old version), and "Yuklab olish" waits while any are left.
+  final PosOffline? offline;
 
   /// M5 S5: opens the download link of a newer app version (replaceable in tests).
   final Future<bool> Function(Uri url) openUrl;
@@ -61,6 +68,7 @@ class _PairingScreenState extends State<PairingScreen> {
         appVersion: AppConfig.fullVersion,
         // P6 B: the server's default LAN hub is a cashier till, never a waiter's phone
         app: 'cashier',
+        pendingOperations: pendingOperationsOf(widget.offline),
       );
       // AuthGate ekranni o'zi almashtiradi
     } on AppOutdatedException catch (e) {
@@ -156,13 +164,40 @@ class _PairingScreenState extends State<PairingScreen> {
                   ],
                   if (_downloadUrl != null) ...<Widget>[
                     const SizedBox(height: 12),
-                    RzButton(
-                      key: const ValueKey<String>('pairing-download'),
-                      label: 'Yuklab olish',
-                      icon: Icons.download_rounded,
-                      variant: RzButtonVariant.secondary,
-                      fullWidth: true,
-                      onPressed: () => unawaited(widget.openUrl(_downloadUrl!)),
+                    StreamBuilder<OfflineStatus>(
+                      stream: widget.offline?.changes,
+                      builder: (BuildContext context, _) {
+                        // Review M3: updating with unsent operations could lose them: wait for the queue
+                        final bool queued =
+                            pendingOperationsOf(widget.offline) > 0;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            RzButton(
+                              key: const ValueKey<String>('pairing-download'),
+                              label: 'Yuklab olish',
+                              icon: Icons.download_rounded,
+                              variant: RzButtonVariant.secondary,
+                              fullWidth: true,
+                              onPressed: queued
+                                  ? null
+                                  : () => unawaited(
+                                      widget.openUrl(_downloadUrl!),
+                                    ),
+                            ),
+                            if (queued) ...<Widget>[
+                              const SizedBox(height: 8),
+                              Text(
+                                PosUpdateReasons.queued,
+                                style: RzType.footnote.copyWith(
+                                  color: c.fgMuted,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ],
                   const SizedBox(height: 20),

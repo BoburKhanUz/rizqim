@@ -6,6 +6,7 @@ import 'package:pos_ui/pos_ui.dart' show KeyboardScanListener;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'app_config.dart';
 import 'services.dart';
 import 'shell/home_shell.dart';
 import 'shell/idle_scope.dart';
@@ -108,7 +109,11 @@ class _AuthGateState extends State<AuthGate> {
       // M5 S1: a till the server cut off keeps its unsent operations; the pairing screen says so
       return UnsentQueueNotice(
         offline: widget.services.data.offline,
-        child: PairingScreen(auth: _auth, openUrl: widget.services.linkOpener),
+        child: PairingScreen(
+          auth: _auth,
+          openUrl: widget.services.linkOpener,
+          offline: widget.services.data.offline,
+        ),
       );
     }
     return TerminalHome(
@@ -170,7 +175,10 @@ class _TerminalHomeState extends State<TerminalHome> {
     // M5 S5: the update notice is read once the till is paired (now and every 6 h); a notice only, never a gate
     if (_s.releases == null) {
       _ownsReleases = true;
-      _s.releases = PosReleaseRepository.fromClient(_s.client);
+      _s.releases = PosReleaseRepository.fromClient(
+        _s.client,
+        appVersion: AppConfig.fullVersion,
+      );
       unawaited(_s.releases!.start());
     }
     if (_session.phase == PosSessionPhase.signedIn) unawaited(_loadBootstrap());

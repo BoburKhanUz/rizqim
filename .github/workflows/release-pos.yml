@@ -160,6 +160,13 @@ jobs:
           done
           test "$found" -eq 2
 
+      # The key never outlives the job's use of it, also when a step above failed or the run was cancelled
+      - name: Remove the signing key
+        if: always()
+        env:
+          APP: ${{ matrix.app }}
+        run: rm -f "pos/apps/$APP/android/release.keystore" "pos/apps/$APP/android/key.properties"
+
       - uses: actions/upload-artifact@v4
         with:
           name: android-${{ matrix.app }}

@@ -18,12 +18,11 @@ String updateDayKey(DateTime time) {
   return '${t.year}-${two(t.month)}-${two(t.day)}';
 }
 
-/// May "Yangilash" open the link now? The offline queue must be empty. The till keeps no shared signal for an
-/// order mid-payment (a payment is a pushed page with its own state), so that part is `false`: the notices are
-/// never shown over a payment page anyway, and the button only opens a link.
+/// May "Yangilash" open the link now? The offline queue must be empty (orphans included) and no payment may be in
+/// progress ([CashierServices.payments]: the payment page or the counter's pay flow).
 PosUpdateGate updateGateOf(CashierServices services) => canUpdateNow(
   pendingOperations: pendingOperationsOf(services.data.offline),
-  paymentInProgress: false,
+  paymentInProgress: services.payments.active,
 );
 
 /// Opens the download link of [release] in the system browser.
@@ -32,7 +31,7 @@ void openUpdate(CashierServices services, PosAppRelease release) {
   if (url != null) unawaited(services.linkOpener(url));
 }
 
-/// Rebuilds with the current [PosUpdateGate] whenever the offline queue changes.
+/// Rebuilds with the current [PosUpdateGate] whenever the offline queue or the payment signal changes.
 class UpdateGateBuilder extends StatelessWidget {
   const UpdateGateBuilder({
     super.key,
@@ -46,11 +45,15 @@ class UpdateGateBuilder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PosOffline? offline = services.data.offline;
-    if (offline == null) return builder(context, updateGateOf(services));
-    return StreamBuilder<OfflineStatus>(
-      stream: offline.changes,
-      builder: (BuildContext context, _) =>
-          builder(context, updateGateOf(services)),
+    return ListenableBuilder(
+      listenable: services.payments,
+      builder: (BuildContext context, _) => offline == null
+          ? builder(context, updateGateOf(services))
+          : StreamBuilder<OfflineStatus>(
+              stream: offline.changes,
+              builder: (BuildContext context, _) =>
+                  builder(context, updateGateOf(services)),
+            ),
     );
   }
 }
@@ -178,15 +181,14 @@ class UpdateSettingsLine extends StatelessWidget {
 
 /// The full notice for `update_required` (app start, after a shift is closed, the shift-open screen). "Davom etish"
 /// always closes it; so does a tap outside it and the back button. Nothing happens if there is no required notice, if
-/// another notice is already open, or if [context] is gone.
+/// another notice is already open, if [context] is gone or if its route is not the top one (a payment or another page
+/// over it: review M1).
 Future<void> showUpdateRequiredNotice(
   BuildContext context,
   CashierServices services,
 ) async {
-  final PosAppRelease? r = services.releases?.notice;
-  if (r == null || !r.isRequired || services.noticeOpen || !context.mounted) {
-    return;
-  }
+  if (!updateNoticeCanOpen(context, services)) return;
+  final PosAppRelease r = services.releases!.notice!;
   services.noticeOpen = true;
   try {
     await showDialog<void>(
@@ -232,3 +234,10 @@ Future<void> showUpdateRequiredNotice(
     services.noticeOpen = false;
   }
 }
+
+/// [showUpdateRequiredNotice] would open now: a required notice, none open, and [context]'s route is the top one.
+bool updateNoticeCanOpen(BuildContext context, CashierServices services) =>
+    context.mounted &&
+    services.releases?.notice?.isRequired == true &&
+    !services.noticeOpen &&
+    ModalRoute.isCurrentOf(context) != false;

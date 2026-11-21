@@ -5,6 +5,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'app_config.dart';
 import 'lan/waiter_lan.dart';
 import 'services.dart';
 import 'shell/home_shell.dart';
@@ -161,7 +162,10 @@ class _TerminalHomeState extends State<TerminalHome> {
     // M5 S5: the update notice is read once the phone is paired (now and every 6 h); a notice only, never a gate
     if (_s.releases == null) {
       _ownsReleases = true;
-      _s.releases = PosReleaseRepository.fromClient(_s.client);
+      _s.releases = PosReleaseRepository.fromClient(
+        _s.client,
+        appVersion: AppConfig.fullVersion,
+      );
       unawaited(_s.releases!.start());
     }
     _authSub = _s.auth.events.listen(_onAuth);

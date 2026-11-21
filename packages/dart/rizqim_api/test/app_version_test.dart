@@ -104,4 +104,27 @@ void main() {
       ),
     );
   });
+
+  // Review M3: a till holding queued operations says so at pairing; the server then never refuses it with 426
+  test(
+    'pairing sends pending_operations when given, and leaves it out otherwise',
+    () async {
+      final FakeAdapter adapter = FakeAdapter(
+        (RequestOptions o) => ok(pairData()),
+      );
+      final RizqimClient client = clientWith(adapter, appVersion: '1.0.0+1');
+      addTearDown(client.auth.dispose);
+      Map<Object?, Object?> body(int i) =>
+          adapter.requests[i].data as Map<Object?, Object?>;
+
+      await client.auth.pairTerminal('ABCD-EFGH', pendingOperations: 3);
+      expect(body(0)['pending_operations'], 3);
+
+      await client.auth.remote.pair('ABCD-EFGH', pendingOperations: 0);
+      expect(body(1)['pending_operations'], 0);
+
+      await client.auth.pairTerminal('ABCD-EFGH');
+      expect(body(2).containsKey('pending_operations'), isFalse);
+    },
+  );
 }
