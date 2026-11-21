@@ -75,6 +75,7 @@ Egasi qarori (19.11.2026): asosiy domen **rizqim.uz** (rizqim.com va rizq.im ham
 | links.rizqim.uz | Havolalar (deep links) | Band qilinadi; mobil ilova chiqqanda ishlatiladi |
 
 Sinov serveri uchun xuddi shu to'plam `stg.rizqim.uz` ostida. O'rnatish GitHub orqali (kalit GitHub Secrets'da).
+Tayyor (serversiz): edge proksi (`infra/edge`, avtomatik HTTPS, hamma yuqoridagi hostlar), GitHub Actions deploy (`.github/workflows/deploy.yml`, production faqat qo'lda va egasi tasdiqlagandan keyin), orqaga qaytarish, domen bo'yicha `.env` namunalari. Server paydo bo'lganda faqat DNS va sirlar kerak: [SERVER_SETUP.md](SERVER_SETUP.md). Haqiqiy serverda sinalmagan.
 
 ## Maqsadli hajm
 
@@ -119,7 +120,7 @@ ikkinchi yil oxirida taxminan 1 TB ga yetadi, shuning uchun eski buyurtmalarni a
 
 ## P rejasi (egasi bilan kelishildi, 21.11.2026)
 
-Fiskal tadqiqot ([research/reports](research/reports/), "Fiskal provayder: raqib bo'lmaganlar") ikki narsani ko'rsatdi: raqib bo'lmagan,
+Fiskal tadqiqot ([research/reports](research/reports/), "Fiskal provayder - raqib bo'lmaganlar") ikki narsani ko'rsatdi: raqib bo'lmagan,
 reyestrda turg'un va API'si ochiq provayder topilmadi; VM 943 ning 22.10.2026 dan kuchga kirgan 25-band 9-xatboshi (TXKM tartibi) va
 161-band "RIZQIM birovning kassasiga chek yuboradi" sxemasini xavfli qiladi. Shuning uchun ikki parallel yo'l:
 
