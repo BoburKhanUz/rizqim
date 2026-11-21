@@ -135,5 +135,7 @@ reyestrda turg'un va API'si ochiq provayder topilmadi; VM 943 ning 22.10.2026 da
 
 Egasi qarori (21.11.2026): Fable limiti tugagani uchun Click/Payme tayyorgarligi, o'z virtual kassamizning texnik ishi va deploy xavfsizlik tekshiruvi Opus bilan qilinadi.
 
+Egasi qarori (21.11.2026): pilot uchun hozircha **1 ta server** (ishchi, production); sinov serveri keyin qo'shiladi. Deploy faqat qo'lda va tasdiq bilan (asosiy tarmoqqa push ishchi serverga o'zi o'rnatilmaydi).
+
 Serversiz ishlar tartibi: fiskal xatlar -> landing PR -> avtomatik o'rnatish va domenlar -> Click/Payme -> qurilmalar ro'yxati va qo'llanmalar ->
 sinov serveri tayyorgarligi -> o'z virtual kassamiz texnik ishi.
