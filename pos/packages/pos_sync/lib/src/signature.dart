@@ -47,6 +47,19 @@ abstract final class SyncSignature {
     device: key.deviceUuid.toLowerCase(),
   );
 
+  /// M5 S4: the label in front of a rescue file's bytes (docs/scale/M5_DESIGN.md 5, "As built: the export file"),
+  /// so that a file MAC is never an operation's MAC.
+  static const String fileLabel = 'rizqim-sync-export/v1\n';
+
+  /// M5 S4: the MAC of a rescue file, HMAC(key, [fileLabel] || [bytes]) over every byte before its trailer line
+  /// (64 lower-case hex characters). The same as the backend's `SyncSignature::fileMac`.
+  static String fileMac(SyncKey key, List<int> bytes) => _hex(
+    Hmac(
+      sha256,
+      key._bytes,
+    ).convert(<int>[...utf8.encode(fileLabel), ...bytes]).bytes,
+  );
+
   /// 64 lower-case hex characters (what a mac or a prev looks like).
   static bool isMac(Object? value) =>
       value is String && value.length == 64 && _macShape.hasMatch(value);

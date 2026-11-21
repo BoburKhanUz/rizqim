@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -27,8 +28,12 @@ Future<void> main() async {
   await Future.wait(<Future<void>>[client.auth.restore(), settings.load()]);
   // P3-31: internetsiz rejim navbati va nusxalari ilovaning o'z papkasida (elektr o'chsa ham qoladi)
   final Directory support = await getApplicationSupportDirectory();
+  final FileSyncStorage journal = FileSyncStorage(
+    Directory('${support.path}/pos_sync'),
+  );
+  // M5 S4: a second copy of the journal outside the app's folder, restored from on start (MACs verified)
   final SyncStore offline = await SyncStore.open(
-    FileSyncStorage(Directory('${support.path}/pos_sync')),
+    await _mirrored(journal, client.auth.terminal),
   );
   runApp(
     CashierApp(
@@ -42,6 +47,66 @@ Future<void> main() async {
       ),
     ),
   );
+}
+
+/// M5 S4 (docs/scale/M5_DESIGN.md 5, layer 2): the journal with its mirror copy in `Documents\RIZQIM\<device uuid>\`
+/// (Windows) or `<external files>/RIZQIM/<device uuid>/` (Android). Before the store opens, operations the journal
+/// lost are put back from the copy when their MAC verifies under the till's key, and only while the last bootstrap
+/// said `offline.export: true`. An unpaired till, another platform or any failure here: the journal alone (a backup
+/// never stops the till from starting).
+Future<SyncStorage> _mirrored(
+  FileSyncStorage journal,
+  PairedTerminal? terminal,
+) async {
+  if (terminal == null) return journal;
+  try {
+    final Directory? base = Platform.isWindows
+        ? await getApplicationDocumentsDirectory()
+        : Platform.isAndroid
+        ? await getExternalStorageDirectory()
+        : null;
+    if (base == null) return journal;
+    final Directory dir = mirrorDirectoryIn(base, terminal.device.uuid);
+    final MirroredSyncStorage mirrored = MirroredSyncStorage(
+      journal,
+      FileSyncStorage(dir),
+      directory: dir,
+    );
+    await mirrored.restore(
+      keys: <SyncKey>[?_syncKey(terminal)],
+      enabled: await _exportOn(journal),
+    );
+    return mirrored;
+  } on Object {
+    return journal;
+  }
+}
+
+/// The till's sync key, in memory only (never logged or written outside its secure storage).
+SyncKey? _syncKey(PairedTerminal terminal) {
+  final TerminalSyncKey? saved = terminal.syncKey;
+  if (saved == null) return null;
+  try {
+    return SyncKey.fromBase64(
+      saved.key,
+      kid: saved.kid,
+      deviceUuid: terminal.device.uuid,
+    );
+  } on Object {
+    return null;
+  }
+}
+
+/// `offline.export` of the bootstrap copy on the disk (the store's `bootstrap` document).
+Future<bool> _exportOn(SyncStorage journal) async {
+  try {
+    final Object? doc = jsonDecode(await journal.readDoc('bootstrap') ?? '{}');
+    final Object? value = doc is Map ? doc['value'] : null;
+    final Object? offline = value is Map ? value['offline'] : null;
+    return offline is Map && offline['export'] == true;
+  } on Object {
+    return false;
+  }
 }
 
 /// P6 uskunalar: kassaning ikkinchi ekrani (Sunmi D2 turi). `pos_hardware` plagini uni ikkinchi ekranda alohida

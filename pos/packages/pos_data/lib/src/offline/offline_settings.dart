@@ -21,6 +21,7 @@ class PosOfflineSettings {
     this.discount = false,
     this.signing = false,
     this.signingKid,
+    this.export = false,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -36,6 +37,7 @@ class PosOfflineSettings {
     discount: j.boolean('discount'),
     signing: j.boolean('signing'),
     signingKid: j.intOrNull('signing_kid'),
+    export: j.boolean('export'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
@@ -65,6 +67,7 @@ class PosOfflineSettings {
         discount: discount,
         signing: signing,
         signingKid: signingKid,
+        export: export,
       );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
@@ -95,6 +98,11 @@ class PosOfflineSettings {
   /// Larger than the number of the till's own key: the key was rotated on the server and the till fetches a new one
   /// (`PosSyncKeys`). `null`: not said (nothing is concluded from that).
   final int? signingKid;
+
+  /// M5 S4: the server imports the till's rescue file (`offline.export: true`, only while it signs). Only then does
+  /// the till offer "Navbatni faylga saqlash" (`SyncExporter`) and restore operations from its mirror copy. An older
+  /// server does not say so: nothing is offered.
+  final bool export;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {
