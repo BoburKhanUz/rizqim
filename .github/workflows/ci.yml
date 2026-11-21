@@ -587,6 +587,11 @@ jobs:
           dockerfile: infra/backup/Dockerfile
           failure-threshold: error
 
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/pos-site/Dockerfile
+          failure-threshold: error
+
       # The build itself fails if redis/uv do not load (backend/Dockerfile); then check Reverb really gets the libuv loop
       - name: Backend image has ext-uv and Reverb uses it
         run: |

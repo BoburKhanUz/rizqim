@@ -10,6 +10,7 @@ import { DevicesTab } from './DevicesTab';
 import { FiscalTab } from './FiscalTab';
 import { InvoicesTab } from './InvoicesTab';
 import { PlansTab } from './PlansTab';
+import { ReleasesTab } from './ReleasesTab';
 import { isTab, TAB_LABEL, TAB_PERMISSIONS, TABS, type PosTab } from './posModel';
 import { ShiftsTab } from './ShiftsTab';
 import { SubscriptionsTab } from './SubscriptionsTab';
@@ -94,8 +95,9 @@ export function PosView({ initial = {} }: { initial?: PosInitial }) {
       shifts: selected.shift,
       fiscal: selected.fiscal,
       sync: selected.sync,
+      releases: null,
     };
-    const key: Record<PosTab, string> = { subscriptions: 'store', plans: '', invoices: 'invoice', devices: 'device', shifts: 'shift', fiscal: 'fiscal', sync: 'sync' };
+    const key: Record<PosTab, string> = { subscriptions: 'store', plans: '', invoices: 'invoice', devices: 'device', shifts: 'shift', fiscal: 'fiscal', sync: 'sync', releases: '' };
     if (value[next] && key[next]) params.set(key[next], value[next]);
     window.history.replaceState(null, '', `?${params.toString()}`);
   }, []);
@@ -156,6 +158,7 @@ export function PosView({ initial = {} }: { initial?: PosInitial }) {
         {tab === 'devices' && <DevicesTab selected={selection.device} onSelect={(uuid) => select('device', uuid)} />}
         {tab === 'shifts' && <ShiftsTab selected={selection.shift} onSelect={(uuid) => select('shift', uuid)} />}
         {tab === 'fiscal' && <FiscalTab selected={selection.fiscal} onSelect={(uuid) => select('fiscal', uuid)} />}
+        {tab === 'releases' && <ReleasesTab />}
         {tab === 'sync' && <SyncTab selected={selection.sync} onSelect={(opId) => select('sync', opId)} />}
       </div>
     </>

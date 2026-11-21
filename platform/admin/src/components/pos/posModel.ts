@@ -7,7 +7,7 @@ import type { DeviceState, SubscriptionStatus } from '@/lib/api/pos';
 
 export const money = (value: string | number | null | undefined) => formatMoney(value ?? 0, 'uz');
 
-export const TABS = ['subscriptions', 'plans', 'invoices', 'devices', 'shifts', 'fiscal', 'sync'] as const;
+export const TABS = ['subscriptions', 'plans', 'invoices', 'devices', 'shifts', 'fiscal', 'sync', 'releases'] as const;
 export type PosTab = (typeof TABS)[number];
 export const isTab = (value: string | undefined): value is PosTab => TABS.includes(value as PosTab);
 
@@ -20,6 +20,7 @@ export const TAB_PERMISSIONS: Record<PosTab, readonly string[]> = {
   shifts: ['devices.view'],
   fiscal: ['devices.view'],
   sync: ['devices.view'],
+  releases: ['devices.view'],
 };
 
 export const TAB_LABEL: Record<PosTab, MessageKey> = {
@@ -30,6 +31,7 @@ export const TAB_LABEL: Record<PosTab, MessageKey> = {
   shifts: 'pos_tab_shifts',
   fiscal: 'pos_tab_fiscal',
   sync: 'pos_tab_sync',
+  releases: 'pos_tab_releases',
 };
 
 export const SUBSCRIPTION_TONE: Record<SubscriptionStatus, PillTone> = { trialing: 'info', active: 'success', past_due: 'warning', locked: 'danger', cancelled: 'neutral' };
