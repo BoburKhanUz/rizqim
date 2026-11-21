@@ -217,6 +217,27 @@ Section 9 is a short note of what a "whole day" answer would change later; it ha
   out, `resume_expired`). Server (`ContinuedStaff`): bootstrap `offline.staff_resume: true`; the order's informational
   `staff_continued` sync flag (once, plus one per `bill.pay` with its `payments`), the X/Z report's `continued:
   {count, amount}`, `staff_continued: bool` on the sync-error rows. The 36 h staff check is unchanged.
+  *As built (S6 fixes F-till, 21.11.2026; supersedes the deletion and end rules above).* The record is deleted only at
+  a PIN login (replaced by the new one), a sign-out the server hears (`DELETE` of the staff session answered, or 401),
+  the 12 h end, the end of the shift (`PosSession.updateShift` from an open shift to none:
+  `AuthSession.forgetResumableStaff`), unpair, forget, terminal 401, a new pairing, staff 401, a clock found set back,
+  and when unusable. A lock, a sign-out or the idle lock while the server is out of reach keeps it, so the PIN keypad
+  offers "Davom etish" again (also to a PIN-signed staff member who locked during the outage). The first server answer
+  (any answer: a 502 or a captive portal counts) sends a resumed staff member to the PIN keypad (`resume_ended`) but
+  keeps the record: when the link is found gone again before a PIN login, the offer is back. While resumed, every look
+  at the staff member (`AuthSession.staff` / `staffResumed`, read before each action and each queued operation) ends
+  the resume when the device clock is behind the highest time seen this run or the `notBefore` of the resume
+  (`resume_clock`, record deleted), or when the 12 h are over by the device clock or by a monotonic stopwatch
+  (`AuthSession.monotonic`) that counts from the resume what the device clock left of the 12 h then. The payment and
+  the close that follows it are one action: who acts is read once at its start (`PosOffline._acting`), the end never
+  falls between them. The open shift has its own small copy on the till (`PosOffline.rememberShift`, doc `shift`),
+  written at every shift change and every server bootstrap, also while operations are queued (the bootstrap copy is
+  not), and read back into the stored bootstrap after a restart: the shift opened after the PIN login is known. Safety
+  net: a resumed staff member with no known shift still takes the payment; `bill.pay` is queued without `shift_uuid`
+  and the server takes the till's current shift (`PosSyncApplier::openShiftOf`). The rule for the 12 h end is in ONE
+  place, `AuthSession._resumeWindowOver` (open owner question Q1: today a hard end, signed out with `resume_expired`;
+  the alternative "payment and close still allowed past 12 h, marked `staff_unverified`" is a change there plus the
+  matching `PosOffline` guard and payload mark).
 
 Rejected: raising the limits to 48-72 h (not asked for; section 9); making the limits a per-store setting (one more
 owner setting to audit, no pilot need); offline PIN verification with hashes on the device (deliberately absent today,

@@ -167,6 +167,10 @@ class PosOffline {
   final Set<String> _emitted = <String>{};
 
   static const String _bootstrapKey = 'bootstrap';
+
+  /// M5 S6 (review 2 HIGH): the open shift as this till last knew it (`{"shift": {...} | null}`), written at every
+  /// change ([rememberShift]), also while operations are queued (the bootstrap copy is not written then).
+  static const String _shiftKey = 'shift';
   static const String _salesKey = '_sale_receipts';
 
   /// [PosOfflineUnavailable.reason] of a NEW order refused by the age limits ([OfflineStatus.canOpenOrders]).
@@ -343,6 +347,23 @@ class PosOffline {
       for (final MapEntry<String, Object?> e in raw.entries)
         if (e.key != 'lan') e.key: e.value,
     });
+    // The server's answer: its shift is what this till knows now (shifts are never opened or closed offline)
+    await _writeShift(raw['shift']);
+  }
+
+  /// M5 S6 (review 2 HIGH): the open shift changed (opened, closed, read again; pos_data `PosSession.updateShift`).
+  /// Kept in its own small copy, written every time (even with operations queued), and read back with the bootstrap
+  /// copy ([storedBootstrap]) after an app restart during the outage: the shift opened after the PIN login is known
+  /// then.
+  void rememberShift(PosShiftSummary? shift) =>
+      unawaited(_writeShift(shift?.toJson()));
+
+  Future<void> _writeShift(Object? shift) async {
+    try {
+      await store.putDoc(_shiftKey, <String, Object?>{'shift': shift});
+    } on Object {
+      // Not saved: the previous copy stays
+    }
   }
 
   Future<void> captureCatalog(PosChannel channel, Object? raw) =>
@@ -387,12 +408,22 @@ class PosOffline {
   /// Oxirgi bootstrap nusxasi (ilova internetsiz qayta ochilganda). M5 S1: yoshi cheklanmaydi — ochiq buyurtmaning
   /// zali, haqlari va smenasi 24 soatdan keyin ham kerak (schyot va to'lov to'xtamaydi); yangi buyurtma ochishni
   /// [OfflineStatus.canOpenOrders] to'xtatadi.
+  ///
+  /// M5 S6: with the open shift as this till last knew it ([rememberShift]), not as the copy was taken.
   PosBootstrap? storedBootstrap() {
     final SyncDoc? d = store.doc(_bootstrapKey);
     final Map<String, Object?>? m = d?.map;
     if (d == null || m == null) return null;
+    final Map<String, Object?>? shift = store.doc(_shiftKey)?.map;
     try {
-      return PosBootstrap.fromJson(PosJson(m), receivedAt: d.takenAt);
+      return PosBootstrap.fromJson(
+        PosJson(
+          shift == null || !shift.containsKey('shift')
+              ? m
+              : <String, Object?>{...m, 'shift': shift['shift']},
+        ),
+        receivedAt: d.takenAt,
+      );
     } on FormatException {
       return null;
     }
@@ -1101,12 +1132,18 @@ class PosOffline {
     final Completer<void> whole = Completer<void>();
     _composing.add(whole.future);
     try {
-      return await _pay(
-        billUuid,
-        tenders: tenders,
-        shiftUuid: shiftUuid,
-        idempotencyKey: idempotencyKey,
-        tipStaffId: tipStaffId,
+      // M5 S6 (review 1 LOW1): who acts is read ONCE for the whole action: the end of a PIN-less continuation (the
+      // 12 h, the clock) never falls between the payment and the close
+      final _Acting who = _acting();
+      return await runZoned(
+        () => _pay(
+          billUuid,
+          tenders: tenders,
+          shiftUuid: shiftUuid,
+          idempotencyKey: idempotencyKey,
+          tipStaffId: tipStaffId,
+        ),
+        zoneValues: <Object?, Object?>{_actingKey: who},
       );
     } finally {
       _composing.remove(whole.future);
@@ -1122,7 +1159,10 @@ class PosOffline {
     int? tipStaffId,
   }) async {
     final String? shift = shiftUuid ?? this.shiftUuid();
-    if (shift == null) {
+    // M5 S6 (review 2 HIGH, safety net): a staff member resumed after a restart with no shift known on this till
+    // (an older copy, a shift opened elsewhere) still takes the payment: it is queued without `shift_uuid` and the
+    // server puts it in the till's current shift (PosSyncApplier::openShiftOf). A PIN-signed one is told to open one.
+    if (shift == null && !(Zone.current[_actingKey] as _Acting).resumed) {
       throw const PosOfflineUnavailable(
         "Ochiq smena yo'q: internetsiz smena ochib bo'lmaydi.",
       );
@@ -1155,7 +1195,7 @@ class PosOffline {
     await _enqueue(SyncOpType.billPay, <String, Object?>{
       'order': orderRef,
       'bill': billUuid,
-      'shift_uuid': shift,
+      'shift_uuid': ?shift,
       'tenders': <Object?>[for (final PosTenderInput t in tenders) t.toJson()],
       // P6-22: the tip goes with its tender (`tip_amount`); whom it goes to (review P6 wave 2: someone other than
       // the waiter needs a manager's approval, which offline cannot be given — the server gives it to the waiter)
@@ -1615,7 +1655,26 @@ class PosOffline {
     }
   }
 
-  int _staff() => _actor?.staffId ?? staffId()!;
+  /// Who acts now: inside a composed action ([pay]) as it was read at its start, otherwise read here (which checks
+  /// the end of a PIN-less continuation: `AuthSession.staffResumed`). Nobody: refused, nothing is queued.
+  _Acting _acting() {
+    final _Acting? composed = Zone.current[_actingKey] as _Acting?;
+    if (composed != null) return composed;
+    final PosOfflineActor? a = _actor;
+    if (a != null) {
+      return _Acting(staffId: a.staffId, continued: false, resumed: false);
+    }
+    final int? id = staffId();
+    if (id == null) throw const PosOfflineUnavailable('Xodim kirmagan.');
+    final bool continued = staffContinued();
+    return _Acting(
+      staffId: id,
+      continued: continued,
+      resumed: continued && staffResumed(),
+    );
+  }
+
+  static final Object _actingKey = Object();
 
   /// The till's own staff member goes on without a PIN (a LAN actor has its own signed grant).
   bool get _continued => _actor == null && staffContinued();
@@ -1639,16 +1698,17 @@ class PosOffline {
 
   Future<SyncOperation> _enqueue(String type, Map<String, Object?> payload) {
     final PosOfflineActor? a = _actor;
+    final _Acting who = _acting();
     return store.enqueue(
       type,
-      _continued
+      who.continued
           ? <String, Object?>{
               ...payload,
               continuedKey: true,
-              if (staffResumed()) resumedKey: true,
+              if (who.resumed) resumedKey: true,
             }
           : payload,
-      staffId: _staff(),
+      staffId: who.staffId,
       opId: a?._takeOpId(),
       origin: a?.device,
     );
@@ -2024,4 +2084,17 @@ class PosOfflineActor {
     opId = null;
     return id;
   }
+}
+
+/// Who queues an operation (`PosOffline._acting`): read once per composed action.
+class _Acting {
+  const _Acting({
+    required this.staffId,
+    required this.continued,
+    required this.resumed,
+  });
+
+  final int staffId;
+  final bool continued;
+  final bool resumed;
 }

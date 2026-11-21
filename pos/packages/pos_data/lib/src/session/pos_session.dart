@@ -36,14 +36,21 @@ class PosSession {
     this.connectivity,
     bool Function()? resumeSupported,
     DateTime? Function()? lastKnownTime,
+    this.shiftChanged,
   }) : _resumeSupported = resumeSupported ?? (() => false),
        _lastKnownTime = lastKnownTime ?? (() => null) {
     _authSub = auth.events.listen(_onAuth);
     // M5 S6-a: the server answered: a staff member resumed without a PIN stops at once, a PIN login is required
+    // (M5 S6 review 2 MEDIUM: the record is kept, a link gone again before a PIN login offers "Davom etish" again)
     _contactSub = connectivity?.changes.listen((PosConnectivityState s) {
       if (s.online) auth.endStaffResume();
     });
   }
+
+  /// M5 S6 (review 2 HIGH): every change of the open shift is told to the till's offline copy (pos_data `PosData`
+  /// binds `PosOffline.rememberShift`), so that after a restart during the outage the shift opened after the PIN
+  /// login is known.
+  final void Function(PosShiftSummary? shift)? shiftChanged;
 
   /// Server bilan aloqa (kassa): [resumeOffer] faqat server javob bermayotganda.
   final PosConnectivity? connectivity;
@@ -199,9 +206,15 @@ class PosSession {
   }
 
   /// Smena ochildi, yopildi yoki `shift.changed` dan keyin qayta so'raldi.
+  ///
+  /// M5 S6: the till's offline copy of the shift follows ([shiftChanged]); a shift that was open and is now gone
+  /// (closed) ends what is kept for a restart ([AuthSession.forgetResumableStaff]).
   void updateShift(PosShiftSummary? shift) {
+    final bool closed = shift == null && this.shift != null;
     _shift = shift;
     _shiftOverridden = true;
+    shiftChanged?.call(shift);
+    if (closed) auth.forgetResumableStaff();
     _emit();
   }
 

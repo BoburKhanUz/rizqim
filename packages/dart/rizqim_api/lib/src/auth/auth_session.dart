@@ -188,14 +188,36 @@ class AuthSession {
   bool _resumeOnStore = false;
   Future<void> _resumeWrites = Future<void>.value();
 
+  /// M5 S6 (review 1 M2): a monotonic clock (default: a [Stopwatch] started with this session). A resume ends when
+  /// this much real time has passed since it began as was left of the 12 h by the device clock then, whatever the
+  /// device clock says later. Tests replace it.
+  Duration Function() monotonic = _stopwatch();
+
+  static Duration Function() _stopwatch() {
+    final Stopwatch w = Stopwatch()..start();
+    return () => w.elapsed;
+  }
+
+  /// The highest device time seen while somebody was resumed on this run (and the `notBefore` given at the resume):
+  /// a clock behind it was set back.
+  DateTime? _seenMax;
+
+  /// [monotonic] reading at which the resume of the current record ends (`null`: not resumed on this run).
+  Duration? _resumeDeadline;
+
   /// The kept record while it may still be used at the device's [now] (12 h after the PIN login at most, never a PIN
-  /// login in the future), a terminal is paired and nobody is signed in. An unusable record is deleted here. Whether
-  /// the server is out of reach and whether the server records the mark is the caller's to decide (pos_data
+  /// login in the future, never by a clock behind what this run already saw, never past the [monotonic] end of an
+  /// earlier resume), a terminal is paired and nobody is signed in. An unusable record is deleted here. Whether the
+  /// server is out of reach and whether the server records the mark is the caller's to decide (pos_data
   /// `PosSession.resumeOffer`).
   StaffResumeRecord? get resumableStaff {
     final StaffResumeRecord? r = _resumable;
     if (r == null || !rememberStaffForResume) return null;
-    if (!r.usableAt(_clock())) {
+    final DateTime now = _clock();
+    final DateTime? seen = _seenMax;
+    if (!r.usableAt(now) ||
+        (seen != null && now.isBefore(seen)) ||
+        _pastResumeDeadline) {
       _dropResume();
       return null;
     }
@@ -203,15 +225,23 @@ class AuthSession {
     return r;
   }
 
+  bool get _pastResumeDeadline {
+    final Duration? deadline = _resumeDeadline;
+    return deadline != null && monotonic() > deadline;
+  }
+
   /// A staff member resumed from [StaffResumeRecord] on this run: no PIN login, no staff token. Continued and
-  /// finish-only ([staffContinued], [staffFinishOnly]).
-  bool get staffResumed => _resumed && _staff != null;
+  /// finish-only ([staffContinued], [staffFinishOnly]). Checks the end first (the 12 h, the clock).
+  bool get staffResumed {
+    _checkResume();
+    return _resumed && _staff != null;
+  }
 
   /// Signs the kept staff member in again without a PIN ([AuthEventKind.staffSignedIn], reason `resumed`), with only
   /// the stored permissions that are also in [allowedPermissions]. No token is held: nothing goes to the server as
   /// this staff member except through the journal. [notBefore]: the latest time the till already saw (its last
-  /// server contact, its newest queued operation); a device clock behind it was set back and nothing is resumed.
-  /// `false`: nothing to resume ([resumableStaff]) or the clock.
+  /// server contact, its newest queued operation); a device clock behind it (or behind what this run saw) was set
+  /// back and nothing is resumed (the record is deleted). `false`: nothing to resume ([resumableStaff]) or the clock.
   bool resumeStaff({
     required Set<String> allowedPermissions,
     DateTime? notBefore,
@@ -223,6 +253,12 @@ class AuthSession {
       _dropResume();
       return false;
     }
+    _seenMax = now;
+    // The rest of the 12 h by the device clock now, counted from here on by the monotonic clock (never longer than
+    // an earlier resume of the same record allowed)
+    final Duration end = monotonic() + r.until.difference(now);
+    final Duration? earlier = _resumeDeadline;
+    _resumeDeadline = earlier == null || end < earlier ? end : earlier;
     _setAside = null;
     _staff = StaffSession(
       token: '',
@@ -238,22 +274,62 @@ class AuthSession {
     return true;
   }
 
-  /// The server answered: the resumed staff member ([staffResumed]) is signed out and the record deleted; a PIN login
-  /// is required ([AuthEventKind.staffSignedOut], [reason] `resume_ended`). Nothing happens otherwise.
-  void endStaffResume({String reason = 'resume_ended'}) {
-    if (!staffResumed) return;
+  /// The server answered: the resumed staff member ([staffResumed]) goes to the PIN keypad
+  /// ([AuthEventKind.staffSignedOut], reason `resume_ended`), a PIN login is possible now. M5 S6 (review 2 MEDIUM): the
+  /// record is KEPT (any answer counts, a 502 or a captive portal too): when the link is found gone again before a PIN
+  /// login succeeded, "Davom etish" is offered again (pos_data `PosSession.resumeOffer`). Nothing happens otherwise.
+  void endStaffResume() {
+    if (!_resumed || _staff == null) return;
+    _endResume('resume_ended', keepRecord: true);
+  }
+
+  /// M5 S6: the shift this till worked in was closed: nothing is kept for a restart (a resume would have no shift).
+  void forgetResumableStaff() {
+    if (_resumed && _staff != null) {
+      _endResume('shift_closed', keepRecord: false);
+    } else {
+      _dropResume();
+    }
+  }
+
+  void _endResume(String reason, {required bool keepRecord}) {
     _resumed = false;
     _staff = null;
-    _dropResume();
+    if (!keepRecord) _dropResume();
     _emit(AuthEvent(AuthEventKind.staffSignedOut, reason: reason));
   }
 
+  /// M5 S6 (review 1 M2): on every look at the resumed staff member (pos_data reads it before each action and each
+  /// queued operation): a device clock behind the highest time seen this run (or the `notBefore` of the resume) was
+  /// set back and ends the resume at once (reason `resume_clock`, record deleted: nothing about it can be trusted);
+  /// the 12 h by the device clock or by the [monotonic] clock from the resume end it by [_resumeWindowOver].
   void _checkResume() {
     if (!_resumed || _staff == null) return;
+    final DateTime now = _clock();
+    final DateTime? seen = _seenMax;
+    if (seen != null && now.isBefore(seen)) {
+      _endResume('resume_clock', keepRecord: false);
+      return;
+    }
+    _seenMax = now;
     final StaffResumeRecord? r = _resumable;
-    if (r != null && r.usableAt(_clock())) return;
-    endStaffResume(reason: 'resume_expired');
+    if (r != null && r.usableAt(now) && !_pastResumeDeadline) return;
+    _resumeWindowOver();
   }
+
+  /// M5 S6, owner question Q1 (open): THE ONE place that says what happens when the 12 h after the PIN login are over
+  /// while a staff member is resumed after a restart ([StaffResumeRecord.window] by the device clock, or by the
+  /// [monotonic] clock from the resume). The window itself is decided above ([_checkResume]); only the consequence
+  /// is here.
+  ///
+  /// Today (hard end): the staff member is signed out (reason `resume_expired`) and the record deleted; nobody can take
+  /// a payment on this till until the server answers a PIN login. A payment and the close that follow it are one
+  /// action and are never cut in two (pos_data `PosOffline.pay` reads the staff member once).
+  ///
+  /// The owner's alternative ("payment and close still allowed past 12 h, marked staff_unverified") is a change here:
+  /// keep `_resumed` and set a past-the-window flag instead of [_endResume]; pos_data `PosOffline` then lets only
+  /// `bill.pay` / `order.close` through for that flag and adds the server's `staff_unverified` mark to their payload.
+  void _resumeWindowOver() => _endResume('resume_expired', keepRecord: false);
 
   void _keepForResume(StaffSession session, DateTime at) {
     if (!rememberStaffForResume) return;
@@ -264,12 +340,14 @@ class AuthSession {
       signedInAt: at.toUtc(),
     );
     _resumable = r;
+    _resumeDeadline = null;
     _resumeOnStore = true;
     _writeResume(r.encode());
   }
 
   void _dropResume() {
     _resumable = null;
+    _resumeDeadline = null;
     if (!_resumeOnStore) return;
     _resumeOnStore = false;
     _writeResume(null);
@@ -441,19 +519,26 @@ class AuthSession {
     final StaffSession? staff = _staff;
     if (staff == null) return;
     // A continued staff member who locks the screen has no PIN login to come back with until the server answers
-    // (M5 S6-a: one resumed after a restart is not: they come back with a PIN only)
+    // (M5 S6-a: one resumed after a restart is not: the kept record offers them again, see below)
     if (staffContinued && !_resumed) _setAside = staff;
     _resumed = false;
     _staff = null;
-    // M5 S6-a: a sign-out ends the kept staff member too (the screen lock, the end of the shift)
-    _dropResume();
     _emit(AuthEvent(AuthEventKind.staffSignedOut, reason: reason));
+    // M5 S6 (review 1 M1): the kept record goes only when the server hears the sign-out. While it is out of reach no
+    // PIN login is possible: the record stays and the PIN keypad offers "Davom etish" again (a resumed staff member
+    // who locks the screen, a PIN-signed one who locks during the outage, the idle lock)
+    final StaffResumeRecord? kept = _resumable;
     if (terminal == null) return;
+    bool heard;
     try {
       await remote.endStaffSession(terminal.device.uuid);
-    } on ApiException {
+      heard = true;
+    } on ApiException catch (e) {
       // Tarmoq yo'q yoki sessiya allaqachon yopilgan: qurilmada chiqildi, shu yetarli
+      heard = e.isUnauthorized;
     }
+    // (a PIN login meanwhile wrote its own record: that one stays)
+    if (heard && identical(_resumable, kept) && _staff == null) _dropResume();
   }
 
   // --- Shaxsiy ilova: kirish va refresh -----------------------------------------------------------------------

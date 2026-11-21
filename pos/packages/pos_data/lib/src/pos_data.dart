@@ -86,6 +86,8 @@ class PosData {
       connectivity: http.connectivity,
       resumeSupported: () => till?.settings.staffResume ?? false,
       lastKnownTime: till == null ? null : () => till.latestKnownTime,
+      // M5 S6 (review 2 HIGH): the open shift is kept on the till at every change, read back after a restart
+      shiftChanged: till?.rememberShift,
     );
     catalog = PosCatalogRepository(http, cache: catalogCache, clock: clock)
       ..offline = offline;

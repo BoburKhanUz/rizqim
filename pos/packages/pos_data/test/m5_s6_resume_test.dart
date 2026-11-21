@@ -469,53 +469,70 @@ void main() {
   });
 
   group('the link comes back', () {
-    test('the mode ends at the first server answer, a PIN login is required, the record is gone; the queue is sent '
-        'with the marker and the server applies it', () async {
-      await boot();
-      final String room = await openTableThenOutage();
-      h.clock.now = h.clock.now.add(const Duration(hours: 3));
-      await restartOffline();
-      expect(h.pos.session.resumeStaff(), isTrue);
-      final PosOrder order = await h.pos.orders.get(room);
-      final PosBilling billing = await h.pos.billing.createBills(
-        room,
-        version: order.version,
-      );
-      await h.pos.billing.pay(
-        billing.bills.single.uuid,
-        tenders: <PosTenderInput>[
-          PosTenderInput.cash(billing.bills.single.total),
-        ],
-        shiftUuid: shift(),
-      );
+    test(
+      'the mode ends at the first server answer, a PIN login is required, the record is kept (M5 S6 review 2 '
+      'MEDIUM); the queue is sent with the marker and the server applies it',
+      () async {
+        await boot();
+        final String room = await openTableThenOutage();
+        h.clock.now = h.clock.now.add(const Duration(hours: 3));
+        await restartOffline();
+        expect(h.pos.session.resumeStaff(), isTrue);
+        final PosOrder order = await h.pos.orders.get(room);
+        final PosBilling billing = await h.pos.billing.createBills(
+          room,
+          version: order.version,
+        );
+        await h.pos.billing.pay(
+          billing.bills.single.uuid,
+          tenders: <PosTenderInput>[
+            PosTenderInput.cash(billing.bills.single.total),
+          ],
+          shiftUuid: shift(),
+        );
 
-      h.adapter.offline = false;
-      final SyncDrainResult synced = await h.offline.syncNow();
-      await settle();
-      expect(h.pos.session.staffResumed, isFalse);
-      expect(h.pos.session.isSignedIn, isFalse);
-      expect(h.pos.session.phase, PosSessionPhase.locked);
-      expect((await fetchRecord()), isNull);
-      expect(h.pos.session.resumeOffer, isNull);
+        h.adapter.offline = false;
+        final SyncDrainResult synced = await h.offline.syncNow();
+        await settle();
+        expect(h.pos.session.staffResumed, isFalse);
+        expect(h.pos.session.isSignedIn, isFalse);
+        expect(h.pos.session.phase, PosSessionPhase.locked);
+        // Kept until a PIN login, a sign-out the server hears, the 12 h, the shift's end or the terminal's end
+        expect((await fetchRecord())?['staff_id'], 3);
+        // The server answers: a PIN login is possible, nothing is offered
+        expect(h.pos.session.resumeOffer, isNull);
 
-      expect(synced.left, 0);
-      expect(sync.received, hasLength(3));
-      for (final Map<String, Object?> o in sync.received) {
-        final Map<String, Object?> p = (o['payload']! as Map<Object?, Object?>)
-            .cast<String, Object?>();
-        expect(p['staff_continued'], isTrue, reason: '${o['type']}');
-        expect(p['staff_resumed'], isTrue, reason: '${o['type']}');
-        expect(o['staff_id'], 3);
-      }
-      expect(
-        h.offline.store.answered.map((SyncOperation o) => o.status).toSet(),
-        <SyncOpStatus>{SyncOpStatus.applied},
-      );
+        expect(synced.left, 0);
+        expect(sync.received, hasLength(3));
+        for (final Map<String, Object?> o in sync.received) {
+          final Map<String, Object?> p =
+              (o['payload']! as Map<Object?, Object?>).cast<String, Object?>();
+          expect(p['staff_continued'], isTrue, reason: '${o['type']}');
+          expect(p['staff_resumed'], isTrue, reason: '${o['type']}');
+          expect(o['staff_id'], 3);
+        }
+        expect(
+          h.offline.store.answered.map((SyncOperation o) => o.status).toSet(),
+          <SyncOpStatus>{SyncOpStatus.applied},
+        );
 
-      // Offline again before anybody entered a PIN: nothing to resume
-      await h.goOffline();
-      expect(h.pos.session.resumeOffer, isNull);
-      expect(h.pos.session.resumeStaff(), isFalse);
-    });
+        // Offline again before anybody entered a PIN: offered again (M5 S6 review 2 MEDIUM, a flapping link)
+        await h.goOffline();
+        expect(h.pos.session.resumeOffer?.staffId, 3);
+        expect(h.pos.session.resumeStaff(), isTrue);
+
+        // A PIN login once the server answers replaces it
+        h.adapter.offline = false;
+        await expectLater(
+          h.pos.session.loadBootstrap(),
+          throwsA(isA<PosException>()),
+        );
+        await settle();
+        expect(h.pos.session.isSignedIn, isFalse);
+        h.clock.now = h.clock.now.add(const Duration(minutes: 1));
+        await h.client.auth.signInStaff(userId: 2, pin: h.state.pins[2]!);
+        expect((await fetchRecord())?['staff_id'], 2);
+      },
+    );
   });
 }

@@ -1041,7 +1041,9 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
   olmaydi, navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi. M5 S6-a: shu kassada oxirgi marta PIN
   bilan kirgan xodim PIN bilan kirganidan keyin 12 soat ichida "Davom etish: (ism)" tugmasi bilan PIN'siz davom
   etadi — faqat ochiq buyurtmaga schyot, to'lov va yopish (yangi buyurtma, taom qo'shish yoki o'chirish, chegirma,
-  qaytarish, smena va kassani uzish yo'q); server birinchi javob berishi bilan bu rejim tugaydi va PIN so'raladi.
+  qaytarish, smena va kassani uzish yo'q); server birinchi javob berishi bilan bu rejim tugaydi va PIN so'raladi
+  (M5 S6: yozuv saqlanadi — PIN bilan kirilmasdan aloqa yana uzilsa "Davom etish" yana taklif qilinadi; aloqa yo'q
+  paytda ekran qulflansa ham yozuv qoladi; qurilma soati orqaga surilsa rejim to'xtaydi).
   Amallar `staff_continued: true, staff_resumed: true` bilan yoziladi va hisobotda "PIN'siz davom etilgan" deb
   ko'rinadi (docs/API.md). Kassada faqat xodim id'si, ismi, ruxsatlari va PIN bilan kirgan vaqti saqlanadi (PIN,
   uning xeshi yoki token emas).
