@@ -6,7 +6,8 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 |---|---|---|
 | [hamkor-panel.md](hamkor-panel.md) | Ega va menejer | Veb-panelga kirish, buyurtmalar doskasi, menyu, stop-list va qozon, xodimlar va PIN, filiallar, yetkazish zonalari, sozlamalar va planshet ulash, hisobotlar, moliya; **Tarif va to'lov** sahifasi, "Asosiy tarifda bor" yozuvi, to'lanmagan hisob-faktura lentasi |
 | [oshxona-ekrani.md](oshxona-ekrani.md) | Oshpaz, mangalchi va planshetni sozlovchi | Planshetni kod bilan ulash, PIN bilan kirish, chiptani o'qish, taomni "tayyor" deb belgilash va qaytarish, ranglar, "Aloqa yo'q"; sexlar, mangal ko'rinishi (six sanog'i), oldindan buyurtmalar, "O'CHIRILDI", qozon paneli, raqamli buyurtmalar (tez kassa: avval to'lov, "Raqam N tayyor"), restoran va kafe (kurs belgisi va "N-kurs tayyor", "Og'irlik kutilmoqda", mangal vaqti taymeri, stol raqami), muammolar |
-| [kassa.md](kassa.md) | Kassir (va menejer) | Kassani ulash, PIN va menejer tasdig'i, smena, zal xaritasi, buyurtma olish, oshxonaga yuborish, o'chirish, ko'chirish va birlashtirish, schyot va bo'lish, to'lov turlari, fiskal chek, qaytarish, bron va avans, nasiya, onlayn buyurtmalar, kirim-chiqim, X va Z, printer, "Internet uzilsa" (internetsiz rejim), restoran qo'shimchalari (kurslar, "Mehmonlar bo'yicha" schyot, choy puli, og'irlik), muammolar |
+| [kassa.md](kassa.md) | Kassir (va menejer) | Kassani ulash, PIN va menejer tasdig'i, smena, zal xaritasi, buyurtma olish, oshxonaga yuborish, o'chirish, ko'chirish va birlashtirish, schyot va bo'lish, to'lov turlari, fiskal chek, qaytarish, bron va avans, nasiya, onlayn buyurtmalar, kirim-chiqim, X va Z, printer, "Internet uzilsa" (internetsiz rejim, nima qilish/qilmaslik, **Zaxira**: navbatni faylga saqlash va menejer yuklashi, qisqa hisobot, **PIN'siz davom etish**, **Yangilash / Davom etish** xabarlari), restoran qo'shimchalari (kurslar, "Mehmonlar bo'yicha" schyot, choy puli, og'irlik), muammolar |
+| [internet-uzilsa.md](internet-uzilsa.md) | Kassir, ofitsiant, menejer | **Internet uzilsa: bir sahifalik varaq** (bosib chiqarish uchun): lenta nimani bildiradi, nima qilish va nima qilmaslik, navbatni faylga saqlash (Zaxira), qisqa hisobot, "Davom etish" (PIN'siz), menejer faylni business.rizqim.uz da yuklaydi, yangilanish xabari |
 | [ofitsiant.md](ofitsiant.md) | Ofitsiant | Telefon ilovasi: ulash va PIN, "Mening xonalarim", xonani ochish, taom qo'shish va yuborish, "Berildi", schyot so'rash, boshqa ofitsiantning buyurtmasi, aloqa yo'qolganda; restoranda kurslar, mehmon raqami, "Boshqa ofitsiantga berish", "Mening choy pulim", "Ishga keldim" |
 | [ega-pos-sozlash.md](ega-pos-sozlash.md) | Ega (va buxgalter) | Kassa tizimini birinchi sozlash: **filial formati va modullar** (choyxona, osh markazi, stolovaya...), zal xaritasi, xona tariflari va bayramlar, choy-non, xizmat haqi (oldindan e'lon qilish), fiskal sozlamalar (STIR, soliq rejimi, MXIK), sexlar va printerlar, terminallar, xodimlar va PIN, smenalar va Z, bron, nasiya; **"Ikki marta hisoblamaslik"** |
 | [tez-kassa.md](tez-kassa.md) | Kassir, ega | **Tez kassa va telefon rejimi** (osh markazi, somsaxona, stolovaya...): birinchi ekran, buyurtma 3 bosishda, avval to'lov, talon va raqam, Tayyor / Berildi / Qayta chaqirish, kompleks, bugungi menyu, "Keyingi partiya", menejer PIN'i bilan hisobdan chiqarish, karta RRN va oxirgi 4 raqam, Z va bank terminali jami; ega uchun osh markazi, somsaxona va stolovayani sozlash |
@@ -31,7 +32,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Menejer**: [hamkor-panel.md](hamkor-panel.md) (4–6, 9-bo'limlar) yoki telefonda [mini-app-xodim.md](mini-app-xodim.md) (4–5, 8-bo'limlar).
   Kassada menejer tasdig'ini berish: [kassa.md](kassa.md#menejer-tasdigi). Smena va Z hisobot: [ega-pos-sozlash.md](ega-pos-sozlash.md#11-smenalar-va-z-hisobotlarni-korish).
 - **Oshpaz**: [oshxona-ekrani.md](oshxona-ekrani.md) (2–4-bo'limlar). Choyxonada qo'shimcha: sexlar, mangal, oldindan buyurtmalar, qozon (8–12-bo'limlar).
-- **Kassir**: [kassa.md](kassa.md) (butun qo'llanma; avval 1–4-bo'limlar). Tez kassa (osh markazi, somsaxona, stolovaya) yoki
+- **Kassir**: [kassa.md](kassa.md) (butun qo'llanma; avval 1–4-bo'limlar). Internet uzilganda: [internet-uzilsa.md](internet-uzilsa.md) (bosib chiqarib osib qo'ying) va [kassa.md, 20-bo'lim](kassa.md#20-internet-uzilsa). Tez kassa (osh markazi, somsaxona, stolovaya) yoki
   telefonda ishlasangiz: [tez-kassa.md](tez-kassa.md).
 - **Fast food yoki qahvaxona egasi**: [fast-food.md](fast-food.md) (kombo, stiker, qadoq, oldindan buyurtma, sexlar), avval [tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash).
 - **Click, Payme yoki UzQR QR to'lovni, sovg'a sertifikati yoki korxona hisobini (stolovaya) yoqadigan ega**: [tolov-va-chek.md](tolov-va-chek.md). Kassir uchun shu qo'llanmaning 3, 5, 6 va 8-bo'limlari.
@@ -40,6 +41,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Printer, skaner yoki lokal tarmoqni sozlaydigan odam**: [uskunalar.md](uskunalar.md).
 - **Mijoz ekrani yoki raqamlar taxtasini ulaydigan odam**: [mijoz-ekrani.md](mijoz-ekrani.md).
 - **Ofitsiant**: [ofitsiant.md](ofitsiant.md). Restoran yoki kafede qo'shimcha: [restoran.md](restoran.md).
+- **Menejer (internet uzilganda)**: kassir bergan navbat faylini business.rizqim.uz da yuklash — [internet-uzilsa.md](internet-uzilsa.md), batafsil [kassa.md](kassa.md#zaxira-navbatni-faylga-saqlash-va-menejerga-berish).
 - **Hostes**: [hostes.md](hostes.md).
 - **Restoran yoki kafe egasi**: [restoran.md](restoran.md) (11-bo'lim), keyin choy puli va ish haqi — [choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md).
 - **Oshxona planshetini birinchi marta ulaydigan odam**: [oshxona-ekrani.md](oshxona-ekrani.md) (1-bo'lim) va [hamkor-panel.md](hamkor-panel.md) (8-bo'lim).
@@ -77,6 +79,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Bo'nak** — stol broni uchun oldindan olinadigan pul; ega yoqsa, bo'nak yetguncha bron tasdiqlanmaydi.
 - **Schyot** — mehmonga beriladigan hisob. Bu fiskal chek emas. To'langandan keyin **fiskal chek** chiqadi.
 - **Fiskal kutmoqda** — pul olingan, lekin sotuv cheki hali chiqmagan schyot. Chek chiqquncha smena yopilmaydi.
+- **Zaxira** — kassa Sozlamalaridagi karta: navbatning nusxasi va **Navbatni faylga saqlash** (`.rzq` fayl), **Qisqa hisobotni chop etish**. **PIN'siz davom etish** — internetsiz qayta ochilgan kassada yaqinda kirgan xodim faqat ochiq buyurtmani yakunlaydi va to'lov oladi; hisobotda "PIN'siz davom etilgan".
 - **Menejer tasdig'i** — kassirda huquq bo'lmagan amalni menejer o'z PIN'i bilan tasdiqlashi.
 - **Smena** — bitta kassaning ish davri. **X** — smenani yopmasdan oraliq hisobot, **Z** — smenani yopish hisoboti.
 - **Bron, avans, "Keldi"** — oldindan band qilingan xona; bron uchun oldindan olingan pul; mehmonlar kelganda bronni buyurtmaga aylantirish.

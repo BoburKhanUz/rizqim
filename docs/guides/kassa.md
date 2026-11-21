@@ -483,7 +483,7 @@ Chegirma bo'lmaydigan hollar:
 
 - Schyotga **to'lov olingan** bo'lsa: "Schyotga to'lov olingan… avval to'lovni qaytaring". Chegirmani to'lovdan oldin bering.
 - Buyurtma yopilgan yoki bekor qilingan bo'lsa.
-- **Internetsiz rejimda**: tugma o'chiq, ustida "Chegirma uchun internet kerak." Internet tiklangach bering.
+- **Internetsiz rejimda**: faqat filialda kassir chegirmasi chegarasi belgilangan bo'lsa va faqat shu chegaragacha (menejer PIN'isiz, hamma uchun bir xil), schyot tuzilguncha; boshqa hollarda tugma o'chiq: "Chegirma uchun internet kerak." Internet tiklangach bering ([20-bo'lim](#20-internet-uzilsa)).
 
 Schyot chegirmadan oldin tuzilgan bo'lsa, chegirmadan keyin u qayta tuziladi (**Schyot tuzish**). Har chegirma harakatlar
 jurnaliga yoziladi (kim, qancha, sabab, kim tasdiqladi). Chegirma egasi belgilagan foizdan (masalan 10%) kam bo'lmasa, egaga
@@ -924,12 +924,14 @@ tanlagan schyot printerida) chop etadi, siz hech narsa bosmaysiz. Bu fiskal chek
 ## 20. Internet uzilsa
 
 Internet (yoki server) uzilsa, kassa **internetsiz rejimga** o'tadi va savdo to'xtamaydi. Bu qisqa uzilish uchun: bir necha
-daqiqadan bir-ikki soatgacha. To'liq oflayn tizim emas. Shart: kassa va printer elektr bilan ishlayapti, faqat internet yo'q
-(elektr o'chishidan UPS himoya qiladi).
+daqiqadan bir-ikki soatgacha (bir necha soat ham bo'ladi). To'liq oflayn tizim emas. Shart: kassa va printer elektr bilan
+ishlayapti, faqat internet yo'q (elektr o'chishidan UPS himoya qiladi). Bosib chiqarib osib qo'yish uchun bir sahifalik
+qisqa varaq: [internet-uzilsa.md](internet-uzilsa.md).
 
 **Qanday bilasiz.** Ish ekrani tepasida lenta chiqadi: **Internetsiz rejim: sotuv davom etadi**. Uning ostida — **Navbatda N ta
-amal (M ta yangi buyurtma)**: serverga hali yetib bormagan amallar soni. 15 daqiqadan keyin lenta sariq bo'ladi ("aloqa 15
-daqiqadan ko'p yo'q"), 2 soatdan keyin qizil ("menejerga ayting"). Tepadagi aloqa belgisi — **Server javob bermayapti**.
+amal (M ta yangi buyurtma)**: serverga hali yetib bormagan amallar soni, eng eskisi qancha oldin va oxirgi aloqa vaqti. 15
+daqiqadan keyin lenta sariq bo'ladi ("aloqa 15 daqiqadan ko'p yo'q"), 2 soatdan keyin qizil ("menejerga ayting"). Tepadagi aloqa
+belgisi — **Server javob bermayapti**.
 
 **Nima ishlaydi:**
 
@@ -939,6 +941,9 @@ daqiqadan ko'p yo'q"), 2 soatdan keyin qizil ("menejerga ayting"). Tepadagi aloq
 - Oshxonaga yuborish (marka LAN printerga chiqadi), yuborilmagan taomni o'chirish, **Berildi**.
 - **Bitta schyot** tuzish va chiqarish (pre-chek). Internet uzilishidan oldin tuzilgan schyotni ham chiqarish va to'lash mumkin.
 - **Naqd** va **alohida karta terminali** orqali to'lov. Hamma schyot to'langach buyurtma yopiladi va stol bo'shaydi.
+- **Chegirma** (schyot tuzilguncha, sabab yozib) — faqat filialda kassir chegirmasining chegarasi belgilangan va ilova internetsiz
+  chegirmani qo'llab-quvvatlasa: chegaragacha, menejer PIN'isiz, **menejer ham shu chegaradan oshirolmaydi**. Kattaroq chegirma
+  internet qaytgach beriladi. Ilova "Chegirma uchun internet kerak" yoki chegara haqida yozsa — chegirma internet qaytgach.
 
 Narx — kassadagi oxirgi menyu nusxasidan; xizmat haqi, xona puli va choy-non — filial sozlamasi bo'yicha.
 
@@ -947,12 +952,27 @@ Narx — kassadagi oxirgi menyu nusxasidan; xizmat haqi, xona puli va choy-non �
 - Hisobni bo'lish (teng yoki taom bo'yicha): faqat bitta schyot.
 - QR, bron avansi va nasiya bilan to'lov; pulni qaytarish.
 - Mehmonlar sonini o'zgartirish, ko'chirish, birlashtirish, buyurtmani bekor qilish.
-- **Chegirma** berish yoki olib tashlash ("Chegirma uchun internet kerak").
 - Oshxonaga yuborilgan taomni o'chirish: internetsiz menejer tasdig'i olinmaydi.
 - Kirim-chiqim, smena ochish va **Z (smenani yopish)**.
 - Bronlar, nasiya hisoblari, Telegram va ilova buyurtmalari.
-- PIN bilan yangi kirish. Shuning uchun internetsiz paytda ekran o'zi qulflanmaydi: kassadan chiqmang va ilovani yopmang.
-- Ofitsiant telefoni faqat ko'rish rejimida: yangi taomni kassada kiriting.
+- PIN bilan **yangi kirish** (PIN internetsiz tekshirilmaydi). Shuning uchun internetsiz paytda ekran o'zi qulflanmaydi: kassadan
+  chiqmang va ilovani yopmang. Ilova qayta ochilib qolsa — [PIN'siz davom etish](#pinsiz-davom-etish-ilova-internetsiz-qayta-ochilsa).
+- Ofitsiant telefoni faqat ko'rish rejimida: yangi taomni kassada kiriting (lokal tarmoq bo'lsa — [uskunalar.md](uskunalar.md)).
+
+### Xodim nima qilishi kerak va nima qilmasligi kerak
+
+**Qiling:**
+
+- Ishlashda davom eting: buyurtma oling, oshxonaga yuboring, schyot bering, naqd yoki karta bilan to'lov oling.
+- Mehmonga fiskal chek o'rniga **schyot (pre-chek)** bering: sotuv cheki internet qaytgach chiqadi.
+- Lentadagi qizil yozuvni (2 soatdan ko'p) ko'rsangiz **menejerga ayting**.
+
+**Qilmang:**
+
+- Ilovani yopmang, o'chirmang, ma'lumotlarini tozalamang (**Clear data**), qayta o'rnatmang.
+- Kassani panelda **uzmang** ("Qurilmani o'chirish") va yangi ulash kodini kiritmang: navbatdagi sotuvlar serverga ketmasdan qoladi.
+- Telefon yoki planshetning soatini o'zgartirmang.
+- Bir to'lovni "ishonchim komil emas" deb ikki marta olmang: ilova aloqa uzilganini aytsa **xuddi shu amalni qayta bosing** (pastda).
 
 **Chek.** Internetsiz to'lovda sotuv (fiskal) cheki darhol chiqmaydi — mehmonga pre-chek beriladi. Internet qaytgach to'lov
 serverga yetadi, fiskal chek ro'yxatdan o'tadi va kassa **sotuv chekini o'zi chop etadi**, har birini bir marta. Chek hali tayyor
@@ -966,13 +986,98 @@ buyurtmalar serverdan yangilanadi.
 
 **Chegaralar:**
 
-- Internetsiz sotish uchun kassa oxirgi 24 soat ichida serverga ulangan va menyu nusxasi 24 soatdan yangi bo'lishi kerak. Aks
-  holda ilova "Internet kerak" deydi.
+- **Yangi buyurtma** ochish uchun kassa oxirgi 24 soat ichida serverga ulangan va menyu nusxasi 24 soatdan yangi bo'lishi kerak.
+  Aks holda ilova "Internet kerak: yangi buyurtma ochilmaydi" deydi. **24 soatdan keyin ham ochiq buyurtmalarga schyot tuzish,
+  naqd va karta to'lovi olish va buyurtmani yopish ishlayveradi** — to'lov hech qachon bloklanmaydi, tepada qizil lenta turadi.
 - Navbatda 500 ta yangi buyurtma bo'lsa, yangisi internet qaytgach ochiladi.
 - Fiskal cheklar serverga yetmay 24 soat o'tsa — ogohlantirish, 40 soatda — qizil ogohlantirish: virtual kassa 48 soatda
   bloklanadi. Menejer va egaga darhol ayting.
 - Kassa soati serverdan 5 daqiqadan ko'p farq qilsa, ogohlantirish chiqadi: soatni to'g'rilang.
 - **Navbat bo'shamaguncha smena yopilmaydi (Z)** va **terminalni uzib bo'lmaydi**: uzilsa, yuborilmagan sotuvlar yo'qolardi.
+
+### PIN'siz davom etish (ilova internetsiz qayta ochilsa)
+
+Internetsiz paytda PIN bilan yangi kirib bo'lmaydi. Agar kassa ilovasi internet yo'qligida qayta ishga tushsa (elektr o'chdi,
+ilova yopilib qoldi), PIN ekrani shunday deydi: **"Internet yo'q: PIN bilan kirib bo'lmaydi."** Agar yaqinda (PIN bilan kirilganidan
+**12 soat ichida**) shu kassada kirgan xodim bo'lsa, ekranda **Davom etish: <ism>** tugmasi chiqadi.
+
+- Tugmani bossangiz, siz **faqat ochiq buyurtmalarni yakunlash va to'lov olish** mumkin (schyot, to'lov, buyurtmani yopish). Yangi
+  buyurtma, yangi taom, taomni o'chirish va chegirma **yo'q**. Tepada lenta: **"PIN'siz davom etilmoqda: <ism>..."**.
+- PIN bilan kirilganidan **12 soat o'tgach**, internet hali yo'q bo'lsa ham, to'lov olish va ochiq buyurtmani yopish (va buning
+  uchun kerak bo'lsa schyot) **to'xtamaydi**; boshqa hamma amal yopiladi. Lenta: "PIN bilan kirilganiga 12 soat o'tdi: endi faqat
+  to'lov olish va ochiq buyurtmani yopish mumkin... Bu to'lovlar menejer tekshiruviga tushadi."
+- Internet qaytishi bilan (server birinchi marta javob berishi bilan) kassa sizni PIN ekraniga qaytaradi ("Internet tiklandi: PIN'siz
+  davom etish tugadi. PIN bilan kiring."). Qurilma soati orqaga surilgan bo'lsa ham u to'xtaydi: soatni o'zgartirmang.
+- Bu davrdagi to'lovlar X va Z hisobotda alohida **"PIN'siz davom etilgan"** bo'limida (to'lovlar soni va summasi) ko'rinadi. Ular
+  yo'qolmaydi va rad etilmaydi; 12 soatdan keyingilari menejerga "Sinxronlash xatolari"da tekshirish uchun
+  tushadi. Menejer ularni ko'rib chiqadi.
+- PIN bilan kirilganidan 12 soat o'tgan bo'lsa va ilova internetsiz **qayta ochilsa**, **Davom etish** tugmasi chiqmaydi: internet
+  qaytishini kuting. Ilova PIN'ni saqlamaydi.
+
+### Zaxira: navbatni faylga saqlash va menejerga berish
+
+Kassa navbatni ikki joyda saqlaydi: o'zining jurnalida va o'zining zaxira papkasida (nusxa). Shunga qaramay, agar internet **2
+soatdan ko'p** yo'q bo'lsa, kassa o'zi pastda xabar chiqaradi: **"Internet uzoq vaqtdan beri yo'q. Navbatni faylga saqlab qo'yish
+mumkin."** (tugma **Faylga saqlash**) va shu paytda **qisqa hisobot**ni chop etadi (printer sozlangan bo'lsa).
+
+**Kassir (yoki menejer) qiladi:**
+
+1. **Sozlamalar** → **Zaxira** kartasi → **Navbatni faylga saqlash**.
+2. Ekranda: "Navbat faylga saqlandi (N ta amal, shundan M ta to'lov)" va **fayl joyi** (papka) chiqadi. Fayl nomi
+   `rizqim-navbat-....rzq`. Joyi: Android'da ilovaning zaxira papkasi (kartada yozilgan), Windows'da `Hujjatlar\RIZQIM\...`.
+   Fayl katta bo'lsa bir nechta fayl yoziladi: hammasini oling.
+3. Faylni **fleshkaga yoki telefonga** ko'chiring va **menejerga bering**. Faylni **ochmang va tahrir qilmang** (Bloknot ham):
+   bitta belgi o'zgarsa ham server uni qabul qilmaydi.
+4. Zaxira kartasi "Zaxira papkasi yo'q" yoki "Nusxa yozib bo'lmadi" desa — menejerga ayting va quyidagi **qisqa hisobot** va qog'oz
+   chekingizni saqlang.
+
+Fayl internet qaytgach kerak bo'lmaydi (navbat o'zi ketadi). U kassa o'chib qolsa, almashtirilsa, qayta o'rnatilsa yoki internetga
+uzoq chiqolmasa uchun. Kassani **uzishdan oldin** faylni oling.
+
+**Menejer qiladi** ([hamkor-panel.md](hamkor-panel.md): ega yoki shu filial menejeri):
+
+1. Kompyuterda **business.rizqim.uz** ga kiring → **Qurilmalar** → **Navbat faylini yuklash**.
+2. **Navbat fayli (.rzq)** maydonida faylni tanlang → **Yuklash**. Fayl kassa o'zi yuborgan bilan bir xil: ikki marta yuklash
+   zararsiz.
+3. Natijani o'qing: **Yozildi** (qo'shilgan), **Avval kelgan** (allaqachon bor edi), **Rad etilgan**, **Ziddiyat**, **O'tkazib
+   yuborilgan**. "Fayl to'liq o'qilmadi: N ta amal qoldi" chiqsa — **Shu faylni yana yuklash** (qoldiq 0 bo'lguncha).
+4. Rad etilgan va "Ziddiyat" qatorlari **Sinxronlash xatolari**da turadi: menejer odatdagidek ko'rib chiqadi. Olingan pul hech
+   qachon tashlanmaydi.
+5. Faylni imkon qadar **3 kun ichida** yuklang (kechroq bo'lsa, kassir tekshiruvi o'tmaydi: sotuvlar rad etiladi, to'lovlar menejer
+   tekshiruviga yoziladi). Faylni **faqat qaytib sinxronlamaydigan** kassa uchun yuklang; ishlab turgan kassa uchun kerak emas.
+6. Fayl rad etilsa ("Navbat fayli emas", "o'zgartirilgan", "kalit yo'q") — asl faylni kassadan qaytadan oling; hal bo'lmasa RIZQIM
+   yordamiga yozing ([OPERATIONS.md](../OPERATIONS.md) 25-bo'lim).
+
+**Qisqa hisobot (chop etiladi).** **Sozlamalar** → **Zaxira** → **Qisqa hisobotni chop etish** (yoki kassa 2 soatdan keyin o'zi
+chiqaradi). Chekda: **QISQA HISOBOT — Internetsiz rejim**, uzilgan vaqt, chop etilgan vaqt, **Buyurtmalar** va **To'lovlar** soni,
+**Naqd**, **Karta**, **Jami**, choy puli (agar bor), **Kassadagi naqd** (naqd + naqd choy puli) va **Terminal (karta)**, hamda
+buyurtmalar ro'yxati (raqam va summa, "to'lanmagan" bo'lsa shunday). Pastda: "Bu fiskal chek emas. Internet qaytgach navbat
+serverga yuboriladi." Uni kassadagi naqd va bank terminali jami bilan solishtiring, **menejerga bering va saqlang**: kassa butunlay
+o'chib qolsa, smenani shu qog'oz va kassadagi pul sanog'i bo'yicha tiklaydi. Printer sozlanmagan bo'lsa "chek printeri sozlanmagan"
+deydi: egaga ayting.
+
+**Halol cheklov.** Faqat bitta Android kassa bo'lib, u internetsiz paytda **butunlay yo'qolsa yoki buzilsa** va faylga hech kim
+saqlamagan bo'lsa, o'sha paytdan beri bo'lgan sotuvlarni faqat qog'oz qisqa hisobot va chiplar bo'yicha qayta kiritish mumkin.
+Shuning uchun uzoq uzilishda faylni va qisqa hisobotni oling.
+
+### Yangilanish xabarlari (Yangilash va Davom etish)
+
+Kassa serverdan ilovaning yangi versiyasi borligini bilib oladi. Xabar **hech qachon savdoni to'xtatmaydi**: smena, buyurtma,
+schyot, to'lov, chek, qaytarish va internetsiz navbat versiyaga qaramay ishlaydi.
+
+| Xabar | Qanday ko'rinadi | Nima qilish kerak |
+|---|---|---|
+| **Yangi versiya mavjud** | Ko'k xabar: "X versiyasi chiqdi" (izoh bilan), tugmalar **Yangilash** va **Keyinroq**; Sozlamalardagi tinch qator | Qulay vaqtda (smenalar orasida) yangilang yoki **Keyinroq** |
+| **Ilovani yangilash kerak** | Qizil, yopilmaydigan xabar: "Bu versiya endi qo'llab-quvvatlanmaydi. Kassa ishlashda davom etadi: qulay vaqtda yangilang." Ilova ochilganda, smena yopilgach va smena ochish ekranida butun oyna chiqadi, **Davom etish** tugmasi bilan | **Davom etish** ni bosing va ishlang; yangilashni menejer/egaga ayting |
+
+- **Yangilash** tugmasi o'chiq bo'lsa, tagidagi sababni o'qing: **"Avval navbat serverga yetsin: internet qaytgach kuting."** yoki
+  **"Avval joriy to'lovni yakunlang."** Yangilash pulga tegmasligi uchun shunday. Tugma yangilash havolasini ochadi; o'rnatishni
+  menejer yoki ega bajaradi (ulanish va navbat saqlanadi).
+- **Davom etish** doim ishlaydi.
+- Oshxona ekrani va mijoz ekranida faqat kichik **Yangilash kerak** belgisi bor; xabarning o'zi kassada.
+
+Menejer uchun: yangi versiyani o'rnatishda eski o'rnatilgan ilova ustidan o'rnating (ulanish va navbat yo'qolmaydi); ilovani
+o'chirib qayta o'rnatmang.
 
 **Sinxronlash xatolari.** Internet qaytgach server holati ustun. Masalan, siz internetsiz bosqich qo'shgan buyurtmani boshqa
 qurilma yopgan bo'lsa, bu amal rad etiladi. Lentada "Sinxronlash xatolari: N ta — menejer ko'rib chiqsin" va **Xatolar (N)**
@@ -994,8 +1099,9 @@ bo'lgach **Tushunarli** ni bosing. Kassa soati noto'g'ri bo'lgani uchun amal vaq
 hech narsa qilish kerak emas.
 
 **Elektr o'chsa yoki ilova yopilsa.** Kassada bajarilgan har bir amal darhol diskka yoziladi: qayta yoqilgach navbat va
-internetsiz ochilgan buyurtmalar joyida qoladi va internet qaytgach o'zi yuboriladi. Lekin internetsiz qayta ochilsa, PIN bilan
-kirib bo'lmaydi: yangi sotuv internet qaytgach.
+internetsiz ochilgan buyurtmalar joyida qoladi va internet qaytgach o'zi yuboriladi. Internetsiz qayta ochilsa, PIN bilan
+kirib bo'lmaydi; yaqinda kirgan xodim uchun **Davom etish: <ism>** chiqadi ([yuqorida](#pinsiz-davom-etish-ilova-internetsiz-qayta-ochilsa)),
+aks holda yangi sotuv internet qaytgach.
 
 Amal paytida internet uzilsa (to'lov, qaytarish, kirim-chiqim): ilova "Aloqa yo'q: to'lov holati noma'lum" kabi yozadi. **Xuddi shu amalni
 qayta bosing** — u ikki marta yozilmaydi va menejer PIN'i qayta so'ralmaydi.
