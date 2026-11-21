@@ -33,6 +33,9 @@ class OfflineSummary {
     required this.card,
     required this.other,
     required this.lines,
+    this.tipsCash = PosMoney.zero,
+    this.tipsCard = PosMoney.zero,
+    this.tipsOther = PosMoney.zero,
   });
 
   /// Start of the outage (`null`: unknown).
@@ -51,9 +54,22 @@ class OfflineSummary {
   final PosMoney other;
   final List<OfflineSummaryOrder> lines;
 
+  /// Tips taken with the queued payments (`tip_amount`, or with `tip_from_change` and no `tip_amount` the whole
+  /// change), by tender: on top of the bill, never in [cash] / [card] / [other].
+  final PosMoney tipsCash;
+  final PosMoney tipsCard;
+  final PosMoney tipsOther;
+
   bool get isEmpty => orders == 0 && payments == 0;
 
+  /// The bill amounts (without tips).
   PosMoney get total => cash + card + other;
+
+  PosMoney get tips => tipsCash + tipsCard + tipsOther;
+
+  /// What the drawer holds from the queued payments (cash with its tips) and what the bank terminal charged.
+  PosMoney get drawerCash => cash + tipsCash;
+  PosMoney get terminalCard => card + tipsCard;
 }
 
 /// The start of the outage from the existing offline status: the last contact while offline, else the oldest queued
@@ -92,6 +108,9 @@ OfflineSummary buildOfflineSummary({
   var cash = PosMoney.zero;
   var card = PosMoney.zero;
   var other = PosMoney.zero;
+  var tipsCash = PosMoney.zero;
+  var tipsCard = PosMoney.zero;
+  var tipsOther = PosMoney.zero;
   // Order uuid → line, in the order of first appearance
   final Map<String, ({String? number, PosMoney? paid})> byOrder =
       <String, ({String? number, PosMoney? paid})>{};
@@ -116,13 +135,17 @@ OfflineSummary buildOfflineSummary({
         final PosMoney? amount = PosMoney.tryParse(t['amount']);
         if (amount == null) continue;
         paid += amount;
+        final PosMoney tip = _tipOf(t, amount);
         switch (PosTender.fromWire(t['tender'] as String?)) {
           case PosTender.cash:
             cash += amount;
+            tipsCash += tip;
           case PosTender.card:
             card += amount;
+            tipsCard += tip;
           case _:
             other += amount;
+            tipsOther += tip;
         }
       }
       final ({String? number, PosMoney? paid})? line = byOrder[order];
@@ -141,6 +164,9 @@ OfflineSummary buildOfflineSummary({
     cash: cash,
     card: card,
     other: other,
+    tipsCash: tipsCash,
+    tipsCard: tipsCard,
+    tipsOther: tipsOther,
     lines: <OfflineSummaryOrder>[
       for (final MapEntry<String, ({String? number, PosMoney? paid})> e
           in byOrder.entries)
@@ -153,7 +179,20 @@ OfflineSummary buildOfflineSummary({
   );
 }
 
-/// The slip: store, title, outage start, counts, cash/card totals, the local numbers with their paid amounts.
+/// The tip of one tender (docs/POS_SPEC.md 18.2): its `tip_amount`; with `tip_from_change` and no `tip_amount`, the
+/// change (`tendered_amount` − `amount`). Never negative.
+PosMoney _tipOf(Map<Object?, Object?> t, PosMoney amount) {
+  PosMoney? tip = PosMoney.tryParse(t['tip_amount']);
+  if (tip == null && t['tip_from_change'] == true) {
+    final PosMoney? given = PosMoney.tryParse(t['tendered_amount']);
+    if (given != null) tip = given - amount;
+  }
+  if (tip == null || tip.isNegative) return PosMoney.zero;
+  return tip;
+}
+
+/// The slip: store, title, outage start, counts, cash/card totals, tips (with what the drawer and the bank terminal
+/// hold), the local numbers with their paid amounts.
 PrintLayout layoutOfflineSummary(
   OfflineSummary s,
   ReceiptHeader header,
@@ -182,6 +221,21 @@ PrintLayout layoutOfflineSummary(
     w.pair('Karta:', paperAmount(s.card));
     if (!s.other.isZero) w.pair('Boshqa:', paperAmount(s.other));
     w.pair('Jami:', paperAmount(s.total), bold: true);
+    if (!s.tips.isZero) {
+      // Tips are on top of the bills: their own lines, so the drawer and the bank terminal can be matched
+      w.pair('Choy puli:', paperAmount(s.tips));
+      if (!s.tipsCash.isZero) {
+        w.pair('naqd', paperAmount(s.tipsCash), indent: 2);
+      }
+      if (!s.tipsCard.isZero) {
+        w.pair('karta', paperAmount(s.tipsCard), indent: 2);
+      }
+      if (!s.tipsOther.isZero) {
+        w.pair('boshqa', paperAmount(s.tipsOther), indent: 2);
+      }
+      w.pair('Kassadagi naqd:', paperAmount(s.drawerCash));
+      w.pair('Terminal (karta):', paperAmount(s.terminalCard));
+    }
     if (s.lines.isNotEmpty) {
       w.divider();
       w.text('BUYURTMALAR', bold: true);

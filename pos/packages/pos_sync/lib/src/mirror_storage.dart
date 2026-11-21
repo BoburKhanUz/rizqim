@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'crc32.dart';
+import 'export.dart';
 import 'operation.dart';
 import 'signature.dart';
 import 'storage.dart';
@@ -26,8 +27,9 @@ class MirrorRestore {
   /// Of them, payments (`bill.pay`).
   final int restoredPayments;
 
-  /// Operations only the copy had that could not be verified (unsigned, another key, a changed line) or were not to
-  /// be restored (restore off): never put into the journal, kept in the copy's folder under [keptKey].
+  /// Operations only the copy had that could not be verified (unsigned, another key, a changed line): never put into
+  /// the journal, kept in the copy's folder under [keptKey] ([MirroredSyncStorage.setAside], so the export file
+  /// carries them).
   final int kept;
   final String? keptKey;
 
@@ -49,16 +51,25 @@ class MirrorRestore {
 /// * Every journal line is appended to the copy after the journal has it; a compaction replaces the copy too. The
 ///   journal decides: a failing copy never fails an append or a compaction ([mirrorError], [lastMirroredAt]). After
 ///   a failure the copy is written whole again from the journal (at most once a minute while it keeps failing).
-/// * The copies of documents (menu, bootstrap, queues set aside) stay with the journal only.
+/// * A copy that does not answer (a hung share, an antivirus lock) holds a sale up for at most [writeTimeout]: the
+///   journal has the line by then; while that write is still out, later lines are not queued behind it, the copy is
+///   written whole from the journal once it answers (so it never gets lines out of order).
+/// * The copies of documents (menu, bootstrap) stay with the journal only; the queues set aside at a disconnect
+///   ([copiedDocPrefixes]) are copied too.
 /// * [restore] runs once on start, BEFORE `SyncStore.open`; until it has compared the two the copy is not written
 ///   (it may hold the only record of a journal that is gone). It puts back every operation the copy has and the
 ///   journal does not know, when its MAC verifies under one of the till's keys, and never removes a journal line.
+///   It needs nothing from the journal's folder (a wiped folder takes its bootstrap copy with it): a verified line is
+///   the till's own and the server takes an `op_id` once. What it cannot verify stays in the copy's folder and goes
+///   into the export file ([setAside]).
 class MirroredSyncStorage implements SyncStorage {
   MirroredSyncStorage(
     this.primary,
     this.mirror, {
     this.directory,
     this.copiedDocPrefixes = const <String>['orphan_'],
+    this.writeTimeout = const Duration(seconds: 2),
+    this.restoreTimeout = const Duration(seconds: 15),
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -74,6 +85,12 @@ class MirroredSyncStorage implements SyncStorage {
   /// Documents also written to the copy's folder (never read back from it by this class): by default the queues set
   /// aside at a disconnect (pos_data `PosOffline.orphanPrefix`), so a wiped app folder does not take them with it.
   final List<String> copiedDocPrefixes;
+
+  /// The longest a journal append (a sale) waits for the copy.
+  final Duration writeTimeout;
+
+  /// The longest [restore] waits for each read or write of the copy (start-up never hangs on it).
+  final Duration restoreTimeout;
 
   final DateTime Function() _clock;
 
@@ -92,6 +109,13 @@ class MirroredSyncStorage implements SyncStorage {
   MirrorRestore? _lastRestore;
   final StreamController<void> _changes = StreamController<void>.broadcast();
 
+  // The copy's write that is out (at most one) and whether lines came while it was
+  Future<void>? _busy;
+  bool _behind = false;
+
+  // The copy's queues set aside, by document key
+  final Map<String, SyncExportQueue> _aside = <String, SyncExportQueue>{};
+
   /// The last time a line reached the copy (`null`: none in this run).
   DateTime? get lastMirroredAt => _lastMirroredAt;
 
@@ -107,6 +131,15 @@ class MirroredSyncStorage implements SyncStorage {
   /// The copy's state changed (written, failed, restored): for the settings card.
   Stream<void> get changes => _changes.stream;
 
+  /// What the copy's folder holds besides the journal's lines, for the export file (`SyncExporter` adds it to its
+  /// own queues set aside): the copies of the queues set aside at a disconnect ([copiedDocPrefixes]; the journal's
+  /// may be gone with the app folder) and the lines [restore] could not verify ([keptPrefix]; their own device's
+  /// unless signed under another). Read by [restore], kept up to date by [writeDoc] / [deleteDoc]. Operations the
+  /// journal also holds are left to the export's `op_id` check (the server takes an `op_id` once).
+  List<SyncExportQueue> get setAside => <SyncExportQueue>[
+    for (final String k in _aside.keys.toList()..sort()) _aside[k]!,
+  ];
+
   // --- SyncStorage ---------------------------------------------------------------------------------------------
 
   @override
@@ -116,9 +149,9 @@ class MirroredSyncStorage implements SyncStorage {
   Future<void> appendLine(String line) async {
     await primary.appendLine(line);
     if (!_mayWrite()) return;
-    await _guard(() async {
+    await _toCopy(() async {
       if (_stale) {
-        await mirror.replaceLines(await _complete(await primary.readLines()));
+        await _copyWhole();
       } else {
         await mirror.appendLine(line);
       }
@@ -129,7 +162,7 @@ class MirroredSyncStorage implements SyncStorage {
   Future<void> replaceLines(List<String> lines) async {
     await primary.replaceLines(lines);
     if (!_mayWrite()) return;
-    await _guard(() => mirror.replaceLines(lines));
+    await _toCopy(() => mirror.replaceLines(lines));
   }
 
   @override
@@ -139,7 +172,11 @@ class MirroredSyncStorage implements SyncStorage {
   Future<void> writeDoc(String key, String content) async {
     await primary.writeDoc(key, content);
     if (_copied(key) && mirroring) {
-      await _guard(() => mirror.writeDoc(key, content), lines: false);
+      await _guard(
+        () => mirror.writeDoc(key, content).timeout(writeTimeout),
+        lines: false,
+      );
+      _noteAside(key, content);
     }
   }
 
@@ -147,7 +184,11 @@ class MirroredSyncStorage implements SyncStorage {
   Future<void> deleteDoc(String key) async {
     await primary.deleteDoc(key);
     if (_copied(key) && mirroring) {
-      await _guard(() => mirror.deleteDoc(key), lines: false);
+      await _guard(
+        () => mirror.deleteDoc(key).timeout(writeTimeout),
+        lines: false,
+      );
+      _aside.remove(key);
     }
   }
 
@@ -169,6 +210,42 @@ class MirroredSyncStorage implements SyncStorage {
     }
     return true;
   }
+
+  /// A write of the journal's lines to the copy, waited for at most [writeTimeout]. Only one is out at a time: one
+  /// that comes while another is out is not queued (the copy would get it late or out of order) but marks the copy
+  /// behind, and the write that is out then copies the journal whole.
+  Future<void> _toCopy(Future<void> Function() write) async {
+    if (_busy != null) {
+      _behind = true;
+      return;
+    }
+    final Future<void> run = _drain(write);
+    _busy = run;
+    try {
+      await run.timeout(writeTimeout);
+    } on TimeoutException catch (e) {
+      // The journal has the line; the copy catches up when it answers
+      _error = e;
+      _emit();
+    }
+  }
+
+  Future<void> _drain(Future<void> Function() first) async {
+    try {
+      await _guard(first);
+      while (_behind && mirroring && _failedAt == null) {
+        _behind = false;
+        await _guard(_copyWhole);
+      }
+      if (_behind) _stale = true;
+      _behind = false;
+    } finally {
+      _busy = null;
+    }
+  }
+
+  Future<void> _copyWhole() async =>
+      mirror.replaceLines(await _complete(await primary.readLines()));
 
   /// Runs a write to the copy; a failure is noted, never thrown. [lines]: a write of the journal's lines (a failed
   /// one makes the copy stale; a document's does not).
@@ -209,19 +286,22 @@ class MirroredSyncStorage implements SyncStorage {
   /// operation of its `meta` record) is put back when it is signed and its MAC verifies under one of [keys] (the
   /// key's number and device must be the line's). The lines put back go in front of the journal's own lines, which
   /// all stay as they are (a torn last line stays last: the store cuts it as usual). Every other such line (unsigned,
-  /// under a key the till no longer holds, changed on the disk, or all of them when [enabled] is false: bootstrap
-  /// `offline.export` is off) is kept in the copy's folder ([keptPrefix] document), never put into the journal.
-  /// Only then is the copy made equal to the journal.
+  /// under a key the till no longer holds, changed on the disk) is kept in the copy's folder ([keptPrefix] document),
+  /// never put into the journal, and is part of [setAside]. A line kept by an earlier start is put back the same way
+  /// once it verifies (and only then leaves its kept document). Only then is the copy made equal to the journal.
+  /// Nothing here depends on the journal's folder (its bootstrap copy may be gone with it).
   ///
-  /// Never throws: a copy that cannot be read, a journal that cannot be rewritten or a copy whose lines cannot be
-  /// kept aside leave the journal as it was, and the copy is not written in this run ([MirrorRestore.error]).
-  Future<MirrorRestore> restore({
-    required Iterable<SyncKey> keys,
-    bool enabled = true,
-  }) async {
+  /// Never throws and never waits for the copy longer than [restoreTimeout] a step: a copy that cannot be read, a
+  /// journal that cannot be rewritten or a copy whose lines cannot be kept aside leave the journal as it was, and
+  /// the copy is not written in this run ([MirrorRestore.error]).
+  Future<MirrorRestore> restore({required Iterable<SyncKey> keys}) async {
     _ready = false;
     _frozen = false;
-    final MirrorRestore r = await _restore(keys.toList(), enabled);
+    final MirrorRestore r = await _restore(keys.toList());
+    // (A copy that did not answer is not asked again: start-up goes on)
+    if (r.error is! TimeoutException) {
+      await _loadAside(_knownIds(await _journalOrEmpty()));
+    }
     _lastRestore = r;
     if (r.error != null) {
       _error = r.error;
@@ -237,23 +317,30 @@ class MirroredSyncStorage implements SyncStorage {
     return r;
   }
 
-  Future<MirrorRestore> _restore(List<SyncKey> keys, bool enabled) async {
+  Future<MirrorRestore> _restore(List<SyncKey> keys) async {
     final List<String> journal;
     final List<String> copy;
+    final Map<String, List<String>> earlier;
     try {
       journal = await primary.readLines();
-      copy = await mirror.readLines();
+      copy = await _bounded(mirror.readLines());
+      earlier = await _keptDocs();
     } on Object catch (e) {
       return MirrorRestore(error: e);
     }
-    if (_equal(journal, copy)) {
+    final Set<String> known = _knownIds(journal);
+    final Set<String> keptBefore = <String>{
+      for (final List<String> lines in earlier.values)
+        for (final String l in lines) ?_idOfLine(l),
+    };
+    if (_equal(journal, copy) &&
+        !keptBefore.any((String id) => !known.contains(id))) {
       return MirrorRestore(
         journalLines: journal.length,
         mirrorLines: copy.length,
       );
     }
 
-    final Set<String> known = _knownIds(journal);
     final List<_Restorable> back = <_Restorable>[];
     final List<String> kept = <String>[];
     final Set<String> taken = <String>{};
@@ -262,27 +349,41 @@ class MirroredSyncStorage implements SyncStorage {
       if (r == null || r['k'] != 'op') continue;
       final String? id = _opIdOf(r);
       if (id == null || known.contains(id) || !taken.add(id)) continue;
-      final _Restorable? ok = enabled ? _verified(line, r, keys) : null;
+      final _Restorable? ok = _verified(line, r, keys);
       if (ok != null && ok.opId == id) {
         back.add(ok);
-      } else {
+      } else if (!keptBefore.contains(id)) {
         kept.add(line);
       }
+    }
+    // Lines an earlier start kept aside: put back once they verify, else left where they are
+    final Map<String, List<String>> rest = <String, List<String>>{};
+    for (final MapEntry<String, List<String>> doc in earlier.entries) {
+      final List<String> left = <String>[];
+      for (final String line in doc.value) {
+        final Map<String, Object?>? r = _decode(line);
+        final String? id = r == null ? null : _opIdOf(r);
+        final _Restorable? ok = r == null || r['k'] != 'op' || id == null
+            ? null
+            : _verified(line, r, keys);
+        if (id != null &&
+            ok != null &&
+            ok.opId == id &&
+            !known.contains(id) &&
+            taken.add(id)) {
+          back.add(ok);
+        } else {
+          left.add(line);
+        }
+      }
+      if (left.length != doc.value.length) rest[doc.key] = left;
     }
 
     String? keptKey;
     if (kept.isNotEmpty) {
       keptKey = '$keptPrefix${_stamp(_clock())}';
       try {
-        await mirror.writeDoc(
-          keptKey,
-          jsonEncode(<String, Object?>{
-            'version': 1,
-            'kept_at': _clock().toUtc().toIso8601String(),
-            'reason': enabled ? 'not_verified' : 'restore_off',
-            'lines': kept,
-          }),
-        );
+        await _bounded(mirror.writeDoc(keptKey, _keptDoc(kept)));
       } on Object catch (e) {
         return MirrorRestore(
           journalLines: journal.length,
@@ -312,7 +413,15 @@ class MirroredSyncStorage implements SyncStorage {
     }
     try {
       // The copy follows the journal (a torn journal tail is not copied: it is cut on open)
-      await mirror.replaceLines(await _complete(next));
+      await _bounded(mirror.replaceLines(await _complete(next)));
+      // Only now (the journal and the copy hold them) do restored lines leave the documents they were kept in
+      for (final MapEntry<String, List<String>> doc in rest.entries) {
+        await _bounded(
+          doc.value.isEmpty
+              ? mirror.deleteDoc(doc.key)
+              : mirror.writeDoc(doc.key, _keptDoc(doc.value)),
+        );
+      }
     } on Object catch (e) {
       return MirrorRestore(
         restored: back.length,
@@ -334,6 +443,121 @@ class MirroredSyncStorage implements SyncStorage {
       mirrorLines: copy.length,
       changed: true,
     );
+  }
+
+  Future<T> _bounded<T>(Future<T> f) => f.timeout(restoreTimeout);
+
+  String _keptDoc(List<String> lines) => jsonEncode(<String, Object?>{
+    'version': 1,
+    'kept_at': _clock().toUtc().toIso8601String(),
+    'reason': 'not_verified',
+    'lines': lines,
+  });
+
+  Future<List<String>> _journalOrEmpty() async {
+    try {
+      return await primary.readLines();
+    } on Object {
+      return const <String>[];
+    }
+  }
+
+  /// The copy's [keptPrefix] documents: key → their lines (an unreadable one is left out, and left alone).
+  Future<Map<String, List<String>>> _keptDocs() async {
+    final Map<String, List<String>> out = <String, List<String>>{};
+    for (final String k in await _bounded(mirror.docKeys())) {
+      if (!k.startsWith(keptPrefix)) continue;
+      final List<String>? lines = _keptLines(await _bounded(mirror.readDoc(k)));
+      if (lines != null) out[k] = lines;
+    }
+    return out;
+  }
+
+  static List<String>? _keptLines(String? text) {
+    if (text == null) return null;
+    try {
+      final Object? v = jsonDecode(text);
+      final Object? lines = v is Map ? v['lines'] : null;
+      return lines is List ? <String>[...lines.whereType<String>()] : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static String? _idOfLine(String line) {
+    final Map<String, Object?>? r = _decode(line);
+    return r == null ? null : _opIdOf(r);
+  }
+
+  /// Reads [setAside] from the copy's folder (never throws; a copy that does not answer leaves it empty).
+  Future<void> _loadAside(Set<String> known) async {
+    _aside.clear();
+    try {
+      for (final String k in await _bounded(mirror.docKeys())) {
+        if (!k.startsWith(keptPrefix) && !_copied(k)) continue;
+        final String? text = await _bounded(mirror.readDoc(k));
+        if (text != null) _noteAside(k, text, known: known);
+      }
+    } on Object {
+      // Not readable now: the export carries the journal's own queues
+    }
+    _emit();
+  }
+
+  /// [content] of the copy's document [key] as a queue set aside (a kept document's lines, or a queue set aside at
+  /// a disconnect as the store writes it: `{"value": {"device_uuid", "operations": [...]}}`).
+  void _noteAside(
+    String key,
+    String content, {
+    Set<String> known = const <String>{},
+  }) {
+    final List<SyncOperation> ops = <SyncOperation>[];
+    String? device;
+    try {
+      if (key.startsWith(keptPrefix)) {
+        for (final String line in _keptLines(content) ?? const <String>[]) {
+          final Map<String, Object?>? r = _decode(line);
+          if (r == null || r['k'] != 'op') continue;
+          final String? id = _opIdOf(r);
+          if (id == null || known.contains(id)) continue;
+          try {
+            // A journal record: the signed one carries its seal, the unsigned one its operation under `op`
+            final Object? op = r['op'];
+            ops.add(
+              SyncSeal.tryParse(r) == null && op is Map
+                  ? SyncOperation.fromJson(op.cast<String, Object?>())
+                  : SyncOperation.fromStored(r),
+            );
+          } on Object {
+            // Not an operation the server could read either
+          }
+        }
+      } else {
+        final Object? doc = jsonDecode(content);
+        final Object? value = doc is Map ? doc['value'] : null;
+        if (value is Map) {
+          device = value['device_uuid'] is String
+              ? value['device_uuid']! as String
+              : null;
+          final Object? list = value['operations'];
+          for (final Object? o in list is List ? list : const <Object?>[]) {
+            if (o is! Map) continue;
+            try {
+              ops.add(SyncOperation.fromStored(o.cast<String, Object?>()));
+            } on Object {
+              // An unreadable entry stays in the file as it is
+            }
+          }
+        }
+      }
+    } on FormatException {
+      // Left out
+    }
+    if (ops.isEmpty) {
+      _aside.remove(key);
+    } else {
+      _aside[key] = SyncExportQueue(device: device, operations: ops);
+    }
   }
 
   /// [lines] without a last line that is not a whole record (it never was confirmed).

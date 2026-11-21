@@ -100,8 +100,8 @@ class PosOfflineSettings {
   final int? signingKid;
 
   /// M5 S4: the server imports the till's rescue file (`offline.export: true`, only while it signs). Only then does
-  /// the till offer "Navbatni faylga saqlash" (`SyncExporter`) and restore operations from its mirror copy. An older
-  /// server does not say so: nothing is offered.
+  /// the till offer "Navbatni faylga saqlash" (`SyncExporter`). An older server does not say so: nothing is offered.
+  /// (The restore from the mirror copy does not depend on it: it is read from the folder the copy replaces.)
   final bool export;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).

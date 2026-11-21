@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -51,9 +50,11 @@ Future<void> main() async {
 
 /// M5 S4 (docs/scale/M5_DESIGN.md 5, layer 2): the journal with its mirror copy in `Documents\RIZQIM\<device uuid>\`
 /// (Windows) or `<external files>/RIZQIM/<device uuid>/` (Android). Before the store opens, operations the journal
-/// lost are put back from the copy when their MAC verifies under the till's key, and only while the last bootstrap
-/// said `offline.export: true`. An unpaired till, another platform or any failure here: the journal alone (a backup
-/// never stops the till from starting).
+/// lost are put back from the copy when their MAC verifies under the till's key. Not gated on anything in the
+/// journal's folder (review 1: the bootstrap copy that said `offline.export` is lost with that folder): a verified
+/// line is the till's own and the server takes an `op_id` once; what cannot be verified stays in the copy's folder
+/// and goes into the export file. An unpaired till, another platform or any failure here: the journal alone (a
+/// backup never stops the till from starting; the copy is waited for a bounded time).
 Future<SyncStorage> _mirrored(
   FileSyncStorage journal,
   PairedTerminal? terminal,
@@ -72,10 +73,7 @@ Future<SyncStorage> _mirrored(
       FileSyncStorage(dir),
       directory: dir,
     );
-    await mirrored.restore(
-      keys: <SyncKey>[?_syncKey(terminal)],
-      enabled: await _exportOn(journal),
-    );
+    await mirrored.restore(keys: <SyncKey>[?_syncKey(terminal)]);
     return mirrored;
   } on Object {
     return journal;
@@ -94,18 +92,6 @@ SyncKey? _syncKey(PairedTerminal terminal) {
     );
   } on Object {
     return null;
-  }
-}
-
-/// `offline.export` of the bootstrap copy on the disk (the store's `bootstrap` document).
-Future<bool> _exportOn(SyncStorage journal) async {
-  try {
-    final Object? doc = jsonDecode(await journal.readDoc('bootstrap') ?? '{}');
-    final Object? value = doc is Map ? doc['value'] : null;
-    final Object? offline = value is Map ? value['offline'] : null;
-    return offline is Map && offline['export'] == true;
-  } on Object {
-    return false;
   }
 }
 

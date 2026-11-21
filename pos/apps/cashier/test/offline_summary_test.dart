@@ -156,6 +156,90 @@ void main() {
       expect(s.lines[1].paid!.toApiString(), '12345.87');
     });
 
+    test('tips (tip_amount, tip_from_change) are their own totals, so the '
+        'drawer and the bank terminal can be matched', () {
+      final OfflineSummary s = _build(<SyncOperation>[
+        _open('o1', 'K-1'),
+        _pay('o1', <Map<String, Object?>>[
+          <String, Object?>{
+            'tender': 'cash',
+            'amount': '45000.00',
+            'tendered_amount': '60000.00',
+            'tip_amount': '5000.00',
+          },
+        ]),
+        _open('o2', 'K-2'),
+        _pay('o2', <Map<String, Object?>>[
+          <String, Object?>{
+            'tender': 'card',
+            'amount': '100000.00',
+            'tip_amount': '10000.50',
+          },
+        ]),
+        _open('o3', 'K-3'),
+        // The whole change left as the tip (no tip_amount given)
+        _pay('o3', <Map<String, Object?>>[
+          <String, Object?>{
+            'tender': 'cash',
+            'amount': '18000.00',
+            'tendered_amount': '20000.00',
+            'tip_from_change': true,
+          },
+        ]),
+        _pay('o4', <Map<String, Object?>>[
+          <String, Object?>{
+            'tender': 'qr',
+            'amount': '7000.00',
+            'tip_amount': '1000.00',
+          },
+        ]),
+      ]);
+      // The bill amounts, never with the tip inside
+      expect(s.cash, const PosMoney.som(63000));
+      expect(s.card, const PosMoney.som(100000));
+      expect(s.other, const PosMoney.som(7000));
+      expect(s.tipsCash, const PosMoney.som(7000));
+      expect(s.tipsCard.toApiString(), '10000.50');
+      expect(s.tipsOther, const PosMoney.som(1000));
+      expect(s.tips.toApiString(), '18000.50');
+      // What the drawer and the terminal hold
+      expect(s.drawerCash, const PosMoney.som(70000));
+      expect(s.terminalCard.toApiString(), '110000.50');
+      expect(s.lines[0].paid, const PosMoney.som(45000));
+
+      final String t = <String>[
+        for (final PrintLine p in layoutOfflineSummary(
+          s,
+          const ReceiptHeader(storeName: 'Bog\'bon'),
+          PaperWidth.mm58,
+        ).lines)
+          if (p is PrintText) p.text,
+      ].join('\n');
+      expect(t, contains('Choy puli:'));
+      expect(t, contains('18 000.50'));
+      expect(t, contains('Kassadagi naqd:'));
+      expect(t, contains(paperAmount(const PosMoney.som(70000))));
+      expect(t, contains('Terminal (karta):'));
+      expect(t, contains('110 000.50'));
+    });
+
+    test('no tips: no tip lines on the slip', () {
+      final OfflineSummary s = _build(<SyncOperation>[
+        _open('o1', 'K-1'),
+        _pay('o1', <Map<String, Object?>>[_t('cash', '45000.00')]),
+      ]);
+      expect(s.tips, PosMoney.zero);
+      final String t = <String>[
+        for (final PrintLine p in layoutOfflineSummary(
+          s,
+          const ReceiptHeader(storeName: 'Bog\'bon'),
+          PaperWidth.mm58,
+        ).lines)
+          if (p is PrintText) p.text,
+      ].join('\n');
+      expect(t, isNot(contains('Choy puli')));
+    });
+
     test('QR and other tenders are kept apart from cash and card', () {
       final OfflineSummary s = _build(<SyncOperation>[
         _pay('o1', <Map<String, Object?>>[_t('qr', '9000.50')]),

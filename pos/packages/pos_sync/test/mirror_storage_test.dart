@@ -350,22 +350,14 @@ void main() {
       expect(r.changed, isFalse);
     });
 
-    test('restore turned off (offline.export false): the copy keeps the '
-        'lines it alone has', () async {
+    test('restore needs no flag (review 1: offline.export lived in the folder '
+        'that was lost): verified lines always come back', () async {
       await mirroredLines(2);
       journal.lines.clear();
-      final MirrorRestore r = await mirrored.restore(
-        keys: <SyncKey>[key],
-        enabled: false,
-      );
-      expect(r.restored, 0);
-      expect(r.kept, 2);
-      expect(journal.lines, isEmpty);
-      expect(copy.docs[r.keptKey], isNotNull);
-      // Turned on later, the kept lines are still there to restore by hand
-      final Map<String, Object?> kept =
-          (jsonDecode(copy.docs[r.keptKey]!) as Map).cast<String, Object?>();
-      expect(kept['lines'], hasLength(2));
+      final MirrorRestore r = await mirrored.restore(keys: <SyncKey>[key]);
+      expect(r.restored, 2);
+      expect(r.kept, 0);
+      expect(journal.lines, hasLength(2));
     });
 
     test(

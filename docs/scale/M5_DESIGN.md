@@ -373,7 +373,9 @@ till's own operation makes it fetch a new key (empty queue only, with backoff). 
    AppData). Android: the app's external files directory (`path_provider`, already a dependency). On start, if the
    journal is missing or shorter than the mirror, the till restores from the mirror (MACs verify it). [E] This covers
    corruption, an accidental "clear data" on Windows and bug 3; it does **not** cover a dead or stolen Android till,
-   where both copies are on one flash chip.
+   where both copies are on one flash chip. (Corrected after the S4 review: the folder survives a clean-up of
+   AppData, but the key and the pairing do not, so that copy can no longer be restored or sealed into a file; see
+   "What the mirror does not cover" at the end of this section.)
 3. **A signed export file** (stage S4): "Navbatni faylga saqlash" in the till's settings writes
    `rizqim-navbat-<device>-<first seq>-<last seq>.rzq` (header + the signed lines + a MAC over the whole file) to the
    mirror folder or, on Windows, to a chosen path such as a USB stick. Offered automatically when the outage passes
@@ -504,6 +506,41 @@ multipart upload `file`. (The owner path is under `/owner/pos/` like the panel's
 - Open: a till that no longer starts cannot write the file (its key is in that device's secure storage, and the
   mirror holds journal lines, not a sealed file). Rescuing such a disk needs a server-side path that trusts the
   per-operation MACs alone; not built (docs/OPERATIONS.md §25 sends it to the developers).
+
+**As built: the fixes after the S4 reviews (F2 till, 21.11.2026).**
+- Restore from the mirror (review R1 MEDIUM-2): no longer gated on `offline.export`. The flag was read from the
+  bootstrap copy in the journal's own folder, which is gone in exactly the case the mirror is for, so the restore was
+  off and the mirror-only payments were set aside where nothing read them. Now every line whose MAC verifies under the
+  till's key is put back (it is the till's own line; the server takes an `op_id` once). A line that cannot be verified
+  (unsigned, another key, changed on the disk) is never put into the journal and never removed from the mirror's
+  folder (`mirror_kept_<time>` document); a later start puts it back once it verifies, and only then takes it out of
+  that document. `MirroredSyncStorage.setAside` (the kept lines plus the mirror's own copies of the queues set aside,
+  `orphan_*`) goes into every export file through `SyncExporter`, after the journal's queue and the queues the app
+  gives (one line per `op_id`), so those payments still reach the server by an import.
+- A mirror write that does not answer holds a journal append (a sale) up for at most 2 s
+  (`MirroredSyncStorage.writeTimeout`). The journal is written first and decides; while a mirror write is out, later
+  lines are not queued behind it, and once it answers the mirror is rewritten whole from the journal (no line lost, no
+  order changed). The start-up restore waits at most 15 s a step for the mirror (`restoreTimeout`), then the till
+  starts from the journal alone and the mirror is not written in that run.
+- Export file names: a file name already in the folder is never overwritten (an empty queue, or a queue of earlier
+  pairings alone, is always `-0-0`): the new file gets `-2`, `-3`, ... before `.rzq`. The name inside the format
+  (vectors, `SyncExportFormat.fileName`) is unchanged; the server reads the header, not the name.
+- Printed summary: tips (`tip_amount`; with `tip_from_change` and no `tip_amount`, the whole change) are their own
+  lines ("Choy puli", by tender) beside the bill totals, with "Kassadagi naqd" (cash + cash tips) and "Terminal
+  (karta)" (card + card tips), so the drawer count and the bank terminal's total can be matched.
+- **What the mirror does not cover [E], Windows.** The till's secure storage (`flutter_secure_storage` on Windows: a
+  DPAPI file `flutter_secure_storage.dat` in the app support folder under `%APPDATA%`) holds the terminal token, the
+  pairing and the sync key. Wiping AppData (a profile clean-up, "reset the app", a new Windows profile) therefore loses
+  the key and the pairing together with the journal: the till starts unpaired, the mirror is not consulted (there is
+  no key to verify it with, and a till paired again gets a new device uuid, so a new mirror folder), and no export
+  file can be sealed for the old device (the file MAC needs that device's key, and a DPAPI file copied to another
+  profile or PC cannot be decrypted either). The mirror folder `Documents\RIZQIM\<old uuid>\` stays on the disk with
+  the signed lines (the server still holds the old key for 30 days after the disconnect), but nothing imports it
+  today: that needs the server-side path above that trusts the per-operation MACs alone (not built). Until then a
+  wiped AppData is rescued from the printed summary and the drawer count, like a dead till. The mirror covers what
+  leaves the secure storage in place: a damaged, cut or deleted journal (`pos_sync` folder), bug 3, a failed update.
+  On Android "clear data" and an uninstall remove the external files directory, the journal and the Keystore entry
+  alike; the mirror there covers journal damage only.
 
 ## 6. Proposal E: versions and updates
 

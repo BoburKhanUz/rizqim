@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'limits.dart';
+import 'mirror_storage.dart';
 import 'operation.dart';
 import 'signature.dart';
+import 'storage.dart';
 import 'store.dart';
 
 /// Wave M5 S4 (docs/scale/M5_DESIGN.md 5, "As built: the export file"): the constants of the till's rescue file,
@@ -489,7 +491,19 @@ class SyncExporter {
   /// Something waits that a file would carry: the journal's queue or a queue set aside.
   bool get hasSomethingToExport =>
       store.hasPending ||
-      _setAside().any((SyncExportQueue q) => q.operations.isNotEmpty);
+      _allSetAside().any((SyncExportQueue q) => q.operations.isNotEmpty);
+
+  /// The queues set aside that were given, then what the mirror copy's folder holds besides the journal
+  /// ([MirroredSyncStorage.setAside]: its copies of the queues set aside, which a wiped app folder does not take
+  /// with it, and the lines its restore could not verify). An operation in several counts once ([SyncExport.build]
+  /// keeps the first line of an `op_id`: the journal's, then the given queues').
+  List<SyncExportQueue> _allSetAside() {
+    final SyncStorage storage = store.storage;
+    return <SyncExportQueue>[
+      ..._setAside(),
+      if (storage is MirroredSyncStorage) ...storage.setAside,
+    ];
+  }
 
   /// [SyncExportOffer.outage] when [status] is past the alert (`alert_after_minutes`) with operations waiting.
   SyncExportOffer? offerFor(OfflineStatus status) =>
@@ -543,7 +557,7 @@ class SyncExporter {
     final DateTime at = _clock();
     final List<Map<String, Object?>> lines = SyncExport.linesOf(
       pending: store.pending,
-      setAside: _setAside(),
+      setAside: _allSetAside(),
     );
     final List<SyncExportFile> files = SyncExport.buildAll(
       key: key,
@@ -551,19 +565,11 @@ class SyncExporter {
       createdAt: at,
     );
     final List<String> paths = <String>[];
-    final Set<String> names = <String>{};
     try {
       await dir.create(recursive: true);
       for (final SyncExportFile f in files) {
-        var name = f.name;
-        // Several files of other pairings' lines alone would share a name
-        for (var n = 2; !names.add(name); n++) {
-          name = f.name.replaceFirst(
-            SyncExportFormat.extension,
-            '-$n${SyncExportFormat.extension}',
-          );
-        }
-        paths.add(await _write(dir, name, f.bytes));
+        // (Several files of other pairings' lines alone share a name: [_write] numbers them)
+        paths.add(await _write(dir, f.name, f.bytes));
       }
     } on FileSystemException {
       throw const SyncExportRefused(
@@ -592,12 +598,23 @@ class SyncExporter {
   static List<_Line> _bodyOf(List<Map<String, Object?>> lines, SyncKey key) =>
       SyncExport._prepare(lines, key.deviceUuid.toLowerCase());
 
+  /// Writes [bytes] as [name] in [dir]; a file of that name left by an earlier export is never replaced (an empty
+  /// queue or a queue of other pairings alone is always `-0-0`, and the same numbers come back after more lines of
+  /// other pairings): the name then gets `-2`, `-3`, ... in front of the extension.
   static Future<String> _write(
     Directory dir,
     String name,
     List<int> bytes,
   ) async {
-    final File target = File('${dir.path}${Platform.pathSeparator}$name');
+    String path(String n) => '${dir.path}${Platform.pathSeparator}$n';
+    var unique = name;
+    for (var n = 2; await File(path(unique)).exists(); n++) {
+      unique = name.replaceFirst(
+        SyncExportFormat.extension,
+        '-$n${SyncExportFormat.extension}',
+      );
+    }
+    final File target = File(path(unique));
     final File tmp = File('${target.path}.tmp');
     final RandomAccessFile f = await tmp.open(mode: FileMode.write);
     try {
