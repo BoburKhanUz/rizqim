@@ -23,3 +23,4 @@ Notes for wave P (to confirm with the owner before building):
 - `partner-v2-desktop.png`, `partner-v2-mobile.png`: partner page with the real form fields and the four form states. This is the version to build.
 - `landing-v2-mobile.png`: landing, mobile. The desktop landing of this round is still to come; `landing-concept-*.png` above are the first round only.
 - Supersedes `partner-page-concept.png` / `partner-form-concept.png` (first round: partner types, e-mail, not built).
+- Built (wave P): `infra/landing/` is the static rizqim.uz site (landing + `/hamkor` form); logo SVGs there are placeholders recreated from `mark-concept.png` / `logo-concept.png`, owner values live in `infra/landing/site/site.config.js`.

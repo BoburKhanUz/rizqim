@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 520" aria-hidden="true">
+<defs><linearGradient id="ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E293B"/><stop offset="1" stop-color="#0F172A"/></linearGradient></defs>
+<rect x="10" y="6" width="260" height="508" rx="42" fill="url(#ph)"/>
+<rect x="18" y="14" width="244" height="492" rx="34" fill="#fff"/>
+<rect x="100" y="22" width="80" height="22" rx="11" fill="#0F172A"/>
+<rect x="18" y="52" width="244" height="40" fill="#F1F5F9"/>
+<circle cx="40" cy="72" r="6" fill="#229ED9"/><rect x="54" y="68" width="50" height="8" rx="4" fill="#94A3B8"/>
+<g transform="translate(110.29 92.39) scale(0.0317)"><defs><linearGradient id="phxb" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#F97316"/><stop offset="1" stop-color="#C2410C"/></linearGradient><linearGradient id="phxl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBBF24"/><stop offset="1" stop-color="#F59E0B"/></linearGradient></defs>
+<path fill="url(#phxb)" d="M235 800L405 345C440 290 490 255 560 255H800C920 255 995 340 995 450C995 560 930 685 800 685L790 686C700 686 600 690 540 735C470 785 425 860 390 930C380 945 370 948 355 948H190C225 850 340 740 480 668C540 638 590 612 606 606C500 625 400 660 330 712C290 742 260 772 235 800Z"/>
+<path fill="url(#phxl)" d="M543 766C600 730 680 708 780 710C805 711 815 722 822 730L978 948H712C690 948 672 940 660 925Z"/>
+<path fill="#fff" d="M497 555C505 490 560 430 650 428C740 430 795 490 802 555Z"/>
+<circle cx="659" cy="404" r="24" fill="#fff"/>
+<rect x="465" y="577" width="367" height="28" rx="14" fill="#fff"/>
+<path fill="#E8590C" d="M520 540C530 500 560 468 612 452C575 475 555 505 548 540Z"/>
+<g fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"><path d="M714 304C698 326 724 346 712 372C709 384 706 392 702 398"/><path d="M754 304C738 326 764 346 752 372C749 384 746 392 742 398"/></g></g>
+<text x="146" y="122" font-family="'Segoe UI',Inter,Arial,sans-serif" font-weight="800" font-size="17" fill="#0F172A">Rizqim</text>
+<rect x="34" y="142" width="80" height="12" rx="6" fill="#0F172A" opacity=".75"/><circle cx="124" cy="148" r="3" fill="#C2410C"/>
+<rect x="34" y="164" width="212" height="30" rx="15" fill="#F1F5F9"/><circle cx="52" cy="179" r="5" fill="none" stroke="#94A3B8" stroke-width="2"/><rect x="64" y="175" width="100" height="8" rx="4" fill="#CBD5E1"/>
+<g>
+<circle cx="64" cy="228" r="22" fill="#FFEDD5"/><circle cx="64" cy="228" r="12" fill="#F59E0B"/>
+<circle cx="140" cy="228" r="22" fill="#FFEDD5"/><path d="M124 232a16 12 0 0 1 32 0Z" fill="#EA580C"/><rect x="124" y="232" width="32" height="5" rx="2.500" fill="#15803D"/>
+<circle cx="216" cy="228" r="22" fill="#FFEDD5"/><path d="M204 238l12-18 12 18Z" fill="#F59E0B"/>
+</g>
+<rect x="46" y="258" width="36" height="7" rx="3.500" fill="#94A3B8"/><rect x="122" y="258" width="36" height="7" rx="3.500" fill="#94A3B8"/><rect x="198" y="258" width="36" height="7" rx="3.500" fill="#94A3B8"/>
+<rect x="34" y="284" width="130" height="10" rx="5" fill="#0F172A" opacity=".8"/>
+<rect x="30" y="304" width="220" height="86" rx="16" fill="#fff" stroke="#E2E8F0"/>
+<rect x="40" y="314" width="66" height="66" rx="12" fill="#FDBA74"/><circle cx="73" cy="347" r="22" fill="#F59E0B"/><circle cx="66" cy="340" r="5" fill="#C2410C"/><circle cx="80" cy="350" r="5" fill="#C2410C"/>
+<rect x="118" y="322" width="90" height="10" rx="5" fill="#0F172A" opacity=".8"/><rect x="118" y="342" width="60" height="7" rx="3.500" fill="#94A3B8"/><rect x="118" y="358" width="44" height="7" rx="3.500" fill="#CBD5E1"/>
+<rect x="30" y="402" width="220" height="86" rx="16" fill="#fff" stroke="#E2E8F0"/>
+<rect x="40" y="412" width="66" height="66" rx="12" fill="#FED7AA"/><circle cx="73" cy="445" r="20" fill="#EA580C" opacity=".75"/>
+<rect x="118" y="420" width="76" height="10" rx="5" fill="#0F172A" opacity=".8"/><rect x="118" y="440" width="56" height="7" rx="3.500" fill="#94A3B8"/>
+</svg>

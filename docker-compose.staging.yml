@@ -120,6 +120,14 @@ services:
     mem_limit: 32m
     cpus: 0.1
 
+  # rizqim.uz landing (statik nginx): staging'da indekslanmaydi (robots.txt va X-Robots-Tag, frontend kabi)
+  landing:
+    mem_limit: 32m
+    cpus: 0.1
+    volumes:
+      - ./infra/staging/10-noindex.sh:/docker-entrypoint.d/10-noindex.sh:ro
+      - ./infra/staging/robots.txt:/usr/share/nginx/html/robots.txt:ro
+
   # Hamkor veb-panel: kirish SMS kod bilan (staging'da SMS faqat logga: kodni backend logidan oling)
   partner-web:
     mem_limit: 256m

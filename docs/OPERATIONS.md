@@ -1164,3 +1164,13 @@ bo'lishi kerak. Hech qanday xabar savdoni to'xtatmaydi.
 **Versiyani qaytarib olish.** Muammoli versiyani reyestrda «Olib tashlash» (sabab bilan): u sahifadan va xabardan chiqadi, avvalgi versiya yana «eng yangi» bo'ladi; o'rnatilgan kassalar ishlashda davom etadi. «O'chirish» faqat xato qo'shilgan qator uchun. Olib tashlangan minimum o'z kuchini yo'qotadi.
 
 **Cheklovlar.** Windows hozircha o'rnatuvchisiz zip: papkani yoyib .exe faylini ishga tushiring (`cashier.exe`, `waiter.exe`, `kds.exe`, `customer_display.exe`), `%APPDATA%` va `Documents\RIZQIM` (kassaning ulanishi va navbati) ga tegmang. Zip eski papka ustiga yoyiladi. O'rnatuvchi (Inno Setup) keyingi qadam.
+
+## 27. rizqim.uz landing (P)
+
+Landing va "Hamkor bo'lish" sahifasi: statik sayt `infra/landing/` (nginx, build qadamisiz), compose xizmati `landing`. Sahifalar: `/`, `/hamkor`, `/maxfiylik`, `/shartlar`, 404.
+
+1. Serverda `.env` ga `LANDING_PORT` (standart 8091), `docker compose up -d --build landing`. Tashqi TLS proksi `rizqim.uz` (va `www`) ni shu portga yo'naltiradi. Tekshiring: `https://rizqim.uz/`, `https://rizqim.uz/hamkor`.
+2. Forma `POST /api/v1/store-applications` va `GET /api/v1/locations` ni bir xil origin orqali yuboradi: `landing` ichidagi nginx faqat shu ikki yo'lni `backend` ga uzatadi (boshqa `/api/` yopiq). IP bo'yicha limit (429) ishlashi uchun tashqi proksi `X-Forwarded-For` ni uzatsin.
+3. **Egasi beradigan qiymatlar** (telefon, Telegram, manzil, bot havolasi, ijtimoiy tarmoqlar, FAQ javoblari, tariflar) hammasi bitta faylda: `infra/landing/site/site.config.js`. Matnlar: `site/i18n/uz.js` va `ru.js`. FAQ javobi `null` bo'lsa "Tez orada" ko'rinadi; tariflar `null` bo'lsa blok yashirin. Fayl o'zgargach `docker compose up -d --build landing`. Maxfiylik va shartlar sahifalari hozir LOYIHA (yurist to'ldiradi).
+4. Tekshiruv: `node infra/landing/tests/check.mjs` (bog'liqliksiz; `--sync` o'zbekcha matnni `uz.js` dan HTML ga yozadi), brauzer testi `node infra/landing/tests/smoke.mjs` (partner/web dagi Playwright'dan foydalanadi), mahalliy ko'rish `node infra/landing/tests/serve.mjs`.
+5. Logo: `site/img/logo.svg`, `logo-light.svg`, `logo-mark.svg`, `favicon.svg` vaqtincha (konsept asosida); dizayner SVG'si bilan shu fayllar almashtiriladi.

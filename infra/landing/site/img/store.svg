@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 230" aria-hidden="true">
+<defs><linearGradient id="sb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFEBD5"/><stop offset="1" stop-color="#FDBA74"/></linearGradient></defs>
+<ellipse cx="150" cy="212" rx="130" ry="12" fill="#C2410C" opacity=".12"/>
+<rect x="38" y="82" width="224" height="124" rx="10" fill="url(#sb)"/>
+<rect x="58" y="112" width="184" height="94" rx="6" fill="#7C2D12"/>
+<rect x="64" y="118" width="172" height="82" rx="4" fill="#FDBA74"/>
+<g fill="#FFF7ED" opacity=".85"><rect x="72" y="126" width="36" height="30" rx="3"/><rect x="116" y="126" width="36" height="30" rx="3"/><rect x="160" y="126" width="68" height="30" rx="3"/></g>
+<circle cx="96" cy="176" r="9" fill="#EA580C"/><circle cx="196" cy="176" r="9" fill="#F59E0B"/><rect x="132" y="162" width="32" height="38" rx="3" fill="#9A3412"/>
+<rect x="76" y="28" width="148" height="34" rx="6" fill="#C2410C" transform="rotate(-4 150 45)"/>
+<text x="150" y="52" text-anchor="middle" font-family="'Segoe UI',Inter,Roboto,Arial,sans-serif" font-weight="800" font-size="22" fill="#fff" transform="rotate(-4 150 45)">Rizqim</text>
+<g><path d="M30 76H270L262 108H38Z" fill="#fff"/>
+<path d="M30 76H66L62 108H38ZM102 76H138L136 108H100ZM174 76H210L212 108H176ZM246 76H270L262 108H250Z" fill="#EA580C"/></g>
+<g fill="#15803D"><ellipse cx="30" cy="190" rx="14" ry="20"/><ellipse cx="270" cy="190" rx="14" ry="20"/></g><rect x="22" y="196" width="16" height="12" rx="3" fill="#C2410C"/><rect x="262" y="196" width="16" height="12" rx="3" fill="#C2410C"/>
+</svg>
