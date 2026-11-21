@@ -23,8 +23,10 @@
 
   /* ---------- phone mask: +998 XX XXX XX XX ---------- */
   function phoneDigits(v) {
-    var d = String(v).replace(/\D+/g, '');
-    if (d.indexOf('998') === 0) d = d.slice(3);
+    var raw = String(v).trim();
+    var d = raw.replace(/\D+/g, '');
+    // 998 country code is dropped only when typed as +998... or when the number is longer than 9 digits (pasted 998901234567)
+    if (d.indexOf('998') === 0 && (raw.charAt(0) === '+' || d.length > 9)) d = d.slice(3);
     return d.slice(0, 9);
   }
   function formatPhone(d) {
@@ -209,7 +211,7 @@
       owner_name: el.owner_name.value.trim(),
       phone: '+998' + phoneDigits(el.phone.value),
       source: 'website',
-      website: form.elements.website.value,
+      website: form.elements.rz_site_url.value,
     };
     if (regionsOk) p.region_id = parseInt(el.region.value, 10); else p.city = el.city.value.trim();
     if (el.tin.value) p.tin = el.tin.value;

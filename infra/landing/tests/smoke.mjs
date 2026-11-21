@@ -115,6 +115,18 @@ async function step2(page) {
   await page.fill('#f-phone', '');
   await page.type('#f-phone', '901234567');
   assert.equal(await page.inputValue('#f-phone'), '+998 90 123 45 67');
+  // 998 prefix is stripped only after a leading + or when more than 9 digits are present (pasted number)
+  for (const [raw, want] of [['+998901234567', '+998 90 123 45 67'], ['998901234567', '+998 90 123 45 67'], ['998123456', '+998 99 812 34 56'], ['99 812 34 56', '+998 99 812 34 56']]) {
+    await page.fill('#f-phone', raw);
+    await page.dispatchEvent('#f-phone', 'input');
+    assert.equal(await page.inputValue('#f-phone'), want, `phone mask for ${raw}`);
+  }
+  await page.fill('#f-phone', '');
+  await page.type('#f-phone', '901234567');
+  // empty contacts config: no sample contact or empty footer block is visible
+  assert.equal(await page.locator('.contacts').isVisible(), false);
+  assert.equal(await page.locator('.social').isVisible(), false);
+  assert.equal(await page.locator('a[href^="tel:"]').count(), 0);
   await page.fill('#f-owner_name', 'Akmal Karimov');
   await page.click('#nextBtn');
   assert.equal(await page.locator('#f-name').isVisible(), true);

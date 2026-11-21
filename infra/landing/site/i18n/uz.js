@@ -98,7 +98,7 @@ window.RZ_I18N.uz = {
   'f.ownerName': 'Ismingiz',
   'f.ownerName.ph': 'Masalan: Akmal Karimov',
   'f.phone': 'Telefon raqam',
-  'f.phone.ph': '+998 90 123 45 67',
+  'f.phone.ph': '+998 XX XXX XX XX',
   'f.next': 'Davom etish',
   'f.back': 'Orqaga',
   'f.name': 'Joy nomi',
@@ -161,6 +161,7 @@ window.RZ_I18N.uz = {
   'tariffs.pos': 'POS kassa (oyiga)',
 
   'legal.draft': "LOYIHA. Bu matn hali tasdiqlanmagan namuna: egasi va yurist ko'rib chiqib, to'ldirib, tasdiqlaguncha kuchga kirmaydi.",
+  'legal.unreviewed': 'Loyiha: yurist tasdiqlamagan',
   'legal.updated': 'Oxirgi yangilanish: [sana: egasi beradi]',
   'legal.back': 'Bosh sahifaga qaytish',
   'privacy.title': 'Maxfiylik siyosati',

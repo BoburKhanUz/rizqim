@@ -57,13 +57,13 @@
 <div id="formArea">
 <ol class="stepper" data-i18n-attr="aria-label:f.steps" aria-label="Ariza qadamlari"><li id="st1" aria-current="step"><span class="n">1</span><span data-i18n="f.step1">Siz haqingizda</span></li><li class="bar" aria-hidden="true"></li><li id="st2"><span class="n">2</span><span data-i18n="f.step2">Joyingiz haqida</span></li></ol>
 <form id="applyForm" novalidate autocomplete="on" data-step="1">
-<div class="hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+<div class="hp" aria-hidden="true"><label>Sayt<input type="text" id="f-hp-site" name="rz_site_url" tabindex="-1" autocomplete="off"></label></div>
 <div class="form-grid">
 <div class="panelstep" data-step="1" id="ps1" aria-labelledby="h1s">
 <h2 id="h1s" data-i18n="f.step1">Siz haqingizda</h2><p class="sub" data-i18n="f.s1.lead">Avval siz bilan bog'lanish uchun asosiy ma'lumotlarni kiriting.</p>
 <div class="fields">
 <div class="field"><label class="lbl" for="f-owner_name"><span data-i18n="f.ownerName">Ismingiz</span> <span class="req" aria-hidden="true">*</span></label><div class="control"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-user"/></svg><input id="f-owner_name" name="owner_name" type="text" autocomplete="name" maxlength="120" required data-i18n-attr="placeholder:f.ownerName.ph" placeholder="Masalan: Akmal Karimov" aria-describedby="e-owner_name"></div><p class="err" id="e-owner_name" role="alert"></p></div>
-<div class="field"><label class="lbl" for="f-phone"><span data-i18n="f.phone">Telefon raqam</span> <span class="req" aria-hidden="true">*</span></label><div class="control"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-phone"/></svg><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" required data-i18n-attr="placeholder:f.phone.ph" placeholder="+998 90 123 45 67" aria-describedby="e-phone"></div><p class="err" id="e-phone" role="alert"></p></div>
+<div class="field"><label class="lbl" for="f-phone"><span data-i18n="f.phone">Telefon raqam</span> <span class="req" aria-hidden="true">*</span></label><div class="control"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-phone"/></svg><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" required data-i18n-attr="placeholder:f.phone.ph" placeholder="+998 XX XXX XX XX" aria-describedby="e-phone"></div><p class="err" id="e-phone" role="alert"></p></div>
 </div>
 <div class="actions"><button type="button" class="btn btn-primary" id="nextBtn"><span data-i18n="f.next">Davom etish</span><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-arrow"/></svg></button></div>
 </div>
@@ -104,14 +104,14 @@
 <div class="foot-top">
 <div class="foot-brand"><img src="/img/logo-light.svg" width="142" height="52" alt="Rizqim. Rizq har kuni."></div>
 <ul class="contacts" data-i18n-attr="aria-label:foot.contacts" aria-label="Aloqa">
-<li><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-phone"/></svg><a href="tel:+998901234567" data-cfg="phone" data-cfg-href="phoneHref">+998 90 123 45 67</a></li>
-<li data-cfg-show="telegramHandle"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-telegram"/></svg><a href="https://t.me/rizqim" data-cfg="telegramHandle" data-cfg-href="telegramUrl">@rizqim</a></li>
-<li data-cfg-show="address"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-pin"/></svg><span data-cfg-i18n="address">Toshkent, O'zbekiston</span></li>
+<li hidden data-cfg-show="phone"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-phone"/></svg><a data-cfg="phone" data-cfg-href="phoneHref"></a></li>
+<li hidden data-cfg-show="telegramHandle"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-telegram"/></svg><a data-cfg="telegramHandle" data-cfg-href="telegramUrl"></a></li>
+<li hidden data-cfg-show="address"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-pin"/></svg><span data-cfg-i18n="address"></span></li>
 </ul>
 </div>
 <div class="foot-bot">
 <div class="legal-links"><a href="/maxfiylik" data-i18n="foot.privacy">Maxfiylik siyosati</a><a href="/shartlar" data-i18n="foot.terms">Foydalanish shartlari</a></div>
-<div class="social" data-i18n-attr="aria-label:foot.social" aria-label="Ijtimoiy tarmoqlar"><a href="https://t.me/rizqim" data-cfg-href="social.telegram" data-cfg-show="social.telegram" data-i18n-attr="aria-label:foot.tg" aria-label="Telegram"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-telegram"/></svg></a><a href="https://instagram.com/rizqim" data-cfg-href="social.instagram" data-cfg-show="social.instagram" data-i18n-attr="aria-label:foot.ig" aria-label="Instagram"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-instagram"/></svg></a></div>
+<div class="social" hidden data-i18n-attr="aria-label:foot.social" aria-label="Ijtimoiy tarmoqlar"><a hidden data-cfg-href="social.telegram" data-cfg-show="social.telegram" data-i18n-attr="aria-label:foot.tg" aria-label="Telegram"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-telegram"/></svg></a><a hidden data-cfg-href="social.instagram" data-cfg-show="social.instagram" data-i18n-attr="aria-label:foot.ig" aria-label="Instagram"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-instagram"/></svg></a></div>
 <span data-i18n="foot.copy">© 2026 Rizqim</span>
 </div>
 </div>

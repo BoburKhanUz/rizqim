@@ -18,17 +18,17 @@ window.RZ_SITE = {
   // Hamkor paneli (tayyor: business.rizqim.uz)
   businessUrl: 'https://business.rizqim.uz',
 
-  // EGASI BERADI: aloqa (hozir namuna; dizayndagi raqam)
-  phone: '+998 90 123 45 67',
-  phoneHref: 'tel:+998901234567',
-  telegramHandle: '@rizqim',
-  telegramUrl: 'https://t.me/rizqim',
-  address: { uz: "Toshkent, O'zbekiston", ru: 'Ташкент, Узбекистан' },
+  // EGASI BERADI: aloqa. Bo'sh ('') = joy ko'rinmaydi (soxta raqam yoki havola hech qachon chiqmaydi)
+  phone: '',
+  phoneHref: '',
+  telegramHandle: '',
+  telegramUrl: '',
+  address: { uz: '', ru: '' },
 
   // EGASI BERADI: faqat haqiqatan bor ijtimoiy tarmoqlar. Bo'sh qator ('') = tugma ko'rinmaydi
   social: {
-    telegram: 'https://t.me/rizqim',
-    instagram: 'https://instagram.com/rizqim',
+    telegram: '',
+    instagram: '',
   },
 
   // EGASI BERADI: savollarga javoblar. null = sahifada "Tez orada" ko'rsatiladi. Narx va muddat o'ylab topilmaydi.

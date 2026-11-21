@@ -52,6 +52,13 @@
     document.querySelectorAll('a[data-cfg-href^="social."]').forEach(function (el) { el.hidden = !get(el.getAttribute('data-cfg-href')); });
     var any = document.querySelectorAll('.social a:not([hidden])').length > 0;
     document.querySelectorAll('.social').forEach(function (s) { s.hidden = !any; });
+    // footer: hide the empty contacts list and let the CSS close the gap
+    document.querySelectorAll('.contacts').forEach(function (ul) {
+      var has = ul.querySelectorAll('li:not([hidden])').length > 0;
+      ul.hidden = !has;
+      var foot = ul.closest('.site-footer');
+      if (foot) foot.classList.toggle('no-contacts', !has);
+    });
     // FAQ: the owner's answer, or a neutral "Tez orada"
     document.querySelectorAll('[data-faq-ans]').forEach(function (el) {
       var a = localised(get('faq.' + el.getAttribute('data-faq-ans')));

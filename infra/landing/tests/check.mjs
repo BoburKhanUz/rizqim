@@ -145,6 +145,21 @@ const css = readFileSync(join(SITE, 'css/styles.css'), 'utf8');
 for (const m of css.matchAll(/url\("?(\/fonts\/[^")]+)"?\)/g)) if (!existsSync(join(SITE, m[1]))) err(`styles.css: font ${m[1]} missing`);
 for (const f of ['fonts/OFL-PlusJakartaSans.txt', 'fonts/OFL-Manrope.txt']) if (!existsSync(join(SITE, f))) err(`missing ${f}`);
 
+// M1: no sample contacts may ship anywhere in site/ (owner supplies them in site.config.js)
+function walk(d) { return readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)])); }
+for (const f of walk(SITE)) {
+  if (/\.(woff2|webp|png)$/.test(f)) continue;
+  const t = readFileSync(f, 'utf8');
+  for (const bad of ['90 123 45 67', '@rizqim']) if (t.includes(bad)) err(`${f.slice(SITE.length + 1)}: sample contact "${bad}" must not ship`);
+}
+// M2: unfinished legal drafts must stay out of the sitemap and carry noindex
+for (const [p, src] of Object.entries(html)) {
+  if (!src.includes('[Yurist')) continue;
+  const slug = '/' + p.replace(/\.html$/, '');
+  if (new RegExp('<loc>[^<]*' + slug + '</loc>').test(sm)) err(`sitemap: ${slug} contains "[Yurist" placeholders and must not be listed`);
+  if (!/<meta name="robots" content="noindex">/.test(src)) err(`${p}: draft page without <meta name="robots" content="noindex">`);
+}
+
 warn.forEach((w) => console.log('warn:', w));
 if (errors.length) { errors.forEach((e) => console.error('ERROR:', e)); console.error(`${errors.length} error(s)`); process.exit(1); }
 console.log(`ok: ${pages.length} pages, ${Object.keys(uz).length} keys in uz and ru${sync ? ' (synced)' : ''}`);

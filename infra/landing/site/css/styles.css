@@ -258,6 +258,7 @@ section { padding: 22px 0; }
 .social a { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: #fff; }
 .social a:hover { background: #1E293B; }
 .social .icon { width: 24px; height: 24px; }
+.no-contacts .foot-brand { border-right: 0; padding-right: 0; }
 @media (min-width: 900px) {
   .site-footer { margin-top: 64px; padding: 30px 0; }
   .site-footer .wrap { display: flex; align-items: center; gap: 30px; }
@@ -267,6 +268,7 @@ section { padding: 22px 0; }
   .contacts { grid-auto-flow: column; justify-content: start; gap: 24px; font-size: 15px; }
   .legal-links { flex-direction: column; gap: 6px; padding: 0 30px; border-left: 1px solid #334155; border-right: 1px solid #334155; font-size: 14.5px; }
   .social { margin-left: auto; }
+  .no-contacts .legal-links { border-left: 0; padding-left: 0; }
   .foot-bot > span { padding-left: 30px; border-left: 1px solid #334155; font-size: 14.5px; white-space: nowrap; }
 }
 
@@ -378,6 +380,7 @@ section { padding: 22px 0; }
 .legal h1 { font-size: 32px; margin-bottom: 16px; }
 .legal h2 { font-size: 20px; margin: 22px 0 6px; }
 .legal p { color: #334155; }
+.draft-note { display: inline-block; margin: 0 0 10px; padding: 4px 10px; border-radius: 999px; background: #78350F; color: #fff; font-size: 13px; font-weight: 700; }
 .draft { background: #FFFBEB; border: 1px solid #FDE68A; color: #78350F; padding: 12px 14px; border-radius: 12px; font-weight: 600; }
 .nf { text-align: center; padding: 64px 0; }
 .nf .code { font-size: 88px; font-weight: 800; color: var(--brand); line-height: 1; }
