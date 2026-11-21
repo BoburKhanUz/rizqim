@@ -1,0 +1,54 @@
+# Tayyor obrazlar (GHCR): serverda hech narsa yig'ilmaydi. GitHub Actions (.github/workflows/deploy.yml) obrazlarni yig'ib
+# GHCR'ga yuklaydi, infra/deploy/deploy.sh ularni tortib ishga tushiradi. Alohida fayl: lokal ishlab chiqishda ishlatilmaydi
+# (u yerda `build:` bilan yig'iladi). Oxirgi fayl bo'lib COMPOSE_FILE ga qo'shiladi (docker-compose.edge.yml dan keyin).
+#
+# `build: !reset null` asosiy fayldagi `build:` ni olib tashlaydi: shunda `docker compose up` yig'maydi, serverda manba kodi
+# (backend/, customer/ ...) bo'lishi ham shart emas. Kerak bo'lgan o'zgaruvchilarni deploy.sh ildiz .env ga o'zi yozadi:
+#   IMAGE_PREFIX            masalan ghcr.io/boburkhanuz/rizqim (kichik harflar)
+#   IMAGE_TAG               git commit SHA (backend, queue, scheduler, reverb, frontend, partner-web, platform-admin, landing, pos-site)
+#   IMAGE_TAG_POSTGRES / IMAGE_TAG_PGBOUNCER / IMAGE_TAG_BACKUP   papka mazmuni (git daraxt) belgisi: faqat shu papka
+#                           o'zgarganda o'zgaradi, shuning uchun har deploy'da Postgres qayta yaratilmaydi
+#   DEPLOY_TARGET           staging | production: Mini App obrazi `VITE_*` qiymatlarni ichiga yozadi, shuning uchun muhit
+#                           bo'yicha alohida (frontend-staging, frontend-production)
+# Tekshirish: docker compose -f docker-compose.yml -f docker-compose.images.yml config -q
+
+services:
+  backend:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backend:${IMAGE_TAG:-latest}
+    build: !reset null
+  queue:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backend:${IMAGE_TAG:-latest}
+    build: !reset null
+  queue-reports:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backend:${IMAGE_TAG:-latest}
+    build: !reset null
+  scheduler:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backend:${IMAGE_TAG:-latest}
+    build: !reset null
+  reverb:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backend:${IMAGE_TAG:-latest}
+    build: !reset null
+  frontend:
+    image: ${IMAGE_PREFIX:-rizqim-local}/frontend-${DEPLOY_TARGET:-production}:${IMAGE_TAG:-latest}
+    build: !reset null
+  partner-web:
+    image: ${IMAGE_PREFIX:-rizqim-local}/partner-web:${IMAGE_TAG:-latest}
+    build: !reset null
+  platform-admin:
+    image: ${IMAGE_PREFIX:-rizqim-local}/platform-admin:${IMAGE_TAG:-latest}
+    build: !reset null
+  landing:
+    image: ${IMAGE_PREFIX:-rizqim-local}/landing:${IMAGE_TAG:-latest}
+    build: !reset null
+  pos-site:
+    image: ${IMAGE_PREFIX:-rizqim-local}/pos-site:${IMAGE_TAG:-latest}
+    build: !reset null
+  postgres:
+    image: ${IMAGE_PREFIX:-rizqim-local}/postgres:${IMAGE_TAG_POSTGRES:-${IMAGE_TAG:-latest}}
+    build: !reset null
+  pgbouncer:
+    image: ${IMAGE_PREFIX:-rizqim-local}/pgbouncer:${IMAGE_TAG_PGBOUNCER:-${IMAGE_TAG:-latest}}
+    build: !reset null
+  backup:
+    image: ${IMAGE_PREFIX:-rizqim-local}/backup:${IMAGE_TAG_BACKUP:-${IMAGE_TAG:-latest}}
+    build: !reset null

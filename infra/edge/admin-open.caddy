@@ -1,0 +1,7 @@
+# admin.<domen> IP cheklovisiz (standart): `not remote_ip` hamma manzilni qamrab olgani uchun hech qachon mos kelmaydi.
+# Cheklash uchun conf.d/admin-allow.caddy yarating va ildiz .env ga EDGE_ADMIN_ACCESS=/etc/caddy/conf.d/admin-allow.caddy
+# yozing (docs/SERVER_SETUP.md). Bu fayl compose'da /etc/caddy/admin-open.caddy sifatida ulanadi.
+@admin_denied not remote_ip 0.0.0.0/0 ::/0
+handle @admin_denied {
+	respond "Forbidden" 403
+}

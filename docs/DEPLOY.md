@@ -18,7 +18,7 @@ Production uchun yagona yo'l: Docker Compose (`docker-compose.yml`). Backend dep
 ## 1. Oldindan tayyorlash
 
 - **Server.** Docker Engine va Compose v2 (`docker compose`), `git`. Server qayta yoqilganda Docker o'zi ishga tushishi kerak: xizmatlar `restart: unless-stopped` bilan o'zlari qayta ko'tariladi. Portlar: `FRONTEND_PORT` (8080), `BACKEND_PORT` (8000) va hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000, faqat `127.0.0.1` da, 4-bo'lim) tashqi proksi uchun; Postgres va Redis tashqariga ochilmaydi, ularni va ularning dasturlarini serverga o'rnatish shart emas.
-- **Domen va HTTPS.** Telegram Mini App va webhook faqat HTTPS bilan ishlaydi. Compose TLS o'rnatmaydi: sertifikatni tashqi reverse proxy (nginx, Caddy, Cloudflare) beradi (4-bo'lim).
+- **Domen va HTTPS.** Telegram Mini App va webhook faqat HTTPS bilan ishlaydi. Compose TLS o'rnatmaydi: sertifikatni tashqi reverse proxy (nginx, Caddy, Cloudflare) beradi (4-bo'lim). Tayyor variant: `docker-compose.edge.yml` (Caddy, avtomatik TLS), 11-bo'lim.
 - **Telegram bot** (BotFather): token (`TELEGRAM_BOT_TOKEN`), username (`TELEGRAM_BOT_USERNAME` va Mini App'dagi `VITE_BOT_USERNAME`, `@` siz), Mini App manzili (`TELEGRAM_WEBAPP_URL`).
 - **Click / Payme** merchant: maxfiy kalitlar (`CLICK_SECRET_KEY`, `PAYME_SECRET_KEY`) va id'lar. Merchant kabinetida webhook manzillari: `https://<domen>/api/v1/payments/click/webhook` va `https://<domen>/api/v1/payments/payme/webhook`.
 - **Maxfiy qiymatlar:** `APP_KEY` — `echo "base64:$(openssl rand -base64 32)"`; `TELEGRAM_WEBHOOK_SECRET` — `openssl rand -hex 32` (faqat `A-Za-z0-9_-` ruxsat etiladi); super admin paroli (`SuperAdminSeeder` ishlatilsa) kamida 12 belgi.
@@ -502,3 +502,52 @@ docker compose ps && curl -fsS https://<domen>/api/v1/health
 - **Orqaga qaytarish:** oldingi tegga `git checkout <eski-teg> && docker compose up -d --build` (7-bo'lim: migratsiya `down()` lari va zaxiradan tiklash).
 - Production'dan keyin tegni va commit'ni jamoaga yozib qo'ying (Sentry release nomi bilan bir xil), shunda xato qaysi release'dan boshlanganini topish oson bo'ladi.
 
+
+## 11. Edge proksi (HTTPS) va GitHub Actions orqali deploy
+
+Server paydo bo'lganda kerak bo'ladigan hamma narsa repoda tayyor: faqat DNS va sirlar kerak. Qadamma-qadam: [SERVER_SETUP.md](SERVER_SETUP.md).
+
+**Edge proksi** (`docker-compose.edge.yml`, `infra/edge/Caddyfile`, Caddy 2.8, rasmiy obraz). 4-bo'limdagi "tashqi reverse proxy" shu: 80/443 ni
+oladi, Let's Encrypt sertifikatlarini o'zi oladi va yangilaydi (HTTP-01: har host DNS'da serverga qaragan bo'lishi kerak), HTTP ni HTTPS ga
+yo'naltiradi. Alohida fayl: oddiy ishlab chiqish (`docker compose up`) o'zgarmagan. Serverda `COMPOSE_FILE` ga qo'shiladi
+(`.env.production.example`, `.env.staging.example` da tayyor). Muhit o'zgaruvchilari (ildiz `.env`): `EDGE_DOMAIN` (`rizqim.uz` / `stg.rizqim.uz`),
+`EDGE_PROFILE` (`production` / `staging`: staging'da `X-Robots-Tag: noindex` va `robots.txt` `Disallow`), `EDGE_ACME_EMAIL`, ixtiyoriy `EDGE_ADMIN_ACCESS`.
+
+| Host | Xizmat | Izoh |
+|---|---|---|
+| `<domen>`, `www` | `landing:8080` | `www` -> asosiy domenga 301 |
+| `app.<domen>` | `frontend:80` | Mini App; `/api/`, `/storage/` va `/app/` (Reverb) ni frontend nginx'i o'zi uzatadi (same-origin, CORS kerak emas). Chegara 10 MiB |
+| `api.<domen>` | `backend:80`; `/app/*` -> `reverb:8080` | API, webhook'lar, WebSocket. `/apps/*` (Reverb HTTP API) yopiq. Chegara 16 MiB, javob 310 s (backend `fastcgi_read_timeout` 300) |
+| `business.<domen>` | `partner-web:3000` | hamkor paneli; brauzer API'ga `api.<domen>` orqali boradi |
+| `admin.<domen>` | `platform-admin:3000` | boshqaruv markazi; IP ro'yxati bilan cheklash mumkin (SERVER_SETUP.md, 6.1). Yuklash 12 MiB (proksi 11 MiB), `sync-import` 9 MiB (fayl 8 MiB), Excel eksport 330 s |
+| `pos.<domen>` | `pos-site:80` | POS ilovalarini yuklab olish |
+| `links.<domen>` | `infra/edge/links` | vaqtincha sahifa (asosiy saytga yo'naltiradi) |
+
+- **Mijoz IP'si.** Caddy tashqaridan kelgan `X-Forwarded-*` ga ishonmaydi va `X-Forwarded-For` ga ulanayotgan mijoz manzilini yozadi.
+  Backend (`bootstrap/app.php` `trustProxies` va `backend/docker/nginx.conf` `set_real_ip_from`) faqat xususiy tarmoqdan (Docker 172.16.0.0/12)
+  kelgan `X-Forwarded-For` ga ishonadi; hamkor va admin panellari uning oxirgi yozuvini oladi: hammasi bir xil haqiqiy IP'ni ko'radi.
+  Edge oldiga CDN (Cloudflare) qo'ysangiz, Caddy'ga `trusted_proxies` kerak bo'ladi (hozir yo'q).
+- **Qayta ishga tushirish paytida.** Upstream konteyner qayta yaratilayotganda ulanish xatosi bo'lgan so'rov 60 soniyagacha kutadi (`lb_try_duration`), 502 emas.
+- **Portlar.** Edge bilan Mini App porti ham `127.0.0.1` ga bog'lanadi (`FRONTEND_BIND`); tashqaridan faqat 80/443 ochiq (Docker `ufw` ni chetlab o'tadi). CI shuni tekshiradi.
+- **Domen o'zgaruvchilari** (`.env.production.example`, `.env.staging.example`, `backend/.env.*.example`): `APP_URL` = `https://api.<domen>`; `TELEGRAM_WEBAPP_URL` = `https://app.<domen>`;
+  `TELEGRAM_WEBHOOK_URL` bo'sh (= `APP_URL` + `/api/v1/telegram/webhook`); `PARTNER_WEB_URL` = `https://business.<domen>`; `ADMIN_APP_URL` = `https://admin.<domen>`;
+  `CORS_ALLOWED_ORIGINS` = `https://business.<domen>,https://app.<domen>`; `REVERB_ALLOWED_ORIGINS` = `app.<domen>,business.<domen>,api.<domen>`;
+  `PARTNER_PUBLIC_API_BASE_URL` = `https://api.<domen>/api`; `VITE_API_URL` = `/api/v1` (nisbiy); `VITE_PARTNER_WEB_URL` = `https://business.<domen>`; `VITE_REVERB_HOST` bo'sh.
+  `SANCTUM_STATEFUL_DOMAINS` kerak emas (API Bearer token bilan ishlaydi), `SESSION_DOMAIN=null`.
+
+**Deploy** (`.github/workflows/deploy.yml`, serverda `infra/deploy/deploy.sh`, ikkalasi `docker-compose.images.yml` bilan):
+
+1. `main` ga push -> **staging**; production faqat qo'lda (`workflow_dispatch`, faqat `main`/teg) va `production` environment'ining *Required reviewers* qoidasi bilan (egasi o'zi sozlaydi).
+   `*_SSH_HOST/USER/KEY` sirlari yo'q bo'lsa hamma ish toza o'tkazib yuboriladi.
+2. Obrazlar yig'iladi va `ghcr.io/<egasi>/<repo>/<xizmat>:<sha>` ga yuklanadi (Mini App obrazi `VITE_*` ni ichiga yozgani uchun muhit bo'yicha: `frontend-staging`, `frontend-production`;
+   `postgres`, `pgbouncer`, `backup` papka mazmuniga qarab belgilanadi, shuning uchun baza konteyneri har deploy'da qayta yaratilmaydi).
+3. Serverga fayllar to'plami (compose fayllari, `scripts/`, `infra/`, `release.env`) SSH orqali tushadi; `.env` fayllarga tegilmaydi. GHCR tokeni (`GITHUB_TOKEN`) SSH STDIN orqali o'tadi.
+4. `deploy.sh deploy`: oldindan tekshiruv (`.env`, `DEPLOY_TARGET`, parollar) -> obrazlarni tortish (xato bo'lsa hech narsaga tegilmaydi) -> production'da `backup.sh` ->
+   `docker compose up -d --no-build` -> hamma xizmat healthy -> `migrate --force` (entrypoint allaqachon o'tkazgan; qayta tekshiruv) -> `/up`, `/health`, Mini App API, landing ->
+   ommaviy manzil (`DEPLOY_PUBLIC_CHECK`: standart faqat ogohlantirish, `required` = xato bo'lsa qaytarish).
+5. Xato bo'lsa oxirgi yaxshi versiyaga **avtomatik qaytadi**, workflow qizil. Qo'lda: `infra/deploy/deploy.sh rollback`. Qaytarish kod obrazini qaytaradi, **bazani emas**:
+   migratsiyalar eski kod bilan ham ishlasin (avval qo'shish, keyin olib tashlash).
+6. Qayta ishga tushirish xavfsiz (idempotent): bir xil relizni ikkinchi marta joylash hech narsani buzmaydi. Bir vaqtda bitta deploy (`flock` va workflow `concurrency`).
+
+Uzilish: yangilash paytida backend 0,5-3 daqiqa javob bermaydi (entrypoint migratsiyani nginx'dan oldin bajaradi, yuqoridagi izohga qarang); edge shu vaqtda so'rovlarni 60 soniyagacha ushlaydi.
+To'liq uzilishsiz deploy (ikki backend nusxasi) hozir yo'q.
