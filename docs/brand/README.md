@@ -18,3 +18,8 @@ Notes for wave P (to confirm with the owner before building):
   control centre. The concept's extra fields (e-mail, partner types "Do'kon/Market", "Texnologik hamkor",
   "Yetkazib berish hamkori") have no backend yet: decide with the owner (wave P).
 - FAQ answers (is it free, commission, launch time, POS integration) must come from the owner's real tariffs.
+
+## Second round (21.11.2026), drawn from LANDING_CONTENT.md
+- `partner-v2-desktop.png`, `partner-v2-mobile.png`: partner page with the real form fields and the four form states. This is the version to build.
+- `landing-v2-mobile.png`: landing, mobile. The desktop landing of this round is still to come; `landing-concept-*.png` above are the first round only.
+- Supersedes `partner-page-concept.png` / `partner-form-concept.png` (first round: partner types, e-mail, not built).
