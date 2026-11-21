@@ -14,6 +14,7 @@ import {
   fetchServiceFees,
   fetchStoreDevices,
   fetchStoreSettings,
+  importSyncFile,
   renameStoreDevice,
   revokeStoreDevice,
   saveServiceFee,
@@ -202,5 +203,21 @@ describe('terminals', () => {
     const code = await createPairingCode(testApi(), { type: 'kds', branch_id: 1, name: 'Oshxona' });
     expect(code.code).toBe('ABCD-EFGH');
     expect(await calls[0]!.json()).toEqual({ type: 'kds', branch_id: 1, name: 'Oshxona' });
+  });
+
+  it('uploads a till queue file as multipart `file` and answers the totals with the server message', async () => {
+    const { calls } = mockFetch({ 'POST /api/v1/owner/pos/sync/import': () => json({ success: true, message: 'Fayl o\'qildi.', data: { complete: true, totals: { applied: 2 } } }) });
+    const result = await importSyncFile(testApi(), new File(['x'], 'q.rzq'));
+    expect(result.message).toBe("Fayl o'qildi.");
+    expect(result.complete).toBe(true);
+    expect(calls[0]!.headers.get('content-type')).toMatch(/^multipart\/form-data/);
+    expect(((await calls[0]!.formData()).get('file') as File).size).toBe(1);
+  });
+
+  it('refuses a whole file with the server message and reason', async () => {
+    mockFetch({ 'POST /api/v1/owner/pos/sync/import': () => json({ success: false, message: 'Fayl imzosi noto\'g\'ri.', data: { reason: 'file_mac_invalid' } }, 422) });
+    const refused = await importSyncFile(testApi(), new Blob(['x'])).catch((err: unknown) => err);
+    expect(getApiErrorMessage(refused)).toBe("Fayl imzosi noto'g'ri.");
+    expect((refused as StaffApiError).reason).toBe('file_mac_invalid');
   });
 });

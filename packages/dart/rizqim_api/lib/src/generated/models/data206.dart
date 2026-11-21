@@ -5,8 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'warnings6.dart';
-import 'lines12.dart';
-import 'open_shifts5.dart';
+import 'lines11.dart';
+import 'open_shifts4.dart';
 
 part 'data206.g.dart';
 
@@ -66,9 +66,9 @@ class Data206 {
   final int version;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  final List<Lines12> lines;
+  final List<Lines11> lines;
   @JsonKey(name: 'open_shifts')
-  final List<OpenShifts5> openShifts;
+  final List<OpenShifts4> openShifts;
 
   Map<String, Object?> toJson() => _$Data206ToJson(this);
 }

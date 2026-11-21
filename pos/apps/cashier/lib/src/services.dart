@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Directory;
 
 import 'package:pos_core/pos_core.dart' show ReceiptHeader;
 import 'package:pos_data/pos_data.dart';
@@ -39,6 +40,7 @@ class CashierServices {
     this.lanStore,
     this.billPrintPoll = const Duration(minutes: 1),
     this.qrPollInterval = const Duration(seconds: 3),
+    this.exportDirectory,
   }) : data =
            data ??
            PosData(
@@ -66,6 +68,32 @@ class CashierServices {
   /// Review P6 uskunalar/LAN (C2): o'tkazib yuborilgan schyot so'rovlari shu oraliqda ham o'qiladi
   /// ([BillPrintService.catchUp]; real-time sozlanmagan kassa ham chiqaradi). `null` — faqat hodisalarda.
   final Duration? billPrintPoll;
+
+  /// M5 S4: faylga saqlash papkasi (`null`: zaxira papkasi, [mirror]); testlarda almashtiriladi.
+  final Directory? Function()? exportDirectory;
+
+  /// M5 S4: zaxira nusxasi (`null`: bu qurilmada yo'q yoki oflayn rejim yo'q).
+  MirroredSyncStorage? get mirror {
+    final SyncStorage? s = data.offline?.store.storage;
+    return s is MirroredSyncStorage ? s : null;
+  }
+
+  /// M5 S4 (docs/scale/M5_DESIGN.md 5): "Navbatni faylga saqlash". Kalit va chetga olingan navbatlar mavjud
+  /// manbalardan ([PosSyncKeys.current], [PosOffline.orphans]); server `offline.export: true` demaguncha taklif
+  /// qilinmaydi (`null`: oflayn rejim yo'q).
+  late final SyncExporter? exporter = data.offline == null
+      ? null
+      : SyncExporter(
+          store: data.offline!.store,
+          keyProvider: () => data.syncKeys?.current(),
+          enabled: () => data.offline!.settings.export,
+          setAside: () => <SyncExportQueue>[
+            for (final PosOrphanQueue o in data.offline!.orphans)
+              SyncExportQueue(device: o.deviceUuid, operations: o.operations),
+          ],
+          directory: () =>
+              exportDirectory != null ? exportDirectory!() : mirror?.directory,
+        );
 
   /// P6 lokal ko'prik kalitlari saqlanadigan xavfsiz xotira (`null`: saqlanmaydi, testlar).
   final SecureKeyValueStore? lanStore;

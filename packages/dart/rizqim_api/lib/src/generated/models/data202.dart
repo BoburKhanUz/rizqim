@@ -5,8 +5,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'warnings2.dart';
-import 'lines8.dart';
-import 'open_shifts.dart';
 
 part 'data202.g.dart';
 
@@ -30,8 +28,6 @@ class Data202 {
     required this.closedAt,
     required this.version,
     required this.createdAt,
-    required this.lines,
-    required this.openShifts,
   });
 
   factory Data202.fromJson(Map<String, Object?> json) =>
@@ -66,9 +62,6 @@ class Data202 {
   final int version;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  final List<Lines8> lines;
-  @JsonKey(name: 'open_shifts')
-  final List<OpenShifts> openShifts;
 
   Map<String, Object?> toJson() => _$Data202ToJson(this);
 }

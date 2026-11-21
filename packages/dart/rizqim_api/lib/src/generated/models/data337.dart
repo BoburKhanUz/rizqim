@@ -4,43 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal39.dart';
+import 'blocks2.dart';
 
 part 'data337.g.dart';
 
 @JsonSerializable()
 class Data337 {
   const Data337({
-    required this.uuid,
-    required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.amount,
-    required this.method,
-    required this.reason,
-    required this.approvedBy,
-    required this.fiscal,
-    required this.createdAt,
+    required this.numbers,
+    required this.calling,
+    required this.businessDate,
+    required this.blockSize,
+    required this.lowWater,
+    required this.blocks,
+    required this.nextNumber,
   });
 
   factory Data337.fromJson(Map<String, Object?> json) =>
       _$Data337FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  final String amount;
-  final String method;
-  final String reason;
-  @JsonKey(name: 'approved_by')
-  final int? approvedBy;
-  final Fiscal39 fiscal;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final bool numbers;
+  final bool calling;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'block_size')
+  final int blockSize;
+  @JsonKey(name: 'low_water')
+  final int lowWater;
+  final List<Blocks2> blocks;
+  @JsonKey(name: 'next_number')
+  final int? nextNumber;
 
   Map<String, Object?> toJson() => _$Data337ToJson(this);
 }

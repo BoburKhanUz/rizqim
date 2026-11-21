@@ -26,12 +26,6 @@ Data202 _$Data202FromJson(Map<String, dynamic> json) => Data202(
   closedAt: json['closed_at'] as String?,
   version: (json['version'] as num).toInt(),
   createdAt: json['created_at'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines8.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts.fromJson(e as Map<String, dynamic>))
-      .toList(),
 );
 
 Map<String, dynamic> _$Data202ToJson(Data202 instance) => <String, dynamic>{
@@ -52,6 +46,4 @@ Map<String, dynamic> _$Data202ToJson(Data202 instance) => <String, dynamic>{
   'closed_at': instance.closedAt,
   'version': instance.version,
   'created_at': instance.createdAt,
-  'lines': instance.lines,
-  'open_shifts': instance.openShifts,
 };

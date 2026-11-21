@@ -2262,6 +2262,149 @@ pos_sync_operations: `sig_status`, `mac`). Kod: `App\Domain\Pos\Sync\SyncSignatu
 `PosSyncSignatureReviewTest.php` (ikki mustaqil tekshiruvdan keyingi tuzatishlar), `SyncKeyTest.php`,
 `SyncSigningSettingTest.php`, `tests/Feature/Admin/Monitoring/PosSyncSignatureCheckTest.php`.
 
+### Navbat faylidan tiklash (M5 S4)
+
+Kassa buzilsa, o'g'irlansa yoki uzoq vaqt internetsiz qolsa, uning yuborilmagan navbati yo'qolmasin: kassa navbatni
+faylga yozadi («Navbatni faylga saqlash», `.rzq`), egasi yoki menejer uni veb-panelda yuklaydi (RIZQIM — boshqaruv
+markazida), server amallarni **o'sha kassa nomidan**, jonli sinxron bilan aynan bir yo'ldan qo'llaydi. Fayl formati —
+`docs/scale/M5_DESIGN.md` 5-bo'lim ("As built: the export file"), umumiy test vektorlari
+`backend/tests/Fixtures/sync_export_vectors.json` (PHP va Dart testlari o'qiydi; faylda kalit yo'q).
+
+**Fayl** (1-versiya): UTF-8 matn, har qator bitta JSON obyekt va LF bilan tugaydi.
+
+```
+{"format":"rizqim-sync-export","version":1,"device":"<uuid>","kid":2,"kids":[1,2],"first_seq":41,"last_seq":97,"count":57,"created_at":"2026-11-21T09:30:00.000Z"}
+{"signed":"{\"op_id\":...}","mac":"<64 hex>","prev":"<64 hex>","kid":2}
+{"op_id":"uuid","seq":12,"type":"order.served","occurred_at":"...","staff_id":7,"payload":{...},"dev":"<oldingi ulanish uuid>"}
+...
+{"file_mac":"<64 hex>"}
+```
+
+- Sarlavha: `device` — faylni yozgan kassa; `kid` — fayl imzosi qaysi kalit bilan; `kids`, `first_seq`, `last_seq`,
+  `count`, `created_at` — odamlar va fayl nomi uchun (server tanani o'zi sanaydi). Server bilmagan kalitlar e'tiborga
+  olinmaydi.
+- Tana: amallar `POST /pos/sync` qabul qiladigan ko'rinishda — imzolangan `{signed, mac, prev, kid}` jurnaldagidek
+  (fayl uchun qayta imzolanmaydi) yoki imzosiz amalning o'zi. Boshqa ulanishda (S1 dagi chetga olingan navbat)
+  yozilgan amal oxirgi kalit sifatida `dev` (o'sha qurilma uuid) oladi va o'sha qurilma nomidan, uning kaliti bilan
+  tekshiriladi. `dev` faqat sarlavhadagi kassa filialidagi **uzilgan** kassa bo'lishi va qator o'sha kassaning o'z
+  kaliti bilan imzolangan bo'lishi kerak (`sig_status` `ok` yoki `chain_gap`); aks holda qator o'tkazib yuboriladi
+  (pastda).
+- Oxirgi qator: `file_mac = HMAC-SHA256(kalit, "rizqim-sync-export/v1\n" + oxirgi qatordan oldingi hamma bayt)`,
+  kalit — sarlavhadagi kassaning `kid` raqamli kaliti. Fayldagi biror bayt o'zgarsa, qator qo'shilsa yoki o'chirilsa
+  (CRLF ga aylantirish ham) imzo buziladi.
+- Chegaralar: **8 MB** va **10 000** amal (kassa undan ko'pini bir nechta faylga yozadi, har biri alohida yuklanadi).
+
+**Yo'llar** (ikkalasi `multipart/form-data`, maydon `file`; `Idempotency-Key` kerak emas: har amal `op_id` bilan bir
+marta qo'llanadi):
+
+| Yo'l | Kim | Nima |
+|---|---|---|
+| `POST /owner/pos/sync/import` | xodim, `devices.manage`; terminal PIN sessiyasidan 403 (`not-staff-session`); bitta filialga biriktirilgan menejer faqat o'z filiali kassasini | o'z do'koni kassasining fayli |
+| `POST /admin/pos/sync-import` | boshqaruv markazi, `stores.manage` + step-up + `reason` | istalgan do'kon kassasining fayli |
+
+**Butun fayl rad etiladi** (hech narsa qo'llanmaydi), javob `data.reason` va o'zbekcha `message` bilan (boshqaruv
+markazida `code` ham shu). Sarlavha o'qilgandan keyingi rad etish (`device_not_found`, `not_a_till`, `key_unavailable`,
+`file_mac_invalid`) urinish qilgan do'kon jurnaliga `pos.sync_import_refused` bo'lib yoziladi (`reason`, sarlavhadagi
+`device`, `kid`, `count`; aktor — yuklagan odam; `device_not_found` da qurilma bog'lanmaydi):
+
+| Holat | `data.reason` | Qachon |
+|---|---|---|
+| 404 | `device_not_found` | sarlavhadagi kassa chaqiruvchining do'konida (filialida) yo'q — boshqa do'kon kassasi ham |
+| 422 | `not_export_file` | bu format emas, oxirgi qator yo'q yoki sarlavha buzuq |
+| 422 | `version_unsupported` | `version` 1 emas («Fayl versiyasi (2) bu serverga noma'lum ...») |
+| 422 | `file_too_large` | 8 MB yoki 10 000 amaldan ko'p |
+| 422 | `not_a_till` | qurilma POS kassasi emas |
+| 422 | `key_unavailable` | serverda `kid` raqamli kalit yo'q: kassa uzilganiga 30 kundan oshgan (kalit o'chirilgan) yoki kalit ikki marta almashtirilgan |
+| 422 | `file_mac_invalid` | fayl imzosi noto'g'ri: o'zgartirilgan, to'liq emas yoki boshqa kassaning kaliti bilan |
+
+Kassa **uzilgan** yoki tokeni eskirgan bo'lishi mumkin: token ishlatilmaydi, kalit `revoked_at` dan keyin 30 kun
+saqlanadi.
+
+**Fayl imzosi to'g'ri bo'lgach hech narsa butun faylni rad etmaydi**: har qator o'zi javob oladi. Amallar
+`PosSyncService::sync()` orqali o'z kassasi nomidan, kassaning o'z qulfi ostida, `seq` tartibida 50 tadan qo'llanadi:
+`op_id` idempotentligi (fayl ikki marta yoki kassa bir qismini yuborgandan keyin yuklansa hech narsa o'zgarmaydi —
+`duplicate: true`), imzo va zanjir tekshiruvi (`sig_status`), do'kon rejimi (kuzatuv/qat'iy: qat'iy rejimda imzosi
+yo'q yoki buzuq to'lov ham **yoziladi**, `conflict`, `payment_unverified`), egaga xabarlar — jonli sinxrondagidek.
+To'lov hech qachon tashlanmaydi.
+
+- Kassa uzilganidan (`revoked_at`) **keyin** sanalgan amal (kassa soati bo'yicha; vaqti o'qilmasa ham) — qat'iy
+  rejim imzosiz amalni qanday qabul qilsa, shunday: sotuv (buyurtma, bosqich, schyot, yopish...) **qo'llanadi** va
+  `conflict`, `reason: device_revoked` bo'ladi ("Sinxronlash xatolari"da menejerga); **chegirma** (`order.discount`) va
+  **o'chirish** (`order.void`) qo'llanmaydi — `rejected` (chegirma `discount_not_allowed`, `refs.cause:
+  device_revoked`; o'chirish `device_revoked`), schyot to'liq narxda; **to'lov** baribir yoziladi (`conflict`; S1 dagi
+  `staff_unverified` yo'li: schyot ochiq bo'lsa unga, aks holda bog'lanmagan holda; `refs` da `device_revoked`). Sotuv
+  hech qachon tashlanmaydi. Boshqa terminal nomidan (`origin_device`) kelgan amal jonli sinxrondagidek hal qilinadi
+  (to'lov releyda qabul qilinmaydi: `relay_not_allowed`), hech qachon markaz kassa nomiga yozilmaydi.
+- **12 oydan eski** amal (kassa soati bo'yicha; `pos_sync_operations` 12 oydan keyin tozalanadi, qatori yo'qolgan
+  bo'lishi mumkin — ikkinchi marta jimgina qo'llanmasin): xuddi shunday, sababi `operation_too_old`.
+- Amal sifatida o'qilmaydigan qator — `skipped` da `invalid_payload`; o'zini taniydigan (`op_id`, `seq` bor) buzuq qator
+  sinxron endpointidagidek `rejected` `invalid_payload` bo'lib yoziladi.
+- `dev` sarlavhadagi kassa filialining uzilgan POS kassasi bo'lmasa (ishlab turgan kassa, boshqa filial, boshqa
+  do'kon) — `skipped`, `device_unknown`; qator o'sha kassaning o'z kaliti bilan imzolanmagan (imzosiz, imzo buzuq,
+  kalit o'chirilgan) — `skipped`, `signature_invalid`; `op_id` boshqa qurilmaniki — `skipped`, `op_id_conflict`;
+  faylda bir `op_id` ikki marta — `skipped`, `repeated_line`.
+- `seq` raqami serverda shu kassaning boshqa amaliga tegishli bo'lsa (kassa jurnalini yo'qotib, serverdagi
+  `last_seq` dan davom etgan va keyin eski fayl yuklangan): jonli kassa `seq_reused` olib qayta raqamlardi; bu yerda
+  kassa yo'q, shuning uchun o'sha amal va undan keyingi amallar keyingi bo'sh raqamlarni oladi (`renumbered_from` — fayldagi
+  raqami). MAC o'z matni ustidan tekshiriladi, zanjirdagi o'rni kassaniki emas (`chain_gap` bo'lishi mumkin).
+- Bitta so'rov taxminan **20 soniya** ishlaydi; qolgani `totals.pending`, `complete: false`,
+  `stopped_reason: time_budget` — **shu faylni yana yuklang** (qo'llangani `duplicate` bo'lib qaytadi). Kassaning o'zi
+  aynan shu paytda sinxronlayotgan bo'lsa (kassa qulfi 10 soniyada bo'shamasa) — `stopped_reason: sync_in_progress`,
+  hech qachon 500 emas; baza xatosi — `database`. Kutilmagan xato (500) bo'lsa ham shu paytgacha qo'llangani auditga
+  yoziladi (`stopped_reason: error`).
+- Importdan keyin **sarlavhadagi** kassaning oxirgi xabar qilgan navbati (`devices.sync_pending_ops`) yozilgan amallar
+  soniga kamaytiriladi (0 bo'lsa `sync_oldest_op_at` ham tozalanadi): qutqarilgan kassa smenasi yopila oladi. Boshqa
+  qurilma (`dev`) navbatiga tegilmaydi. Import kassaning «oxirgi xabari» emas: `devices.sync_reported_at` o'zgarmaydi
+  (jim kassa monitoringi uni jim deb ko'rishda davom etadi); `sync_last_seq` hech qachon kamaymaydi.
+- Fayl raqamlari serverda yo'q raqamlardan keyin boshlansa (masalan ikki fayldan ikkinchisi birinchi yuklandi):
+  fayl baribir qo'llanadi va `warnings[]` da `earlier_numbers_missing` qaytadi (`device`, `first_seq`,
+  `server_last_seq` — serverdagi `first_seq` dan oldingi eng katta raqam, `message`). 1 dan boshlangan fayl hech
+  qachon ogohlantirmaydi. Kassa yangi ulanishda raqamlashni davom ettirgan bo'lsa ham shu ogohlantirish chiqishi
+  mumkin: boshqa fayl bo'lmasa menejer kassa sotuvlarini tekshiradi.
+
+**Javob** 200 (`message` — bir qatorli xulosa, masalan «Fayl o'qildi: 57 ta amal yozildi, 0 tasi avval kelgan.»):
+
+```json
+{"success": true, "message": "...", "data": {
+  "server_time": "2026-11-21T10:00:00.000000Z",
+  "complete": true,
+  "stopped_reason": null,
+  "file": {"version": 1, "device": "<uuid>", "kid": 2, "created_at": "...", "count": 57, "first_seq": 41, "last_seq": 97},
+  "device": {"uuid": "<uuid>", "name": "Kassa 1", "prefix": "K1", "last_seq": 97, "pending_ops": 0, "oldest_op_at": null,
+             "reported_at": "...", "clock_skew_seconds": null, "clock_warning": false, "revoked_at": null},
+  "totals": {"operations": 57, "applied": 55, "conflict": 1, "rejected": 1, "duplicate": 0, "skipped": 0, "pending": 0, "renumbered": 0},
+  "results": [{"op_id": "uuid", "seq": 41, "type": "order.open", "status": "applied", "reason": null, "message": null,
+               "duplicate": false, "sig_status": "ok", "refs": {}, "line": 2, "device": "<uuid>", "renumbered_from": null}],
+  "skipped": [{"line": 9, "op_id": null, "seq": null, "device": null, "reason": "invalid_payload", "message": "..."}],
+  "warnings": []
+}}
+```
+
+`results[]` — serverda qatori bor har amal (`POST /pos/sync` natijasi kabi) va qo'shimcha `line` (fayldagi qator, 1 —
+sarlavha), `device` (qaysi qurilma nomidan qo'llangan), `renumbered_from`. `skipped[]` — hech narsa yozilmagan
+qatorlar. `file.first_seq`/`last_seq` — sarlavhadagi kassaning o'z amallari bo'yicha, tanadan hisoblangan. `totals`
+da `applied`/`conflict`/`rejected` faqat yangi yozilganlar, `duplicate` — avval bor bo'lganlar.
+
+**Audit**: `pos.sync_imported` (qurilma ustida; aktor — yuklagan odam; `kid`, `file_created_at`, `first_seq`,
+`last_seq`, `totals`, `complete`, `stopped_reason`, `revoked`, `other_devices` — `dev` qurilmalar uuid lari,
+`warnings` — ogohlantirishlar soni); rad etilgan fayl — `pos.sync_import_refused` (yuqorida);
+boshqaruv markazida qo'shimcha `admin.pos.sync_imported` (`reason`, `device`, `first_seq`, `last_seq`, `totals`,
+`complete`). Kalit, `mac` va amallar mazmuni hech qayerda (javob, audit, log) yo'q.
+
+**Bootstrap**: `GET /pos/bootstrap` → `offline.export` (bool) — `true` bo'lsa server bunday faylni qabul qiladi va
+kassa «Navbatni faylga saqlash» hamda nusxadan tiklashni taklif qiladi; `pos.sync_signing` o'chirgichi bilan `false`
+(imzosiz fayl hech narsaga yaramaydi).
+
+**Ma'lum cheklov** (jonli sinxrondagi bilan bir xil): xodim tekshiruvi PIN kirishini amal vaqtiga nisbatan o'lchaydi
+(oxirgi 48 soat ichida saqlangan vaqt, sessiya oynasi 36 soat). Kassir shu kassaga oxirgi kirganidan **taxminan 3,5
+kundan** keyin yuklangan faylning sotuvlari `staff_not_signed_in` bilan rad etiladi, to'lovlari `staff_unverified`
+bo'lib yoziladi: faylni **3 kun ichida** yuklang (`docs/OPERATIONS.md`, «Kassa navbatini fayldan tiklash»).
+
+Kod: `App\Domain\Pos\Sync\PosSyncImport`, `SyncExportFile`, `SyncSignature::fileMac()`/`verifiesFile()`,
+`Management\SyncImportController`, `Admin\AdminPosSyncImportController`. Testlar:
+`tests/Unit/PosSync/SyncExportVectorsTest.php`, `tests/Feature/PosSync/PosSyncImportTest.php`,
+`PosSyncImportAdminTest.php`.
+
 ### GET /pos/sync/errors va resolve
 
 `GET /pos/sync/errors?branch_id=&device=&all=&page=` — yangisi birinchi, sahifada 50 ta; `all=1` hal qilinganlarini
@@ -2283,7 +2426,9 @@ qatorning xizmat haqi qoidalari `{by_order_type, large_group_min_guests, large_g
 `alert_after_minutes` 120, `max_queued_orders` 500, `menu_max_age_hours` 24, `contact_max_age_hours` 24,
 `fiscal_warn_hours` [24, 40], `fiscal_limit_hours` 48, `clock_skew_warn_seconds` 300). M5 S2: `discount` (bool) —
 `true` bo'lsa server `order.discount` amalini qabul qiladi va kassa internetsiz chegirma taklif qilishi mumkin; kalit
-yo'q yoki `false` bo'lsa kassa oflaynda chegirma bermaydi (eski server).
+yo'q yoki `false` bo'lsa kassa oflaynda chegirma bermaydi (eski server). M5 S3: `signing`, `signing_kid`
+("Imzolangan navbat"). M5 S4: `export` (bool) — server kassaning navbat faylini qabul qiladi ("Navbat faylidan
+tiklash"); `pos.sync_signing` o'chiq bo'lsa `false`.
 
 ### Smenani yopish
 
@@ -3556,6 +3701,7 @@ sana (`business_date`, `due_date`) — `Y-m-d`.
 | `GET /admin/pos/sync-errors?state=&status=&type=&store_id=&device=&from=&to=` | `devices.view` | Oflayn sinxron xatolari: qabul qilinmagan (`rejected`) va farq bilan qabul qilingan (`conflict`) amallar. `state`: `open` (hal qilinmagan, odatda), `resolved`, `all` |
 | `GET /admin/pos/sync-errors/{opId}` | shu | Xato kartasi: kassa yuborgan `payload` (kaliti telefon, karta, PIN, token, parol yoki maxfiy bo'lsa `***`) va serverdagi natija (`refs`) |
 | `POST /admin/pos/sync-errors/{opId}/resolve` | `stores.manage` + step-up + `reason` | `resolution`: `resolved` (qo'lda hal qilindi) yoki `dismissed` (hech narsa qilish kerak emas). `reason` hal qilish izohiga yoziladi. Hal qilingan qabul qilinmagan amal kassaning smenasi yopilishiga endi to'sqinlik qilmaydi |
+| `POST /admin/pos/sync-import` | `stores.manage` + step-up + `reason` | M5 S4: kassaning navbat fayli (`file`, `.rzq`, 8 MB gacha) istalgan do'kon uchun — egasining `POST /owner/pos/sync/import` bilan bir xil import va javob ("Navbat faylidan tiklash"). Rad etish: 404 `device_not_found`, 422 `not_export_file`, `version_unsupported`, `file_too_large`, `not_a_till`, `key_unavailable`, `file_mac_invalid` (`code` va `data.reason`). Audit: do'kon jurnaliga `pos.sync_imported`, boshqaruv markaziga `admin.pos.sync_imported` |
 
 Bugun'ning diqqat havolalari ochiladigan joy: `/pos?invoice=<uuid>`, `/pos?device=<uuid>`, `/pos?fiscal=<uuid>` mos
 tabni va qatorni ochadi; `/pos?store=<id>` (ovqatxona kartasidagi «Obuna») shu ovqatxonaning obunasini ochadi;

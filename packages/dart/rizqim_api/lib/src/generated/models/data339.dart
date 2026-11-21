@@ -5,8 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'device13.dart';
-import 'opened_by2.dart';
-import 'closed_by5.dart';
+import 'opened_by.dart';
+import 'closed_by4.dart';
 
 part 'data339.g.dart';
 
@@ -45,13 +45,13 @@ class Data339 {
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy2? openedBy;
+  final OpenedBy? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy5? closedBy;
+  final ClosedBy4? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminPosInvoiceController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosOverviewController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosShiftController;
 use App\Http\Controllers\Api\V1\Admin\AdminPosSyncErrorController;
+use App\Http\Controllers\Api\V1\Admin\AdminPosSyncImportController;
 use Illuminate\Support\Facades\Route;
 
 // P4-24: POS va obunalar. Loaded from routes/api_admin.php inside the auth:admin group (prefix /api/v1/admin, names
@@ -45,5 +46,7 @@ Route::prefix('pos')->name('pos.')->group(function () {
         Route::post('/devices/{uuid}/revoke', [AdminPosDeviceController::class, 'revoke'])->whereUuid('uuid')->name('device_revoked');
         Route::post('/fiscal-receipts/{uuid}/retry', [AdminPosFiscalController::class, 'retry'])->whereUuid('uuid')->name('fiscal_receipt_retried');
         Route::post('/sync-errors/{opId}/resolve', [AdminPosSyncErrorController::class, 'resolve'])->whereUuid('opId')->name('sync_error_resolved');
+        // Wave M5 S4-b: a till's rescue file imported for any store (docs/OPERATIONS.md, the rescue runbook)
+        Route::post('/sync-import', [AdminPosSyncImportController::class, 'store'])->name('sync_imported');
     });
 });

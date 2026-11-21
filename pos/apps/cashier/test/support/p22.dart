@@ -1,3 +1,5 @@
+import 'dart:io' show Directory;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,10 +21,12 @@ class P22 {
     bool realtime = true,
     SyncStore? offlineStore,
     CashierHardware? hardware,
+    Directory? Function()? exportDirectory,
   }) : h = CashierHarness(
          realtime: realtime,
          offlineStore: offlineStore,
          hardware: hardware,
+         exportDirectory: exportDirectory,
        ) {
     backend = FakeCashierBackend(h.state);
     SharedPreferences.setMockInitialValues(<String, Object>{});

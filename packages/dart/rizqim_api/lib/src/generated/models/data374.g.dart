@@ -7,21 +7,23 @@ part of 'data374.dart';
 // **************************************************************************
 
 Data374 _$Data374FromJson(Map<String, dynamic> json) => Data374(
-  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store4.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
-      ? null
-      : Branch22.fromJson(json['branch'] as Map<String, dynamic>),
-  branches: (json['branches'] as List<dynamic>)
-      .map((e) => Branches4.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data374ToJson(Data374 instance) => <String, dynamic>{
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
-  'branches': instance.branches,
+  'id': instance.id,
+  'name': instance.name,
+  'polygon': instance.polygon,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
 };

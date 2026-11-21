@@ -701,6 +701,8 @@ $owner = [
     // Wave M5 S3-d: the store's own signature mode; no id in the request
     'GET api/v1/owner/pos/sync-signing' => ['ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/sync-signing' => ['body' => fn (array $s) => ['enforce' => true, 'confirm_unsigned' => true], 'ok' => $o(200, 403, 403)],
+    // Wave M5 S4-b: a multipart upload (uncovered below); another store's till is 404 (PosSyncImportTest)
+    'POST api/v1/owner/pos/sync/import' => ['ok' => $o(422, 422, 403)],
     'GET api/v1/owner/pos/service-charge-rules' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/service-charge-rules' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'hall_id' => $s['hall']->id, 'large_group_min_guests' => 10, 'large_group_percent' => '15'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/tips' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
@@ -899,6 +901,7 @@ return [
     'uncovered' => [
         'POST api/v1/owner/categories' => 'the platform category tree: super_admin only (EnsureUserHasRole:super_admin), no store actor gets past it',
         'POST api/v1/owner/settings/upload' => 'a multipart file upload; the harness sends JSON only',
+        'POST api/v1/owner/pos/sync/import' => 'a multipart file upload (a till\'s rescue file); the harness sends JSON only. The file names its till: another store\'s is 404 device_not_found (PosSyncImportTest::test_another_stores_till_is_not_found)',
         'POST api/v1/pos/shifts' => 'one open shift per till: the world\'s till keeps its shift open for every payment route (A\'s call answers 409 shift already open)',
         'POST api/v1/pos/clock/in' => 'the world clocks the cashier in so that clock/out is proved; clock in again is 409 (no ids in the route either)',
         'POST api/v1/pos/orders/{uuid}/close' => 'paying the last bill closes the order itself; close only finishes an order whose receipt was pending (409 order_not_settled otherwise)',

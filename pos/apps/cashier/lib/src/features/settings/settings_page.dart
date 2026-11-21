@@ -19,6 +19,7 @@ import '../../shell/unpair_dialog.dart';
 import '../billing/cashier_ui.dart';
 import 'cashier_prefs.dart';
 import 'printer_discovery_page.dart';
+import 'zaxira_card.dart';
 
 /// Sozlamalar (13-ekran 17; P3-31: menejerga "Sinxronlash xatolari"): bootstrap'dagi printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu
 /// qurilmada qog'oz eni va "matnni rasm sifatida"), yangi onlayn buyurtma ovozi, qurilma ma'lumoti va terminalni uzish.
@@ -186,6 +187,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // M5 S4: the backup folder and "Navbatni faylga saqlash" (hidden unless the server takes such files)
+          ZaxiraCard(services: scope.services),
           _device(c, scope, boot),
           const SizedBox(height: 16),
           // P6 stage B: the local bridge (hub state, devices, the manual IP/QR)

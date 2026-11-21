@@ -2,11 +2,15 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_owner_branches_id_pos_settings_response.dart';
 import '../models/get_v1_owner_pos_sync_signing_response.dart';
+import '../models/post_v1_owner_pos_sync_import_response.dart';
 import '../models/put_v1_owner_branches_id_pos_settings_response.dart';
 import '../models/put_v1_owner_pos_sync_signing_response.dart';
 import '../models/v1_owner_branches_id_pos_settings_request_body.dart';
@@ -72,5 +76,35 @@ abstract class OwnerPosSettingsApi {
   @PUT('/v1/owner/pos/sync-signing')
   Future<PutV1OwnerPosSyncSigningResponse> syncSigningUpdate({
     @Body() required V1OwnerPosSyncSigningRequestBody body,
+  });
+
+  /// Import a till's queue file.
+  ///
+  /// A multipart upload: `file`, the `.rzq` file a till wrote (at most 8 MB and 10 000 operations). The server finds.
+  /// the till by the file's header (it may be disconnected or its token expired; its key is kept 30 days after it was.
+  /// disconnected), checks the file's MAC and then applies every operation as that till, exactly like.
+  /// `POST /pos/sync`: once by its `op_id` (a file uploaded twice, or after the till sent a part of it, changes.
+  /// nothing: `duplicate: true`), with the same signature check (`sig_status`) and store mode — a payment is recorded,.
+  /// never dropped. `results`: one entry per operation that has a row on the server, as the sync endpoint answers it,.
+  /// with its `line` in the file, the `device` it was applied as and `renumbered_from` (its number in the file when.
+  /// that number already belonged to another operation and it was given the next free one). `skipped`: lines nothing.
+  /// was recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device that is not a.
+  /// disconnected till of the same branch; `signature_invalid`: such a line not signed by that till's own key;.
+  /// `repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is applied and a conflict.
+  /// `device_revoked`, one older than 12 months a conflict `operation_too_old`: a discount or a void of those is.
+  /// refused, a payment recorded (a conflict), a sale never dropped. `warnings`: `earlier_numbers_missing` — the.
+  /// file's numbers start after ones the server does not hold for the till (upload its earlier file too); the file was.
+  /// applied all the same. A refused file is audited (`pos.sync_import_refused`). `complete: false`: the time for one request.
+  /// ran out (`stopped_reason: time_budget`), the till itself is syncing (`sync_in_progress`) or the database failed.
+  /// (`database`); `totals.pending` operations are left: upload the same file again.
+  /// The whole file is refused (nothing applied) with 422 and `data.reason`: `not_export_file`, `version_unsupported`,.
+  /// `file_too_large`, `not_a_till`, `key_unavailable` (no key to check it with), `file_mac_invalid`; a till that is.
+  /// not this store's: 404 `device_not_found`.
+  ///
+  /// [file] - The .rzq file written by the till ("Navbatni faylga saqlash"), at most 8 MB.
+  @MultiPart()
+  @POST('/v1/owner/pos/sync/import')
+  Future<PostV1OwnerPosSyncImportResponse> syncImportStore({
+    @Part(name: 'file') required File file,
   });
 }

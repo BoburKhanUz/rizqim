@@ -373,7 +373,9 @@ till's own operation makes it fetch a new key (empty queue only, with backoff). 
    AppData). Android: the app's external files directory (`path_provider`, already a dependency). On start, if the
    journal is missing or shorter than the mirror, the till restores from the mirror (MACs verify it). [E] This covers
    corruption, an accidental "clear data" on Windows and bug 3; it does **not** cover a dead or stolen Android till,
-   where both copies are on one flash chip.
+   where both copies are on one flash chip. (Corrected after the S4 review: the folder survives a clean-up of
+   AppData, but the key and the pairing do not, so that copy can no longer be restored or sealed into a file; see
+   "What the mirror does not cover" at the end of this section.)
 3. **A signed export file** (stage S4): "Navbatni faylga saqlash" in the till's settings writes
    `rizqim-navbat-<device>-<first seq>-<last seq>.rzq` (header + the signed lines + a MAC over the whole file) to the
    mirror folder or, on Windows, to a chosen path such as a USB stick. Offered automatically when the outage passes
@@ -396,6 +398,149 @@ needs a copy on a second device (section 9), which the narrow scope does not jus
 
 Rejected: encrypting the journal at rest (it holds no secrets; the keys are in secure storage); SQLite or another
 store (the queue is small, POS_SPEC 5.2); mirroring to a waiter's phone or the KDS over the LAN (section 9).
+
+**As built: the export file (S4-b, 21.11.2026; version 1).** The contract between the till's export (S4-a) and the
+server's import (S4-b). Both are pinned to `backend/tests/Fixtures/sync_export_vectors.json` (written by an independent
+script; no key inside, a test derives its keys from the seed), read by the PHP and the Dart tests.
+
+- *File.* `rizqim-navbat-<device uuid>-<first seq>-<last seq>.rzq` (0 for a seq the header gives as null). UTF-8 text
+  without a BOM. Every line is one JSON object written without spaces or line breaks and ends with LF (never CRLF):
+  the header, then the body lines, then the trailer as the last line.
+- *Header* (line 1), keys in this order:
+  `{"format":"rizqim-sync-export","version":1,"device":"<uuid>","kid":<n>,"kids":[<n>,...],"first_seq":<n|null>,"last_seq":<n|null>,"count":<n>,"created_at":"<UTC ISO 8601>"}`.
+  `device`: the till that writes the file (its current pairing), lower case. `kid`: the number of the key the file's
+  MAC is made with. `kids`: the `kid` of every signed body line, each once, ascending. `first_seq` / `last_seq`: the
+  lowest and highest `seq` of the header device's own lines (null when it has none). `count`: the number of body
+  lines. A reader ignores header keys it does not know; the server acts on `format`, `version`, `device` and `kid`
+  only and counts the body itself (the rest is for people and the file name).
+- *Body.* One operation per line, in the shape `POST /pos/sync` takes it: a signed one
+  `{"signed":"<raw>","mac":"<hex>","prev":"<hex>","kid":<n>}` with the journal's text, mac, prev and kid unchanged
+  (never signed again for the file), an unsigned one (queued before the till had a key) as the operation itself
+  `{"op_id","seq","type","occurred_at","staff_id","payload"[,"origin_device"]}`. An operation queued under **another
+  pairing** (an orphan queue of S1 whose device uuid is not the header's) carries that uuid, lower case, as a last key
+  `"dev"`: it stays signed under that device's key and the server applies it as that device. Order: the lines with
+  `dev` first (by `dev` as text, then `seq`, then `op_id`), then the device's own (by `seq`, then `op_id`); one line
+  per `op_id`. The server does not depend on the order (it sorts by device and `seq`) and answers a repeated `op_id`
+  as a duplicate. Unreadable journal lines (damage) are not part of the file.
+- *Trailer* (last line): `{"file_mac":"<64 lower-case hex>"}`,
+  `file_mac = HMAC-SHA256(key, utf8("rizqim-sync-export/v1\n") || every byte of the file before the trailer line)`
+  (the header and body lines, each with its LF), the key being the header device's key number `kid`. The label keeps
+  a file MAC from ever being an operation's MAC. A LF after the trailer is written; a reader takes the file without
+  it. Anything changed, removed or added before the trailer, a CRLF rewrite included, breaks the MAC.
+- *JSON text*, so that both sides write the same bytes: as Dart's `jsonEncode` — keys in the order given, no spaces,
+  only `"`, `\` and the characters below U+0020 escaped (`\n \r \t \b \f`, else `\u00XX`), `/` and non-ASCII
+  left as they are. The server never re-encodes: it checks the bytes and reads each line with a JSON parser.
+- *Never in the file:* a key. *Limits:* 8 MiB and 10 000 body lines (the till writes several files past that, each
+  whole by itself, imported in `seq` order).
+- *Refused whole* (422, nothing applied): not this format (`not_export_file`), a version other than 1
+  (`version_unsupported`), too large (`file_too_large`), a device that is not a POS till (`not_a_till`), no key
+  number `kid` held for the device — erased 30 days after it was disconnected, or pushed out by two rotations
+  (`key_unavailable`) —, a wrong file MAC (`file_mac_invalid`). A device outside the caller's store: 404.
+
+**As built: the import (S4-b, `PosSyncImport`, `SyncExportFile`).** `POST /v1/owner/pos/sync/import` (the partner
+panel: `devices.manage`, never a PIN session; a branch-bound manager only their branch's tills) and
+`POST /v1/admin/pos/sync-import` (the control centre: `admin.stores.manage`, step-up, a `reason`; any store), both a
+multipart upload `file`. (The owner path is under `/owner/pos/` like the panel's other POS settings, not
+`/v1/pos/sync/import` as first written above.)
+
+- Once the file MAC is right nothing refuses the file: each line is answered by itself. The operations go through
+  `PosSyncService::sync()` as their device, under the till's own lock, in batches of 50 in `seq` order, bound to the
+  device's store: the same idempotency (`op_id`), signature and chain check (`sig_status`), store mode (observe /
+  enforce: a payment is recorded, `payment_unverified`, never dropped) and owner messages as a live sync. A file
+  imported twice, or after the till sent a part of it, changes nothing (`duplicate: true`).
+- A line that holds no usable operation is answered in `skipped` (`invalid_payload`) or, when it names itself,
+  recorded rejected, exactly as the sync endpoint does. A line whose `dev` is no POS till of the store is skipped
+  (`device_unknown`); an `op_id` that belongs to another device is skipped (`op_id_conflict`).
+- A number already taken by another operation of the device (the till lost its journal, went on from the server's
+  `last_seq`, and an older file is imported): live, the till would be told `seq_reused` and renumber. There is no
+  till here, so the import gives that operation and every later one of that device in the file the next free numbers
+  (`renumbered_from` in its result; its mac is still checked over its own text, its place in the chain is not the
+  till's: `chain_gap`). Money in such a file is not lost.
+- A disconnected till: the file is taken while the key is kept (30 days after `revoked_at`). An operation dated after
+  `revoked_at` (the till's clock; also one without a readable time) is not applied: recorded rejected
+  `device_revoked` for the manager. A **payment** dated after it is still recorded, as the owner rule demands (the
+  way of S1's `staff_unverified`: onto its bill when open, else unallocated; the flag's reason `device_revoked`).
+- The request works for about 20 seconds; what is left is answered as `totals.pending` with `complete: false` and
+  the same file is uploaded again (what was applied is answered as duplicates). The same when the till itself is
+  syncing at that moment (`stopped_reason: sync_in_progress`).
+
+**As built: the fixes after the S4 reviews (F1 backend, 21.11.2026).**
+- Disconnected till (review R1 HIGH-1): the paragraph above is superseded. An operation dated after `revoked_at` (or
+  without a readable time) is treated as enforce mode treats an unverified one (`suspect` on the operation,
+  `PosSyncApplier::suspected()`): what the sale is built of is applied and marked a conflict `device_revoked`; a
+  concession (`SignaturePolicy::CONCESSIONS`: `order.discount`, `order.void`) is refused (the discount as
+  `discount_not_allowed`, cause `device_revoked`); a payment goes S1's `staff_unverified` way (recorded, conflict).
+  Refusing the sale itself had dropped it and left its payment `order_not_found`. The origin terminal of a relayed
+  operation is resolved first, exactly as in a live sync (a relayed payment is `relay_not_allowed` there and here; it
+  is never written as the hub's).
+- Old operations: one dated more than `PosSyncImport::HISTORY_MONTHS` (12, the prune of applied `pos_sync_operations`)
+  ago may have lost its row, so its `op_id` no longer protects it: the same treatment, reason `operation_too_old`.
+- `dev` lines (review S1): taken only for a **disconnected** POS till of the **header till's branch** (an earlier
+  pairing), and only when the line's mac verifies under that device's key (`SyncChain::check()` is `ok` or
+  `chain_gap`, checked before anything is applied); otherwise skipped (`device_unknown`, `signature_invalid`). The file
+  MAC proves only that the header till sealed the file, never that another device wrote a line. Only the header
+  till's reported queue is lowered.
+- Lock (review S2): `Lock::block()` throws `LockTimeoutException`; `PosSyncService::sync()` turns it into the
+  documented 409 `sync_in_progress` (a live sync too: it was a 500 after 10 s), the import into
+  `stopped_reason: sync_in_progress`. The import's audit is written whatever stops it; an unexpected failure is
+  audited with what was done (`stopped_reason: error`) and then rethrown.
+- `PosSyncService::report()` reads `sync_last_seq` from the row (under the lock) so it never goes back when the caller
+  held a stale device; an import (`sync(..., imported: true)`) leaves `sync_reported_at` alone.
+- `warnings[]` in the answer: `earlier_numbers_missing` when the file's first own number is above 1 and the server
+  holds nothing at `first_seq − 1` (part files uploaded out of order). Not a refusal. A re-paired till that went on
+  counting gets it too (the server cannot tell), the message says what to check.
+- Refused attempts after the header was read are audited `pos.sync_import_refused` (reason, header device, kid, count)
+  in the journal of the store that tried.
+- Known, documented only: after an import that renumbered operations, a live till that comes back renumbers its own
+  queue (`adoptServerSeq`) and its first re-signed line is a `chain_gap` (one false owner alert). The runbook says to
+  import only for a till that will not sync again. The mirror folder's privacy (Android ≤ 9 external storage,
+  Windows Documents under OneDrive) is in docs/OPERATIONS.md §25.
+- After the import the queue the till last reported (`devices.sync_pending_ops`) is lowered by what the import
+  recorded, so a rescued till's shift can close. Audited `pos.sync_imported` on the device (who, counts, first and
+  last seq, `complete`; never a key, a mac or a payload), plus the control centre's own `admin.pos.sync_imported`.
+- Bootstrap: `offline.export` (true only while `pos.sync_signing` is on) tells the till the server takes such files.
+- Known limit, unchanged from the live sync: the staff check measures the PIN sign-in against the operation's time
+  kept within the last 48 h (`PosSyncApplier::deviceTime`, `SESSION_WINDOW_HOURS` 36). A file imported more than
+  about 3.5 days after the cashier last signed in on that till has its sales rejected `staff_not_signed_in` and its
+  payments recorded `staff_unverified`; the runbook tells support to import within three days.
+- Open: a till that no longer starts cannot write the file (its key is in that device's secure storage, and the
+  mirror holds journal lines, not a sealed file). Rescuing such a disk needs a server-side path that trusts the
+  per-operation MACs alone; not built (docs/OPERATIONS.md §25 sends it to the developers).
+
+**As built: the fixes after the S4 reviews (F2 till, 21.11.2026).**
+- Restore from the mirror (review R1 MEDIUM-2): no longer gated on `offline.export`. The flag was read from the
+  bootstrap copy in the journal's own folder, which is gone in exactly the case the mirror is for, so the restore was
+  off and the mirror-only payments were set aside where nothing read them. Now every line whose MAC verifies under the
+  till's key is put back (it is the till's own line; the server takes an `op_id` once). A line that cannot be verified
+  (unsigned, another key, changed on the disk) is never put into the journal and never removed from the mirror's
+  folder (`mirror_kept_<time>` document); a later start puts it back once it verifies, and only then takes it out of
+  that document. `MirroredSyncStorage.setAside` (the kept lines plus the mirror's own copies of the queues set aside,
+  `orphan_*`) goes into every export file through `SyncExporter`, after the journal's queue and the queues the app
+  gives (one line per `op_id`), so those payments still reach the server by an import.
+- A mirror write that does not answer holds a journal append (a sale) up for at most 2 s
+  (`MirroredSyncStorage.writeTimeout`). The journal is written first and decides; while a mirror write is out, later
+  lines are not queued behind it, and once it answers the mirror is rewritten whole from the journal (no line lost, no
+  order changed). The start-up restore waits at most 15 s a step for the mirror (`restoreTimeout`), then the till
+  starts from the journal alone and the mirror is not written in that run.
+- Export file names: a file name already in the folder is never overwritten (an empty queue, or a queue of earlier
+  pairings alone, is always `-0-0`): the new file gets `-2`, `-3`, ... before `.rzq`. The name inside the format
+  (vectors, `SyncExportFormat.fileName`) is unchanged; the server reads the header, not the name.
+- Printed summary: tips (`tip_amount`; with `tip_from_change` and no `tip_amount`, the whole change) are their own
+  lines ("Choy puli", by tender) beside the bill totals, with "Kassadagi naqd" (cash + cash tips) and "Terminal
+  (karta)" (card + card tips), so the drawer count and the bank terminal's total can be matched.
+- **What the mirror does not cover [E], Windows.** The till's secure storage (`flutter_secure_storage` on Windows: a
+  DPAPI file `flutter_secure_storage.dat` in the app support folder under `%APPDATA%`) holds the terminal token, the
+  pairing and the sync key. Wiping AppData (a profile clean-up, "reset the app", a new Windows profile) therefore loses
+  the key and the pairing together with the journal: the till starts unpaired, the mirror is not consulted (there is
+  no key to verify it with, and a till paired again gets a new device uuid, so a new mirror folder), and no export
+  file can be sealed for the old device (the file MAC needs that device's key, and a DPAPI file copied to another
+  profile or PC cannot be decrypted either). The mirror folder `Documents\RIZQIM\<old uuid>\` stays on the disk with
+  the signed lines (the server still holds the old key for 30 days after the disconnect), but nothing imports it
+  today: that needs the server-side path above that trusts the per-operation MACs alone (not built). Until then a
+  wiped AppData is rescued from the printed summary and the drawer count, like a dead till. The mirror covers what
+  leaves the secure storage in place: a damaged, cut or deleted journal (`pos_sync` folder), bug 3, a failed update.
+  On Android "clear data" and an uninstall remove the external files directory, the journal and the Keystore entry
+  alike; the mirror there covers journal damage only.
 
 ## 6. Proposal E: versions and updates
 

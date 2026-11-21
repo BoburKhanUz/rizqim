@@ -4,37 +4,31 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'by_method.dart';
-import 'by_staff.dart';
-import 'corrections.dart';
-
 part 'totals.g.dart';
 
 @JsonSerializable()
 class Totals {
   const Totals({
-    required this.count,
-    required this.amount,
-    required this.byMethod,
-    required this.personal,
-    required this.pool,
-    required this.unassigned,
-    required this.byStaff,
-    required this.corrections,
+    required this.operations,
+    required this.applied,
+    required this.conflict,
+    required this.rejected,
+    required this.duplicate,
+    required this.skipped,
+    required this.pending,
+    required this.renumbered,
   });
 
   factory Totals.fromJson(Map<String, Object?> json) => _$TotalsFromJson(json);
 
-  final int count;
-  final String amount;
-  @JsonKey(name: 'by_method')
-  final List<ByMethod> byMethod;
-  final String personal;
-  final String pool;
-  final String unassigned;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff> byStaff;
-  final Corrections corrections;
+  final int operations;
+  final int applied;
+  final int conflict;
+  final int rejected;
+  final int duplicate;
+  final int skipped;
+  final int pending;
+  final int renumbered;
 
   Map<String, Object?> toJson() => _$TotalsToJson(this);
 }

@@ -20,7 +20,7 @@ Data227 _$Data227FromJson(Map<String, dynamic> json) => Data227(
       .map((e) => (e as num).toInt())
       .toList(),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls8.fromJson(e as Map<String, dynamic>))
+      .map((e) => Halls7.fromJson(e as Map<String, dynamic>))
       .toList(),
   eventType: json['event_type'] as String,
   eventTypeLabel: json['event_type_label'] as String,
@@ -54,7 +54,7 @@ Data227 _$Data227FromJson(Map<String, dynamic> json) => Data227(
   ordersTotal: json['orders_total'] as String,
   quote: json['quote'] == null
       ? null
-      : Quote3.fromJson(json['quote'] as Map<String, dynamic>),
+      : Quote2.fromJson(json['quote'] as Map<String, dynamic>),
   frozenAt: json['frozen_at'] as String?,
   note: json['note'] as String?,
   orderUuid: json['order_uuid'] as String?,
@@ -68,10 +68,10 @@ Data227 _$Data227FromJson(Map<String, dynamic> json) => Data227(
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines18.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines17.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments6.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
       .toList(),
   hallTotal: json['hall_total'] as String,
 );

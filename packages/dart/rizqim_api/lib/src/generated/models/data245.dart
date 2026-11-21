@@ -4,18 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event13.dart';
+import 'staff11.dart';
 
 part 'data245.g.dart';
 
 @JsonSerializable()
 class Data245 {
-  const Data245({required this.event});
+  const Data245({required this.staff});
 
   factory Data245.fromJson(Map<String, Object?> json) =>
       _$Data245FromJson(json);
 
-  final Event13 event;
+  final List<Staff11> staff;
 
   Map<String, Object?> toJson() => _$Data245ToJson(this);
 }

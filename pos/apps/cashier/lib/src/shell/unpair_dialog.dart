@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../features/settings/zaxira_card.dart';
 import 'pos_scope.dart';
 
 /// "Terminalni uzish" (faqat menejer va ega: [PosSession.canUnpair]): tasdiqlangach terminal serverda o'zini bekor
@@ -13,6 +14,13 @@ import 'pos_scope.dart';
 Future<void> confirmUnpair(BuildContext context, PosSession session) async {
   // The messenger outlives this screen: after unpairing the app shows the pairing screen
   final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(context);
+  // M5 S4: operations that are not on the server: the cashier is offered a file first (never blocks: a failure only
+  // shows a message and the disconnect goes on as before)
+  final SyncExporter? exporter = PosScope.maybeOf(context)?.services.exporter;
+  if (exporter != null && exporter.offerBeforeDisconnect != null) {
+    await _offerExport(context, exporter);
+    if (!context.mounted) return;
+  }
   final int unsent =
       PosScope.maybeOf(context)?.data.offline?.store.pendingCount ?? 0;
   if (unsent > 0) {
@@ -68,4 +76,42 @@ Future<void> confirmUnpair(BuildContext context, PosSession session) async {
       ),
     );
   }
+}
+
+/// "Navbatni faylga saqlaysizmi?" before the disconnect: the answer is shown as it is, whatever it is.
+Future<void> _offerExport(BuildContext context, SyncExporter exporter) async {
+  final bool? save = await showDialog<bool>(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: const Text('Navbatni faylga saqlaysizmi?'),
+      content: const Text(
+        "Serverga yetmagan amallar bor. Kassa uzilsa ular shu qurilmadan o'chadi. Avval ularni faylga saqlab qo'ying.",
+      ),
+      actions: <Widget>[
+        RzButton(
+          label: "Saqlamasdan davom etish",
+          variant: RzButtonVariant.ghost,
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        RzButton(
+          key: const ValueKey<String>('unpair-export'),
+          label: 'Faylga saqlash',
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    ),
+  );
+  if (save != true || !context.mounted) return;
+  final ExportOutcome out = await runExport(exporter);
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: Text(out.ok ? 'Saqlandi' : 'Saqlanmadi'),
+      content: Text(out.text),
+      actions: <Widget>[
+        RzButton(label: 'Davom etish', onPressed: () => Navigator.pop(context)),
+      ],
+    ),
+  );
 }

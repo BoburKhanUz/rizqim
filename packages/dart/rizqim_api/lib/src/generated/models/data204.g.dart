@@ -27,10 +27,10 @@ Data204 _$Data204FromJson(Map<String, dynamic> json) => Data204(
   version: (json['version'] as num).toInt(),
   createdAt: json['created_at'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines10.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines9.fromJson(e as Map<String, dynamic>))
       .toList(),
   openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts3.fromJson(e as Map<String, dynamic>))
+      .map((e) => OpenShifts2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

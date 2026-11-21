@@ -522,6 +522,42 @@ export const getDevice = (uuid: string, signal?: AbortSignal) => data<DeviceRow>
 export const revokeDevice = (uuid: string, reason: string, confirmPending = false) =>
   data<DeviceRow>(call('POST', `/pos/devices/${encodeURIComponent(uuid)}/revoke`, { body: confirmPending ? { reason, confirm_pending: true } : { reason } }));
 
+// M5 S4: a till's `.rzq` queue file for a till of any store (stores.manage, step-up, `reason`). The server applies each operation once
+// by its `op_id`, so the same file can be sent again (`complete: false` asks for it). A whole-file refusal is an ApiError (404/422)
+// with the server's Uzbek message and `code`.
+export interface SyncImportTotals {
+  operations: number;
+  applied: number;
+  conflict: number;
+  rejected: number;
+  duplicate: number;
+  skipped: number;
+  pending: number;
+  renumbered: number;
+}
+export interface SyncImportSkipped {
+  line: number;
+  op_id: string | null;
+  seq: number | null;
+  device: string | null;
+  reason: string;
+  message: string;
+}
+export interface SyncImportResult {
+  message: string;
+  complete: boolean;
+  stopped_reason: string | null;
+  totals: SyncImportTotals;
+  skipped: SyncImportSkipped[];
+}
+export async function importSyncFile(file: File | Blob, reason: string): Promise<SyncImportResult> {
+  const form = new FormData();
+  form.set('reason', reason);
+  form.set('file', file, 'name' in file ? file.name : 'navbat.rzq');
+  const { data: answer, message } = await call('POST', '/pos/sync-import', { body: form });
+  return { ...(answer as Omit<SyncImportResult, 'message'>), message };
+}
+
 export const listShifts = (filters: ShiftFilters, signal?: AbortSignal) => data<ShiftPage>(call('GET', '/pos/shifts', { query: { ...compact(filters), per_page: 30 }, signal }));
 export const getShift = (uuid: string, signal?: AbortSignal) => data<ShiftCard>(call('GET', `/pos/shifts/${encodeURIComponent(uuid)}`, { signal }));
 
@@ -617,5 +653,6 @@ export const useUpdatePlan = () => usePosWrite(({ code, ...change }: PlanChange 
 export const useMarkInvoicePaid = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => markInvoicePaid(uuid, reason));
 export const useVoidInvoice = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => voidInvoice(uuid, reason));
 export const useRevokeDevice = () => usePosWrite(({ uuid, reason, confirmPending }: { uuid: string; reason: string; confirmPending?: boolean }) => revokeDevice(uuid, reason, confirmPending));
+export const useImportSyncFile = () => usePosWrite(({ file, reason }: { file: File | Blob; reason: string }) => importSyncFile(file, reason));
 export const useRetryFiscal = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => retryFiscal(uuid, reason));
 export const useResolveSync = () => usePosWrite(({ opId, resolution, reason }: { opId: string; resolution: 'resolved' | 'dismissed'; reason: string }) => resolveSyncError(opId, { resolution, reason }));

@@ -8,13 +8,21 @@ part 'warnings9.g.dart';
 
 @JsonSerializable()
 class Warnings9 {
-  const Warnings9({required this.code, required this.message});
+  const Warnings9({
+    required this.type,
+    required this.userId,
+    required this.name,
+    this.count,
+  });
 
   factory Warnings9.fromJson(Map<String, Object?> json) =>
       _$Warnings9FromJson(json);
 
-  final String code;
-  final String message;
+  final String type;
+  @JsonKey(name: 'user_id')
+  final int? userId;
+  final String? name;
+  final int? count;
 
   Map<String, Object?> toJson() => _$Warnings9ToJson(this);
 }

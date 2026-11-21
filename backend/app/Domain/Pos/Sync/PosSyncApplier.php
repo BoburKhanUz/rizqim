@@ -118,7 +118,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict, invalid?: ?string}  $op  `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before). `invalid`: a signed line whose text does not hold a usable operation (PosSyncController): recorded rejected `invalid_payload` with this message, never applied
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict, invalid?: ?string, suspect?: array{reason: string, message: string}|null}  $op  `suspect` (wave M5 S4, PosSyncImport): applied and a conflict for that reason, a concession refused, a payment recorded (suspected()). `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before). `invalid`: a signed line whose text does not hold a usable operation (PosSyncController): recorded rejected `invalid_payload` with this message, never applied
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -152,6 +152,10 @@ final class PosSyncApplier
         // Wave M5 S3-d (SignaturePolicy, the store enforces signatures): what is done with an unsigned or badly signed one
         $verdict = $op['signature_verdict'] ?? null;
         $sigStatus = SyncSignatureStatus::tryFrom((string) ($op['sig_status'] ?? '')) ?? SyncSignatureStatus::MISSING;
+        // Wave M5 S4 (PosSyncImport): an operation of a rescue file that needs the manager's eye (made after its till
+        // was disconnected, older than the history the server keeps): applied and a conflict for that reason, a
+        // concession refused, a payment recorded — what enforce mode does with an unverified one (SignaturePolicy)
+        $suspect = is_array($op['suspect'] ?? null) ? $op['suspect'] : null;
         try {
             if ($type === null) {
                 throw new PosSyncException('type_unknown', "Amal turi noma'lum: ilovani yangilang.");
@@ -174,6 +178,16 @@ final class PosSyncApplier
                 // the way of a payment whose staff check failed, flagged `payment_unverified`
                 return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, new PosSyncException('signature_' . $sigStatus->value, SignaturePolicy::message($sigStatus)), $sigStatus);
             }
+            if ($suspect !== null && $type->isMoney()) {
+                // Wave M5 S4 (PosSyncImport, `suspect`): money is never dropped: a payment goes the way of one whose
+                // staff check failed (onto its bill when it is open, else unallocated), flagged, as the device it
+                // is the operation of
+                return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, new PosSyncException($suspect['reason'], $suspect['message']));
+            }
+            if ($suspect !== null && in_array($type, SignaturePolicy::CONCESSIONS, true)) {
+                // ...a concession is refused, as enforce mode refuses an unverified one
+                throw new PosSyncException($suspect['reason'], $suspect['message'] . " Amal qo'llanmadi.");
+            }
             try {
                 $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
             } catch (PosSyncException $e) {
@@ -182,7 +196,7 @@ final class PosSyncApplier
                     return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, $e);
                 }
                 // ...and the close of an order such a payment paid in full follows it (anything else: rejected)
-                $closed = $type === PosSyncOperationType::ORDER_CLOSE ? $this->closeUnverified($acting, $payload, $base, $e) : null;
+                $closed = $type === PosSyncOperationType::ORDER_CLOSE ? $this->closeUnverified($acting, $payload, $base, $e, $suspect) : null;
                 if ($closed === null) {
                     throw $e;
                 }
@@ -196,7 +210,7 @@ final class PosSyncApplier
                 $base['staff_id'] = null;
             }
 
-            if ($type === PosSyncOperationType::ORDER_DISCOUNT && in_array($e->reason, ['permission_denied', 'staff_invalid', 'staff_not_signed_in', SignaturePolicy::REASON_INVALID], true)) {
+            if ($type === PosSyncOperationType::ORDER_DISCOUNT && (in_array($e->reason, ['permission_denied', 'staff_invalid', 'staff_not_signed_in', SignaturePolicy::REASON_INVALID], true) || ($suspect !== null && $e->reason === $suspect['reason']))) {
                 // Wave M5 S2: the right to discount was taken away during the outage, the person was blocked or
                 // their PIN sign-in on this till is too old (S3-d: or the store enforces signatures and this one's
                 // is missing or wrong: refused like any other discount, the cause `signature_invalid`)
@@ -217,9 +231,12 @@ final class PosSyncApplier
 
         $bills = [];
         try {
-            return DB::transaction(function () use ($acting, $type, $staff, $keyed, $happenedAt, $clamped, $base, &$bills) {
+            return DB::transaction(function () use ($acting, $type, $staff, $keyed, $happenedAt, $clamped, $base, $suspect, &$bills) {
                 $outcome = $this->run($acting, $type, $staff, $keyed, $happenedAt, $base);
                 $bills = $outcome['bills'] ?? [];
+                if ($suspect !== null) {
+                    $outcome = self::suspected($outcome, $suspect);
+                }
                 if ($clamped !== null) {
                     $outcome['flags'] = [...($outcome['flags'] ?? []), $clamped];
                     $outcome['result']['flags'] = [...($outcome['result']['flags'] ?? []), $clamped];
@@ -261,6 +278,28 @@ final class PosSyncApplier
                 $this->fiscalizer->issue($bill);
             }
         }
+    }
+
+    /**
+     * Wave M5 S4: what a `suspect` operation of a rescue file that went through became: a conflict for that reason
+     * (one that is a conflict for its own reason keeps it), the reason among its flags either way.
+     *
+     * @param  array<string, mixed>  $outcome
+     * @param  array{reason: string, message: string}  $suspect
+     * @return array<string, mixed>
+     */
+    private static function suspected(array $outcome, array $suspect): array
+    {
+        $flag = ['flag' => $suspect['reason'], 'message' => $suspect['message']];
+        $outcome['flags'] = [...($outcome['flags'] ?? []), $flag];
+        $outcome['result'] = ['flags' => [...($outcome['result']['flags'] ?? []), $flag]] + ($outcome['result'] ?? []);
+        if (($outcome['status'] ?? PosSyncStatus::APPLIED) === PosSyncStatus::APPLIED) {
+            $outcome['status'] = PosSyncStatus::CONFLICT;
+            $outcome['reason'] = $suspect['reason'];
+            $outcome['error'] = $suspect['message'] . " Amal qo'llandi, menejer tekshirsin.";
+        }
+
+        return $outcome;
     }
 
     /**
@@ -403,8 +442,9 @@ final class PosSyncApplier
      *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base
+     * @param  array{reason: string, message: string}|null  $suspect  wave M5 S4: a rescue file's operation for the manager (suspected())
      */
-    private function closeUnverified(Device $device, array $payload, array $base, PosSyncException $e): ?PosSyncOperation
+    private function closeUnverified(Device $device, array $payload, array $base, PosSyncException $e, ?array $suspect = null): ?PosSyncOperation
     {
         try {
             $order = $this->posOrder($device, $payload);
@@ -425,7 +465,7 @@ final class PosSyncApplier
         $claimed = $base['staff_id'];
         $base['staff_id'] = $this->attributable($device, $claimed)?->id;
 
-        return DB::transaction(function () use ($device, $order, $payload, $base, $claimed, $e) {
+        return DB::transaction(function () use ($device, $order, $payload, $base, $claimed, $e, $suspect) {
             $outcome = $this->close($device, null, $payload);
             // Informational: the payment's conflict already asks for the manager
             $flags = [['flag' => 'staff_unverified', 'reason' => $e->reason]];
@@ -435,7 +475,9 @@ final class PosSyncApplier
                 'closed' => $outcome['result']['closed'] ?? false,
             ], ['actor' => null, 'device' => $device]);
 
-            return $this->record($base, ['result' => $outcome['result'] + ['flags' => $flags], 'flags' => $flags] + $outcome);
+            $outcome = ['result' => $outcome['result'] + ['flags' => $flags], 'flags' => $flags] + $outcome;
+
+            return $this->record($base, $suspect !== null ? self::suspected($outcome, $suspect) : $outcome);
         });
     }
 

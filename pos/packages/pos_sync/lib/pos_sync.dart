@@ -5,12 +5,16 @@
 ///   uuid'lari va serverdan olingan nusxalar (yoshi bilan);
 /// * [SyncSender] — navbatni `POST /pos/sync` ga tartib bilan, paket-paket yuboradi, xatoda kutib qayta urinadi;
 /// * [OfflineLimits], [OfflineStatus] — 15 daqiqa / 2 soat ogohlantirish, 500 buyurtma chegarasi, 24 soatlik menyu va
-///   aloqa sharti, fiskal navbatning 24 / 40 / 48 soatlik ogohlantirishi.
+///   aloqa sharti, fiskal navbatning 24 / 40 / 48 soatlik ogohlantirishi;
+/// * [MirroredSyncStorage] — jurnalning ikkinchi nusxasi ilova papkasidan tashqarida (M5 S4), ishga tushganda
+///   yo'qolgan amallarni imzosi tekshirilib tiklaydi; [SyncExporter] — "Navbatni faylga saqlash" (`.rzq` fayli).
 ///
 /// Serverga ulanish (`SyncTransport`) va buyurtmalarning lokal ko'rinishi — `pos_data` da.
 library;
 
+export 'src/export.dart';
 export 'src/limits.dart';
+export 'src/mirror_storage.dart';
 export 'src/operation.dart';
 export 'src/queue_numbers.dart';
 export 'src/sender.dart';

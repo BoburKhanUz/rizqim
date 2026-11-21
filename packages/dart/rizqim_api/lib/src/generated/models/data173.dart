@@ -4,12 +4,12 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch12.dart';
-import 'sale4.dart';
-import 'buyer4.dart';
-import 'fiscal7.dart';
-import 'blocked5.dart';
-import 'print4.dart';
+import 'branch11.dart';
+import 'sale3.dart';
+import 'buyer3.dart';
+import 'fiscal6.dart';
+import 'blocked4.dart';
+import 'print3.dart';
 
 part 'data173.g.dart';
 
@@ -53,13 +53,13 @@ class Data173 {
   final String status;
   @JsonKey(name: 'status_label')
   final String statusLabel;
-  final Branch12? branch;
-  final Sale4 sale;
-  final Buyer4 buyer;
+  final Branch11? branch;
+  final Sale3 sale;
+  final Buyer3 buyer;
   final String? note;
-  final Fiscal7 fiscal;
-  final Blocked5? blocked;
-  final Print4? print;
+  final Fiscal6 fiscal;
+  final Blocked4? blocked;
+  final Print3? print;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Link2, MonitorSmartphone, Pencil, Ban } from 'lucide-react';
+import { Link2, MonitorSmartphone, Pencil, Ban, Upload } from 'lucide-react';
 import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, IconButton, InlineError, fieldClass, formatDateTime, FormError, Notice, Pill } from '@rizqim/ui';
 import { getPendingOps, useMenuBranches, useRenameStoreDevice, useRevokeStoreDevice, useStoreDevices, type StoreDevice } from '@rizqim/staff';
 import { isMessageKey } from '@/i18n';
@@ -12,8 +12,9 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { errorText } from './errors';
 import { Check } from './fields';
 import { PairingCodeDialog } from './PairingCodeDialog';
+import { SyncImportDialog } from './SyncImportDialog';
 
-type Dialog = { kind: 'pair' } | { kind: 'rename'; device: StoreDevice } | { kind: 'revoke'; device: StoreDevice };
+type Dialog = { kind: 'pair' } | { kind: 'import' } | { kind: 'rename'; device: StoreDevice } | { kind: 'revoke'; device: StoreDevice };
 
 // GET /owner/devices: the terminals and apps signed in to the store. devices.view lists them; devices.manage renames,
 // revokes (the device loses its token at once) and creates the one-time pairing code of a new POS or kitchen display.
@@ -43,9 +44,14 @@ export function DevicesPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Check checked={includeRevoked} onChange={setIncludeRevoked} label={t('devices_showRevoked')} />
         {canManage && (
-          <Button icon={Link2} onClick={() => setDialog({ kind: 'pair' })}>
-            {t('devices_pair')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" icon={Upload} onClick={() => setDialog({ kind: 'import' })}>
+              {t('devices_import')}
+            </Button>
+            <Button icon={Link2} onClick={() => setDialog({ kind: 'pair' })}>
+              {t('devices_pair')}
+            </Button>
+          </div>
         )}
       </div>
       <Notice message={notice} />
@@ -89,6 +95,7 @@ export function DevicesPanel() {
       )}
 
       {dialog?.kind === 'pair' && <PairingCodeDialog onClose={close} />}
+      {dialog?.kind === 'import' && <SyncImportDialog onClose={close} />}
       {dialog?.kind === 'rename' && (
         <RenameDialog
           device={dialog.device}

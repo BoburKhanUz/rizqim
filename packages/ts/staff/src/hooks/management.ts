@@ -12,6 +12,7 @@ import {
   fetchServiceFees,
   fetchStoreDevices,
   fetchStoreSettings,
+  importSyncFile,
   renameStoreDevice,
   revokeStoreDevice,
   saveServiceFee,
@@ -34,6 +35,7 @@ import {
   type StaffMember,
   type StaffPatchInput,
   type StoreDevice,
+  type SyncImportResult,
   type StoreSettings,
   type StoreSettingsInput,
   type ZoneInput,
@@ -251,6 +253,12 @@ export function useRenameStoreDevice(options: MutationExtras<StoreDevice, { uuid
 export function useRevokeStoreDevice(options: MutationExtras<StoreDevice, { uuid: string; confirmPending?: boolean }> = {}) {
   const api = useStaffApi();
   return useDeviceMutation(({ uuid, confirmPending }: { uuid: string; confirmPending?: boolean }) => revokeStoreDevice(api, uuid, confirmPending), options);
+}
+
+// The import changes what the till reports (its queue), so the device list is refreshed after it.
+export function useImportSyncFile(options: MutationExtras<SyncImportResult, File | Blob> = {}) {
+  const api = useStaffApi();
+  return useDeviceMutation((file: File | Blob) => importSyncFile(api, file), options);
 }
 
 // A new code does not change the device list (the terminal appears once it has paired).

@@ -18,8 +18,11 @@ const BACKEND_TIMEOUT_MS = 20_000;
 const DOWNLOAD_TIMEOUT_MS = 300_000;
 const MAX_BODY_BYTES = 256 * 1024;
 // P4-23: the only calls that send a file (multipart/form-data, raw bytes passed on) and how big it may be
-const UPLOAD_PATHS = /^v1\/admin\/(?:finance\/adjustments|marketing\/(?:promos|categories)(?:\/\d{1,18})?)$/;
+const UPLOAD_PATHS = /^v1\/admin\/(?:finance\/adjustments|pos\/sync-import|marketing\/(?:promos|categories)(?:\/\d{1,18})?)$/;
 const MAX_UPLOAD_BYTES = 11 * 1024 * 1024;
+// M5 S4: importing a till's queue file applies up to 10 000 operations in one request (the server stops after about 20 seconds)
+const IMPORT_PATH = 'v1/admin/pos/sync-import';
+const IMPORT_TIMEOUT_MS = 60_000;
 // P4-23: the only answers passed on as a file (the monthly report's Excel, an adjustment's document), and their types
 // P4-31: the Excel exports of the lists (/exports/<list>); their X-Export-Rows / X-Export-Truncated headers are passed on too
 const DOWNLOAD_PATHS = /^v1\/admin\/(?:finance\/(?:reports\/monthly\/export|adjustments\/\d{1,18}\/document)|exports\/[a-z-]{1,30}(?:\/[a-z-]{1,30})?|marketing\/(?:promos|categories)\/\d{1,18}\/image)$/;
@@ -164,7 +167,7 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
       body,
       cache: 'no-store',
       redirect: 'manual',
-      signal: AbortSignal.timeout(request.method === 'GET' && DOWNLOAD_PATHS.test(path) ? DOWNLOAD_TIMEOUT_MS : BACKEND_TIMEOUT_MS),
+      signal: AbortSignal.timeout(request.method === 'GET' && DOWNLOAD_PATHS.test(path) ? DOWNLOAD_TIMEOUT_MS : path === IMPORT_PATH ? IMPORT_TIMEOUT_MS : BACKEND_TIMEOUT_MS),
     });
   } catch {
     return jsonError(502, 'Serverga ulanib bo\'lmadi.', 'unreachable');

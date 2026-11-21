@@ -11,7 +11,7 @@ GetV1RealtimeResponse _$GetV1RealtimeResponseFromJson(
 ) => GetV1RealtimeResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data362.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data363.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1RealtimeResponseToJson(

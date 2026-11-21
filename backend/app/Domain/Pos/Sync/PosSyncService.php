@@ -4,6 +4,7 @@ namespace App\Domain\Pos\Sync;
 
 use App\Models\Device;
 use App\Models\PosSyncOperation;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -52,16 +53,24 @@ final class PosSyncService
     ) {}
 
     /**
-     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, signature?: array{raw: string, mac: mixed, prev: mixed, kid: mixed}|null, invalid?: string, index?: int}>  $operations  `signature`: what a signed operation came with (PosSyncController), absent for the old unsigned shape; `invalid` (with `index`, its place in the batch): a signed line that holds no usable operation, and why
+     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, signature?: array{raw: string, mac: mixed, prev: mixed, kid: mixed}|null, invalid?: string, index?: int, suspect?: array{reason: string, message: string}}>  $operations  `signature`: what a signed operation came with (PosSyncController), absent for the old unsigned shape; `invalid` (with `index`, its place in the batch): a signed line that holds no usable operation, and why
      * @param  array{size?: int|null, oldest_at?: string|null}|null  $queue
+     * @param  bool  $imported  wave M5 S4: the batch comes from a rescue file (PosSyncImport), not from the till: the
+     *                          device row's `sync_reported_at` (when the till last reported in) is left as it was
      * @return array{results: list<PosSyncOperation>, duplicates: list<string>, stopped_at: int|null, clock_skew_seconds: int|null, unreadable: list<array{index: int, op_id: string|null, seq: int|null, reason: string, message: string}>}
      *
-     * @throws PosSyncException 409 `sync_in_progress` while another batch of this till is being applied
+     * @throws PosSyncException 409 `sync_in_progress` while another batch of this till is being applied (waited for 10 s)
      */
-    public function sync(Device $device, array $operations, ?Carbon $sentAt, ?array $queue): array
+    public function sync(Device $device, array $operations, ?Carbon $sentAt, ?array $queue, bool $imported = false): array
     {
         $lock = Cache::lock(self::lockName($device), 120);
-        if (!$lock->block(10)) {
+        try {
+            // (Lock::block() throws when the wait is over; a lock store may answer false all the same)
+            $acquired = $lock->block(10);
+        } catch (LockTimeoutException) {
+            $acquired = false;
+        }
+        if (!$acquired) {
             throw new PosSyncException('sync_in_progress', "Bu kassaning boshqa sinxronlash so'rovi hali tugamadi. Birozdan keyin qayta yuboring.");
         }
 
@@ -140,7 +149,7 @@ final class PosSyncService
             } catch (PosSyncException $e) {
                 // Wave M5 S1: a batch refused half-way (op_id_conflict, seq_reused) still applied what came before it:
                 // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
-                $this->report($device, $results, null, $skew, $chain);
+                $this->report($device, $results, null, $skew, $chain, 0, $imported);
                 app(OfflineDiscounts::class)->afterBatch($device);
                 $this->policy->afterBatch($device, $recorded, $unsigned);
 
@@ -148,7 +157,7 @@ final class PosSyncService
             }
 
             // (a line answered as unreadable leaves the till's queue too)
-            $this->report($device, $results, $queue, $skew, $chain, count($unreadable));
+            $this->report($device, $results, $queue, $skew, $chain, count($unreadable), $imported);
             // Wave M5 S2: one message to the owner about the discounts this outage's queue carried (never fails the batch)
             app(OfflineDiscounts::class)->afterBatch($device);
             // Wave M5 S3-d: the owner hears about operations lost from the till's queue (never fails the batch)
@@ -173,13 +182,19 @@ final class PosSyncService
     /**
      * What the device said about its queue, less what this batch took off it, and its clock.
      *
+     * The highest number is read from the row now (under the till's lock): the $device a caller holds may have been
+     * read before another batch moved it (an import's device, read once for the whole file), and the number never
+     * goes back. `$imported`: a rescue file, not the till reporting in (`sync_reported_at` is left as it was, so the
+     * monitoring of a silent till still sees it silent).
+     *
      * @param  list<PosSyncOperation>  $results
      * @param  array{size?: int|null, oldest_at?: string|null}|null  $queue
      */
-    public function report(Device $device, array $results, ?array $queue, ?int $skew, ?SyncChain $chain = null, int $unreadable = 0): void
+    public function report(Device $device, array $results, ?array $queue, ?int $skew, ?SyncChain $chain = null, int $unreadable = 0, bool $imported = false): void
     {
-        $lastSeq = max((int) $device->sync_last_seq, ...array_map(fn (PosSyncOperation $op) => (int) $op->seq, $results ?: [new PosSyncOperation(['seq' => 0])]));
-        $attributes = ['sync_last_seq' => $lastSeq, 'sync_reported_at' => now()];
+        $stored = $device->exists ? (int) Device::query()->whereKey($device->getKey())->value('sync_last_seq') : 0;
+        $lastSeq = max($stored, (int) $device->sync_last_seq, ...array_map(fn (PosSyncOperation $op) => (int) $op->seq, $results ?: [new PosSyncOperation(['seq' => 0])]));
+        $attributes = ['sync_last_seq' => $lastSeq] + ($imported ? [] : ['sync_reported_at' => now()]);
         if ($queue !== null && isset($queue['size'])) {
             $left = max(0, (int) $queue['size'] - count($results) - $unreadable);
             $attributes['sync_pending_ops'] = $left;

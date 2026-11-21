@@ -11,7 +11,7 @@ PostV1PosBanquetsResponse _$PostV1PosBanquetsResponseFromJson(
 ) => PostV1PosBanquetsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data221.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data222.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBanquetsResponseToJson(

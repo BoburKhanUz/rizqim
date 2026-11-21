@@ -4,26 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'preparing.dart';
-import 'ready.dart';
-
 part 'data293.g.dart';
 
 @JsonSerializable()
 class Data293 {
-  const Data293({
-    required this.businessDate,
-    required this.preparing,
-    required this.ready,
-  });
+  const Data293({required this.stored});
 
   factory Data293.fromJson(Map<String, Object?> json) =>
       _$Data293FromJson(json);
 
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  final List<Preparing> preparing;
-  final List<Ready> ready;
+  final bool stored;
 
   Map<String, Object?> toJson() => _$Data293ToJson(this);
 }

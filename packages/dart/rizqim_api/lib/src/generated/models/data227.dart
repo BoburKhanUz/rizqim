@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls8.dart';
-import 'quote3.dart';
-import 'lines18.dart';
-import 'payments6.dart';
+import 'halls7.dart';
+import 'quote2.dart';
+import 'lines17.dart';
+import 'payments5.dart';
 import 'warnings11.dart';
 
 part 'data227.g.dart';
@@ -93,7 +93,7 @@ class Data227 {
   final String endsAt;
   @JsonKey(name: 'hall_ids')
   final List<int> hallIds;
-  final List<Halls8> halls;
+  final List<Halls7> halls;
   @JsonKey(name: 'event_type')
   final String eventType;
   @JsonKey(name: 'event_type_label')
@@ -141,7 +141,7 @@ class Data227 {
   final String extrasTotal;
   @JsonKey(name: 'orders_total')
   final String ordersTotal;
-  final Quote3? quote;
+  final Quote2? quote;
   @JsonKey(name: 'frozen_at')
   final String? frozenAt;
   final String? note;
@@ -165,8 +165,8 @@ class Data227 {
   final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final List<Lines18> lines;
-  final List<Payments6> payments;
+  final List<Lines17> lines;
+  final List<Payments5> payments;
   final List<Warnings11> warnings;
 
   Map<String, Object?> toJson() => _$Data227ToJson(this);
