@@ -2,6 +2,7 @@
 
 namespace App\Auth;
 
+use App\Domain\Pos\Releases\AppVersion;
 use App\Models\Device;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\Events\TokenAuthenticated;
@@ -47,9 +48,16 @@ class DeviceTokenGuard extends Guard
         $device->withAccessToken($accessToken);
         event(new TokenAuthenticated($accessToken));
 
-        // A heartbeat for the owner's device list, at most once a minute
+        // A heartbeat for the owner's device list, at most once a minute. Wave M5 S5-a: the app version the terminal
+        // reports (X-Rizqim-App-Version) rides on this same save, and only when it changed: no extra write. A change
+        // is therefore seen within a minute. Nothing reads it to refuse a request (a sale is never gated by version)
         if (!$device->last_seen_at || $device->last_seen_at->lt(now()->subMinute())) {
-            $device->forceFill(['last_seen_at' => now()])->saveQuietly();
+            $device->forceFill(['last_seen_at' => now()]);
+            $reported = trim((string) $request->header(AppVersion::HEADER, ''));
+            if ($reported !== '' && $reported !== $device->app_version && AppVersion::parse($reported) !== null) {
+                $device->forceFill(['app_version' => $reported]);
+            }
+            $device->saveQuietly();
             $this->updateLastUsedAt($accessToken);
         }
 

@@ -11,7 +11,7 @@ PostV1PosVouchersSellResponse _$PostV1PosVouchersSellResponseFromJson(
 ) => PostV1PosVouchersSellResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data354.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data355.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosVouchersSellResponseToJson(

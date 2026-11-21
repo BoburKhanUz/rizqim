@@ -15,6 +15,7 @@ class AdminPosDevicesTest extends TestCase
 {
     use RefreshDatabase;
     use AdminPosFixtures;
+    use \Tests\Feature\PosReleases\PosReleaseFixtures;
 
     protected function setUp(): void
     {
@@ -25,6 +26,9 @@ class AdminPosDevicesTest extends TestCase
 
     public function test_the_list_marks_online_offline_never_seen_and_outdated_devices(): void
     {
+        // Wave M5 S5-a: "latest" comes from the release registry, per app and platform
+        $this->release('1.10.0', ['build' => 0]);
+        $this->release('2.0.1', ['build' => 0, 'app' => 'kds']);
         $online = $this->device(['name' => 'Online', 'last_seen_at' => now()->subMinutes(3), 'app_version' => '1.10.0']);
         $offline = $this->device(['name' => 'Offline', 'last_seen_at' => now()->subHours(2), 'app_version' => '1.9.0']);
         $never = $this->device(['name' => 'Never', 'last_seen_at' => null, 'app_version' => null]);
@@ -41,12 +45,12 @@ class AdminPosDevicesTest extends TestCase
         // The longest unseen first, never-seen last; revoked and store-less devices are out
         $this->assertSame(['KDS', 'Offline', 'Online', 'Foreign', 'Never'], array_column($response->json('data.data'), 'name'));
         $this->assertSame(['total' => 5, 'online' => 2, 'offline' => 2, 'never' => 1, 'revoked' => 1, 'outdated' => 1, 'by_type' => ['kds' => 1, 'pos' => 4]], $response->json('data.counts'));
-        $this->assertSame(['kds' => '2.0.1', 'pos' => '1.10.0'], $response->json('data.latest_versions'));
+        $this->assertSame(['cashier/android' => '1.10.0+0', 'kds/android' => '2.0.1+0'], $response->json('data.latest_versions'));
 
         $rows = collect($response->json('data.data'))->keyBy('name');
         $this->assertSame(['offline', 'online', 'never', 'online'], [$rows['Offline']['state'], $rows['Online']['state'], $rows['Never']['state'], $rows['Foreign']['state']]);
         $this->assertSame([true, false, false, false], [$rows['Offline']['outdated'], $rows['Online']['outdated'], $rows['Never']['outdated'], $rows['KDS']['outdated']]);
-        $this->assertSame(['1.10.0', 'Lifecycle Burger', 'Main Branch', 'Kassa (POS)'], [$rows['Offline']['latest_version'], $rows['Offline']['store']['name'], $rows['Offline']['branch']['name'], $rows['Offline']['type_label']]);
+        $this->assertSame(['1.10.0+0', 'Lifecycle Burger', 'Main Branch', 'Kassa (POS)'], [$rows['Offline']['latest_version'], $rows['Offline']['store']['name'], $rows['Offline']['branch']['name'], $rows['Offline']['type_label']]);
         $this->assertArrayNotHasKey('push_token', $rows['Online']);
         $this->assertArrayNotHasKey('id', $rows['Online']);
 
@@ -152,5 +156,38 @@ class AdminPosDevicesTest extends TestCase
         $this->adminJson('GET', '/pos/devices', $this->signIn($this->makeMember(PlatformRole::SUPPORT)))->assertForbidden();
         $this->adminJson('GET', "/pos/devices/{$device->uuid}", $this->signIn($this->makeMember(PlatformRole::FINANCE)))->assertForbidden();
         $this->adminJson('GET', '/pos/devices')->assertUnauthorized();
+    }
+
+    public function test_latest_and_outdated_come_from_the_registry_per_app_and_platform_and_an_empty_registry_marks_nothing(): void
+    {
+        $old = $this->device(['name' => 'Eski', 'app_version' => '1.0.0+1', 'app' => 'cashier', 'platform' => 'Android']);
+        $waiter = $this->device(['name' => 'Ofitsiant', 'app_version' => '1.0.0+1', 'app' => 'waiter', 'platform' => 'android']);
+        $windows = $this->device(['name' => 'Windows', 'app_version' => '1.0.0+1', 'app' => 'cashier', 'platform' => 'windows']);
+        $unknown = $this->device(['name' => 'Noma\'lum', 'app_version' => '1.0.0+1', 'platform' => null]);
+        $token = $this->signIn($this->makeMember(PlatformRole::OPERATOR));
+
+        // Empty registry: nothing is outdated, nothing is "latest" (no more guessing from the fleet)
+        $response = $this->adminJson('GET', '/pos/devices', $token)->assertOk();
+        $this->assertSame([], $response->json('data.latest_versions'));
+        $this->assertSame(0, $response->json('data.counts.outdated'));
+        $this->assertSame([null], array_unique(array_column($response->json('data.data'), 'latest_version')));
+
+        $this->release('1.2.0', ['build' => 4]);
+        $this->release('1.1.0', ['app' => 'waiter']);
+        $this->release('1.1.0', ['app' => 'waiter', 'withdrawn_at' => now(), 'version' => '9.9.9']);
+
+        $response = $this->adminJson('GET', '/pos/devices', $token)->assertOk();
+        $this->assertSame(['cashier/android' => '1.2.0+4', 'waiter/android' => '1.1.0+1'], $response->json('data.latest_versions'));
+        $rows = collect($response->json('data.data'))->keyBy('name');
+        $this->assertSame([true, true, false, false], [$rows['Eski']['outdated'], $rows['Ofitsiant']['outdated'], $rows['Windows']['outdated'], $rows["Noma'lum"]['outdated']]);
+        $this->assertSame(['1.2.0+4', '1.1.0+1', null, null], [$rows['Eski']['latest_version'], $rows['Ofitsiant']['latest_version'], $rows['Windows']['latest_version'], $rows["Noma'lum"]['latest_version']]);
+        $this->assertSame(2, $response->json('data.counts.outdated'));
+
+        $names = fn (string $query) => collect($this->adminJson('GET', '/pos/devices' . $query, $token)->assertOk()->json('data.data'))->pluck('name')->sort()->values()->all();
+        $this->assertSame(['Eski', 'Ofitsiant'], $names('?outdated=1'));
+
+        // Up to date after an update
+        $old->forceFill(['app_version' => '1.2.0+4'])->save();
+        $this->assertSame(['Ofitsiant'], $names('?outdated=1'));
     }
 }

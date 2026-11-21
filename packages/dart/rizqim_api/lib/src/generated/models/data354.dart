@@ -4,12 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch20.dart';
-import 'sale5.dart';
-import 'buyer5.dart';
-import 'fiscal40.dart';
-import 'blocked6.dart';
-import 'print5.dart';
+import 'staff32.dart';
+import 'holders12.dart';
+import 'recorded_by12.dart';
+import 'corrections19.dart';
 
 part 'data354.g.dart';
 
@@ -17,22 +15,21 @@ part 'data354.g.dart';
 class Data354 {
   const Data354({
     required this.uuid,
-    required this.code,
-    required this.kind,
-    required this.faceValue,
-    required this.balance,
-    required this.currency,
-    required this.validFrom,
-    required this.validUntil,
-    required this.status,
-    required this.statusLabel,
-    required this.branch,
-    required this.sale,
-    required this.buyer,
-    required this.note,
-    required this.fiscal,
-    required this.blocked,
-    required this.print,
+    required this.method,
+    required this.source,
+    required this.amount,
+    required this.originalAmount,
+    required this.mode,
+    required this.staff,
+    required this.holders,
+    required this.businessDate,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.shiftUuid,
+    required this.recordedBy,
+    required this.closed,
+    required this.corrections,
     required this.createdAt,
   });
 
@@ -40,26 +37,28 @@ class Data354 {
       _$Data354FromJson(json);
 
   final String uuid;
-  final String code;
-  final String kind;
-  @JsonKey(name: 'face_value')
-  final String faceValue;
-  final String balance;
-  final String currency;
-  @JsonKey(name: 'valid_from')
-  final String validFrom;
-  @JsonKey(name: 'valid_until')
-  final String? validUntil;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final Branch20? branch;
-  final Sale5 sale;
-  final Buyer5 buyer;
-  final String? note;
-  final Fiscal40 fiscal;
-  final Blocked6? blocked;
-  final Print5? print;
+  final String method;
+  final String? source;
+  final String amount;
+  @JsonKey(name: 'original_amount')
+  final String originalAmount;
+  final String mode;
+  final Staff32? staff;
+  final List<Holders12> holders;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'recorded_by')
+  final RecordedBy12? recordedBy;
+  final bool closed;
+  final List<Corrections19> corrections;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

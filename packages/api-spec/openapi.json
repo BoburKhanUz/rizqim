@@ -23824,6 +23824,1136 @@
                 ]
             }
         },
+        "/v1/admin/pos/releases": {
+            "get": {
+                "operationId": "admin.pos.releases",
+                "description": "Every release, withdrawn ones included (`withdrawn_at`), the newest first per app and platform. Filters: `app`\n(cashier, waiter, kds, customer_display), `platform` (android, windows), `withdrawn=1` (only withdrawn),\n`withdrawn=0` (only live ones). `is_latest`: the highest non-withdrawn version of its app and platform.",
+                "summary": "Releases",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "app",
+                        "in": "query",
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/DeviceApp"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "platform",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "android",
+                                "windows",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "withdrawn",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "app": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "version": {
+                                                                "type": "string"
+                                                            },
+                                                            "build": {
+                                                                "type": "integer"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "file_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "sha256": {
+                                                                "type": "string"
+                                                            },
+                                                            "size_bytes": {
+                                                                "type": "integer"
+                                                            },
+                                                            "notes": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "released_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "is_minimum": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "minimum_from": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "withdrawn_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "is_latest": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "created_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "app",
+                                                            "platform",
+                                                            "version",
+                                                            "build",
+                                                            "label",
+                                                            "file_url",
+                                                            "sha256",
+                                                            "size_bytes",
+                                                            "notes",
+                                                            "released_at",
+                                                            "is_minimum",
+                                                            "minimum_from",
+                                                            "withdrawn_at",
+                                                            "is_latest",
+                                                            "created_at"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "post": {
+                "operationId": "admin.pos.release_created",
+                "description": "`app` (cashier, waiter, kds, customer_display), `platform` (android, windows), `version` (1.4.0), `build`\n(default 0), `file_url` (https), `sha256` (64 hex), `size_bytes`, `notes` (Uzbek, shown in the app), `released_at`\n(default now), `is_minimum` (versions below this one are unsupported), `minimum_from` (the day the notice turns\nred; with `is_minimum` and none given: 14 days from now), `reason`. The same app, platform, version and build\ntwice: 409 `release_exists`. Needs a step-up. Answers the release (201).",
+                "summary": "Add a release",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "app": {
+                                        "$ref": "#/components/schemas/DeviceApp"
+                                    },
+                                    "platform": {
+                                        "type": "string",
+                                        "enum": [
+                                            "android",
+                                            "windows"
+                                        ]
+                                    },
+                                    "version": {
+                                        "type": "string",
+                                        "pattern": "^\\d{1,6}(\\.\\d{1,6}){1,3}$",
+                                        "maxLength": 32
+                                    },
+                                    "build": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "minimum": 0,
+                                        "maximum": 999999999
+                                    },
+                                    "file_url": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "maxLength": 500
+                                    },
+                                    "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-fA-F]{64}$"
+                                    },
+                                    "size_bytes": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "notes": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    },
+                                    "released_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time"
+                                    },
+                                    "is_minimum": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
+                                    "minimum_from": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "app",
+                                    "platform",
+                                    "version",
+                                    "file_url",
+                                    "sha256",
+                                    "size_bytes",
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "app": {
+                                                    "type": "string"
+                                                },
+                                                "platform": {
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                },
+                                                "build": {
+                                                    "type": "integer"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "file_url": {
+                                                    "type": "string"
+                                                },
+                                                "sha256": {
+                                                    "type": "string"
+                                                },
+                                                "size_bytes": {
+                                                    "type": "integer"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "released_at": {
+                                                    "type": "string"
+                                                },
+                                                "is_minimum": {
+                                                    "type": "boolean"
+                                                },
+                                                "minimum_from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "withdrawn_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_latest": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "app",
+                                                "platform",
+                                                "version",
+                                                "build",
+                                                "label",
+                                                "file_url",
+                                                "sha256",
+                                                "size_bytes",
+                                                "notes",
+                                                "released_at",
+                                                "is_minimum",
+                                                "minimum_from",
+                                                "withdrawn_at",
+                                                "is_latest",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The release already exists (release_exists)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/pos/releases/{uuid}": {
+            "get": {
+                "operationId": "admin.pos.release",
+                "summary": "A release",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "404": {
+                        "description": "No such release (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "app": {
+                                                    "type": "string"
+                                                },
+                                                "platform": {
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                },
+                                                "build": {
+                                                    "type": "integer"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "file_url": {
+                                                    "type": "string"
+                                                },
+                                                "sha256": {
+                                                    "type": "string"
+                                                },
+                                                "size_bytes": {
+                                                    "type": "integer"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "released_at": {
+                                                    "type": "string"
+                                                },
+                                                "is_minimum": {
+                                                    "type": "boolean"
+                                                },
+                                                "minimum_from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "withdrawn_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_latest": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "app",
+                                                "platform",
+                                                "version",
+                                                "build",
+                                                "label",
+                                                "file_url",
+                                                "sha256",
+                                                "size_bytes",
+                                                "notes",
+                                                "released_at",
+                                                "is_minimum",
+                                                "minimum_from",
+                                                "withdrawn_at",
+                                                "is_latest",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "delete": {
+                "operationId": "admin.pos.release_deleted",
+                "description": "`reason`. For a row added by mistake: it goes for good, the audit entry keeps its fields. A release that was\npublished should be withdrawn instead. Needs a step-up. Answers `{uuid}`.",
+                "summary": "Delete a release",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "reason",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 500
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such release (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            },
+            "patch": {
+                "operationId": "admin.pos.release_updated",
+                "description": "`notes`, `file_url`, `sha256`, `size_bytes`, `released_at`, `is_minimum`, `minimum_from` and the `reason`; the\napp, platform, version and build cannot change (withdraw or delete the row and add another). Declaring a minimum\nwithout `minimum_from` sets it 14 days ahead; clearing `is_minimum` clears `minimum_from`. Needs a step-up.",
+                "summary": "Change a release",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "file_url": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "maxLength": 500
+                                    },
+                                    "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-fA-F]{64}$"
+                                    },
+                                    "size_bytes": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "notes": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    },
+                                    "released_at": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    },
+                                    "is_minimum": {
+                                        "type": "boolean"
+                                    },
+                                    "minimum_from": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "app": {
+                                                    "type": "string"
+                                                },
+                                                "platform": {
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                },
+                                                "build": {
+                                                    "type": "integer"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "file_url": {
+                                                    "type": "string"
+                                                },
+                                                "sha256": {
+                                                    "type": "string"
+                                                },
+                                                "size_bytes": {
+                                                    "type": "integer"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "released_at": {
+                                                    "type": "string"
+                                                },
+                                                "is_minimum": {
+                                                    "type": "boolean"
+                                                },
+                                                "minimum_from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "withdrawn_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_latest": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "app",
+                                                "platform",
+                                                "version",
+                                                "build",
+                                                "label",
+                                                "file_url",
+                                                "sha256",
+                                                "size_bytes",
+                                                "notes",
+                                                "released_at",
+                                                "is_minimum",
+                                                "minimum_from",
+                                                "withdrawn_at",
+                                                "is_latest",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such release (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/pos/releases/{uuid}/restore": {
+            "post": {
+                "operationId": "admin.pos.release_restored",
+                "description": "`reason`. Undoes a withdrawal. Needs a step-up. Answers the release.",
+                "summary": "Bring a withdrawn release back",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "app": {
+                                                    "type": "string"
+                                                },
+                                                "platform": {
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                },
+                                                "build": {
+                                                    "type": "integer"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "file_url": {
+                                                    "type": "string"
+                                                },
+                                                "sha256": {
+                                                    "type": "string"
+                                                },
+                                                "size_bytes": {
+                                                    "type": "integer"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "released_at": {
+                                                    "type": "string"
+                                                },
+                                                "is_minimum": {
+                                                    "type": "boolean"
+                                                },
+                                                "minimum_from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "withdrawn_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_latest": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "app",
+                                                "platform",
+                                                "version",
+                                                "build",
+                                                "label",
+                                                "file_url",
+                                                "sha256",
+                                                "size_bytes",
+                                                "notes",
+                                                "released_at",
+                                                "is_minimum",
+                                                "minimum_from",
+                                                "withdrawn_at",
+                                                "is_latest",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such release (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/pos/releases/{uuid}/withdraw": {
+            "post": {
+                "operationId": "admin.pos.release_withdrawn",
+                "description": "`reason`. A withdrawn release is no longer \"latest\" or \"minimum\" and leaves the public manifest; tills that run\nit are not touched. Withdrawing a withdrawn release changes nothing. Needs a step-up. Answers the release.",
+                "summary": "Withdraw a release",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "app": {
+                                                    "type": "string"
+                                                },
+                                                "platform": {
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                },
+                                                "build": {
+                                                    "type": "integer"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "file_url": {
+                                                    "type": "string"
+                                                },
+                                                "sha256": {
+                                                    "type": "string"
+                                                },
+                                                "size_bytes": {
+                                                    "type": "integer"
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "released_at": {
+                                                    "type": "string"
+                                                },
+                                                "is_minimum": {
+                                                    "type": "boolean"
+                                                },
+                                                "minimum_from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "withdrawn_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_latest": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "app",
+                                                "platform",
+                                                "version",
+                                                "build",
+                                                "label",
+                                                "file_url",
+                                                "sha256",
+                                                "size_bytes",
+                                                "notes",
+                                                "released_at",
+                                                "is_minimum",
+                                                "minimum_from",
+                                                "withdrawn_at",
+                                                "is_latest",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such release (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/pos/shifts": {
             "get": {
                 "operationId": "admin.pos.shifts",
@@ -38759,7 +39889,7 @@
         "/v1/devices/pair": {
             "post": {
                 "operationId": "terminal.pair",
-                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).\n\nWave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it\nsigns its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the\ntoken, never log it. `null` for a kitchen display or a customer display.",
+                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).\n\nWave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it\nsigns its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the\ntoken, never log it. `null` for a kitchen display or a customer display.\n\nWave M5 S5-a: a build below the minimum version the release registry names for its app and platform (`app`,\n`platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426\n`app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry\nminimum, or without those details, pairing works as before.",
                 "summary": "POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)",
                 "tags": [
                     "Terminal"
@@ -39008,6 +40138,16 @@
                             "application/json": {
                                 "schema": {
                                     "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "426": {
+                        "description": "The app is older than the registry minimum (app_outdated)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -153498,6 +154638,114 @@
                 }
             }
         },
+        "/v1/pos/releases": {
+            "get": {
+                "operationId": "posReleaseManifest.index",
+                "description": "Every non-withdrawn release of the four POS apps: `app` (cashier, waiter, kds, customer_display), `platform`\n(android, windows), `version`, `build`, `file_url`, `sha256`, `size_bytes`, `notes` (Uzbek), `released_at`,\n`is_minimum`, `minimum_from` (the day the notice turns red), `is_latest` (the highest version of its app and\nplatform). Sorted by app, platform, then newest first. Empty while nothing was published. No auth, cached 5\nminutes, at most 30 requests a minute per address (429 after).",
+                "summary": "POS app releases (public)",
+                "tags": [
+                    "Terminal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "releases": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "app": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "version": {
+                                                                "type": "string"
+                                                            },
+                                                            "build": {
+                                                                "type": "integer"
+                                                            },
+                                                            "file_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "sha256": {
+                                                                "type": "string"
+                                                            },
+                                                            "size_bytes": {
+                                                                "type": "integer"
+                                                            },
+                                                            "notes": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "released_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "is_minimum": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "minimum_from": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "is_latest": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "app",
+                                                            "platform",
+                                                            "version",
+                                                            "build",
+                                                            "file_url",
+                                                            "sha256",
+                                                            "size_bytes",
+                                                            "notes",
+                                                            "released_at",
+                                                            "is_minimum",
+                                                            "minimum_from",
+                                                            "is_latest"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "releases"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/pos/shifts": {
             "get": {
                 "operationId": "posShift.index",
@@ -170539,7 +171787,7 @@
         "/v1/terminal": {
             "get": {
                 "operationId": "terminal.show",
-                "description": "P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,\nor every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).",
+                "description": "P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,\nor every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).\n\nWave M5 S5-a: `app_release`, what the release registry says about this terminal's app and platform: `current`\n(the version it reported, `1.4.0+7`), `latest`, `minimum` (null: none declared), `state` (an AppReleaseState; update_required means below the minimum and past `minimum_from`, 14 days after it was declared\nunless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`\n(ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and\nplatform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.",
                 "summary": "GET /terminal: the terminal, its store and branch",
                 "tags": [
                     "Terminal"
@@ -170709,13 +171957,64 @@
                                                             "name"
                                                         ]
                                                     }
+                                                },
+                                                "app_release": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "current": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "latest": {
+                                                            "type": "string"
+                                                        },
+                                                        "minimum": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "state": {
+                                                            "type": "string"
+                                                        },
+                                                        "url": {
+                                                            "type": "string"
+                                                        },
+                                                        "notes": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "minimum_from": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "current",
+                                                        "latest",
+                                                        "minimum",
+                                                        "state",
+                                                        "url",
+                                                        "notes",
+                                                        "minimum_from"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "device",
                                                 "store",
                                                 "branch",
-                                                "branches"
+                                                "branches",
+                                                "app_release"
                                             ]
                                         }
                                     },
@@ -173148,6 +174447,12 @@
                             }
                         ]
                     },
+                    "app_outdated_notified_release_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "sync_key_id": {
                         "type": "integer"
                     },
@@ -173213,6 +174518,7 @@
                     "fiscal_kassa_id",
                     "display_for_device_id",
                     "app",
+                    "app_outdated_notified_release_id",
                     "sync_key_id"
                 ],
                 "title": "Device"

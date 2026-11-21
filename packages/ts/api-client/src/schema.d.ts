@@ -2439,6 +2439,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/pos/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Releases
+         * @description Every release, withdrawn ones included (`withdrawn_at`), the newest first per app and platform. Filters: `app`
+         *     (cashier, waiter, kds, customer_display), `platform` (android, windows), `withdrawn=1` (only withdrawn),
+         *     `withdrawn=0` (only live ones). `is_latest`: the highest non-withdrawn version of its app and platform.
+         */
+        get: operations["admin.pos.releases"];
+        put?: never;
+        /**
+         * Add a release
+         * @description `app` (cashier, waiter, kds, customer_display), `platform` (android, windows), `version` (1.4.0), `build`
+         *     (default 0), `file_url` (https), `sha256` (64 hex), `size_bytes`, `notes` (Uzbek, shown in the app), `released_at`
+         *     (default now), `is_minimum` (versions below this one are unsupported), `minimum_from` (the day the notice turns
+         *     red; with `is_minimum` and none given: 14 days from now), `reason`. The same app, platform, version and build
+         *     twice: 409 `release_exists`. Needs a step-up. Answers the release (201).
+         */
+        post: operations["admin.pos.release_created"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/releases/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A release */
+        get: operations["admin.pos.release"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a release
+         * @description `reason`. For a row added by mistake: it goes for good, the audit entry keeps its fields. A release that was
+         *     published should be withdrawn instead. Needs a step-up. Answers `{uuid}`.
+         */
+        delete: operations["admin.pos.release_deleted"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a release
+         * @description `notes`, `file_url`, `sha256`, `size_bytes`, `released_at`, `is_minimum`, `minimum_from` and the `reason`; the
+         *     app, platform, version and build cannot change (withdraw or delete the row and add another). Declaring a minimum
+         *     without `minimum_from` sets it 14 days ahead; clearing `is_minimum` clears `minimum_from`. Needs a step-up.
+         */
+        patch: operations["admin.pos.release_updated"];
+        trace?: never;
+    };
+    "/v1/admin/pos/releases/{uuid}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a withdrawn release back
+         * @description `reason`. Undoes a withdrawal. Needs a step-up. Answers the release.
+         */
+        post: operations["admin.pos.release_restored"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pos/releases/{uuid}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw a release
+         * @description `reason`. A withdrawn release is no longer "latest" or "minimum" and leaves the public manifest; tills that run
+         *     it are not touched. Withdrawing a withdrawn release changes nothing. Needs a step-up. Answers the release.
+         */
+        post: operations["admin.pos.release_withdrawn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/pos/shifts": {
         parameters: {
             query?: never;
@@ -4254,6 +4353,11 @@ export interface paths {
          *     Wave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it
          *     signs its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the
          *     token, never log it. `null` for a kitchen display or a customer display.
+         *
+         *     Wave M5 S5-a: a build below the minimum version the release registry names for its app and platform (`app`,
+         *     `platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426
+         *     `app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry
+         *     minimum, or without those details, pairing works as before.
          */
         post: operations["terminal.pair"];
         delete?: never;
@@ -11176,6 +11280,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * POS app releases (public)
+         * @description Every non-withdrawn release of the four POS apps: `app` (cashier, waiter, kds, customer_display), `platform`
+         *     (android, windows), `version`, `build`, `file_url`, `sha256`, `size_bytes`, `notes` (Uzbek), `released_at`,
+         *     `is_minimum`, `minimum_from` (the day the notice turns red), `is_latest` (the highest version of its app and
+         *     platform). Sorted by app, platform, then newest first. Empty while nothing was published. No auth, cached 5
+         *     minutes, at most 30 requests a minute per address (429 after).
+         */
+        get: operations["posReleaseManifest.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/shifts": {
         parameters: {
             query?: never;
@@ -12143,6 +12271,12 @@ export interface paths {
          * GET /terminal: the terminal, its store and branch
          * @description P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,
          *     or every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).
+         *
+         *     Wave M5 S5-a: `app_release`, what the release registry says about this terminal's app and platform: `current`
+         *     (the version it reported, `1.4.0+7`), `latest`, `minimum` (null: none declared), `state` (an AppReleaseState; update_required means below the minimum and past `minimum_from`, 14 days after it was declared
+         *     unless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`
+         *     (ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and
+         *     platform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.
          */
         get: operations["terminal.show"];
         put?: never;
@@ -12808,6 +12942,7 @@ export interface components {
             fiscal_kassa_id: string | null;
             display_for_device_id: number | null;
             app: components["schemas"]["DeviceApp"] | null;
+            app_outdated_notified_release_id: number | null;
             sync_key_id: number;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
@@ -21454,6 +21589,391 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "admin.pos.releases": {
+        parameters: {
+            query?: {
+                app?: components["schemas"]["DeviceApp"] | null;
+                platform?: "android" | "windows" | null;
+                withdrawn?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            data: {
+                                uuid: string;
+                                app: string;
+                                platform: string;
+                                version: string;
+                                build: number;
+                                label: string;
+                                file_url: string;
+                                sha256: string;
+                                size_bytes: number;
+                                notes: string | null;
+                                released_at: string;
+                                is_minimum: boolean;
+                                minimum_from: string | null;
+                                withdrawn_at: string | null;
+                                is_latest: boolean;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.release_created": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    app: components["schemas"]["DeviceApp"];
+                    /** @enum {string} */
+                    platform: "android" | "windows";
+                    version: string;
+                    build?: number | null;
+                    /** Format: uri */
+                    file_url: string;
+                    sha256: string;
+                    size_bytes: number;
+                    notes?: string | null;
+                    /** Format: date-time */
+                    released_at?: string | null;
+                    is_minimum?: boolean | null;
+                    /** Format: date-time */
+                    minimum_from?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            app: string;
+                            platform: string;
+                            version: string;
+                            build: number;
+                            label: string;
+                            file_url: string;
+                            sha256: string;
+                            size_bytes: number;
+                            notes: string | null;
+                            released_at: string;
+                            is_minimum: boolean;
+                            minimum_from: string | null;
+                            withdrawn_at: string | null;
+                            is_latest: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The release already exists (release_exists) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            app: string;
+                            platform: string;
+                            version: string;
+                            build: number;
+                            label: string;
+                            file_url: string;
+                            sha256: string;
+                            size_bytes: number;
+                            notes: string | null;
+                            released_at: string;
+                            is_minimum: boolean;
+                            minimum_from: string | null;
+                            withdrawn_at: string | null;
+                            is_latest: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such release (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.release_deleted": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such release (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.release_updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uri */
+                    file_url?: string;
+                    sha256?: string;
+                    size_bytes?: number;
+                    notes?: string | null;
+                    /** Format: date-time */
+                    released_at?: string;
+                    is_minimum?: boolean;
+                    /** Format: date-time */
+                    minimum_from?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            app: string;
+                            platform: string;
+                            version: string;
+                            build: number;
+                            label: string;
+                            file_url: string;
+                            sha256: string;
+                            size_bytes: number;
+                            notes: string | null;
+                            released_at: string;
+                            is_minimum: boolean;
+                            minimum_from: string | null;
+                            withdrawn_at: string | null;
+                            is_latest: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such release (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.pos.release_restored": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            app: string;
+                            platform: string;
+                            version: string;
+                            build: number;
+                            label: string;
+                            file_url: string;
+                            sha256: string;
+                            size_bytes: number;
+                            notes: string | null;
+                            released_at: string;
+                            is_minimum: boolean;
+                            minimum_from: string | null;
+                            withdrawn_at: string | null;
+                            is_latest: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such release (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.pos.release_withdrawn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            app: string;
+                            platform: string;
+                            version: string;
+                            build: number;
+                            label: string;
+                            file_url: string;
+                            sha256: string;
+                            size_bytes: number;
+                            notes: string | null;
+                            released_at: string;
+                            is_minimum: boolean;
+                            minimum_from: string | null;
+                            withdrawn_at: string | null;
+                            is_latest: boolean;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such release (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "admin.pos.shifts": {
         parameters: {
             query?: {
@@ -26828,6 +27348,15 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+            /** @description The app is older than the registry minimum (app_outdated) */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "terminal.startStaffSession": {
@@ -56835,6 +57364,44 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posReleaseManifest.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            releases: {
+                                app: string;
+                                platform: string;
+                                version: string;
+                                build: number;
+                                file_url: string;
+                                sha256: string;
+                                size_bytes: number;
+                                notes: string | null;
+                                released_at: string;
+                                is_minimum: boolean;
+                                minimum_from: string | null;
+                                is_latest: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "posShift.index": {
         parameters: {
             query?: {
@@ -61212,6 +61779,15 @@ export interface operations {
                                 id: number;
                                 name: string;
                             }[];
+                            app_release: {
+                                current: string | null;
+                                latest: string;
+                                minimum: string | null;
+                                state: string;
+                                url: string;
+                                notes: string | null;
+                                minimum_from: string | null;
+                            } | null;
                         };
                     };
                 };

@@ -8,14 +8,12 @@ part 'data372.g.dart';
 
 @JsonSerializable()
 class Data372 {
-  const Data372({required this.rating, required this.reviewCount});
+  const Data372({required this.received});
 
   factory Data372.fromJson(Map<String, Object?> json) =>
       _$Data372FromJson(json);
 
-  final String rating;
-  @JsonKey(name: 'review_count')
-  final int reviewCount;
+  final bool received;
 
   Map<String, Object?> toJson() => _$Data372ToJson(this);
 }

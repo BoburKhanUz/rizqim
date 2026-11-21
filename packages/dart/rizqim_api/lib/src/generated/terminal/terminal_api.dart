@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/delete_v1_devices_device_uuid_staff_session_response.dart';
 import '../models/delete_v1_terminal_response.dart';
+import '../models/get_v1_pos_releases_response.dart';
 import '../models/get_v1_terminal_response.dart';
 import '../models/get_v1_terminal_staff_response.dart';
 import '../models/post_v1_devices_device_uuid_staff_session_response.dart';
@@ -30,6 +31,11 @@ abstract class TerminalApi {
   /// Wave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it.
   /// signs its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the.
   /// token, never log it. `null` for a kitchen display or a customer display.
+  ///
+  /// Wave M5 S5-a: a build below the minimum version the release registry names for its app and platform (`app`,.
+  /// `platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426.
+  /// `app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry.
+  /// minimum, or without those details, pairing works as before.
   @POST('/v1/devices/pair')
   Future<PostV1DevicesPairResponse> terminalPair({
     @Body() required V1DevicesPairRequestBody body,
@@ -48,10 +54,26 @@ abstract class TerminalApi {
   Future<DeleteV1DevicesDeviceUuidStaffSessionResponse>
   terminalEndStaffSession({@Path('deviceUuid') required String deviceUuid});
 
+  /// POS app releases (public).
+  ///
+  /// Every non-withdrawn release of the four POS apps: `app` (cashier, waiter, kds, customer_display), `platform`.
+  /// (android, windows), `version`, `build`, `file_url`, `sha256`, `size_bytes`, `notes` (Uzbek), `released_at`,.
+  /// `is_minimum`, `minimum_from` (the day the notice turns red), `is_latest` (the highest version of its app and.
+  /// platform). Sorted by app, platform, then newest first. Empty while nothing was published. No auth, cached 5.
+  /// minutes, at most 30 requests a minute per address (429 after).
+  @GET('/v1/pos/releases')
+  Future<GetV1PosReleasesResponse> posReleaseManifestIndex();
+
   /// GET /terminal: the terminal, its store and branch.
   ///
   /// P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,.
   /// or every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).
+  ///
+  /// Wave M5 S5-a: `app_release`, what the release registry says about this terminal's app and platform: `current`.
+  /// (the version it reported, `1.4.0+7`), `latest`, `minimum` (null: none declared), `state` (an AppReleaseState; update_required means below the minimum and past `minimum_from`, 14 days after it was declared.
+  /// unless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`.
+  /// (ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and.
+  /// platform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.
   @GET('/v1/terminal')
   Future<GetV1TerminalResponse> terminalShow();
 
