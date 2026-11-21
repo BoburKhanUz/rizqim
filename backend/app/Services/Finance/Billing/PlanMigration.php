@@ -24,7 +24,7 @@ use Throwable;
  *   its first month on the new plan costs at most what the old plan did (price lock);
  * - the commission-only P1-23 plan → ended now (it billed nothing);
  * - commission: the old rate is kept as the store's flat rate when it was not the old default 10%; a store at 10% moves
- *   to the channel rates (own delivery stays 10%, pickup 5%, RIZQIM courier 15%);
+ *   to the channel rates (own delivery stays 10%, pickup 10% since 22.11.2026 (was 5%), RIZQIM courier 10% since 22.11.2026 (was 15%));
  * - the debt is split: unpaid invoices into subscription_debt (at most the debt); a store blocked only by invoices is
  *   unblocked (the credit limit counts the commission debt only);
  * - a store with terminals but no plan is reported (an admin assigns its plan).

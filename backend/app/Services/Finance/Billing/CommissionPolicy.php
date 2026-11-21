@@ -12,7 +12,7 @@ use App\Models\TariffPlan;
 
 /**
  * P4-21: RIZQIM's commission on an order, by channel (docs/BILLING.md, "Komissiya"; owner decision 24.10.2026):
- * RIZQIM courier 15%, the store's own delivery 10%, pickup 5%, the hall / the store's own till 0%, aggregators 0%.
+ * RIZQIM courier 10% (22.11.2026; was 15%), the store's own delivery 10%, pickup 10% (owner decision 22.11.2026; was 5%), the hall / the store's own till 0%, aggregators 0%.
  *
  * The rate of a channel, the first that applies:
  * 1. the store's own rate for that channel (stores.commission_overrides; set by an admin, audited);

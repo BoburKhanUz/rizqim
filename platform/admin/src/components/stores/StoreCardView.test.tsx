@@ -28,7 +28,7 @@ describe('StoreCardView', () => {
     expect(within(screen.getByRole('list', { name: 'Aloqa shaxslari' })).getByText('+998 90 *** ** 21')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Buyurtmalarini ochish/ })).toHaveAttribute('href', '/orders?store_id=12');
     expect(screen.getByText("Obuna yo'q: ovqatxona faqat komissiya bilan ishlaydi.")).toBeInTheDocument();
-    expect(within(screen.getByRole('list', { name: "Komissiya kanallar bo'yicha" })).getByText('RIZQIM kuryeri: 15%')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: "Komissiya kanallar bo'yicha" })).getByText('RIZQIM kuryeri: 10%')).toBeInTheDocument();
   });
 
   it('switches tabs: devices, finance, history', async () => {

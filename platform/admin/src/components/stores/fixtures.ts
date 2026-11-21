@@ -77,7 +77,7 @@ export function storeCard(overrides: Partial<StoreCard> = {}): StoreCard {
       entitlements: { plan: null, status: null, settings_locked: false, locked_since: null, features: {}, devices: { pos: { included: null, active: 1, extra: 0 } } },
       debt: { debt_balance: '250000.00', subscription_debt: '50000.00', commission_debt: '200000.00', credit_limit: '100000.00', over_credit_limit: true },
       commission: {
-        rates: { rizqim_courier: { rate: '15.00', source: 'default', default: '15.00' }, own_delivery: { rate: '10.00', source: 'default', default: '10.00' }, pickup: { rate: '5.00', source: 'default', default: '5.00' }, pos: { rate: '0.00', source: 'default', default: '0.00' } },
+        rates: { rizqim_courier: { rate: '10.00', source: 'default', default: '10.00' }, own_delivery: { rate: '10.00', source: 'default', default: '10.00' }, pickup: { rate: '10.00', source: 'default', default: '10.00' }, pos: { rate: '0.00', source: 'default', default: '0.00' } },
         overrides: {},
         flat_rate: null,
         delivery_courier: 'own',

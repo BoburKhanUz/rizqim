@@ -109,17 +109,20 @@ price_lock = migratsiyadan keyingi birinchi oy eski narxdan qimmat bo'lmasin (fa
 
 | Kanal (`orders.commission_channel`) | Standart |
 |---|---|
-| `rizqim_courier` — RIZQIM kuryeri yetkazadi | 15% |
+| `rizqim_courier` — RIZQIM kuryeri yetkazadi | 10% |
 | `own_delivery` — ovqatxona o'zi yetkazadi | 10% |
-| `pickup` — olib ketish | 5% |
+| `pickup` — olib ketish | 10% |
 | `pos` — zal va kassadagi olib ketish | 0% |
 | `aggregator` — Yandex, Uzum (o'z komissiyasini oladi) | 0% |
+
+- Egasi qarori, 22.11.2026: olib ketish (`pickup`) komissiyasi 5% dan 10% ga, RIZQIM kuryeri (`rizqim_courier`) komissiyasi 15% dan 10% ga o'zgartirildi; o'z yetkazishi 10%, zal 0%, agregator 0% o'zgarmadi. Standart `config/billing.php` da; ochiq buyurtmalar snapshot'ini saqlaydi, do'kon stavkasi (`commission_overrides`) o'zgarmaydi, migratsiya kerak emas.
+- Egasi qarori, 22.11.2026 (yetkazish haqi, hozircha kod yo'q): RIZQIM kuryeri yetkazganda mijoz alohida yetkazish haqini to'laydi; u RIZQIM'ga tushadi (keyin kuryerga beriladi) va **aralash usulda** narxlanadi: asosiy narx + har kilometr uchun qo'shimcha + gavjum vaqtlarda kichik ustama. Bu kuryer ilovasi bilan birga quriladi (ROADMAP, 7-bosqich). Do'konning o'z kuryeri yetkazsa, do'konning o'z yetkazish narxi hozirgidek qoladi.
 
 - Buyurtma yaratilganda (`CreateOrderAction`) kanal, foiz va summa buyurtmaga yoziladi (`commission_channel`,
   `commission_rate`, `commission_amount`); yetkazilganda ledger aynan shu summani oladi. Ochiq buyurtmalar o'z
   snapshot'ini saqlaydi, stavka o'zgarishi faqat yangi buyurtmalarga.
 - Yetkazishda kim yetkazishi buyurtma yaratilganda noma'lum, shuning uchun do'kon sozlamasi `stores.delivery_courier`
-  (`own` | `fleet`, admin o'rnatadi) hal qiladi: `fleet` — 15%, `own` — 10%.
+  (`own` | `fleet`, admin o'rnatadi) hal qiladi: `fleet` — 10%, `own` — 10%.
 - Qaysi foiz (birinchi mos kelgani): 1) do'konning shu kanal uchun o'z stavkasi (`stores.commission_overrides`, admin,
   jurnal bilan); 2) onlayn kanallarda eski qoida: joriy P1-23 tarifning `commission_percent`, bo'lmasa do'konning
   yagona foizi `stores.commission_rate` (bo'sh bo'lmasa); 3) `config/billing.php` → `commission`.
@@ -217,7 +220,7 @@ qiladigani. Har do'kon uchun:
    ishlatsa — Asosiy, aks holda Start (hech kimning ishlatayotgan funksiyasi yopilmaydi). Joriy oy eski narxda; yangi
    tarifdagi **birinchi oy eski narxdan qimmat emas** (`price_lock` qatori). Hisobotda eski narx, yangi narx va birinchi oy.
 2. Faqat komissiya tarifi (`commission`) → darhol tugaydi (u hech narsa hisoblamagan).
-3. Komissiya: eski foiz 10% (eski standart) bo'lsa — kanal stavkalariga (o'z yetkazishi 10%, olib ketish 5%); boshqa foiz
+3. Komissiya: eski foiz 10% (eski standart) bo'lsa — kanal stavkalariga (o'z yetkazishi 10%, olib ketish 10%); boshqa foiz
    (tarifniki yoki do'konniki) — do'konning yagona foizi sifatida saqlanadi (keyin admin o'zgartiradi).
 4. Qarz ikkiga ajratiladi; faqat obuna qarzi tufayli bloklangan do'kon ochiladi.
 5. Terminali bor, tarifi yo'q do'kon — hisobotda (`terminals_without_plan`), tarifni admin biriktiradi.
