@@ -27,6 +27,7 @@ import '../shell/approval_dialog.dart';
 import '../shell/destinations.dart';
 import '../shell/pos_scope.dart';
 import '../shell/routes.dart';
+import '../shell/update_notice.dart';
 import 'counter_controller.dart';
 import 'counter_format.dart';
 import 'counter_queue.dart';
@@ -453,6 +454,8 @@ class _CounterPageState extends State<CounterPage> {
       );
       if (closed != null && mounted) {
         showPosMessage(context, 'Smena yopildi.');
+        // M5 S5: the full `update_required` notice after a shift close ("Davom etish" closes it)
+        unawaited(showUpdateRequiredNotice(context, scope.services));
       }
     });
   }

@@ -3,6 +3,7 @@ import 'dart:io' show Directory;
 
 import 'package:pos_core/pos_core.dart' show ReceiptHeader;
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart' show openLink;
 import 'package:pos_lan/pos_lan.dart' show LanBillPrints, LanRemoteOp;
 import 'package:rizqim_api/rizqim_api.dart';
 
@@ -41,6 +42,8 @@ class CashierServices {
     this.billPrintPoll = const Duration(minutes: 1),
     this.qrPollInterval = const Duration(seconds: 3),
     this.exportDirectory,
+    this.releases,
+    this.linkOpener = _openLink,
   }) : data =
            data ??
            PosData(
@@ -61,6 +64,21 @@ class CashierServices {
     // P6 stage B: the till's own cart and queue go to the LAN devices; a bill asked over the LAN offline prints here
     lanPublisher.start();
   }
+
+  /// M5 S5: versiya xabari ([PosReleaseRepository]). Ulangandan keyin [TerminalHome] ishga tushiradi va terminal
+  /// uzilganda to'xtatadi; testlarda soxtasi beriladi (shunda [TerminalHome] unga tegmaydi).
+  PosReleaseRepository? releases;
+
+  /// M5 S5: yuklab olish havolasini ochadi ("Yangilash", "Yuklab olish"); testlarda almashtiriladi.
+  Future<bool> Function(Uri url) linkOpener;
+
+  static Future<bool> _openLink(Uri url) => openLink(url);
+
+  /// M5 S5: ilova ishga tushganda to'liq xabar ko'rsatildimi (bir ishga tushirishda bir marta).
+  bool startNoticeShown = false;
+
+  /// M5 S5: to'liq xabar dialogi hozir ochiq (ikkitasi ustma-ust chiqmasin).
+  bool noticeOpen = false;
 
   /// Review P6 wave 4 (C3): offlayn to'lov va kutilayotgan dinamik QR (`null` — oflayn rejim yo'q yoki [data] tashqaridan).
   QrOfflineGuard? qrGuard;

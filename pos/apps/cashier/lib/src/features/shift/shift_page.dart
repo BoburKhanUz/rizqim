@@ -11,6 +11,7 @@ import '../../shell/approval_dialog.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
+import '../../shell/update_notice.dart';
 import '../../terminal/bank_terminal_view.dart';
 import '../billing/cashier_ui.dart';
 import 'cash_movement_dialog.dart';
@@ -37,6 +38,7 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
   PosShift? _lastClosed;
   bool _started = false;
   bool _busy = false;
+  bool _openNoticeShown = false;
   final TextEditingController _opening = TextEditingController();
   final TextEditingController _note = TextEditingController();
 
@@ -75,6 +77,17 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
         _current = current;
         _error = null;
       });
+      // M5 S5: the shift-open screen shows the full `update_required` notice once per visit
+      if (current.shift != null) {
+        _openNoticeShown = false;
+      } else if (!_openNoticeShown) {
+        _openNoticeShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(showUpdateRequiredNotice(context, _scope.services));
+          }
+        });
+      }
       final PosShiftSummary? now = current.shift?.toSummary();
       if (_scope.session.shift?.uuid != now?.uuid) {
         _scope.session.updateShift(now);
@@ -179,8 +192,11 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
       ZClosePage(shift: shift, report: report),
     );
     if (closed != null && mounted) {
+      // M5 S5: the notice comes once for this close (the shift-open view below does not repeat it)
+      _openNoticeShown = true;
       setState(() => _lastClosed = closed);
       showPosMessage(context, 'Smena yopildi. Z-hisobot chop etildi.');
+      unawaited(showUpdateRequiredNotice(context, _scope.services));
       await refresh();
     }
   }

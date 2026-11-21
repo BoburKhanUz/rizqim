@@ -108,7 +108,7 @@ class _AuthGateState extends State<AuthGate> {
       // M5 S1: a till the server cut off keeps its unsent operations; the pairing screen says so
       return UnsentQueueNotice(
         offline: widget.services.data.offline,
-        child: PairingScreen(auth: _auth),
+        child: PairingScreen(auth: _auth, openUrl: widget.services.linkOpener),
       );
     }
     return TerminalHome(
@@ -144,6 +144,7 @@ class _TerminalHomeState extends State<TerminalHome> {
   final List<StreamSubscription<Object?>> _rtSubs =
       <StreamSubscription<Object?>>[];
   Timer? _printPoll;
+  bool _ownsReleases = false;
   late DateTime _lanReadAt = _s.now();
 
   /// Review P6 S5: the hub reads `GET /pos/lan` again at least this often while online.
@@ -166,6 +167,12 @@ class _TerminalHomeState extends State<TerminalHome> {
       if (mounted) setState(() {});
     });
     _listenForTill();
+    // M5 S5: the update notice is read once the till is paired (now and every 6 h); a notice only, never a gate
+    if (_s.releases == null) {
+      _ownsReleases = true;
+      _s.releases = PosReleaseRepository.fromClient(_s.client);
+      unawaited(_s.releases!.start());
+    }
     if (_session.phase == PosSessionPhase.signedIn) unawaited(_loadBootstrap());
   }
 
@@ -217,6 +224,11 @@ class _TerminalHomeState extends State<TerminalHome> {
   @override
   void dispose() {
     _printPoll?.cancel();
+    // Unpaired (or the app closed): the version reads stop
+    if (_ownsReleases) {
+      _s.releases?.dispose();
+      _s.releases = null;
+    }
     for (final StreamSubscription<Object?> s in _rtSubs) {
       unawaited(s.cancel());
     }

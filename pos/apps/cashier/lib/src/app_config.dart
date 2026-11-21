@@ -21,6 +21,12 @@ abstract final class AppConfig {
   /// pubspec.yaml'dagi versiya bilan bir xil; ulashda backend'ga yuboriladi.
   static const String version = '0.1.0';
 
+  /// pubspec.yaml'dagi qurilish raqami (`0.1.0+1` dagi `1`); versiya bilan birga serverga yuboriladi.
+  static const int build = 1;
+
+  /// `<version>+<build>`: `X-Rizqim-App-Version` sarlavhasi va ulash so'rovi uchun (M5 S5).
+  static const String fullVersion = '$version+$build';
+
   /// Ulashda qurilma nomi (panelda Sozlamalar → Qurilmalar ro'yxatida ko'rinadi).
   static const String deviceName = 'Kassa';
 

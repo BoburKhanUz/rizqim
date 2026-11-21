@@ -17,6 +17,7 @@ import 'limited_mode.dart';
 import 'plan_gate.dart';
 import 'pos_scope.dart';
 import 'top_bar.dart';
+import 'update_notice.dart';
 
 /// Ish ekrani (PIN bilan kirilgan, bootstrap yuklangan): yuqori panel, navigatsiya (keng ekranda chapda rail, torda
 /// pastda) va bo'lim sahifasi. Bir marta ochilgan bo'lim holati saqlanadi (IndexedStack), ko'rilmagani qurilmaydi.
@@ -91,6 +92,12 @@ class _HomeShellState extends State<HomeShell> {
         (_) => unawaited(_printSynced()),
       );
     }
+    // M5 S5: the full notice at app start (once per run), when the server says the version is below the minimum
+    final PosReleaseRepository? releases = widget.services.releases;
+    if (releases != null) {
+      _subs.add(releases.changes.listen((_) => _startNotice()));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startNotice());
+    }
     final PosRealtime? rt = widget.realtime;
     if (rt != null) {
       _subs
@@ -121,6 +128,15 @@ class _HomeShellState extends State<HomeShell> {
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  /// M5 S5: once per run, the home screen shows the `update_required` notice ("Davom etish" closes it).
+  void _startNotice() {
+    final CashierServices s = widget.services;
+    if (!mounted || s.startNoticeShown) return;
+    if (s.releases?.notice?.isRequired != true) return;
+    s.startNoticeShown = true;
+    unawaited(showUpdateRequiredNotice(context, s));
   }
 
   bool _exportOffered = false;
@@ -286,6 +302,11 @@ class _HomeShellState extends State<HomeShell> {
             children: <Widget>[
               // P4-21: an unpaid invoice, in plain words; the till keeps working
               const PlanNoticeBanner(),
+              // M5 S5: a new version; red and permanent when required, once a day on the hall map when available
+              UpdateBannerSlot(
+                services: widget.services,
+                showAvailable: _current == CashierDestination.floor,
+              ),
               const LimitedModeBanner(),
               // Review P6 wave 4 (C3): money taken offline over a QR the provider paid — give it back
               const QrOfflineReturnBanner(),

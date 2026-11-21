@@ -13,16 +13,21 @@ class CashierPrefs extends ChangeNotifier {
   static final CashierPrefs instance = CashierPrefs._();
 
   static const String _soundKey = 'cashier.sound';
+  static const String _updateKey = 'cashier.update_dismissed_on';
   static const String _paperKey = 'cashier.printer_paper.';
   static const String _imageKey = 'cashier.printer_image.';
 
   bool _sound = true;
+  String? _updateDismissedOn;
   final Map<String, int> _paper = <String, int>{};
   final Map<String, bool> _image = <String, bool>{};
   Future<void>? _loading;
 
   /// Yangi onlayn buyurtma kelganda ovoz.
   bool get sound => _sound;
+
+  /// M5 S5: "Yangi versiya" lentasi yopilgan kun (`yyyy-MM-dd`, qurilma vaqti); `null` — yopilmagan.
+  String? get updateDismissedOn => _updateDismissedOn;
 
   /// Printer (`server-<id>`) uchun qurilmada tanlangan qog'oz eni (mm); `null` — server sozlamasi.
   int? paperOf(String printerId) => _paper[printerId];
@@ -37,6 +42,7 @@ class CashierPrefs extends ChangeNotifier {
     try {
       final SharedPreferences p = await SharedPreferences.getInstance();
       _sound = p.getBool(_soundKey) ?? true;
+      _updateDismissedOn = p.getString(_updateKey);
       for (final String key in p.getKeys()) {
         if (key.startsWith(_paperKey)) {
           final int? v = p.getInt(key);
@@ -56,6 +62,13 @@ class CashierPrefs extends ChangeNotifier {
     _sound = on;
     notifyListeners();
     await _write((SharedPreferences p) => p.setBool(_soundKey, on));
+  }
+
+  /// M5 S5: lenta [day] kuni yopildi (shu kun qayta chiqmaydi).
+  Future<void> setUpdateDismissedOn(String day) async {
+    _updateDismissedOn = day;
+    notifyListeners();
+    await _write((SharedPreferences p) => p.setString(_updateKey, day));
   }
 
   Future<void> setPaper(String printerId, int mm) async {
@@ -97,6 +110,7 @@ class CashierPrefs extends ChangeNotifier {
   @visibleForTesting
   void reset() {
     _sound = true;
+    _updateDismissedOn = null;
     _paper.clear();
     _image.clear();
     _loading = null;
