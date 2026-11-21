@@ -10,6 +10,7 @@ import '../features/billing/cashier_ui.dart' show showPosMessage;
 import '../features/billing/qr_offline_guard.dart';
 import '../features/order/kitchen_tickets.dart';
 import '../features/settings/zaxira_card.dart' show ExportOutcome, runExport;
+import '../printing/offline_summary.dart';
 import '../services.dart';
 import 'destinations.dart';
 import 'limited_mode.dart';
@@ -141,6 +142,19 @@ class _HomeShellState extends State<HomeShell> {
         : ScaffoldMessenger.maybeOf(_scopeContext!);
     if (messenger == null) return;
     _exportOffered = true;
+    // The same moment, once per outage: the short summary slip (a printer problem is only a message)
+    unawaited(() async {
+      final SummaryPrintOutcome out = await printOfflineSummary(
+        widget.services,
+      );
+      if (out.ok || !mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(out.text),
+          duration: const Duration(seconds: 15),
+        ),
+      );
+    }());
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(

@@ -5,6 +5,7 @@ import 'package:pos_sync/pos_sync.dart';
 import 'package:rizqim_core/rizqim_core.dart' show StatusTone;
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../printing/offline_summary.dart';
 import '../../services.dart';
 import '../billing/cashier_ui.dart';
 
@@ -77,6 +78,17 @@ class _ZaxiraCardState extends State<ZaxiraCard> {
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _printSummary() async {
+    setState(() => _busy = true);
+    final SummaryPrintOutcome out = await printOfflineSummary(widget.services);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _ok = out.ok;
+      _message = out.text;
+    });
   }
 
   Future<void> _save(SyncExporter exporter) async {
@@ -154,6 +166,17 @@ class _ZaxiraCardState extends State<ZaxiraCard> {
                 icon: Icons.save_alt_rounded,
                 variant: RzButtonVariant.secondary,
                 onPressed: _busy ? null : () => unawaited(_save(exporter)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: RzButton(
+                key: const ValueKey<String>('zaxira-print-summary'),
+                label: 'Qisqa hisobotni chop etish',
+                icon: Icons.print_rounded,
+                variant: RzButtonVariant.secondary,
+                onPressed: _busy ? null : () => unawaited(_printSummary()),
               ),
             ),
             if (_message != null) ...<Widget>[
