@@ -9,3 +9,12 @@ Notes for wave P (to confirm with the owner before building):
 - The figures (1 200+ restaurants, 10+ cities, 100 000+ users) and the testimonials are placeholders: no invented numbers or reviews go live.
 - "Dasturchilar uchun / API" section: no public partner API is planned yet.
 - A vector (SVG) version of the logo is needed for the site, apps and receipts.
+
+## Partner page ("Hamkor bo'lish"), owner concept 21.11.2026
+- `partner-page-concept.png` (full page), `partner-form-concept.png` (the form).
+- The form already has a backend: `POST /api/v1/store-applications` (P4-22; throttled, honeypot `website`), fields:
+  name (place), format (restaurant, cafe, fast_food, canteen, coffee_shop, bakery, teahouse, catering, other),
+  region_id or city, owner_name, phone, tin (optional), comment (optional), source=website. Applications land in the
+  control centre. The concept's extra fields (e-mail, partner types "Do'kon/Market", "Texnologik hamkor",
+  "Yetkazib berish hamkori") have no backend yet: decide with the owner (wave P).
+- FAQ answers (is it free, commission, launch time, POS integration) must come from the owner's real tariffs.
