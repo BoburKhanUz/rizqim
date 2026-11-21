@@ -221,7 +221,8 @@ class PosReleaseTerminalTest extends TestCase
 
     public function test_pairing_below_the_minimum_answers_426_app_outdated_and_keeps_the_code(): void
     {
-        $this->release('1.2.0', ['is_minimum' => true, 'minimum_from' => now()->addDays(14)]);
+        // Review 3 M3: refused only once the minimum applies (past `minimum_from`; inside the grace period it pairs)
+        $this->release('1.2.0', ['is_minimum' => true, 'minimum_from' => now()->subDay()]);
         $latest = $this->release('1.4.0', ['build' => 7]);
         $code = $this->code();
 

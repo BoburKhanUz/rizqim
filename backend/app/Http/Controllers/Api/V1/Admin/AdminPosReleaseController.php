@@ -10,9 +10,11 @@ use App\Services\Admin\AdminAudit;
 use App\Support\UzValidation;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -111,20 +113,26 @@ class AdminPosReleaseController extends AdminController
         }
 
         $minimum = (bool) ($data['is_minimum'] ?? false);
-        $release = PosAppRelease::create([
-            'app' => $data['app'],
-            'platform' => $data['platform'],
-            'version' => $data['version'],
-            'build' => $build,
-            'file_url' => $data['file_url'],
-            'sha256' => strtolower($data['sha256']),
-            'size_bytes' => (int) $data['size_bytes'],
-            'notes' => $data['notes'] ?? null,
-            'released_at' => isset($data['released_at']) ? Carbon::parse($data['released_at']) : now(),
-            'is_minimum' => $minimum,
-            'minimum_from' => $minimum ? (isset($data['minimum_from']) ? Carbon::parse($data['minimum_from']) : now()->addDays(PosAppReleases::graceDays())) : null,
-            'created_by' => $this->member($request)->id,
-        ]);
+        // Review 3 LOW: two staff adding the same build at once both pass the check above; the unique index refuses
+        // the second, answered like the plain duplicate (in its own transaction, so the connection stays usable)
+        try {
+            $release = DB::transaction(fn () => PosAppRelease::create([
+                'app' => $data['app'],
+                'platform' => $data['platform'],
+                'version' => $data['version'],
+                'build' => $build,
+                'file_url' => $data['file_url'],
+                'sha256' => strtolower($data['sha256']),
+                'size_bytes' => (int) $data['size_bytes'],
+                'notes' => $data['notes'] ?? null,
+                'released_at' => isset($data['released_at']) ? Carbon::parse($data['released_at']) : now(),
+                'is_minimum' => $minimum,
+                'minimum_from' => $minimum ? (isset($data['minimum_from']) ? Carbon::parse($data['minimum_from']) : now()->addDays(PosAppReleases::graceDays())) : null,
+                'created_by' => $this->member($request)->id,
+            ]));
+        } catch (UniqueConstraintViolationException) {
+            return $this->refuse("Bu versiya allaqachon qo'shilgan.", 'release_exists', 409);
+        }
         PosAppReleases::forget();
 
         AdminAudit::for($request)->subject($release)->changes([], $this->snapshot($release))->meta($this->identity($release));

@@ -39889,8 +39889,8 @@
         "/v1/devices/pair": {
             "post": {
                 "operationId": "terminal.pair",
-                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).\n\nWave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it\nsigns its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the\ntoken, never log it. `null` for a kitchen display or a customer display.\n\nWave M5 S5-a: a build below the minimum version the release registry names for its app and platform (`app`,\n`platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426\n`app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry\nminimum, or without those details, pairing works as before.",
-                "summary": "POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)",
+                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).\n\nWave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it\nsigns its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the\ntoken, never log it. `null` for a kitchen display or a customer display.\n\nWave M5 S5-a: a build below the minimum version the release registry names for its app and platform (`app`,\n`platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426\n`app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry\nminimum, or without those details, pairing works as before.\n\nReview 3 M3: refused only once the minimum applies (past its `minimum_from`, when GET /terminal would say\nupdate_required), and never when `pending_operations` (optional, the number of operations the till still holds\nto send, orphaned queues included) is above 0: the till pairs, sends them, and shows the red notice instead.",
+                "summary": "POST /devices/pair {code, name?, platform?, app_version?, app?, pending_operations?} (no auth, rate limited)",
                 "tags": [
                     "Terminal"
                 ],
@@ -39935,6 +39935,13 @@
                                                 "type": "null"
                                             }
                                         ]
+                                    },
+                                    "pending_operations": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "minimum": 0
                                     }
                                 },
                                 "required": [
@@ -171787,7 +171794,7 @@
         "/v1/terminal": {
             "get": {
                 "operationId": "terminal.show",
-                "description": "P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,\nor every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).\n\nWave M5 S5-a: `app_release`, what the release registry says about this terminal's app and platform: `current`\n(the version it reported, `1.4.0+7`), `latest`, `minimum` (null: none declared), `state` (an AppReleaseState; update_required means below the minimum and past `minimum_from`, 14 days after it was declared\nunless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`\n(ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and\nplatform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.",
+                "description": "P2-30: `branches`, the branches whose real-time channel (`private-pos-branch.{id}`) it may join: its own branch,\nor every branch of the store for a terminal paired without one (a store-wide kitchen display subscribes to each).\n\nWave M5 S5-a: `app_release`, what the release registry says about this terminal's app and platform: `current`\n(the version it reported, `1.4.0+7`), `latest`, `minimum` (null: none declared), `state` (an AppReleaseState; update_required means below the minimum and past `minimum_from`, 14 days after it was declared\nunless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`\n(ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and\nplatform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.\n`current` and `state` follow the version this request reports in `X-Rizqim-App-Version` when it is readable\n(the stored one is refreshed at most once a minute), else the stored one.",
                 "summary": "GET /terminal: the terminal, its store and branch",
                 "tags": [
                     "Terminal"

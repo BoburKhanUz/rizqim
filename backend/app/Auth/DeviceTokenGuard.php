@@ -4,7 +4,10 @@ namespace App\Auth;
 
 use App\Domain\Pos\Releases\AppVersion;
 use App\Models\Device;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\Events\TokenAuthenticated;
 use Laravel\Sanctum\Guard;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -51,18 +54,38 @@ class DeviceTokenGuard extends Guard
         // A heartbeat for the owner's device list, at most once a minute. Wave M5 S5-a: the app version the terminal
         // reports (X-Rizqim-App-Version) rides on this same save, and only when it changed: no extra write. A change
         // is therefore seen within a minute. Nothing reads it to refuse a request (a sale is never gated by version)
+        // Review 3 M4: AppVersion::parse refuses anything longer than the column, and should the version still fail to
+        // save, the heartbeat is saved without it: the version can never cost the till its authentication
         if (!$device->last_seen_at || $device->last_seen_at->lt(now()->subMinute())) {
             $device->forceFill(['last_seen_at' => now()]);
             $reported = trim((string) $request->header(AppVersion::HEADER, ''));
             if ($reported !== '' && $reported !== $device->app_version && AppVersion::parse($reported) !== null) {
                 $device->forceFill(['app_version' => $reported]);
             }
-            $device->saveQuietly();
+            $this->saveHeartbeat($device);
             $this->updateLastUsedAt($accessToken);
         }
 
         $request->attributes->set('device', $device);
 
         return $device;
+    }
+
+    /**
+     * The heartbeat save; when the reported version is what fails (it never should, see AppVersion::MAX_LENGTH), the
+     * heartbeat is saved without it. In a savepoint, so a failed write never poisons the request's connection.
+     */
+    private function saveHeartbeat(Device $device): void
+    {
+        try {
+            DB::transaction(fn () => $device->saveQuietly());
+        } catch (QueryException $e) {
+            if (!$device->isDirty('app_version')) {
+                throw $e;
+            }
+            Log::warning("Device {$device->id}: the reported app version was not stored: {$e->getMessage()}");
+            $device->app_version = $device->getOriginal('app_version');
+            DB::transaction(fn () => $device->saveQuietly());
+        }
     }
 }

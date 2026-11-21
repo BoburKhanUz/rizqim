@@ -269,4 +269,33 @@ class PosReleaseAdminTest extends TestCase
         // Another address has its own budget
         $this->withServerVariables(['REMOTE_ADDR' => '10.20.30.40'])->getJson('/api/v1/pos/releases')->assertOk();
     }
+
+    /**
+     * Review 3 LOW: two staff add the same build at once; the second passes the "exists" check before the first
+     * commits and hits the unique index. It is answered 409 release_exists like the plain duplicate, never 500.
+     */
+    public function test_a_duplicate_that_slips_past_the_exists_check_is_answered_409(): void
+    {
+        $token = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
+        $raced = false;
+        // The other request's row lands between the check and our insert
+        PosAppRelease::creating(function (PosAppRelease $release) use (&$raced) {
+            if ($raced) {
+                return;
+            }
+            $raced = true;
+            \Illuminate\Support\Facades\DB::table('pos_app_releases')->insert([
+                'uuid' => (string) \Illuminate\Support\Str::uuid(), 'app' => $release->app, 'platform' => $release->platform,
+                'version' => $release->version, 'build' => $release->build, 'file_url' => $release->file_url,
+                'sha256' => $release->sha256, 'size_bytes' => $release->size_bytes, 'released_at' => now(),
+                'is_minimum' => false, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        });
+
+        $this->adminJson('POST', '/pos/releases', $token, $this->body())->assertStatus(409)->assertJsonPath('code', 'release_exists');
+        $this->assertTrue($raced);
+        $this->assertSame(0, AuditLog::where('action', 'admin.pos.release_created')->count());
+        // The request's database work is still usable afterwards (the failed insert did not poison the connection)
+        $this->adminJson('GET', '/pos/releases', $token)->assertOk();
+    }
 }

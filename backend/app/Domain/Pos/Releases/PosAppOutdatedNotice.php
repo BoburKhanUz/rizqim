@@ -7,6 +7,8 @@ use App\Models\Device;
 use App\Models\PosAppRelease;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Wave M5 S5-a (docs/scale/M5_DESIGN.md section 6, owner answer 8): when a till has run a version below the minimum
@@ -45,8 +47,14 @@ class PosAppOutdatedNotice
             });
         }
 
+        // Review 3 LOW: one store's failure (its message could not be handed over) never stops the others; its tills
+        // stay unmarked, so the next run tells that owner
         foreach ($byStore as $storeId => $entries) {
-            $sent += $this->notify($storeId, $entries) ? 1 : 0;
+            try {
+                $sent += $this->notify($storeId, $entries) ? 1 : 0;
+            } catch (Throwable $e) {
+                Log::error("The outdated POS app notice of store {$storeId} was not sent: {$e->getMessage()}");
+            }
         }
 
         return $sent;
@@ -130,7 +138,9 @@ class PosAppOutdatedNotice
                 return false;
             }
 
-            $this->alerts->send($storeId, "⚠️ Kassa ilovasi eskirgan\n"
+            // Handed over inside the claim's transaction: a failed send throws and rolls the marks back (never marked
+            // as told while nobody was told)
+            $this->alerts->deliver($storeId, "⚠️ Kassa ilovasi eskirgan\n"
                 . "Quyidagi qurilmalardagi ilova talab qilinadigan eng kam versiyadan past:\n" . implode("\n", $lines)
                 . "\nIsh to'xtatilmaydi, lekin ilovani yangilang (navbatdagi amallar yuborilgandan keyin):\n" . implode("\n", array_keys($links)));
 

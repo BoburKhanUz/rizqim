@@ -86,9 +86,13 @@ class PosAppReleases
      * The `app_release` of GET /terminal: null when the registry knows nothing for this app and platform (or the till
      * did not say its platform): the app then shows no notice.
      *
+     * Review 3 M2: `$reported` is the version the request itself carries (X-Rizqim-App-Version). It wins over the
+     * stored one, which the guard refreshes at most once a minute: an app updated within that minute must not be told
+     * it is still the old build. Unreadable or missing: the stored version, as before.
+     *
      * @return array{current: string|null, latest: string, minimum: string|null, state: string, url: string, notes: string|null, minimum_from: string|null}|null
      */
-    public function forTerminal(Device $device, ?string $claimedApp = null, ?Carbon $now = null): ?array
+    public function forTerminal(Device $device, ?string $claimedApp = null, ?Carbon $now = null, ?string $reported = null): ?array
     {
         $app = $this->appOf($device, $claimedApp);
         $platform = self::platformOf($device->platform);
@@ -101,7 +105,7 @@ class PosAppReleases
             return null;
         }
 
-        $current = AppVersion::parse($device->app_version);
+        $current = AppVersion::parse($reported) ?? AppVersion::parse($device->app_version);
 
         return [
             'current' => $current === null ? null : $current['version'] . '+' . $current['build'],
@@ -135,19 +139,24 @@ class PosAppReleases
      * Pairing is setup, so an old build is refused there (426 app_outdated), before the code is spent. Only when the
      * request names its app, platform and a version we can read, and the registry has a minimum for them.
      *
+     * Review 3 M3: only once the minimum applies (the state GET /terminal would give is update_required, i.e. past
+     * `minimum_from`): inside the grace period a cut-off till pairs again. And NEVER when the till says it holds
+     * queued operations (`$pendingOperations` > 0, its orphans included): those sales and payments must reach the
+     * server; the red notice shows after pairing instead.
+     *
      * @return array{reason: string, current: string, minimum: string, url: string}|null
      */
-    public function pairingRefusal(?string $app, ?string $platform, ?string $version): ?array
+    public function pairingRefusal(?string $app, ?string $platform, ?string $version, int $pendingOperations = 0, ?Carbon $now = null): ?array
     {
         $app = DeviceApp::tryFrom((string) $app);
         $platform = self::platformOf($platform);
         $current = AppVersion::parse($version);
-        if ($app === null || $platform === null || $current === null) {
+        if ($pendingOperations > 0 || $app === null || $platform === null || $current === null) {
             return null;
         }
 
         ['latest' => $latest, 'minimum' => $minimum] = $this->rows($app, $platform);
-        if ($minimum === null || AppVersion::compare($current, $this->parts($minimum)) >= 0) {
+        if ($minimum === null || $this->state($current, $latest ?? $minimum, $minimum, $now ?? now()) !== AppReleaseState::UPDATE_REQUIRED) {
             return null;
         }
 

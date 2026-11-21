@@ -14,12 +14,18 @@ final class AppVersion
     private const PATTERN = '/^(\d{1,6}(?:\.\d{1,6}){1,3})(?:\+(\d{1,9}))?$/';
 
     /**
+     * Review 3 M4: devices.app_version is varchar(32). The pattern alone lets 37 characters through, which the
+     * heartbeat save could not store; anything longer than the column is not a version.
+     */
+    public const MAX_LENGTH = 32;
+
+    /**
      * @return array{version: string, build: int}|null null for anything that is not a plain version
      */
     public static function parse(?string $value): ?array
     {
         $value = trim((string) $value);
-        if ($value === '' || !preg_match(self::PATTERN, $value, $match)) {
+        if ($value === '' || strlen($value) > self::MAX_LENGTH || !preg_match(self::PATTERN, $value, $match)) {
             return null;
         }
 

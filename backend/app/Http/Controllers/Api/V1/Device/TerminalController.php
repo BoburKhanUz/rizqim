@@ -39,7 +39,7 @@ class TerminalController extends Controller
     ) {}
 
     /**
-     * POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited).
+     * POST /devices/pair {code, name?, platform?, app_version?, app?, pending_operations?} (no auth, rate limited).
      *
      * `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
      * (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
@@ -53,6 +53,10 @@ class TerminalController extends Controller
      * `platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426
      * `app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry
      * minimum, or without those details, pairing works as before.
+     *
+     * Review 3 M3: refused only once the minimum applies (past its `minimum_from`, when GET /terminal would say
+     * update_required), and never when `pending_operations` (optional, the number of operations the till still holds
+     * to send, orphaned queues included) is above 0: the till pairs, sends them, and shows the red notice instead.
      */
     #[ApiDocResponse(426, 'The app is older than the registry minimum (app_outdated)', type: 'array{success: false, message: string, data: array{reason: string, current: string, minimum: string, url: string}}')]
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{token: string, sync_key: array{key: string, kid: int}|null, device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null}}')]
@@ -64,6 +68,7 @@ class TerminalController extends Controller
             'platform' => 'nullable|string|max:32',
             'app_version' => 'nullable|string|max:32',
             'app' => ['nullable', Rule::enum(DeviceApp::class)],
+            'pending_operations' => 'nullable|integer|min:0',
         ]);
 
         $this->watchPairingVolume();
@@ -74,6 +79,7 @@ class TerminalController extends Controller
             $data['app'] ?? $request->header(DeviceApp::HEADER),
             $data['platform'] ?? null,
             $data['app_version'] ?? $request->header(AppVersion::HEADER),
+            (int) ($data['pending_operations'] ?? 0),
         );
         if ($outdated !== null) {
             return $this->error("Ilova eskirgan. Yangi versiyani yuklab oling va qayta ulang.", $outdated, 426);
@@ -107,6 +113,8 @@ class TerminalController extends Controller
      * unless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`
      * (ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and
      * platform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.
+     * `current` and `state` follow the version this request reports in `X-Rizqim-App-Version` when it is readable
+     * (the stored one is refreshed at most once a minute), else the stored one.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null, branches: list<array{id: int, name: string}>, app_release: array{current: string|null, latest: string, minimum: string|null, state: string, url: string, notes: string|null, minimum_from: string|null}|null}}')]
     public function show(Request $request): JsonResponse
@@ -124,7 +132,7 @@ class TerminalController extends Controller
             'store' => $device->store?->only(['id', 'name']),
             'branch' => $device->branch?->only(['id', 'name']),
             'branches' => $branches->map(fn (\App\Models\Branch $branch) => ['id' => (int) $branch->id, 'name' => (string) $branch->name])->values()->all(),
-            'app_release' => app(PosAppReleases::class)->forTerminal($device, $request->header(DeviceApp::HEADER)),
+            'app_release' => app(PosAppReleases::class)->forTerminal($device, $request->header(DeviceApp::HEADER), null, $request->header(AppVersion::HEADER)),
         ]);
     }
 

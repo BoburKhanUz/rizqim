@@ -35,33 +35,42 @@ class PosOwnerAlerts
     {
         DB::afterCommit(function () use ($storeId, $text) {
             try {
-                $store = Store::find($storeId);
-                $chats = [];
-
-                // The store's admin chat is a group, not a person: it has no preferences of its own
-                if ($store?->telegram_admin_chat_id && $this->telegram->isConfigured()) {
-                    $chats[] = (string) $store->telegram_admin_chat_id;
-                    $this->telegram->sendMessage((string) $store->telegram_admin_chat_id, $text);
-                }
-
-                $message = new NotificationMessage(
-                    NotificationType::POS_ALERTS,
-                    telegram: new TelegramContent($text),
-                    push: new PushContent('Kassa ogohlantirishi', mb_substr($text, 0, 240), ['type' => NotificationType::POS_ALERTS->value], 'pos-alert'),
-                );
-
-                $owners = User::where('store_id', $storeId)->where('role', UserRole::OWNER->value)->orderBy('id')->get();
-                foreach ($owners as $owner) {
-                    // An owner who is also the admin chat (a private chat with the bot) hears it once
-                    if (in_array((string) $owner->telegram_id, $chats, true)) {
-                        continue;
-                    }
-                    $this->router->send($owner, $message);
-                }
+                $this->deliver($storeId, $text);
             } catch (Throwable $e) {
                 Log::error("Failed to send the POS owner alert of store {$storeId}: {$e->getMessage()}");
             }
         });
+    }
+
+    /**
+     * The same alert, handed over now (not after the commit) and failing loudly: for a caller that records "told"
+     * only once the message is on its way (the Wave M5 S5 outdated-app notice).
+     */
+    public function deliver(int $storeId, string $text): void
+    {
+        $store = Store::find($storeId);
+        $chats = [];
+
+        // The store's admin chat is a group, not a person: it has no preferences of its own
+        if ($store?->telegram_admin_chat_id && $this->telegram->isConfigured()) {
+            $chats[] = (string) $store->telegram_admin_chat_id;
+            $this->telegram->sendMessage((string) $store->telegram_admin_chat_id, $text);
+        }
+
+        $message = new NotificationMessage(
+            NotificationType::POS_ALERTS,
+            telegram: new TelegramContent($text),
+            push: new PushContent('Kassa ogohlantirishi', mb_substr($text, 0, 240), ['type' => NotificationType::POS_ALERTS->value], 'pos-alert'),
+        );
+
+        $owners = User::where('store_id', $storeId)->where('role', UserRole::OWNER->value)->orderBy('id')->get();
+        foreach ($owners as $owner) {
+            // An owner who is also the admin chat (a private chat with the bot) hears it once
+            if (in_array((string) $owner->telegram_id, $chats, true)) {
+                continue;
+            }
+            $this->router->send($owner, $message);
+        }
     }
 
     public static function sum(Money|string $amount): string

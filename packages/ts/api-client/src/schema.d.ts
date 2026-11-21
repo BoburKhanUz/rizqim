@@ -4345,7 +4345,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)
+         * POST /devices/pair {code, name?, platform?, app_version?, app?, pending_operations?} (no auth, rate limited)
          * @description `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
          *     (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
          *     code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
@@ -4358,6 +4358,10 @@ export interface paths {
          *     `platform` and `app_version` or the `X-Rizqim-App-Version` header must be given) is refused with 426
          *     `app_outdated` (`current`, `minimum`, `url` of the latest build) before the code is spent. Without a registry
          *     minimum, or without those details, pairing works as before.
+         *
+         *     Review 3 M3: refused only once the minimum applies (past its `minimum_from`, when GET /terminal would say
+         *     update_required), and never when `pending_operations` (optional, the number of operations the till still holds
+         *     to send, orphaned queues included) is above 0: the till pairs, sends them, and shows the red notice instead.
          */
         post: operations["terminal.pair"];
         delete?: never;
@@ -12277,6 +12281,8 @@ export interface paths {
          *     unless staff chose another day), `url` (download link of the latest build), `notes` (Uzbek), `minimum_from`
          *     (ISO time, null without a minimum). `null` when the registry holds no release for the terminal's app and
          *     platform: the app then shows no notice. Only a notice: no state stops a shift, an order, a payment or a sync.
+         *     `current` and `state` follow the version this request reports in `X-Rizqim-App-Version` when it is readable
+         *     (the stored one is refreshed at most once a minute), else the stored one.
          */
         get: operations["terminal.show"];
         put?: never;
@@ -27291,6 +27297,7 @@ export interface operations {
                     platform?: string | null;
                     app_version?: string | null;
                     app?: components["schemas"]["DeviceApp"] | null;
+                    pending_operations?: number | null;
                 };
             };
         };
