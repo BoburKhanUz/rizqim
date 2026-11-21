@@ -1065,9 +1065,13 @@ qilish shart emas: navbat o'zi ketadi.
   `rizqim-navbat-<kassa uuid>-<birinchi>-<oxirgi>.rzq` (Windows: `Hujjatlar\RIZQIM\<kassa uuid>\`).
 - Faylni fleshkaga yoki telefonga ko'chiring. **Faylni ochib saqlamang** (Bloknot va boshqa muharrirlar qator
   oxirini o'zgartiradi): bitta bayt o'zgarsa ham server faylni `file_mac_invalid` bilan rad etadi.
-- Kassani **uzishdan oldin** faylni oling. Uzilgandan keyin sanalgan amallar qo'llanmaydi (to'lovlar baribir yoziladi,
-  lekin menejer tekshirishi kerak bo'ladi).
-- Amal ko'p bo'lsa kassa bir nechta fayl yozadi (har birida 10 000 tagacha amal): hammasini `seq` tartibida yuklang.
+- Kassani **uzishdan oldin** faylni oling. Uzilgandan keyin sanalgan amallar ham yoziladi (sotuv va to'lov hech qachon
+  tashlanmaydi), lekin har biri «Sinxronlash xatolari»da `device_revoked` bo'lib turadi va menejer tekshirishi kerak;
+  shu paytdagi chegirma va taom o'chirish qabul qilinmaydi (schyot to'liq narxda).
+- Amal ko'p bo'lsa kassa bir nechta fayl yozadi (har birida 10 000 tagacha amal): hammasini `seq` tartibida yuklang
+  (fayl nomidagi birinchi raqam bo'yicha). Tartib buzilsa ham hech narsa yo'qolmaydi, lekin natijada «Fayl N-amaldan
+  boshlanadi, serverda esa oldingilari yo'q» ogohlantirishi chiqadi (`earlier_numbers_missing`): qolgan faylni ham
+  yuklang.
 
 **2. Faylni yuklang** (imkon qadar **3 kun ichida**: kechroq yuklangan faylda kassir tekshiruvi o'tmaydi — sotuvlar
 `staff_not_signed_in` bilan rad etiladi, to'lovlar `staff_unverified` bo'lib yoziladi).
@@ -1084,9 +1088,11 @@ qilish shart emas: navbat o'zi ketadi.
   «avval kelgan» bo'lib qaytadi.
 - «... ta amal qoldi: shu faylni yana bir marta yuklang.» (`complete: false`) — bitta so'rov ~20 soniya ishlaydi yoki
   kassaning o'zi aynan shu paytda yuborayotgan edi. **Shu faylni** yana yuklang, toki qoldiq 0 bo'lguncha.
-- Rad etilgan va farq bilan qabul qilingan amallar (masalan imzosi buzuq, kassa uzilganidan keyin yozilgan) odatdagi
-  «Sinxronlash xatolari»da turadi: menejer ularni har doimgidek hal qiladi. «O'tkazib yuborilgan qatorlar»
-  (`skipped`) — o'qib bo'lmaydigan yoki boshqa do'kon qurilmasiga tegishli qatorlar; hech narsa yozilmagan.
+- Rad etilgan va farq bilan qabul qilingan amallar (masalan imzosi buzuq, kassa uzilganidan keyin yozilgan —
+  `device_revoked`, 12 oydan eski — `operation_too_old`) odatdagi «Sinxronlash xatolari»da turadi: menejer ularni har
+  doimgidek hal qiladi. «O'tkazib yuborilgan qatorlar» (`skipped`) — o'qib bo'lmaydigan qatorlar, kassaning avvalgi
+  ulanishi bo'lmagan qurilmaga (ishlab turgan kassa, boshqa filial) yozilgan qatorlar (`device_unknown`) yoki avvalgi
+  ulanish kaliti bilan imzolanmagan qatorlar (`signature_invalid`); ular uchun hech narsa yozilmagan.
 - Importdan keyin kassaning navbat hisoboti kamayadi: kassa smenasini yopish mumkin.
 
 **Butun fayl rad etilsa** (hech narsa yozilmaydi):
@@ -1106,7 +1112,23 @@ qilish shart emas: navbat o'zi ketadi.
   uning fayli qabul qilinadi; keyin — `key_unavailable`.
 - Favqulodda o'chirgich `POS_SYNC_SIGNING=false` kassalarda «Navbatni faylga saqlash»ni yashiradi (`offline.export:
   false`), lekin allaqachon yozilgan fayllarni yuklash ishlaydi.
-- Har yuklash auditda: do'kon jurnalida `pos.sync_imported` (kim, qaysi kassa, sonlar, birinchi va oxirgi `seq`),
-  boshqaruv markazidan bo'lsa qo'shimcha `admin.pos.sync_imported` (sabab bilan). Kalit va amallar mazmuni auditda yo'q.
+- Har yuklash auditda: do'kon jurnalida `pos.sync_imported` (kim, qaysi kassa, sonlar, birinchi va oxirgi `seq`;
+  so'rov xato bilan uzilsa ham — shu paytgacha qilingani bilan), boshqaruv markazidan bo'lsa qo'shimcha
+  `admin.pos.sync_imported` (sabab bilan). Rad etilgan urinish (`device_not_found`, `not_a_till`, `key_unavailable`,
+  `file_mac_invalid`) — urinish qilgan do'kon jurnalida `pos.sync_import_refused` (sabab va fayldagi kassa uuid).
+  Bir xil sabab bilan ko'p rad etish — kimdir begona yoki o'zgartirilgan fayllarni sinayapti: tekshiring. Kalit va
+  amallar mazmuni auditda yo'q.
+- Import kassaning «oxirgi xabari» hisoblanmaydi: jim kassa monitoringi (`sync_reported_at`) importdan keyin ham
+  kassani jim deb ko'radi — bu to'g'ri, kassaning o'zi hali xabar bermagan.
+- Faylni faqat **qaytib sinxronlamaydigan** kassa uchun yuklang (uzilgan, almashtirilgan, qayta o'rnatiladigan). Ishlab
+  turgan kassa keyin o'zi sinxronlasa, ikki marta hech narsa yozilmaydi (`op_id`), lekin import raqamlarni qayta
+  bergan bo'lsa (`renumbered_from`) kassa o'z navbatini qayta raqamlaydi va egaga bir marta yolg'on «kassa navbatidan
+  amal yo'qolgan» (`chain_gap`) xabari kelishi mumkin. Amallar yo'qolmagan: menejer «Sinxronlash xatolari»ni ko'radi.
+- Kassa navbatining **ko'zgu nusxasi** (mirror) kassa kompyuterida ochiq papkada turadi: Windows — `Hujjatlar\RIZQIM\<kassa
+  uuid>\`, Android — ilovaning tashqi fayllar papkasi (`Android/data/.../files/RIZQIM/<uuid>`). Unda buyurtmalar, summalar
+  va xodim raqamlari bor (kalit yo'q, qatorlar imzolangan: o'zgartirilsa server sezadi). Kim o'qiy olishini biling:
+  Android 9 va undan eski qurilmalarda bu papkani boshqa ilovalar ham o'qiy oladi; Windows'da «Hujjatlar» OneDrive
+  bilan sinxronlansa nusxa bulutga ham ketadi. Kassa kompyuterida OneDrive «Hujjatlar» zaxirasini o'chiring yoki bu
+  papkani istisno qiling, kassa kompyuteriga begonalarni qo'ymang, eski Android kassalarga boshqa ilova o'rnatmang.
 - Kassa umuman ishga tushmasa (disk buzilgan), fayl yozib bo'lmaydi: imzo kaliti shu kassaning himoyalangan
   xotirasida. Bu holat hozircha dasturchi orqali (M5 S4 ochiq masalasi).

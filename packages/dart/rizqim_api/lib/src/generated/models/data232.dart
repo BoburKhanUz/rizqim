@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings13.dart';
+import 'warnings14.dart';
 
 part 'data232.g.dart';
 
@@ -26,7 +26,7 @@ class Data232 {
   final String text;
   final List<String> lines;
   final Map<String, String> fields;
-  final List<Warnings13> warnings;
+  final List<Warnings14> warnings;
 
   Map<String, Object?> toJson() => _$Data232ToJson(this);
 }

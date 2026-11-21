@@ -48,7 +48,7 @@ Data222 _$Data222FromJson(Map<String, dynamic> json) => Data222(
   packageSnapshot: json['package_snapshot'] as Map<String, dynamic>?,
   packageTotal: json['package_total'] as String,
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings9.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings10.fromJson(e as Map<String, dynamic>))
       .toList(),
   extrasTotal: json['extras_total'] as String,
   ordersTotal: json['orders_total'] as String,

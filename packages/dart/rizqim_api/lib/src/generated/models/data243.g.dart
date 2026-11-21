@@ -24,7 +24,7 @@ Data243 _$Data243FromJson(Map<String, dynamic> json) => Data243(
       ? null
       : Settlement6.fromJson(json['settlement'] as Map<String, dynamic>),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings19.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings20.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

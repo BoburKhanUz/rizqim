@@ -20,7 +20,7 @@ Data205 _$Data205FromJson(Map<String, dynamic> json) => Data205(
   paidTotal: json['paid_total'] as String,
   linesCount: (json['lines_count'] as num).toInt(),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings5.fromJson(e as Map<String, dynamic>))
       .toList(),
   computedAt: json['computed_at'] as String?,
   closedAt: json['closed_at'] as String?,

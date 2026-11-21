@@ -10,7 +10,7 @@ import 'lines20.dart';
 import 'orders2.dart';
 import 'advances.dart';
 import 'settlement.dart';
-import 'warnings15.dart';
+import 'warnings16.dart';
 
 part 'settlement2.g.dart';
 
@@ -50,7 +50,7 @@ class Settlement2 {
   final String due;
   final String excess;
   final Settlement? settlement;
-  final List<Warnings15> warnings;
+  final List<Warnings16> warnings;
 
   Map<String, Object?> toJson() => _$Settlement2ToJson(this);
 }

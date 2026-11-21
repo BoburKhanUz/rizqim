@@ -48,7 +48,7 @@ Data247 _$Data247FromJson(Map<String, dynamic> json) => Data247(
   packageSnapshot: json['package_snapshot'] as Map<String, dynamic>?,
   packageTotal: json['package_total'] as String,
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings20.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings21.fromJson(e as Map<String, dynamic>))
       .toList(),
   extrasTotal: json['extras_total'] as String,
   ordersTotal: json['orders_total'] as String,

@@ -302,7 +302,7 @@ class PosSyncImportTest extends TestCase
         $this->assertSame(0, PosSyncOperation::count());
     }
 
-    public function test_operations_dated_after_the_till_was_disconnected_are_refused_one_by_one_and_money_is_still_recorded(): void
+    public function test_operations_dated_after_the_till_was_disconnected_are_conflicts_one_by_one_and_money_is_still_recorded(): void
     {
         $before = $this->walkInSale('K1-001');
         // Disconnected 15 minutes ago; the till, offline, went on selling
@@ -321,9 +321,9 @@ class PosSyncImportTest extends TestCase
 
         // What was done before the disconnection is applied
         $this->assertSame(['applied', 'applied', 'applied', 'applied'], array_slice(array_column($response->json('data.results'), 'status'), 0, 4));
-        // The order opened after it is not: kept for the manager, nothing created
-        $response->assertJsonPath('data.results.4.status', 'rejected')->assertJsonPath('data.results.4.reason', 'device_revoked')->assertJsonPath('data.results.4.sig_status', 'ok');
-        $this->assertSame(0, Order::where('external_id', $order)->count());
+        // The order opened after it too (review R1 after S4: a sale is never dropped), a conflict for the manager
+        $response->assertJsonPath('data.results.4.status', 'conflict')->assertJsonPath('data.results.4.reason', 'device_revoked')->assertJsonPath('data.results.4.sig_status', 'ok');
+        $this->assertSame(1, Order::where('external_id', $order)->count());
         // The payment after it is money in the drawer all the same: recorded, flagged, never dropped
         $response->assertJsonPath('data.results.5.status', 'conflict');
         $this->assertNotSame('rejected', $response->json('data.results.5.status'));

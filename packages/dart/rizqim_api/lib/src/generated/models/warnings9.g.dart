@@ -6,10 +6,16 @@ part of 'warnings9.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Warnings9 _$Warnings9FromJson(Map<String, dynamic> json) =>
-    Warnings9(code: json['code'] as String, message: json['message'] as String);
+Warnings9 _$Warnings9FromJson(Map<String, dynamic> json) => Warnings9(
+  type: json['type'] as String,
+  userId: (json['user_id'] as num?)?.toInt(),
+  name: json['name'] as String?,
+  count: (json['count'] as num?)?.toInt(),
+);
 
 Map<String, dynamic> _$Warnings9ToJson(Warnings9 instance) => <String, dynamic>{
-  'code': instance.code,
-  'message': instance.message,
+  'type': instance.type,
+  'user_id': instance.userId,
+  'name': instance.name,
+  'count': instance.count,
 };

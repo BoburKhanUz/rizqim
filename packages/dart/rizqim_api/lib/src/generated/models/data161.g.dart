@@ -19,6 +19,9 @@ Data161 _$Data161FromJson(Map<String, dynamic> json) => Data161(
   skipped: (json['skipped'] as List<dynamic>)
       .map((e) => Skipped.fromJson(e as Map<String, dynamic>))
       .toList(),
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data161ToJson(Data161 instance) => <String, dynamic>{
@@ -30,4 +33,5 @@ Map<String, dynamic> _$Data161ToJson(Data161 instance) => <String, dynamic>{
   'totals': instance.totals,
   'results': instance.results,
   'skipped': instance.skipped,
+  'warnings': instance.warnings,
 };

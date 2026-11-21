@@ -11,6 +11,7 @@ import 'device10.dart';
 import 'totals.dart';
 import 'results.dart';
 import 'skipped.dart';
+import 'warnings.dart';
 
 part 'data161.g.dart';
 
@@ -25,6 +26,7 @@ class Data161 {
     required this.totals,
     required this.results,
     required this.skipped,
+    required this.warnings,
   });
 
   factory Data161.fromJson(Map<String, Object?> json) =>
@@ -40,6 +42,7 @@ class Data161 {
   final Totals totals;
   final List<Results> results;
   final List<Skipped> skipped;
+  final List<Warnings> warnings;
 
   Map<String, Object?> toJson() => _$Data161ToJson(this);
 }

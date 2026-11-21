@@ -29,28 +29,48 @@ use Throwable;
  * dropped. The till may be disconnected or its token expired: no token is used here.
  *
  * What only an import meets:
- *  - a line queued under an earlier pairing (`dev`): applied as that device of the same store, its signature checked
- *    with that device's keys; a `dev` the store does not have is skipped (`device_unknown`);
- *  - a disconnected device: an operation dated after `revoked_at` (or without a readable time) is not applied —
- *    recorded rejected `device_revoked`; a payment is still recorded (PosSyncApplier, `refuse`);
+ *  - a line queued under an earlier pairing (`dev`): applied as that device only when it is a disconnected till of
+ *    the header till's branch and the line's signature is that device's own (`ok` or `chain_gap`); otherwise skipped
+ *    (`device_unknown`, `signature_invalid`). A file sealed with one till's key never writes as another live till, and
+ *    never touches another device's reported queue (review S1 after S4);
+ *  - a disconnected device: an operation dated after `revoked_at` (or without a readable time) is applied and a
+ *    conflict `device_revoked`, a concession (a discount, a void) refused, a payment recorded — as enforce mode does
+ *    with an unverified operation (PosSyncApplier, `suspect`): a sale is never dropped (review R1 HIGH-1 after S4);
+ *  - an operation older than the history the server keeps (HISTORY_MONTHS, the prune of pos_sync_operations): its
+ *    row may be gone, so it could be applied twice: the same way, a conflict `operation_too_old`;
+ *  - a file whose numbers start after a gap the server does not hold (the second of two files uploaded first):
+ *    applied, and said in `warnings` (`earlier_numbers_missing`);
  *  - a number another operation of the device already has (`seq_reused`): a live till would renumber its queue; here
  *    that operation and every later one of the device in the file get the next free numbers (`renumbered_from`);
  *  - time: the request works for about $timeBudget seconds, the rest is answered as pending and the same file is
  *    uploaded again.
  *
  * The key never passes through here (SyncSignature::verifiesFile()); the audit record holds counts and numbers only.
+ * It is written whatever stopped the import, a failure half-way included (with what was done); a file refused whole
+ * once its header was read is audited too (AUDIT_REFUSED: the reason and the header's device).
  */
 final class PosSyncImport
 {
     /** The audit action of an import (on the device). */
     public const AUDIT = 'pos.sync_imported';
 
+    /** The audit action of a file refused whole after its header was read (in the journal of the store that tried). */
+    public const AUDIT_REFUSED = 'pos.sync_import_refused';
+
     public const REASON_REVOKED = 'device_revoked';
+
+    public const REASON_TOO_OLD = 'operation_too_old';
+
+    /**
+     * An operation older than this (months) may have lost its row to the prune (PosSyncOperation::prunable()):
+     * applied as a conflict, never silently a second time.
+     */
+    public const HISTORY_MONTHS = 12;
 
     /** One operation of the file that has a row on the server: the sync endpoint's result and where it came from. */
     public const RESULT = 'array{op_id: string, seq: int, type: string, status: string, reason: string|null, message: string|null, duplicate: bool, sig_status: string|null, refs: array<string, mixed>, line: int, device: string, renumbered_from: int|null}';
 
-    public const VIEW = 'array{server_time: string, complete: bool, stopped_reason: string|null, file: array{version: int, device: string, kid: int, created_at: string|null, count: int, first_seq: int|null, last_seq: int|null}, device: array{uuid: string, name: string|null, prefix: string|null, last_seq: int, pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool, revoked_at: string|null}, totals: array{operations: int, applied: int, conflict: int, rejected: int, duplicate: int, skipped: int, pending: int, renumbered: int}, results: list<' . self::RESULT . '>, skipped: list<array{line: int, op_id: string|null, seq: int|null, device: string|null, reason: string, message: string}>}';
+    public const VIEW = 'array{server_time: string, complete: bool, stopped_reason: string|null, file: array{version: int, device: string, kid: int, created_at: string|null, count: int, first_seq: int|null, last_seq: int|null}, device: array{uuid: string, name: string|null, prefix: string|null, last_seq: int, pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool, revoked_at: string|null}, totals: array{operations: int, applied: int, conflict: int, rejected: int, duplicate: int, skipped: int, pending: int, renumbered: int}, results: list<' . self::RESULT . '>, skipped: list<array{line: int, op_id: string|null, seq: int|null, device: string|null, reason: string, message: string}>, warnings: list<array{reason: string, device: string, first_seq: int, server_last_seq: int, message: string}>}';
 
     /**
      * How long one request applies operations (seconds); at least one batch is always applied. What is left is
@@ -88,17 +108,21 @@ final class PosSyncImport
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->first();
         if ($device === null) {
+            $this->refused('device_not_found', $file, null, $actor, $storeId);
             throw new PosSyncImportException('device_not_found', "Kassa topilmadi: fayl bu do'konning kassasiniki emas.", 404);
         }
         if ($device->type !== DeviceType::POS) {
+            $this->refused('not_a_till', $file, $device, $actor, $storeId);
             throw new PosSyncImportException('not_a_till', 'Fayldagi qurilma kassa emas.');
         }
 
         $verified = SyncSignature::verifiesFile($device, $file->kid, $file->signedBytes, $file->mac);
         if ($verified === null) {
+            $this->refused('key_unavailable', $file, $device, $actor, $storeId);
             throw new PosSyncImportException('key_unavailable', "Bu kassaning imzo kaliti serverda yo'q (kassa uzilganiga " . SyncSignature::KEEP_REVOKED_DAYS . " kundan oshgan yoki kalit yangilangan): faylni tekshirib bo'lmaydi. RIZQIM qo'llab-quvvatlashiga yozing.");
         }
         if (!$verified) {
+            $this->refused('file_mac_invalid', $file, $device, $actor, $storeId);
             throw new PosSyncImportException('file_mac_invalid', "Fayl imzosi noto'g'ri: fayl o'zgartirilgan, to'liq emas yoki boshqa kassaniki. Kassadan faylni qaytadan oling.");
         }
 
@@ -119,16 +143,25 @@ final class PosSyncImport
         $pending = 0;
         $stopped = null;
         $first = true;
-        foreach ($groups as $group) {
-            if ($stopped !== null) {
-                $pending += count($group['entries']);
-                continue;
+        $failure = null;
+        try {
+            foreach ($groups as $group) {
+                if ($stopped !== null) {
+                    $pending += count($group['entries']);
+                    continue;
+                }
+                [$done, $left, $stopped] = $this->run($group['device'], $group['entries'], $started, $first, $skipped, $results);
+                $first = false;
+                $pending += $left;
+                if ($group['own']) {
+                    // (never another device's: an earlier pairing reports nothing any more, a live till its own)
+                    $this->lowerReportedQueue($group['device'], $done);
+                }
             }
-            [$done, $left, $stopped] = $this->run($group['device'], $group['entries'], $started, $first, $skipped);
-            $first = false;
-            $results = [...$results, ...$done];
-            $pending += $left;
-            $this->lowerReportedQueue($group['device'], $done);
+        } catch (Throwable $e) {
+            // Review S2 after S4: what was applied before the failure is in; the audit says so, then the failure goes on
+            $failure = $e;
+            $stopped = 'error';
         }
 
         usort($results, fn (array $a, array $b) => $a['line'] <=> $b['line']);
@@ -158,18 +191,33 @@ final class PosSyncImport
             'last_seq' => $own !== [] ? max($own) : null,
         ];
 
+        $warnings = $failure === null ? $this->warnings($device, $described['first_seq']) : [];
+
         // Numbers only: never a key, a mac or what the operations carried
-        $this->audit->record(self::AUDIT, $device, [], [], [
-            'kid' => $file->kid,
-            'file_created_at' => $described['created_at'],
-            'first_seq' => $described['first_seq'],
-            'last_seq' => $described['last_seq'],
-            'totals' => $totals,
-            'complete' => $stopped === null,
-            'stopped_reason' => $stopped,
-            'revoked' => $device->revoked_at !== null,
-            'other_devices' => array_values(array_map(fn (array $group) => (string) $group['device']->uuid, array_filter($groups, fn (array $group) => !$group['own']))),
-        ], ['actor' => $actor, 'device' => null, 'store_id' => (int) $device->store_id, 'branch_id' => $device->branch_id]);
+        try {
+            $this->audit->record(self::AUDIT, $device, [], [], [
+                'kid' => $file->kid,
+                'file_created_at' => $described['created_at'],
+                'first_seq' => $described['first_seq'],
+                'last_seq' => $described['last_seq'],
+                'totals' => $totals,
+                'complete' => $stopped === null,
+                'stopped_reason' => $stopped,
+                'revoked' => $device->revoked_at !== null,
+                'other_devices' => array_values(array_map(fn (array $group) => (string) $group['device']->uuid, array_filter($groups, fn (array $group) => !$group['own']))),
+                'warnings' => count($warnings),
+            ], ['actor' => $actor, 'device' => null, 'store_id' => (int) $device->store_id, 'branch_id' => $device->branch_id]);
+        } catch (Throwable $e) {
+            if ($failure === null) {
+                throw $e;
+            }
+            // (the database that failed the import may fail its audit too: the first failure is the one that counts)
+            report($e);
+        }
+
+        if ($failure !== null) {
+            throw $failure;
+        }
 
         $device->refresh();
 
@@ -182,7 +230,53 @@ final class PosSyncImport
             'totals' => $totals,
             'results' => $results,
             'skipped' => $skipped,
+            'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Review R1 after S4: the file's own numbers start after numbers the server does not hold for the till (the
+     * second of two files uploaded first, a part of the queue lost): applied all the same, said here. A first file
+     * (number 1) never warns.
+     *
+     * @return list<array{reason: string, device: string, first_seq: int, server_last_seq: int, message: string}>
+     */
+    private function warnings(Device $device, ?int $firstSeq): array
+    {
+        if ($firstSeq === null || $firstSeq <= 1) {
+            return [];
+        }
+        $before = (int) PosSyncOperation::where('device_id', $device->id)->where('seq', '<', $firstSeq)->max('seq');
+        if ($before >= $firstSeq - 1) {
+            return [];
+        }
+
+        return [[
+            'reason' => 'earlier_numbers_missing',
+            'device' => strtolower((string) $device->uuid),
+            'first_seq' => $firstSeq,
+            'server_last_seq' => $before,
+            'message' => "Fayl {$firstSeq}-amaldan boshlanadi, serverda esa bu kassaning " . ($before > 0 ? "{$before}-amalidan keyingilari" : 'oldingi amallari') . " yo'q. Fayldagi amallar qo'llandi. Shu kassaning boshqa (oldingi raqamli) fayli bo'lsa, uni ham yuklang; bo'lmasa menejer kassa sotuvlarini tekshirsin.",
+        ]];
+    }
+
+    /**
+     * Review S-LOW after S4: a file refused whole once its header was read, in the journal of the store that tried
+     * (the RIZQIM team: the till's store, when there is one). The reason and the header's device only. Never fails
+     * the refusal.
+     */
+    private function refused(string $reason, SyncExportFile $file, ?Device $device, User $actor, ?int $storeId): void
+    {
+        try {
+            $this->audit->record(self::AUDIT_REFUSED, $device, [], [], [
+                'reason' => $reason,
+                'device' => $file->device,
+                'kid' => $file->kid,
+                'count' => count($file->lines),
+            ], ['actor' => $actor, 'device' => null, 'store_id' => $storeId ?? $device?->store_id, 'branch_id' => $device?->branch_id]);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -200,6 +294,9 @@ final class PosSyncImport
         $targets = [];
         $entries = [];
         $seen = [];
+        /** @var array<string, SyncChain> $chains */
+        $chains = [];
+        $horizon = now()->subMonths(self::HISTORY_MONTHS);
         foreach ($file->lines as $k => $text) {
             // (line 1 of the file is the header)
             $line = $k + 2;
@@ -224,18 +321,31 @@ final class PosSyncImport
             $seq = is_int($operation['seq'] ?? null) && $operation['seq'] >= 1 ? $operation['seq'] : null;
 
             if (!array_key_exists($dev, $devices)) {
-                // An earlier pairing of the same till: a POS terminal of the same store (a branch-bound caller: branch)
-                $devices[$dev] = $dev === '' ? null : Device::query()
+                // An earlier pairing of the same till: a disconnected POS terminal of the header till's branch (review
+                // S1 after S4: never a live till, never another branch's)
+                $devices[$dev] = $dev === '' || $device->branch_id === null ? null : Device::query()
                     ->where('uuid', $dev)
                     ->where('store_id', $device->store_id)
+                    ->where('branch_id', $device->branch_id)
                     ->where('type', DeviceType::POS->value)
+                    ->whereNotNull('revoked_at')
                     ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->first();
             }
             $target = $devices[$dev];
             if ($target === null) {
-                $skipped[] = self::skip($line, $opId, $seq, $dev !== '' ? $dev : null, 'device_unknown', "Amal yozilgan qurilma bu do'konda topilmadi. Amal qo'llanmadi.");
+                $skipped[] = self::skip($line, $opId, $seq, $dev !== '' ? $dev : null, 'device_unknown', "Amal yozilgan qurilma bu kassaning avvalgi ulanishi emas (bu filialda uzilgan kassa topilmadi). Amal qo'llanmadi.");
                 continue;
+            }
+            if ($target !== $device) {
+                // ...and the line is that pairing's own: its mac verifies under that device's key (`ok`, or
+                // `chain_gap` for the chain's place). The header till's file MAC vouches only for its own lines
+                $chains[$dev] ??= SyncSignature::chainFor($target);
+                $status = $signature !== null && $seq !== null ? $chains[$dev]->check($signature, $seq) : SyncSignatureStatus::MISSING;
+                if (!in_array($status, [SyncSignatureStatus::OK, SyncSignatureStatus::CHAIN_GAP], true)) {
+                    $skipped[] = self::skip($line, $opId, $seq, $dev, SignaturePolicy::REASON_INVALID, "Avvalgi ulanishdagi amal shu kassaning imzosi bilan tasdiqlanmadi (imzosiz yoki imzo noto'g'ri). Amal qo'llanmadi.");
+                    continue;
+                }
             }
 
             $failed = Validator::make($operation, self::operationRules());
@@ -269,8 +379,11 @@ final class PosSyncImport
                 $operation['signature'] = $signature;
             }
             if ($target->revoked_at !== null && !self::before($operation['occurred_at'] ?? null, $target->revoked_at)) {
-                // Never applied; a payment is still recorded (PosSyncApplier)
-                $operation['refuse'] = ['reason' => self::REASON_REVOKED, 'message' => "Amal kassa uzilganidan keyin yozilgan (yoki vaqti noma'lum): qo'llanmadi, menejer tekshirsin."];
+                // Applied and a conflict, a concession refused, a payment recorded (PosSyncApplier)
+                $operation['suspect'] = ['reason' => self::REASON_REVOKED, 'message' => "Amal kassa uzilganidan keyin yozilgan (yoki vaqti noma'lum)."];
+            } elseif (self::before($operation['occurred_at'] ?? null, $horizon)) {
+                // Its row may have been pruned: never applied a second time unseen
+                $operation['suspect'] = ['reason' => self::REASON_TOO_OLD, 'message' => 'Amal ' . self::HISTORY_MONTHS . " oydan eski: server uni avval olgan bo'lishi mumkin."];
             }
             $targets[$dev] = $target;
             $entries[$dev][] = ['line' => $line, 'seq' => $seq, 'op' => $operation + ['index' => $line]];
@@ -294,9 +407,10 @@ final class PosSyncImport
      * @param  list<array{line: int, seq: int, op: array<string, mixed>}>  $queue  in `seq` order
      * @param  bool  $first  nothing was applied in this request yet (one batch is always applied)
      * @param  list<array<string, mixed>>  $skipped
-     * @return array{0: list<array<string, mixed>>, 1: int, 2: string|null} the results, how many operations are left, why it stopped
+     * @param  list<array<string, mixed>>  $all  every result of the import so far: this device's are added as they come (a failure half-way keeps them)
+     * @return array{0: list<array<string, mixed>>, 1: int, 2: string|null} this device's results, how many operations are left, why it stopped
      */
-    private function run(Device $device, array $queue, float $started, bool $first, array &$skipped): array
+    private function run(Device $device, array $queue, float $started, bool $first, array &$skipped, array &$all): array
     {
         $uuid = strtolower((string) $device->uuid);
         $results = [];
@@ -329,7 +443,7 @@ final class PosSyncImport
             $failure = null;
             $outcome = null;
             try {
-                $outcome = $this->sync->sync($device, array_map(fn (array $entry) => $entry['op'], $batch), null, null);
+                $outcome = $this->sync->sync($device, array_map(fn (array $entry) => $entry['op'], $batch), null, null, true);
             } catch (PosSyncException $e) {
                 $failure = $e;
             }
@@ -353,7 +467,7 @@ final class PosSyncImport
                 $opId = (string) $entry['op']['op_id'];
                 $row = $rows->get($opId);
                 if ($row instanceof PosSyncOperation) {
-                    $results[] = PosSyncPresenter::result($row, isset($known[$opId])) + ['line' => $entry['line'], 'device' => $uuid, 'renumbered_from' => !isset($known[$opId]) && isset($entry['from']) && $entry['from'] !== (int) $row->seq ? $entry['from'] : null];
+                    $results[] = $all[] = PosSyncPresenter::result($row, isset($known[$opId])) + ['line' => $entry['line'], 'device' => $uuid, 'renumbered_from' => !isset($known[$opId]) && isset($entry['from']) && $entry['from'] !== (int) $row->seq ? $entry['from'] : null];
                     continue;
                 }
                 if ($unreadable->has($entry['line']) || is_string($entry['op']['invalid'] ?? null)) {

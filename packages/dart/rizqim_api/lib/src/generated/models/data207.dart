@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings6.dart';
+import 'warnings7.dart';
 import 'lines12.dart';
 import 'open_shifts5.dart';
 
@@ -58,7 +58,7 @@ class Data207 {
   final String paidTotal;
   @JsonKey(name: 'lines_count')
   final int linesCount;
-  final List<Warnings6> warnings;
+  final List<Warnings7> warnings;
   @JsonKey(name: 'computed_at')
   final String? computedAt;
   @JsonKey(name: 'closed_at')

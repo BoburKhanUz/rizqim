@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PosSyncOperation;
 use App\Models\User;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -116,13 +117,14 @@ class PosSyncImportAdminTest extends TestCase
     {
         $sale = $this->walkInSale();
         $file = $this->file($sale['ops']);
-        // The till's batch holds its lock (PosSyncService waits 10 s for it: the test does not)
+        // The till's batch holds its lock (PosSyncService waits 10 s for it: the test does not). Like the real lock,
+        // the wait ends in LockTimeoutException (review S2 after S4: never a 500)
         $lock = Cache::lock(PosSyncService::lockName($this->till['device']), 120);
         $this->assertTrue($lock->get());
         Cache::partialMock()->shouldReceive('lock')->andReturnUsing(fn (string $name) => new class {
             public function block(int $seconds): bool
             {
-                return false;
+                throw new LockTimeoutException();
             }
 
             public function release(): bool

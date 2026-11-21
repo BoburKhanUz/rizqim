@@ -461,6 +461,38 @@ multipart upload `file`. (The owner path is under `/owner/pos/` like the panel's
 - The request works for about 20 seconds; what is left is answered as `totals.pending` with `complete: false` and
   the same file is uploaded again (what was applied is answered as duplicates). The same when the till itself is
   syncing at that moment (`stopped_reason: sync_in_progress`).
+
+**As built: the fixes after the S4 reviews (F1 backend, 21.11.2026).**
+- Disconnected till (review R1 HIGH-1): the paragraph above is superseded. An operation dated after `revoked_at` (or
+  without a readable time) is treated as enforce mode treats an unverified one (`suspect` on the operation,
+  `PosSyncApplier::suspected()`): what the sale is built of is applied and marked a conflict `device_revoked`; a
+  concession (`SignaturePolicy::CONCESSIONS`: `order.discount`, `order.void`) is refused (the discount as
+  `discount_not_allowed`, cause `device_revoked`); a payment goes S1's `staff_unverified` way (recorded, conflict).
+  Refusing the sale itself had dropped it and left its payment `order_not_found`. The origin terminal of a relayed
+  operation is resolved first, exactly as in a live sync (a relayed payment is `relay_not_allowed` there and here; it
+  is never written as the hub's).
+- Old operations: one dated more than `PosSyncImport::HISTORY_MONTHS` (12, the prune of applied `pos_sync_operations`)
+  ago may have lost its row, so its `op_id` no longer protects it: the same treatment, reason `operation_too_old`.
+- `dev` lines (review S1): taken only for a **disconnected** POS till of the **header till's branch** (an earlier
+  pairing), and only when the line's mac verifies under that device's key (`SyncChain::check()` is `ok` or
+  `chain_gap`, checked before anything is applied); otherwise skipped (`device_unknown`, `signature_invalid`). The file
+  MAC proves only that the header till sealed the file, never that another device wrote a line. Only the header
+  till's reported queue is lowered.
+- Lock (review S2): `Lock::block()` throws `LockTimeoutException`; `PosSyncService::sync()` turns it into the
+  documented 409 `sync_in_progress` (a live sync too: it was a 500 after 10 s), the import into
+  `stopped_reason: sync_in_progress`. The import's audit is written whatever stops it; an unexpected failure is
+  audited with what was done (`stopped_reason: error`) and then rethrown.
+- `PosSyncService::report()` reads `sync_last_seq` from the row (under the lock) so it never goes back when the caller
+  held a stale device; an import (`sync(..., imported: true)`) leaves `sync_reported_at` alone.
+- `warnings[]` in the answer: `earlier_numbers_missing` when the file's first own number is above 1 and the server
+  holds nothing at `first_seq − 1` (part files uploaded out of order). Not a refusal. A re-paired till that went on
+  counting gets it too (the server cannot tell), the message says what to check.
+- Refused attempts after the header was read are audited `pos.sync_import_refused` (reason, header device, kid, count)
+  in the journal of the store that tried.
+- Known, documented only: after an import that renumbered operations, a live till that comes back renumbers its own
+  queue (`adoptServerSeq`) and its first re-signed line is a `chain_gap` (one false owner alert). The runbook says to
+  import only for a till that will not sync again. The mirror folder's privacy (Android ≤ 9 external storage,
+  Windows Documents under OneDrive) is in docs/OPERATIONS.md §25.
 - After the import the queue the till last reported (`devices.sync_pending_ops`) is lowered by what the import
   recorded, so a rescued till's shift can close. Audited `pos.sync_imported` on the device (who, counts, first and
   last seq, `complete`; never a key, a mac or a payload), plus the control centre's own `admin.pos.sync_imported`.

@@ -25144,6 +25144,36 @@
                                                             "message"
                                                         ]
                                                     }
+                                                },
+                                                "warnings": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "reason": {
+                                                                "type": "string"
+                                                            },
+                                                            "device": {
+                                                                "type": "string"
+                                                            },
+                                                            "first_seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "server_last_seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "reason",
+                                                            "device",
+                                                            "first_seq",
+                                                            "server_last_seq",
+                                                            "message"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -25154,7 +25184,8 @@
                                                 "device",
                                                 "totals",
                                                 "results",
-                                                "skipped"
+                                                "skipped",
+                                                "warnings"
                                             ]
                                         }
                                     },
@@ -67926,7 +67957,7 @@
         "/v1/owner/pos/sync/import": {
             "post": {
                 "operationId": "syncImport.store",
-                "description": "A multipart upload: `file`, the `.rzq` file a till wrote (at most 8 MB and 10 000 operations). The server finds\nthe till by the file's header (it may be disconnected or its token expired; its key is kept 30 days after it was\ndisconnected), checks the file's MAC and then applies every operation as that till, exactly like\n`POST /pos/sync`: once by its `op_id` (a file uploaded twice, or after the till sent a part of it, changes\nnothing: `duplicate: true`), with the same signature check (`sig_status`) and store mode — a payment is recorded,\nnever dropped. `results`: one entry per operation that has a row on the server, as the sync endpoint answers it,\nwith its `line` in the file, the `device` it was applied as and `renumbered_from` (its number in the file when\nthat number already belonged to another operation and it was given the next free one). `skipped`: lines nothing\nwas recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device this store does\nnot have; `repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is recorded\nrejected `device_revoked` (a payment is still recorded, as a conflict). `complete: false`: the time for one request\nran out (`stopped_reason: time_budget`), the till itself is syncing (`sync_in_progress`) or the database failed\n(`database`); `totals.pending` operations are left: upload the same file again.\nThe whole file is refused (nothing applied) with 422 and `data.reason`: `not_export_file`, `version_unsupported`,\n`file_too_large`, `not_a_till`, `key_unavailable` (no key to check it with), `file_mac_invalid`; a till that is\nnot this store's: 404 `device_not_found`.",
+                "description": "A multipart upload: `file`, the `.rzq` file a till wrote (at most 8 MB and 10 000 operations). The server finds\nthe till by the file's header (it may be disconnected or its token expired; its key is kept 30 days after it was\ndisconnected), checks the file's MAC and then applies every operation as that till, exactly like\n`POST /pos/sync`: once by its `op_id` (a file uploaded twice, or after the till sent a part of it, changes\nnothing: `duplicate: true`), with the same signature check (`sig_status`) and store mode — a payment is recorded,\nnever dropped. `results`: one entry per operation that has a row on the server, as the sync endpoint answers it,\nwith its `line` in the file, the `device` it was applied as and `renumbered_from` (its number in the file when\nthat number already belonged to another operation and it was given the next free one). `skipped`: lines nothing\nwas recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device that is not a\ndisconnected till of the same branch; `signature_invalid`: such a line not signed by that till's own key;\n`repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is applied and a conflict\n`device_revoked`, one older than 12 months a conflict `operation_too_old`: a discount or a void of those is\nrefused, a payment recorded (a conflict), a sale never dropped. `warnings`: `earlier_numbers_missing` — the\nfile's numbers start after ones the server does not hold for the till (upload its earlier file too); the file was\napplied all the same. A refused file is audited (`pos.sync_import_refused`). `complete: false`: the time for one request\nran out (`stopped_reason: time_budget`), the till itself is syncing (`sync_in_progress`) or the database failed\n(`database`); `totals.pending` operations are left: upload the same file again.\nThe whole file is refused (nothing applied) with 422 and `data.reason`: `not_export_file`, `version_unsupported`,\n`file_too_large`, `not_a_till`, `key_unavailable` (no key to check it with), `file_mac_invalid`; a till that is\nnot this store's: 404 `device_not_found`.",
                 "summary": "Import a till's queue file",
                 "tags": [
                     "Owner: POS settings"
@@ -68242,6 +68273,36 @@
                                                             "message"
                                                         ]
                                                     }
+                                                },
+                                                "warnings": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "reason": {
+                                                                "type": "string"
+                                                            },
+                                                            "device": {
+                                                                "type": "string"
+                                                            },
+                                                            "first_seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "server_last_seq": {
+                                                                "type": "integer"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "reason",
+                                                            "device",
+                                                            "first_seq",
+                                                            "server_last_seq",
+                                                            "message"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -68252,7 +68313,8 @@
                                                 "device",
                                                 "totals",
                                                 "results",
-                                                "skipped"
+                                                "skipped",
+                                                "warnings"
                                             ]
                                         }
                                     },

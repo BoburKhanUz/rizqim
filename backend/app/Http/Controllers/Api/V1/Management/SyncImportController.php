@@ -31,9 +31,13 @@ class SyncImportController extends ManagementController
      * never dropped. `results`: one entry per operation that has a row on the server, as the sync endpoint answers it,
      * with its `line` in the file, the `device` it was applied as and `renumbered_from` (its number in the file when
      * that number already belonged to another operation and it was given the next free one). `skipped`: lines nothing
-     * was recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device this store does
-     * not have; `repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is recorded
-     * rejected `device_revoked` (a payment is still recorded, as a conflict). `complete: false`: the time for one request
+     * was recorded for (`invalid_payload`: no usable operation; `device_unknown`: queued under a device that is not a
+     * disconnected till of the same branch; `signature_invalid`: such a line not signed by that till's own key;
+     * `repeated_line`; `op_id_conflict`). An operation dated after its till was disconnected is applied and a conflict
+     * `device_revoked`, one older than 12 months a conflict `operation_too_old`: a discount or a void of those is
+     * refused, a payment recorded (a conflict), a sale never dropped. `warnings`: `earlier_numbers_missing` — the
+     * file's numbers start after ones the server does not hold for the till (upload its earlier file too); the file was
+     * applied all the same. A refused file is audited (`pos.sync_import_refused`). `complete: false`: the time for one request
      * ran out (`stopped_reason: time_budget`), the till itself is syncing (`sync_in_progress`) or the database failed
      * (`database`); `totals.pending` operations are left: upload the same file again.
      * The whole file is refused (nothing applied) with 422 and `data.reason`: `not_export_file`, `version_unsupported`,

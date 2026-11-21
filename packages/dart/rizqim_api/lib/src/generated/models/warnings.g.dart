@@ -7,15 +7,17 @@ part of 'warnings.dart';
 // **************************************************************************
 
 Warnings _$WarningsFromJson(Map<String, dynamic> json) => Warnings(
-  type: json['type'] as String,
-  userId: (json['user_id'] as num?)?.toInt(),
-  name: json['name'] as String?,
-  count: (json['count'] as num?)?.toInt(),
+  reason: json['reason'] as String,
+  device: json['device'] as String,
+  firstSeq: (json['first_seq'] as num).toInt(),
+  serverLastSeq: (json['server_last_seq'] as num).toInt(),
+  message: json['message'] as String,
 );
 
 Map<String, dynamic> _$WarningsToJson(Warnings instance) => <String, dynamic>{
-  'type': instance.type,
-  'user_id': instance.userId,
-  'name': instance.name,
-  'count': instance.count,
+  'reason': instance.reason,
+  'device': instance.device,
+  'first_seq': instance.firstSeq,
+  'server_last_seq': instance.serverLastSeq,
+  'message': instance.message,
 };

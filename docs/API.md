@@ -2286,7 +2286,9 @@ markazida), server amallarni **o'sha kassa nomidan**, jonli sinxron bilan aynan 
 - Tana: amallar `POST /pos/sync` qabul qiladigan ko'rinishda — imzolangan `{signed, mac, prev, kid}` jurnaldagidek
   (fayl uchun qayta imzolanmaydi) yoki imzosiz amalning o'zi. Boshqa ulanishda (S1 dagi chetga olingan navbat)
   yozilgan amal oxirgi kalit sifatida `dev` (o'sha qurilma uuid) oladi va o'sha qurilma nomidan, uning kaliti bilan
-  tekshiriladi.
+  tekshiriladi. `dev` faqat sarlavhadagi kassa filialidagi **uzilgan** kassa bo'lishi va qator o'sha kassaning o'z
+  kaliti bilan imzolangan bo'lishi kerak (`sig_status` `ok` yoki `chain_gap`); aks holda qator o'tkazib yuboriladi
+  (pastda).
 - Oxirgi qator: `file_mac = HMAC-SHA256(kalit, "rizqim-sync-export/v1\n" + oxirgi qatordan oldingi hamma bayt)`,
   kalit — sarlavhadagi kassaning `kid` raqamli kaliti. Fayldagi biror bayt o'zgarsa, qator qo'shilsa yoki o'chirilsa
   (CRLF ga aylantirish ham) imzo buziladi.
@@ -2300,8 +2302,10 @@ marta qo'llanadi):
 | `POST /owner/pos/sync/import` | xodim, `devices.manage`; terminal PIN sessiyasidan 403 (`not-staff-session`); bitta filialga biriktirilgan menejer faqat o'z filiali kassasini | o'z do'koni kassasining fayli |
 | `POST /admin/pos/sync-import` | boshqaruv markazi, `stores.manage` + step-up + `reason` | istalgan do'kon kassasining fayli |
 
-**Butun fayl rad etiladi** (hech narsa qo'llanmaydi, auditga yozilmaydi), javob `data.reason` va o'zbekcha `message`
-bilan (boshqaruv markazida `code` ham shu):
+**Butun fayl rad etiladi** (hech narsa qo'llanmaydi), javob `data.reason` va o'zbekcha `message` bilan (boshqaruv
+markazida `code` ham shu). Sarlavha o'qilgandan keyingi rad etish (`device_not_found`, `not_a_till`, `key_unavailable`,
+`file_mac_invalid`) urinish qilgan do'kon jurnaliga `pos.sync_import_refused` bo'lib yoziladi (`reason`, sarlavhadagi
+`device`, `kid`, `count`; aktor — yuklagan odam; `device_not_found` da qurilma bog'lanmaydi):
 
 | Holat | `data.reason` | Qachon |
 |---|---|---|
@@ -2323,23 +2327,40 @@ saqlanadi.
 yo'q yoki buzuq to'lov ham **yoziladi**, `conflict`, `payment_unverified`), egaga xabarlar — jonli sinxrondagidek.
 To'lov hech qachon tashlanmaydi.
 
-- Kassa uzilganidan (`revoked_at`) **keyin** sanalgan amal (kassa soati bo'yicha; vaqti o'qilmasa ham) qo'llanmaydi:
-  `rejected`, `reason: device_revoked`, "Sinxronlash xatolari"da menejerga. Shunday **to'lov** baribir yoziladi
-  (`conflict`; S1 dagi `staff_unverified` yo'li: schyot ochiq bo'lsa unga, aks holda bog'lanmagan holda; `refs` da
-  `device_revoked`).
+- Kassa uzilganidan (`revoked_at`) **keyin** sanalgan amal (kassa soati bo'yicha; vaqti o'qilmasa ham) — qat'iy
+  rejim imzosiz amalni qanday qabul qilsa, shunday: sotuv (buyurtma, bosqich, schyot, yopish...) **qo'llanadi** va
+  `conflict`, `reason: device_revoked` bo'ladi ("Sinxronlash xatolari"da menejerga); **chegirma** (`order.discount`) va
+  **o'chirish** (`order.void`) qo'llanmaydi — `rejected` (chegirma `discount_not_allowed`, `refs.cause:
+  device_revoked`; o'chirish `device_revoked`), schyot to'liq narxda; **to'lov** baribir yoziladi (`conflict`; S1 dagi
+  `staff_unverified` yo'li: schyot ochiq bo'lsa unga, aks holda bog'lanmagan holda; `refs` da `device_revoked`). Sotuv
+  hech qachon tashlanmaydi. Boshqa terminal nomidan (`origin_device`) kelgan amal jonli sinxrondagidek hal qilinadi
+  (to'lov releyda qabul qilinmaydi: `relay_not_allowed`), hech qachon markaz kassa nomiga yozilmaydi.
+- **12 oydan eski** amal (kassa soati bo'yicha; `pos_sync_operations` 12 oydan keyin tozalanadi, qatori yo'qolgan
+  bo'lishi mumkin — ikkinchi marta jimgina qo'llanmasin): xuddi shunday, sababi `operation_too_old`.
 - Amal sifatida o'qilmaydigan qator — `skipped` da `invalid_payload`; o'zini taniydigan (`op_id`, `seq` bor) buzuq qator
   sinxron endpointidagidek `rejected` `invalid_payload` bo'lib yoziladi.
-- `dev` bu do'konning POS kassasi bo'lmasa — `skipped`, `device_unknown`; `op_id` boshqa qurilmaniki — `skipped`,
-  `op_id_conflict`; faylda bir `op_id` ikki marta — `skipped`, `repeated_line`.
+- `dev` sarlavhadagi kassa filialining uzilgan POS kassasi bo'lmasa (ishlab turgan kassa, boshqa filial, boshqa
+  do'kon) — `skipped`, `device_unknown`; qator o'sha kassaning o'z kaliti bilan imzolanmagan (imzosiz, imzo buzuq,
+  kalit o'chirilgan) — `skipped`, `signature_invalid`; `op_id` boshqa qurilmaniki — `skipped`, `op_id_conflict`;
+  faylda bir `op_id` ikki marta — `skipped`, `repeated_line`.
 - `seq` raqami serverda shu kassaning boshqa amaliga tegishli bo'lsa (kassa jurnalini yo'qotib, serverdagi
   `last_seq` dan davom etgan va keyin eski fayl yuklangan): jonli kassa `seq_reused` olib qayta raqamlardi; bu yerda
   kassa yo'q, shuning uchun o'sha amal va undan keyingi amallar keyingi bo'sh raqamlarni oladi (`renumbered_from` — fayldagi
   raqami). MAC o'z matni ustidan tekshiriladi, zanjirdagi o'rni kassaniki emas (`chain_gap` bo'lishi mumkin).
 - Bitta so'rov taxminan **20 soniya** ishlaydi; qolgani `totals.pending`, `complete: false`,
   `stopped_reason: time_budget` — **shu faylni yana yuklang** (qo'llangani `duplicate` bo'lib qaytadi). Kassaning o'zi
-  aynan shu paytda sinxronlayotgan bo'lsa — `stopped_reason: sync_in_progress`; baza xatosi — `database`.
-- Importdan keyin kassaning oxirgi xabar qilgan navbati (`devices.sync_pending_ops`) yozilgan amallar soniga
-  kamaytiriladi (0 bo'lsa `sync_oldest_op_at` ham tozalanadi): qutqarilgan kassa smenasi yopila oladi.
+  aynan shu paytda sinxronlayotgan bo'lsa (kassa qulfi 10 soniyada bo'shamasa) — `stopped_reason: sync_in_progress`,
+  hech qachon 500 emas; baza xatosi — `database`. Kutilmagan xato (500) bo'lsa ham shu paytgacha qo'llangani auditga
+  yoziladi (`stopped_reason: error`).
+- Importdan keyin **sarlavhadagi** kassaning oxirgi xabar qilgan navbati (`devices.sync_pending_ops`) yozilgan amallar
+  soniga kamaytiriladi (0 bo'lsa `sync_oldest_op_at` ham tozalanadi): qutqarilgan kassa smenasi yopila oladi. Boshqa
+  qurilma (`dev`) navbatiga tegilmaydi. Import kassaning «oxirgi xabari» emas: `devices.sync_reported_at` o'zgarmaydi
+  (jim kassa monitoringi uni jim deb ko'rishda davom etadi); `sync_last_seq` hech qachon kamaymaydi.
+- Fayl raqamlari serverda yo'q raqamlardan keyin boshlansa (masalan ikki fayldan ikkinchisi birinchi yuklandi):
+  fayl baribir qo'llanadi va `warnings[]` da `earlier_numbers_missing` qaytadi (`device`, `first_seq`,
+  `server_last_seq` — serverdagi `first_seq` dan oldingi eng katta raqam, `message`). 1 dan boshlangan fayl hech
+  qachon ogohlantirmaydi. Kassa yangi ulanishda raqamlashni davom ettirgan bo'lsa ham shu ogohlantirish chiqishi
+  mumkin: boshqa fayl bo'lmasa menejer kassa sotuvlarini tekshiradi.
 
 **Javob** 200 (`message` — bir qatorli xulosa, masalan «Fayl o'qildi: 57 ta amal yozildi, 0 tasi avval kelgan.»):
 
@@ -2354,7 +2375,8 @@ To'lov hech qachon tashlanmaydi.
   "totals": {"operations": 57, "applied": 55, "conflict": 1, "rejected": 1, "duplicate": 0, "skipped": 0, "pending": 0, "renumbered": 0},
   "results": [{"op_id": "uuid", "seq": 41, "type": "order.open", "status": "applied", "reason": null, "message": null,
                "duplicate": false, "sig_status": "ok", "refs": {}, "line": 2, "device": "<uuid>", "renumbered_from": null}],
-  "skipped": [{"line": 9, "op_id": null, "seq": null, "device": null, "reason": "invalid_payload", "message": "..."}]
+  "skipped": [{"line": 9, "op_id": null, "seq": null, "device": null, "reason": "invalid_payload", "message": "..."}],
+  "warnings": []
 }}
 ```
 
@@ -2364,7 +2386,8 @@ qatorlar. `file.first_seq`/`last_seq` — sarlavhadagi kassaning o'z amallari bo
 da `applied`/`conflict`/`rejected` faqat yangi yozilganlar, `duplicate` — avval bor bo'lganlar.
 
 **Audit**: `pos.sync_imported` (qurilma ustida; aktor — yuklagan odam; `kid`, `file_created_at`, `first_seq`,
-`last_seq`, `totals`, `complete`, `stopped_reason`, `revoked`, `other_devices` — `dev` qurilmalar uuid lari);
+`last_seq`, `totals`, `complete`, `stopped_reason`, `revoked`, `other_devices` — `dev` qurilmalar uuid lari,
+`warnings` — ogohlantirishlar soni); rad etilgan fayl — `pos.sync_import_refused` (yuqorida);
 boshqaruv markazida qo'shimcha `admin.pos.sync_imported` (`reason`, `device`, `first_seq`, `last_seq`, `totals`,
 `complete`). Kalit, `mac` va amallar mazmuni hech qayerda (javob, audit, log) yo'q.
 

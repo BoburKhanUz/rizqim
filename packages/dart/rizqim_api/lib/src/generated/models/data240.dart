@@ -8,7 +8,7 @@ import 'event9.dart';
 import 'guests2.dart';
 import 'stations9.dart';
 import 'osh5.dart';
-import 'warnings16.dart';
+import 'warnings17.dart';
 
 part 'data240.g.dart';
 
@@ -29,7 +29,7 @@ class Data240 {
   final Guests2 guests;
   final List<Stations9> stations;
   final Osh5? osh;
-  final List<Warnings16> warnings;
+  final List<Warnings17> warnings;
 
   Map<String, Object?> toJson() => _$Data240ToJson(this);
 }

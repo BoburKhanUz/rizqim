@@ -8,7 +8,7 @@ part of 'data248.dart';
 
 Data248 _$Data248FromJson(Map<String, dynamic> json) => Data248(
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings21.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings22.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

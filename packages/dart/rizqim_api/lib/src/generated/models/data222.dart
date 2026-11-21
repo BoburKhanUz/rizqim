@@ -8,7 +8,7 @@ import 'halls3.dart';
 import 'quote.dart';
 import 'lines16.dart';
 import 'payments4.dart';
-import 'warnings9.dart';
+import 'warnings10.dart';
 
 part 'data222.g.dart';
 
@@ -167,7 +167,7 @@ class Data222 {
   final String? updatedAt;
   final List<Lines16> lines;
   final List<Payments4> payments;
-  final List<Warnings9> warnings;
+  final List<Warnings10> warnings;
 
   Map<String, Object?> toJson() => _$Data222ToJson(this);
 }

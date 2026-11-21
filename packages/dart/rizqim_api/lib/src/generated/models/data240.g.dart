@@ -16,7 +16,7 @@ Data240 _$Data240FromJson(Map<String, dynamic> json) => Data240(
       ? null
       : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings16.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings17.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
