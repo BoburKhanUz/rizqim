@@ -87,6 +87,23 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && nav.classList.contains('open')) { set(false); btn.focus(); } });
   }
 
+  // Photo slots: <img src="/img/x.svg" data-photo="name">. When photos.name is true in site.config.js, the owner's files
+  // /img/photos/name-1x.webp and name.webp (2x) replace the SVG drawing; if they fail to load, the drawing comes back.
+  // No inline handlers (CSP).
+  function initPhotos() {
+    var on = CFG.photos || {};
+    document.querySelectorAll('img[data-photo]').forEach(function (img) {
+      var name = img.getAttribute('data-photo');
+      if (on[name] !== true) return;
+      var fallback = img.getAttribute('src');
+      var base = '/img/photos/' + name;
+      img.addEventListener('error', function () { img.classList.remove('is-photo'); img.removeAttribute('srcset'); img.src = fallback; }, { once: true });
+      img.classList.add('is-photo');
+      img.srcset = base + '-1x.webp 1x, ' + base + '.webp 2x';
+      img.src = base + '.webp';
+    });
+  }
+
   window.RZ = {
     t: t,
     cfg: CFG,
@@ -99,6 +116,7 @@
     lang = pick();
     document.querySelectorAll('[data-lang]').forEach(function (b) { b.addEventListener('click', function () { setLang(b.getAttribute('data-lang')); }); });
     initMenu();
+    initPhotos();
     applyI18n();
     document.documentElement.setAttribute('data-ready', '1');
   }

@@ -5,7 +5,7 @@
  * Konfiguratsiya kalitlari:
  *   siteUrl, botUrl, businessUrl, phone, phoneHref, telegramHandle, telegramUrl, address (uz/ru),
  *   social.telegram, social.instagram (bo'sh = ko'rinmaydi), faq.<id> (javob; null = "Tez orada"),
- *   tariffs.* (null = "Tariflar" bloki umuman ko'rinmaydi).
+ *   tariffs.* (null = "Tariflar" bloki umuman ko'rinmaydi), photos.<nom> (true = img/photos/<nom>.webp va <nom>-1x.webp ishlatiladi).
  * Hech qachon o'ylab topilgan narx yozmang: faqat egasi bergan haqiqiy qiymat.
  */
 window.RZ_SITE = {
@@ -47,6 +47,17 @@ window.RZ_SITE = {
   tariffs: {
     marketplaceCommission: null,
     posMonthly: null,
+  },
+
+  // EGASI BERADI: rasmlar. site/img/photos/<nom>.webp (2x) va <nom>-1x.webp fayllari (o'lchamlari: img/photos/README.md).
+  // true = rasm ishlatiladi, false = hozirgi SVG chizma. Fayl topilmasa ham chizma qaytadi. Hozir egasi bergan 6 ta rasm.
+  photos: {
+    'hero-phone': true,
+    'hero-food': true,
+    'storefront': true,
+    'pos-devices': true,
+    'partner-panel': true,
+    'scooter': true,
   },
 
   // Forma uchun API (bir xil origin; nginx faqat POST /api/v1/store-applications va GET /api/v1/locations ni o'tkazadi)

@@ -3,7 +3,7 @@
 //   node tests/check.mjs          validate (exit 1 on errors)
 //   node tests/check.mjs --sync   first rewrite the default Uzbek text in the HTML from site/i18n/uz.js (the single source), then validate
 // Checks: uz/ru dictionaries have the same keys, every data-i18n key exists, the HTML's Uzbek text equals uz.js, internal links,
-// #anchors, ids, asset paths, sitemap, config keys used by data-cfg*, FAQ ids, no inline style/script (CSP).
+// #anchors, ids, asset paths, sitemap, config keys used by data-cfg*, FAQ ids, no inline style/script (CSP), photo slots, fonts.
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -129,6 +129,21 @@ const sm = readFileSync(join(SITE, 'sitemap.xml'), 'utf8');
 for (const m of sm.matchAll(/<loc>([^<]+)<\/loc>/g)) { const path = m[1].replace(cfg.siteUrl, ''); if (!pageOf[path]) err(`sitemap: ${m[1]} is not a page`); }
 if (!/Sitemap:/.test(readFileSync(join(SITE, 'robots.txt'), 'utf8'))) err('robots.txt: no Sitemap line');
 for (const f of ['img/favicon.svg', 'img/logo.svg', 'img/logo-light.svg', 'img/logo-mark.svg']) if (!existsSync(join(SITE, f))) err(`missing ${f}`);
+
+// photo slots: data-photo names exist in config photos and in img/photos/README.md; enabled ones need the file
+const photoReadme = existsSync(join(SITE, 'img/photos/README.md')) ? readFileSync(join(SITE, 'img/photos/README.md'), 'utf8') : '';
+if (!photoReadme) err('img/photos/README.md missing');
+for (const [p, src] of Object.entries(html)) for (const m of src.matchAll(/<img\b[^>]*\bdata-photo="([^"]+)"[^>]*>/g)) {
+  const name = m[1];
+  if (!cfg.photos || !(name in cfg.photos)) err(`${p}: photo slot ${name} not in config photos`);
+  if (!photoReadme.includes('`' + name + '.webp`')) err(`${p}: photo slot ${name} not listed in img/photos/README.md`);
+  if (!/\bwidth="\d+"/.test(m[0]) || !/\bheight="\d+"/.test(m[0])) err(`${p}: photo slot ${name} needs width/height (fixed aspect box)`);
+  if (cfg.photos?.[name] === true) for (const f of [name + '.webp', name + '-1x.webp']) if (!existsSync(join(SITE, 'img/photos', f))) err(`config photos.${name} is true but img/photos/${f} is missing`);
+}
+// self-hosted fonts referenced from the stylesheet exist, with their licence
+const css = readFileSync(join(SITE, 'css/styles.css'), 'utf8');
+for (const m of css.matchAll(/url\("?(\/fonts\/[^")]+)"?\)/g)) if (!existsSync(join(SITE, m[1]))) err(`styles.css: font ${m[1]} missing`);
+for (const f of ['fonts/OFL-PlusJakartaSans.txt', 'fonts/OFL-Manrope.txt']) if (!existsSync(join(SITE, f))) err(`missing ${f}`);
 
 warn.forEach((w) => console.log('warn:', w));
 if (errors.length) { errors.forEach((e) => console.error('ERROR:', e)); console.error(`${errors.length} error(s)`); process.exit(1); }

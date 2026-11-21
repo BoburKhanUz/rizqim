@@ -118,7 +118,8 @@ async function step2(page) {
   await page.fill('#f-owner_name', 'Akmal Karimov');
   await page.click('#nextBtn');
   assert.equal(await page.locator('#f-name').isVisible(), true);
-  // regions come from the API and skip inactive ones
+  // regions come from the API and skip inactive ones (the request is async: wait until it has filled the select)
+  await page.waitForFunction(() => document.querySelectorAll('#f-region option').length > 1);
   assert.deepEqual(await page.locator('#f-region option').allInnerTexts(), ['Tanlang', 'Toshkent shahri', 'Samarqand']);
   assert.equal(await page.locator('#f-format option').count(), 9);
   // step 2 errors incl. consent
@@ -199,6 +200,47 @@ async function step2(page) {
   await ctx.close();
   ok('form: free-text city when /locations is unavailable');
 }
+// 5. self-hosted fonts (Latin and Cyrillic faces) load from /fonts, nothing from other origins
+{
+  const { ctx, page } = await newPage(1440);
+  const hosts = new Set();
+  page.on('request', (r) => hosts.add(new URL(r.url()).host));
+  await page.goto(base + '/');
+  await page.waitForSelector('html[data-ready]');
+  await page.evaluate(() => document.fonts.ready);
+  const fam = await page.evaluate(() => getComputedStyle(document.querySelector('h1')).fontFamily);
+  assert.match(fam, /Rizqim Sans/);
+  assert.equal(await page.evaluate(() => document.fonts.check('800 40px "Rizqim Sans"', 'Rizqim')), true, 'latin face loaded');
+  await page.locator('.hdr-actions [data-lang="ru"]').click();
+  await page.evaluate(() => document.fonts.load('800 40px "Rizqim Sans"', 'Любимые'));
+  assert.equal(await page.evaluate(() => [...document.fonts].some((f) => f.family.includes('Rizqim Sans') && f.status === 'loaded' && /U\+0?400/i.test(f.unicodeRange))), true, 'cyrillic face loaded');
+  assert.deepEqual([...hosts], [new URL(base).host], 'only same-origin requests');
+  await ctx.close();
+  ok('fonts: self-hosted Latin + Cyrillic faces, same origin only');
+}
+
+// 6. photo slots: the owner's files replace the SVG drawings when enabled in config (fixed aspect box, 1x/2x srcset);
+//    a disabled slot keeps the drawing; a missing file falls back to the drawing
+{
+  const { ctx, page } = await newPage(1440);
+  await page.route('**/site.config.js', async (r) => { const res = await r.fetch(); r.fulfill({ response: res, body: (await res.text()) + "\nwindow.RZ_SITE.photos['hero-phone'] = false; window.RZ_SITE.photos['pos-devices'] = true;\n" }); });
+  await page.route('**/img/photos/pos-devices*', (r) => r.fulfill({ status: 404, body: '' }));
+  await page.goto(base + '/');
+  await page.waitForSelector('html[data-ready]');
+  const sf = page.locator('img[data-photo="storefront"]');
+  await sf.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => { const i = document.querySelector('img[data-photo="storefront"]'); return i.complete && i.naturalWidth > 0; });
+  assert.match(await sf.getAttribute('src'), /\/img\/photos\/storefront\.webp$/);
+  assert.match(await sf.getAttribute('srcset'), /storefront-1x\.webp 1x, \/img\/photos\/storefront\.webp 2x/);
+  const box = await sf.boundingBox();
+  assert.ok(Math.abs(box.width / box.height - 300 / 230) < 0.02, 'photo keeps the slot aspect ratio');
+  assert.match(await page.locator('img[data-photo="hero-phone"]').getAttribute('src'), /\/img\/phone\.svg$/);
+  await page.locator('#pos').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => [...document.querySelectorAll('img[data-photo="pos-devices"]')].every((i) => /pos\.svg$/.test(i.getAttribute('src')) && !i.hasAttribute('srcset')));
+  await ctx.close();
+  ok('photo slots: owner files replace drawings, disabled slot keeps the SVG, missing file falls back');
+}
+
 await browser.close();
 srv.close();
 console.log(`${passed} groups passed`);

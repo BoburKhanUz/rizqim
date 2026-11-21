@@ -22,6 +22,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/css/styles.css">
 <script src="/site.config.js" defer></script>
 <script src="/i18n/uz.js" defer></script>
@@ -47,9 +48,9 @@
 </header>
 <main id="main">
 <section class="p-hero"><div class="wrap p-hero-grid">
-<div><h1 data-i18n-html="p.title"><b>Rizqim</b> bilan hamkor bo'ling</h1><p class="lead" data-i18n="p.lead">Restoran, kafe yoki choyxonangizni Rizqim'ga ulang: yangi mijozlar va qulay POS kassa.</p>
+<div class="p-hero-text"><h1 data-i18n-html="p.title"><b>Rizqim</b> bilan hamkor bo'ling</h1><p class="lead" data-i18n="p.lead">Restoran, kafe yoki choyxonangizni Rizqim'ga ulang: yangi mijozlar va qulay POS kassa.</p>
 <ul class="chips"><li><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-users"/></svg><span data-i18n="p.b1">Ko'proq mijoz</span></li><li><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-bolt"/></svg><span data-i18n="p.b2">Tez ishga tushirish</span></li><li><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-layers"/></svg><span data-i18n="p.b3">Qulay boshqaruv</span></li></ul></div>
-<div class="p-hero-art" aria-hidden="true"><img src="/img/store.svg" width="300" height="230" alt=""></div>
+<div class="p-hero-art" aria-hidden="true"><img class="blob" src="/img/partner-blob.svg" width="700" height="420" alt=""><img class="store" src="/img/store.svg" data-photo="storefront" width="300" height="230" alt=""></div>
 </div></section>
 
 <section id="apply" class="apply"><div class="wrap"><div class="card form-card" id="formCard">
@@ -86,8 +87,8 @@
 </div></div></section>
 
 <section id="give"><div class="wrap"><h2 class="sec-title" data-i18n="give.title">Nima olasiz</h2><div class="give">
-<div class="prod"><span class="ico"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-store"/></svg></span><div class="txt"><h3 data-i18n="rest.mp.t">Marketplace</h3><p data-i18n="give.mp.d">Rizqim orqali yangi mijozlarga chiqasiz va buyurtmalarni hamkor panelida boshqarasiz.</p></div><img class="art" src="/img/store.svg" width="300" height="230" alt="" loading="lazy"></div>
-<div class="prod"><span class="ico"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-receipt"/></svg></span><div class="txt"><h3 data-i18n="rest.pos.t">POS kassa</h3><p data-i18n="give.pos.d">Kassa, ofitsiant telefoni, oshxona ekrani va mijoz ekrani bilan to'liq yechim.</p></div><img class="art" src="/img/pos.svg" width="760" height="340" alt="" loading="lazy"></div>
+<div class="prod"><span class="ico"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-store"/></svg></span><div class="txt"><h3 data-i18n="rest.mp.t">Marketplace</h3><p data-i18n="give.mp.d">Rizqim orqali yangi mijozlarga chiqasiz va buyurtmalarni hamkor panelida boshqarasiz.</p></div><img class="art" src="/img/store.svg" data-photo="storefront" width="300" height="230" alt="" loading="lazy"></div>
+<div class="prod"><span class="ico"><svg class="icon " aria-hidden="true" focusable="false"><use href="/img/icons.svg#i-receipt"/></svg></span><div class="txt"><h3 data-i18n="rest.pos.t">POS kassa</h3><p data-i18n="give.pos.d">Kassa, ofitsiant telefoni, oshxona ekrani va mijoz ekrani bilan to'liq yechim.</p></div><img class="art" src="/img/pos.svg" data-photo="pos-devices" width="760" height="340" alt="" loading="lazy"></div>
 </div></div></section>
 
 <section id="tariffs" hidden><div class="wrap"><h2 class="sec-title" data-i18n="tariffs.title">Tariflar</h2><dl class="tariff"><div data-tariff="marketplaceCommission" hidden><dt data-i18n="tariffs.mp">Marketplace komissiyasi</dt><dd></dd></div><div data-tariff="posMonthly" hidden><dt data-i18n="tariffs.pos">POS kassa (oyiga)</dt><dd></dd></div></dl></div></section>
