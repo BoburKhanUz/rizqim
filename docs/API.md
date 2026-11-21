@@ -2505,6 +2505,20 @@ qatorning xizmat haqi qoidalari `{by_order_type, large_group_min_guests, large_g
 yo'q yoki `false` bo'lsa kassa oflaynda chegirma bermaydi (eski server). M5 S3: `signing`, `signing_kid`
 ("Imzolangan navbat"). M5 S4: `export` (bool) — server kassaning navbat faylini qabul qiladi ("Navbat faylidan
 tiklash"); `pos.sync_signing` o'chiq bo'lsa `false`.
+M5 S6-a: `staff_resume` (bool, doim `true`) — server PIN'siz davom etgan xodim belgisini yozadi (pastda): faqat shunda
+kassa ilova internetsiz qayta ishga tushganda "Davom etish: (ism)" taklif qiladi.
+
+**PIN'siz davom etilgan amallar (M5 S6-a).** Kassa PIN'siz davom etayotgan xodim navbatga qo'ygan har amal
+`payload` iga `staff_continued: true` qo'yadi (M5 S1: PIN sessiyasi uzilish paytida tugagan; S6-a: ilova internetsiz
+qayta ishga tushgan va oxirgi xodim kassaning maxfiy xotirasidan davom ettirilgan — shunda `staff_resumed: true` ham;
+buni kassa faqat bootstrap `offline.staff_resume: true` aytgan serverga yuboradi). Serverning xodim tekshiruvi
+o'zgarmaydi (36 soatlik PIN oynasi; chegirma baribir rad etiladi, `cause: "staff_continued"`). Server belgini yozadi:
+amal qatorining `payload` i (o'zgarmagan holda), buyurtmaning `sync_flags` ida `{flag: "staff_continued", resumed,
+staff_id, op_id, at}` (ma'lumot uchun, `conflict` emas; buyurtmaga bir marta, har `bill.pay` uchun yana bittadan —
+`payments`: shu amal olgan to'lovlar uuid'lari), X/Z hisobotda `continued: {count, amount}` — smenadagi shunday
+to'lovlar (S6 dan oldin saqlangan Z hisobotda bu kalit yo'q), "Sinxronlash xatolari" (`GET /pos/sync/errors`,
+`/pos/sync/errors/{op_id}`, `GET /pos/sync/status` `errors[]`, admin `GET /admin/pos/sync-errors`) qatorida
+`staff_continued: bool`.
 
 ### Smenani yopish
 

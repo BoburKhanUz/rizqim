@@ -23,18 +23,21 @@ class CashierHarness {
     SyncStore? offlineStore,
     CashierHardware? hardware,
     Directory? Function()? exportDirectory,
+    SecureKeyValueStore? store,
+    FakePosAdapter? adapter,
   }) {
-    adapter = FakePosAdapter(clock: () => now);
+    this.adapter = adapter ?? FakePosAdapter(clock: () => now);
     // Sex printeri testda matn rejimida (rasm rejimi Flutter dvigatelini kutadi)
-    for (final Map<String, Object?> p in adapter.state.printers) {
+    for (final Map<String, Object?> p in this.adapter.state.printers) {
       p['print_as_image'] = false;
     }
     hub = FakePosRealtimeHub();
-    adapter.state.onEvent = hub.broadcast;
+    this.adapter.state.onEvent = hub.broadcast;
     client = RizqimClient(
       baseUrl: 'https://api.test/api',
-      store: MemoryKeyValueStore(),
-      dio: Dio()..httpClientAdapter = adapter,
+      // M5 S6-a: a restart keeps the secure storage of the run before
+      store: store ?? MemoryKeyValueStore(),
+      dio: Dio()..httpClientAdapter = this.adapter,
       clock: () => now,
     );
     settings = ShellSettingsController(MemoryShellSettingsStore());

@@ -38,6 +38,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * the server holds for this till. Both follow the kill switch `pos.sync_signing` (off: `false` and `null`).
  * Wave M5 S4: `export: true` — the server takes the till's rescue file (docs/scale/M5_DESIGN.md §5); `false` with
  * the same kill switch.
+ * Wave M5 S6-a: `staff_resume: true` — the server records the mark of operations queued by a staff member resumed
+ * without a PIN after the till app restarted during an outage (ContinuedStaff).
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -141,6 +143,9 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             // saqlash" and the restore from its mirror only then. A file is worth nothing without signatures: off
             // with the kill switch `pos.sync_signing`
             'export' => SignaturePolicy::signingOn(),
+            // Wave M5 S6-a: this server records `staff_resumed` (ContinuedStaff: "PIN'siz davom etilgan" in the
+            // reports): the till offers "Davom etish" after an app restart during an outage only then
+            'staff_resume' => true,
         ]];
     }
 

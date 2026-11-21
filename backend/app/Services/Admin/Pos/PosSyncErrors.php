@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
  */
 class PosSyncErrors
 {
-    public const ROW = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, store: array{id: int, name: string}|null, device: array{uuid: string, name: string|null}|null, staff: array{id: int, name: string|null}|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, occurred_at: string|null, received_at: string|null, clock_skew_seconds: int|null, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
+    public const ROW = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, sig_status: string|null, staff_continued: bool, store: array{id: int, name: string}|null, device: array{uuid: string, name: string|null}|null, staff: array{id: int, name: string|null}|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, occurred_at: string|null, received_at: string|null, clock_skew_seconds: int|null, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
 
     /** Keys of an operation's payload that are never shown (a till may carry a phone, a card, a PIN). */
     private const HIDDEN_PAYLOAD_KEYS = '/phone|card|pin|token|password|secret/i';

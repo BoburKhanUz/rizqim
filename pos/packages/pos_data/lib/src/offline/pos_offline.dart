@@ -139,6 +139,11 @@ class PosOffline {
   /// (`AuthSession.staffFinishOnly`; PosData binds it): only the bill, the payment and the close of an open order.
   /// A new round and a void are refused too ([continuedReason]); the payment is never refused.
   bool Function() staffFinishOnly = () => false;
+
+  /// M5 S6-a: the staff member was resumed without a PIN after an app restart during the outage
+  /// (`AuthSession.staffResumed`; PosData binds it): continued and finish-only, and what is queued carries
+  /// [resumedKey] as well.
+  bool Function() staffResumed = () => false;
   String? Function() shiftUuid = () => null;
   PosBootstrap? Function() bootstrap = () => null;
   PosCatalog? Function(PosChannel channel) catalog = (_) => null;
@@ -174,6 +179,10 @@ class PosOffline {
   /// Payload key of an operation queued by a staff member who goes on without a PIN ([staffContinued]).
   static const String continuedKey = 'staff_continued';
 
+  /// M5 S6-a: payload key of an operation queued by a staff member resumed without a PIN after an app restart
+  /// ([staffResumed]); sent only to a server that said it records it (bootstrap `offline.staff_resume`).
+  static const String resumedKey = 'staff_resumed';
+
   /// M5 S2: [PosOfflineUnavailable.reason] of a discount refused because the server did not say it takes
   /// `order.discount` (bootstrap `offline.discount`): the discount needs the internet, as before.
   static const String discountUnsupportedReason =
@@ -199,6 +208,11 @@ class PosOffline {
   String? get continuedNotice {
     final String? name = continuedStaffName;
     if (name == null) return null;
+    if (staffResumed()) {
+      return "PIN'siz davom etilmoqda: $name (ilova internetsiz qayta ishga tushdi). Faqat ochiq buyurtmalarni "
+          "yakunlash va to'lov olish mumkin: schyot, to'lov va buyurtmani yopish (yangi buyurtma, taom qo'shish, "
+          "o'chirish va chegirma yo'q). Internet tiklangach PIN bilan kiring.";
+    }
     return staffFinishOnly()
         ? "PIN'siz davom etilmoqda: $name. PIN bilan kirilganiga 12 soatdan oshdi: faqat schyot, to'lov va "
               "buyurtmani yopish mumkin (yangi taom qo'shilmaydi, taom o'chirilmaydi)."
@@ -209,6 +223,16 @@ class PosOffline {
   static const int keepPrintedSales = 500;
 
   PosConnectivity get connectivity => _http.connectivity;
+
+  /// M5 S6-a: the latest time this till already saw (its last server contact, its newest queued operation): a device
+  /// clock behind it was set back. `null`: nothing seen.
+  DateTime? get latestKnownTime {
+    DateTime? latest = store.lastContactAt;
+    for (final SyncOperation o in store.pending) {
+      if (latest == null || o.occurredAt.isAfter(latest)) latest = o.occurredAt;
+    }
+    return latest;
+  }
 
   /// Cheklangan rejim: aloqa yo'q yoki navbat hali bo'shamagan.
   bool get active => !connectivity.state.online || store.hasPending;
@@ -1569,6 +1593,13 @@ class PosOffline {
         reason: continuedReason,
       );
     }
+    if (changing && _continued && staffResumed()) {
+      throw const PosOfflineUnavailable(
+        "PIN'siz davom etilmoqda (ilova qayta ishga tushdi): yangi taom qo'shilmaydi va taom o'chirilmaydi. Faqat "
+        "schyot, to'lov va buyurtmani yopish mumkin. Internet tiklangach PIN bilan kiring.",
+        reason: continuedReason,
+      );
+    }
     if (changing && _continued && staffFinishOnly()) {
       throw const PosOfflineUnavailable(
         "PIN'siz davom etilmoqda, PIN bilan kirilganiga 12 soatdan oshdi: yangi taom qo'shilmaydi va taom "
@@ -1610,7 +1641,13 @@ class PosOffline {
     final PosOfflineActor? a = _actor;
     return store.enqueue(
       type,
-      _continued ? <String, Object?>{...payload, continuedKey: true} : payload,
+      _continued
+          ? <String, Object?>{
+              ...payload,
+              continuedKey: true,
+              if (staffResumed()) resumedKey: true,
+            }
+          : payload,
       staffId: _staff(),
       opId: a?._takeOpId(),
       origin: a?.device,

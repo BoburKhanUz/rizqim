@@ -76,10 +76,16 @@ class PosData {
           );
     bootstrap = PosBootstrapRepository(http, clock: clock)..offline = offline;
     approvals = ApprovalService(http);
+    final PosOffline? till = offline;
     session = PosSession(
       auth: client.auth,
       bootstrapRepository: bootstrap,
       approvals: approvals,
+      // M5 S6-a: "Davom etish" after a restart during an outage, on the till only, and only while its server said it
+      // records the mark (`offline.staff_resume`, read from the kept bootstrap copy)
+      connectivity: http.connectivity,
+      resumeSupported: () => till?.settings.staffResume ?? false,
+      lastKnownTime: till == null ? null : () => till.latestKnownTime,
     );
     catalog = PosCatalogRepository(http, cache: catalogCache, clock: clock)
       ..offline = offline;
@@ -115,6 +121,7 @@ class PosData {
         ..can = session.can
         ..staffContinued = (() => session.staffContinued)
         ..staffFinishOnly = (() => session.staffFinishOnly)
+        ..staffResumed = (() => session.staffResumed)
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
@@ -124,6 +131,9 @@ class PosData {
       // token shows the PIN keypad, and when the link is found gone again before a PIN login succeeded, the staff
       // member goes on as before (still restricted)
       client.auth.holdExpiredStaff = true;
+      // M5 S6-a: each PIN login on the till is kept (id, name, permissions, time; no PIN, no token) for a restart
+      // during an outage (PosSession.resumeOffer)
+      client.auth.rememberStaffForResume = true;
       _contactSub = connectivity.changes.listen((PosConnectivityState s) {
         if (!s.online) client.auth.resumeStaffContinuation();
       });

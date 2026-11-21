@@ -12,6 +12,7 @@ import 'qr_providers4.dart';
 import 'by_channel6.dart';
 import 'by_waiter4.dart';
 import 'discounts4.dart';
+import 'continued4.dart';
 import 'voids4.dart';
 import 'batch_writeoffs4.dart';
 import 'refunds8.dart';
@@ -49,6 +50,7 @@ class Summary12 {
     required this.banquets,
     required this.cash,
     required this.movements,
+    this.continued,
     this.openOrders,
     this.pendingReceipts,
   });
@@ -72,6 +74,7 @@ class Summary12 {
   @JsonKey(name: 'by_waiter')
   final List<ByWaiter4> byWaiter;
   final Discounts4 discounts;
+  final Continued4? continued;
   final Voids4 voids;
   @JsonKey(name: 'batch_writeoffs')
   final BatchWriteoffs4 batchWriteoffs;

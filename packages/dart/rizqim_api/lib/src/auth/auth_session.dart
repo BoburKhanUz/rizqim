@@ -3,6 +3,7 @@ import 'dart:async';
 import 'api_exception.dart';
 import 'auth_remote.dart';
 import 'models.dart';
+import 'staff_resume.dart';
 import 'token_storage.dart';
 
 /// [AuthSession] holati o'zgarganda ilovaga xabar (ekranni almashtirish uchun).
@@ -61,10 +62,12 @@ class AuthSession {
     DateTime Function()? clock,
     this.refreshSkew = const Duration(seconds: 30),
   }) : _storage = CredentialStorage(store),
+       _store = store,
        _clock = clock ?? DateTime.now;
 
   final AuthRemote remote;
   final CredentialStorage _storage;
+  final SecureKeyValueStore _store;
   final DateTime Function() _clock;
 
   /// Access token tugashiga shuncha qolganda so'rovdan oldin yangilanadi (0: faqat 401 dan keyin).
@@ -89,7 +92,13 @@ class AuthSession {
   Stream<AuthEvent> get events => _events.stream;
 
   PairedTerminal? get terminal => _terminal;
-  StaffSession? get staff => _staff;
+
+  /// The signed-in staff member. A resumed one ([staffResumed]) whose 12 h are over, or whose PIN login the device
+  /// clock now puts in the future, is signed out here (reason `resume_expired`).
+  StaffSession? get staff {
+    _checkResume();
+    return _staff;
+  }
 
   /// M5 S1-e (kassa, internetsiz rejim): xodim tokenining muddati o'tganda sessiya qurilmada o'chirilmaydi, serverning
   /// javobi hal qiladi. The till has no PIN login without the server, so dropping the staff member on a clock would
@@ -106,8 +115,11 @@ class AuthSession {
 
   /// The staff token has expired and the staff member is kept only because no PIN login has been possible since
   /// ([holdExpiredStaff]). The app limits what such a staff member may do.
+  ///
+  /// M5 S6-a: a staff member resumed after an app restart ([staffResumed]) is continued too.
   bool get staffContinued =>
-      holdExpiredStaff && (_staff?.isExpired(_clock()) ?? false);
+      staffResumed ||
+      (holdExpiredStaff && (_staff?.isExpired(_clock()) ?? false));
 
   /// When the signed-in staff member entered the PIN on this device (`null`: nobody is signed in).
   DateTime? get staffSignedInAt => _staff == null ? null : _staffSignedInAt;
@@ -118,7 +130,11 @@ class AuthSession {
   /// M5 S1 review (owner answer 3): the staff member is continued ([staffContinued]) and the PIN login is more than
   /// [staffContinuationWindow] old: only the bill, the payment and the close of open orders (payment is never
   /// blocked), no new rounds and no voids.
+  ///
+  /// M5 S6-a: a resumed staff member ([staffResumed]) is always finish-only (owner answer 3: "only closing open
+  /// tables and taking payment").
   bool get staffFinishOnly {
+    if (staffResumed) return true;
     if (!staffContinued) return false;
     final DateTime? at = _staffSignedInAt;
     return at == null || _clock().difference(at) > staffContinuationWindow;
@@ -138,7 +154,145 @@ class AuthSession {
     _user = stored.user;
     _staff = null;
     _setAside = null;
+    _resumed = false;
+    _resumable = null;
+    String? raw;
+    try {
+      raw = await _store.read(staffResumeKey);
+    } on Object {
+      raw = null;
+    }
+    if (raw != null) {
+      _resumeOnStore = true;
+      _resumable = StaffResumeRecord.tryParse(raw);
+      // A value that is not a whole record of this version is never trusted
+      if (_resumable == null) _dropResume();
+    }
   }
+
+  // --- M5 S6-a: going on after an app restart during an outage -------------------------------------------------
+
+  /// The secure-storage key of [StaffResumeRecord].
+  static const String staffResumeKey = 'rizqim.pos.staff_resume.v1';
+
+  /// The till with the offline mode (pos_data `PosData` turns it on): every successful PIN login writes a
+  /// [StaffResumeRecord] (id, name, permissions, PIN-login time; never the PIN or a token). Off (default): nothing
+  /// is written and nothing can be resumed.
+  bool rememberStaffForResume = false;
+
+  StaffResumeRecord? _resumable;
+  bool _resumed = false;
+
+  /// A record may be on the store (read at [restore] or written since): only then is it deleted (a store that could
+  /// not be read is never touched for nothing).
+  bool _resumeOnStore = false;
+  Future<void> _resumeWrites = Future<void>.value();
+
+  /// The kept record while it may still be used at the device's [now] (12 h after the PIN login at most, never a PIN
+  /// login in the future), a terminal is paired and nobody is signed in. An unusable record is deleted here. Whether
+  /// the server is out of reach and whether the server records the mark is the caller's to decide (pos_data
+  /// `PosSession.resumeOffer`).
+  StaffResumeRecord? get resumableStaff {
+    final StaffResumeRecord? r = _resumable;
+    if (r == null || !rememberStaffForResume) return null;
+    if (!r.usableAt(_clock())) {
+      _dropResume();
+      return null;
+    }
+    if (_terminal == null || _staff != null) return null;
+    return r;
+  }
+
+  /// A staff member resumed from [StaffResumeRecord] on this run: no PIN login, no staff token. Continued and
+  /// finish-only ([staffContinued], [staffFinishOnly]).
+  bool get staffResumed => _resumed && _staff != null;
+
+  /// Signs the kept staff member in again without a PIN ([AuthEventKind.staffSignedIn], reason `resumed`), with only
+  /// the stored permissions that are also in [allowedPermissions]. No token is held: nothing goes to the server as
+  /// this staff member except through the journal. [notBefore]: the latest time the till already saw (its last
+  /// server contact, its newest queued operation); a device clock behind it was set back and nothing is resumed.
+  /// `false`: nothing to resume ([resumableStaff]) or the clock.
+  bool resumeStaff({
+    required Set<String> allowedPermissions,
+    DateTime? notBefore,
+  }) {
+    final StaffResumeRecord? r = resumableStaff;
+    if (r == null) return false;
+    final DateTime now = _clock();
+    if (notBefore != null && now.isBefore(notBefore)) {
+      _dropResume();
+      return false;
+    }
+    _setAside = null;
+    _staff = StaffSession(
+      token: '',
+      expiresAt: r.until,
+      userId: r.userId,
+      userName: r.userName,
+      role: '',
+      permissions: r.permissions.intersection(allowedPermissions),
+    );
+    _staffSignedInAt = r.signedInAt;
+    _resumed = true;
+    _emit(const AuthEvent(AuthEventKind.staffSignedIn, reason: 'resumed'));
+    return true;
+  }
+
+  /// The server answered: the resumed staff member ([staffResumed]) is signed out and the record deleted; a PIN login
+  /// is required ([AuthEventKind.staffSignedOut], [reason] `resume_ended`). Nothing happens otherwise.
+  void endStaffResume({String reason = 'resume_ended'}) {
+    if (!staffResumed) return;
+    _resumed = false;
+    _staff = null;
+    _dropResume();
+    _emit(AuthEvent(AuthEventKind.staffSignedOut, reason: reason));
+  }
+
+  void _checkResume() {
+    if (!_resumed || _staff == null) return;
+    final StaffResumeRecord? r = _resumable;
+    if (r != null && r.usableAt(_clock())) return;
+    endStaffResume(reason: 'resume_expired');
+  }
+
+  void _keepForResume(StaffSession session, DateTime at) {
+    if (!rememberStaffForResume) return;
+    final StaffResumeRecord r = StaffResumeRecord(
+      userId: session.userId,
+      userName: session.userName,
+      permissions: session.permissions,
+      signedInAt: at.toUtc(),
+    );
+    _resumable = r;
+    _resumeOnStore = true;
+    _writeResume(r.encode());
+  }
+
+  void _dropResume() {
+    _resumable = null;
+    if (!_resumeOnStore) return;
+    _resumeOnStore = false;
+    _writeResume(null);
+  }
+
+  /// Written one after another (a later change never loses to an earlier one); a storage error leaves the record as
+  /// the store has it (the in-memory state is what this run uses).
+  void _writeResume(String? value) {
+    _resumeWrites = _resumeWrites.then((_) async {
+      try {
+        if (value == null) {
+          await _store.delete(staffResumeKey);
+        } else {
+          await _store.write(staffResumeKey, value);
+        }
+      } on Object {
+        // Kept or not kept: the next sign-in or sign-out writes again
+      }
+    });
+  }
+
+  /// The pending writes of the record are on the store (tests, an orderly shutdown).
+  Future<void> get resumeWritten => _resumeWrites;
 
   // --- Terminal: ulash ---------------------------------------------------------------------------------------
 
@@ -163,6 +317,8 @@ class AuthSession {
     _terminal = paired;
     _staff = null;
     _setAside = null;
+    _resumed = false;
+    _dropResume();
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalPaired));
     return paired;
@@ -173,6 +329,8 @@ class AuthSession {
     _terminal = null;
     _staff = null;
     _setAside = null;
+    _resumed = false;
+    _dropResume();
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalForgotten));
   }
@@ -192,6 +350,8 @@ class AuthSession {
     if (_staff != null) {
       _staff = null;
       _setAside = null;
+      _resumed = false;
+      _dropResume();
       _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'unpair'));
     }
     await forgetTerminal();
@@ -254,7 +414,10 @@ class AuthSession {
     }
     _staff = session;
     _setAside = null;
+    _resumed = false;
     _staffSignedInAt = _clock();
+    // M5 S6-a: the last PIN login on this till replaces the kept one
+    _keepForResume(session, _staffSignedInAt!);
     _emit(const AuthEvent(AuthEventKind.staffSignedIn));
     return session;
   }
@@ -278,8 +441,12 @@ class AuthSession {
     final StaffSession? staff = _staff;
     if (staff == null) return;
     // A continued staff member who locks the screen has no PIN login to come back with until the server answers
-    if (staffContinued) _setAside = staff;
+    // (M5 S6-a: one resumed after a restart is not: they come back with a PIN only)
+    if (staffContinued && !_resumed) _setAside = staff;
+    _resumed = false;
     _staff = null;
+    // M5 S6-a: a sign-out ends the kept staff member too (the screen lock, the end of the shift)
+    _dropResume();
     _emit(AuthEvent(AuthEventKind.staffSignedOut, reason: reason));
     if (terminal == null) return;
     try {
@@ -365,8 +532,11 @@ class AuthSession {
   String? get currentToken {
     final StaffSession? staff = _staff;
     if (staff != null) {
+      // M5 S6-a: a resumed staff member holds no token: no staff token is sent on this run
+      if (_resumed) return _user?.accessToken;
       if (holdExpiredStaff || !staff.isExpired(_clock())) return staff.token;
       _staff = null;
+      _dropResume();
       _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'expired'));
     }
     return _user?.accessToken;
@@ -378,9 +548,11 @@ class AuthSession {
   /// for the case that the PIN login cannot reach the server ([resumeStaffContinuation]).
   void handleStaffRejected(String sentToken) {
     final StaffSession? staff = _staff;
-    if (staff == null || staff.token != sentToken) return;
+    if (staff == null || staff.token != sentToken || _resumed) return;
     if (staffContinued) _setAside = staff;
     _staff = null;
+    // M5 S6-a: the server refused the staff member: nothing is kept for a restart
+    _dropResume();
     _emit(
       AuthEvent(
         AuthEventKind.staffSignedOut,
@@ -396,6 +568,8 @@ class AuthSession {
     _terminal = null;
     _staff = null;
     _setAside = null;
+    _resumed = false;
+    _dropResume();
     await _persist();
     _emit(const AuthEvent(AuthEventKind.terminalRevoked));
   }

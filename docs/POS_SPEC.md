@@ -1037,8 +1037,14 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
   **To'lov hech qachon to'xtamaydi.** Chegaradan keyingi bosqichni server odatdagidek narxlaydi (`offline_price`,
   `stale_menu` belgilari).
 - Faqat uzilishdan oldin kirgan xodim(lar) ishlaydi; yangi xodim PIN bilan kira olmaydi (PIN tekshiruvi serverda).
-  Shu sababli cheklangan rejimda ekran avtomatik qulflanmaydi. Ilova oflaynda qayta ochilsa hech kim kira olmaydi,
-  lekin navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi.
+  Shu sababli cheklangan rejimda ekran avtomatik qulflanmaydi. Ilova oflaynda qayta ochilsa PIN bilan hech kim kira
+  olmaydi, navbat saqlanadi va aloqa qaytgach terminal tokeni bilan yuboriladi. M5 S6-a: shu kassada oxirgi marta PIN
+  bilan kirgan xodim PIN bilan kirganidan keyin 12 soat ichida "Davom etish: (ism)" tugmasi bilan PIN'siz davom
+  etadi — faqat ochiq buyurtmaga schyot, to'lov va yopish (yangi buyurtma, taom qo'shish yoki o'chirish, chegirma,
+  qaytarish, smena va kassani uzish yo'q); server birinchi javob berishi bilan bu rejim tugaydi va PIN so'raladi.
+  Amallar `staff_continued: true, staff_resumed: true` bilan yoziladi va hisobotda "PIN'siz davom etilgan" deb
+  ko'rinadi (docs/API.md). Kassada faqat xodim id'si, ismi, ruxsatlari va PIN bilan kirgan vaqti saqlanadi (PIN,
+  uning xeshi yoki token emas).
 - **PIN'siz davom etish** (M5 S1). Xodimning PIN sessiyasi (12 soat) aloqa yo'q paytda tugasa, kassa uni chiqarib
   yubormaydi: xodim "PIN'siz davom etmoqda" (lentada ismi bilan yoziladi), amallari navbatga `staff_continued: true`
   belgisi bilan tushadi.

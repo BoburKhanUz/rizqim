@@ -41,6 +41,9 @@ Summary12 _$Summary12FromJson(Map<String, dynamic> json) => Summary12(
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements4.fromJson(e as Map<String, dynamic>))
       .toList(),
+  continued: json['continued'] == null
+      ? null
+      : Continued4.fromJson(json['continued'] as Map<String, dynamic>),
   openOrders: (json['open_orders'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -62,6 +65,7 @@ Map<String, dynamic> _$Summary12ToJson(Summary12 instance) => <String, dynamic>{
   'by_channel': instance.byChannel,
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
+  'continued': instance.continued,
   'voids': instance.voids,
   'batch_writeoffs': instance.batchWriteoffs,
   'refunds': instance.refunds,

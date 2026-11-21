@@ -41,6 +41,9 @@ Report _$ReportFromJson(Map<String, dynamic> json) => Report(
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements.fromJson(e as Map<String, dynamic>))
       .toList(),
+  continued: json['continued'] == null
+      ? null
+      : Continued.fromJson(json['continued'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$ReportToJson(Report instance) => <String, dynamic>{
@@ -54,6 +57,7 @@ Map<String, dynamic> _$ReportToJson(Report instance) => <String, dynamic>{
   'by_channel': instance.byChannel,
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
+  'continued': instance.continued,
   'voids': instance.voids,
   'batch_writeoffs': instance.batchWriteoffs,
   'refunds': instance.refunds,

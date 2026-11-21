@@ -23,6 +23,7 @@ class Errors2 {
     required this.reason,
     required this.message,
     required this.sigStatus,
+    required this.staffContinued,
     required this.staff,
     required this.device,
     required this.originDevice,
@@ -53,6 +54,8 @@ class Errors2 {
   final String? message;
   @JsonKey(name: 'sig_status')
   final String? sigStatus;
+  @JsonKey(name: 'staff_continued')
+  final bool staffContinued;
   final Staff29? staff;
   final Device25? device;
   @JsonKey(name: 'origin_device')

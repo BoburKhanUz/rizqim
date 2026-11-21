@@ -201,6 +201,22 @@ Section 9 is a short note of what a "whole day" answer would change later; it ha
   and taking payment (no new orders, no discount). No PIN hash is stored. The server's own check is unchanged (it
   already attributes by `staff_id` and the sign-in audit). The exposure equals an unlocked till, which limited mode
   already is (POS_SPEC 5.4: no auto-lock offline).
+  *As built (S6-a, 21.11.2026).* Kept: secure-storage key `rizqim.pos.staff_resume.v1` = `{v: 1, staff_id, name,
+  permissions, signed_in_at}` (rizqim_api `StaffResumeRecord`, written at every successful PIN login on a till with the
+  offline mode; no PIN, hash or token). Deleted on every sign-out (screen lock, shift end, 401 on the staff token, token
+  expiry), unpair, forget, terminal 401, a new pairing, the end of the mode, and when unusable. Offered
+  (`PosSession.resumeOffer`) only when: the kept bootstrap said `offline.staff_resume: true`, the last request failed
+  (the PIN keypad reports its failed staff list), nobody is signed in, and `signed_in_at <= now <= signed_in_at + 12 h`
+  by a device clock that is not behind the till's last server contact or newest queued operation (a PIN login in the
+  future or a clock set back: the record is dropped). Resumed (`PosSession.resumeStaff`): no staff token (none is sent
+  on this run), permissions cut to `orders.view`, `orders.manage`, `pos.take_payment`, `menu.view` (no discount, void,
+  cancel, refund, shift, cash movement, reprint, unpairing), and finish-only: no new order, round or void, discount
+  refused; the bill, the pre-check, the payment and the close go through. Every queued operation carries
+  `staff_continued: true, staff_resumed: true`. It ends at the first server answer (`PosConnectivity` online: signed out,
+  record deleted, PIN keypad with "Internet tiklandi"), at a PIN login, a sign-out, or when the 12 h are over (signed
+  out, `resume_expired`). Server (`ContinuedStaff`): bootstrap `offline.staff_resume: true`; the order's informational
+  `staff_continued` sync flag (once, plus one per `bill.pay` with its `payments`), the X/Z report's `continued:
+  {count, amount}`, `staff_continued: bool` on the sync-error rows. The 36 h staff check is unchanged.
 
 Rejected: raising the limits to 48-72 h (not asked for; section 9); making the limits a per-store setting (one more
 owner setting to audit, no pilot need); offline PIN verification with hashes on the device (deliberately absent today,

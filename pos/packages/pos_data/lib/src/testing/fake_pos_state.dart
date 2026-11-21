@@ -151,6 +151,9 @@ class FakePosState {
   /// aytmaydi, kassa internetsiz chegirma bermaydi.
   bool offlineDiscount = false;
 
+  /// M5 S6-a: bootstrap `offline.staff_resume: true` (the server records `staff_resumed`). Default: an older server.
+  bool offlineStaffResume = false;
+
   // --- M5 S3: the signed offline queue ------------------------------------------------------------------------------
 
   /// The server signs: bootstrap says `offline.signing: true`, the pairing answer carries `sync_key` and
@@ -1358,6 +1361,7 @@ class FakePosState {
           'day_type': 'weekday',
           if (offlineDiscount) 'discount': true,
           if (offlineSigning) 'signing': true,
+          if (offlineStaffResume) 'staff_resume': true,
           if (advertiseSigningKid) 'signing_kid': syncKid == 0 ? null : syncKid,
           'fees': <Object?>[
             <String, Object?>{

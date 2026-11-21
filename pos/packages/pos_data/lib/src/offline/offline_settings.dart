@@ -22,6 +22,7 @@ class PosOfflineSettings {
     this.signing = false,
     this.signingKid,
     this.export = false,
+    this.staffResume = false,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -38,6 +39,7 @@ class PosOfflineSettings {
     signing: j.boolean('signing'),
     signingKid: j.intOrNull('signing_kid'),
     export: j.boolean('export'),
+    staffResume: j.boolean('staff_resume'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
@@ -68,6 +70,7 @@ class PosOfflineSettings {
         signing: signing,
         signingKid: signingKid,
         export: export,
+        staffResume: staffResume,
       );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
@@ -103,6 +106,12 @@ class PosOfflineSettings {
   /// the till offer "Navbatni faylga saqlash" (`SyncExporter`). An older server does not say so: nothing is offered.
   /// (The restore from the mirror copy does not depend on it: it is read from the folder the copy replaces.)
   final bool export;
+
+  /// M5 S6-a: the server records the mark of operations queued by a staff member resumed without a PIN after an app
+  /// restart (`offline.staff_resume: true`; `staff_resumed` in the payload, shown as "PIN'siz davom etilgan"). Only
+  /// then does the till offer "Davom etish" (PosSession.resumeOffer). An older server does not say so: nothing is
+  /// offered and the mark is never sent.
+  final bool staffResume;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {

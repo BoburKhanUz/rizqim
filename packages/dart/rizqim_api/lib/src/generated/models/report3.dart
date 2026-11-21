@@ -12,6 +12,7 @@ import 'qr_providers5.dart';
 import 'by_channel7.dart';
 import 'by_waiter5.dart';
 import 'discounts5.dart';
+import 'continued5.dart';
 import 'voids5.dart';
 import 'batch_writeoffs5.dart';
 import 'refunds9.dart';
@@ -48,6 +49,7 @@ class Report3 {
     required this.banquets,
     required this.cash,
     required this.movements,
+    this.continued,
   });
 
   factory Report3.fromJson(Map<String, Object?> json) =>
@@ -69,6 +71,7 @@ class Report3 {
   @JsonKey(name: 'by_waiter')
   final List<ByWaiter5> byWaiter;
   final Discounts5 discounts;
+  final Continued5? continued;
   final Voids5 voids;
   @JsonKey(name: 'batch_writeoffs')
   final BatchWriteoffs5 batchWriteoffs;
