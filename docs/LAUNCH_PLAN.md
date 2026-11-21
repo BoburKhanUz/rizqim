@@ -137,5 +137,7 @@ Egasi qarori (21.11.2026): Fable limiti tugagani uchun Click/Payme tayyorgarligi
 
 Egasi qarori (21.11.2026, yakuniy): hozircha **faqat ishchi server** (production: 4 yadro, 8 GB, 100 GB NVMe) olinadi, chunki pilotgacha uni faqat egasi o'zi sinaydi. Sinov serveri (stg.rizqim.uz) haqiqiy restoranlar ulanishidan oldin qo'shiladi; sozlamalari tayyor. Deploy faqat qo'lda va tasdiq bilan (sinov serveri kalitlari yo'q ekan, push hech narsani o'rnatmaydi).
 
+Egasi qarori (21.11.2026): Click va Payme bilan birga **Paylov** ham ulanadi (onlayn to'lov va uning fiskal cheki; Paylov hujjatida naqd to'lovni OFD da ro'yxatdan o'tkazish usuli ham bor, rasmiy hujjatdan tasdiqlash kerak).
+
 Serversiz ishlar tartibi: fiskal xatlar -> landing PR -> avtomatik o'rnatish va domenlar -> Click/Payme -> qurilmalar ro'yxati va qo'llanmalar ->
 sinov serveri tayyorgarligi -> o'z virtual kassamiz texnik ishi.
