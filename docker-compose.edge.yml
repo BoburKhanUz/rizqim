@@ -1,6 +1,6 @@
 # RIZQIM edge: 80/443 da bitta kirish nuqtasi (Caddy, avtomatik TLS) va barcha subdomenlarni xizmatlarga yo'naltirish.
 # Alohida fayl: oddiy ishlab chiqishda (docker compose up) ishlatilmaydi, shuning uchun lokal muhit o'zgarmaydi.
-# Faqat SERVERDA (production va staging), ildiz .env da COMPOSE_FILE ga qo'shiladi:
+# Faqat SERVERDA (production; keyinroq staging), ildiz .env da COMPOSE_FILE ga qo'shiladi:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.edge.yml:docker-compose.images.yml                 (production)
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml:docker-compose.edge.yml:docker-compose.images.yml   (staging)
 # Kerakli qiymatlar (ildiz .env; namunalar .env.production.example va .env.staging.example):
@@ -22,9 +22,13 @@ services:
       EDGE_DOMAIN: ${EDGE_DOMAIN:-}
       EDGE_PROFILE: ${EDGE_PROFILE:-production}
       EDGE_ACME_EMAIL: ${EDGE_ACME_EMAIL:-}
+      # admin.<domen> IP ro'yxati: /etc/caddy/admin/allow.caddy (infra/edge/admin/allow.caddy.example); standart cheklovsiz
       EDGE_ADMIN_ACCESS: ${EDGE_ADMIN_ACCESS:-/etc/caddy/admin-open.caddy}
     volumes:
-      # Caddyfile, admin-open.caddy, conf.d/, links/ (vaqtincha sahifa) va staging/robots.txt: faqat o'qish uchun
+      # Caddyfile, admin-open.caddy, admin/ (IP ro'yxati: admin/allow.caddy), conf.d/ (qo'shimcha saytlar), links/ (vaqtincha
+      # sahifa) va staging/robots.txt: faqat o'qish uchun. Papka sifatida ulanadi: deploy.sh fayllarni almashtirgach
+      # `caddy reload` qiladi (konteyner qayta yaratilmaydi). Qo'lda o'zgartirsangiz:
+      #   docker compose exec -T edge caddy reload --config /etc/caddy/Caddyfile
       - ./infra/edge:/etc/caddy:ro
       # Sertifikatlar va ACME hisobi: yo'qotmang (qayta olish Let's Encrypt limitiga tegadi)
       - edge_data:/data

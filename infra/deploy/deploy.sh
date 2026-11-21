@@ -3,19 +3,31 @@
 # avvalgi versiyaga AVTOMATIK qaytaradi. GitHub Actions (.github/workflows/deploy.yml) uni SSH orqali ishga tushiradi; qo'lda ham
 # ishlatsa bo'ladi. Qayta ishga tushirish xavfsiz (idempotent): bir xil reliz ustida ikkinchi marta hech narsani buzmaydi.
 #
-# Ishlatish (loyiha papkasida, odatda /opt/rizqim):
-#   infra/deploy/deploy.sh deploy [--release-file infra/deploy/release.env] [--registry-user USER]
-#       GHCR tokeni (GITHUB_TOKEN) STDIN'dan o'qiladi (argumentda emas: ps'da ko'rinmasin). Token bo'lmasa login qilinmaydi
-#       (obrazlar serverda allaqachon bo'lsa, yoki ommaviy bo'lsa).
-#   infra/deploy/deploy.sh rollback     avvalgi muvaffaqiyatli relizga qaytaradi (xuddi avtomatik qaytarish kabi)
+# Reliz papkalari: CI fayllar to'plamini loyiha papkasiga EMAS, <loyiha>/.deploy/releases/<tag>/ ga ochadi va skriptni shu
+# papkadan ishga tushiradi. Ishlayotgan fayllar (compose, scripts/, infra/) faqat tekshiruvlar (oldindan tekshiruv, compose
+# config, obrazlarni tortish, production zaxirasi) o'tgandan KEYIN almashtiriladi; orqaga qaytarishda avvalgi relizning
+# o'z fayllari qaytariladi (eski obraz + eski compose/Caddyfile).
+#
+# Ishlatish:
+#   <loyiha>/.deploy/releases/<tag>/infra/deploy/deploy.sh deploy [--release-file FILE] [--registry-user USER]
+#       (CI shunday chaqiradi). GHCR tokeni (GITHUB_TOKEN) STDIN'dan o'qiladi (argumentda emas: ps'da ko'rinmasin) va faqat shu
+#       jarayonning vaqtinchalik DOCKER_CONFIG papkasida turadi (~/.docker ga yozilmaydi; chiqishda, INT/TERM/HUP da ham o'chadi).
+#       Token bo'lmasa login qilinmaydi (obrazlar serverda allaqachon bo'lsa, yoki ommaviy bo'lsa).
+#   <loyiha>/.deploy/releases/<tag>/infra/deploy/deploy.sh install-files
+#       faqat BIRINCHI o'rnatish (CI `only_upload`): fayllarni loyiha papkasiga ko'chiradi (.env namunalari uchun). Reliz
+#       joylangan serverda rad etadi.
+#   infra/deploy/deploy.sh deploy       loyiha papkasining o'zidagi fayllar bilan (qo'lda; fayllar almashtirilmaydi)
+#   infra/deploy/deploy.sh rollback     avvalgi muvaffaqiyatli relizga (uning fayllari va obrazlariga) qaytaradi
 #   infra/deploy/deploy.sh status       joriy/avvalgi reliz va xizmatlar holati
 #
 # release.env (CI yozadi, paket ichida keladi): DEPLOY_TARGET, GIT_SHA, IMAGE_PREFIX, IMAGE_TAG, IMAGE_TAG_POSTGRES,
 # IMAGE_TAG_PGBOUNCER, IMAGE_TAG_BACKUP. Skript ularni ildiz .env ga yozadi (qo'lda `docker compose` ham shu relizni ko'radi).
 #
-# Qadamlar: 1) oldindan tekshiruv  2) obrazlarni tortish (xato bo'lsa hech narsaga tegilmaydi)  3) production'da zaxira
-# 4) docker compose up -d  5) hamma xizmat healthy  6) migrate --force (backend entrypoint allaqachon bajargan, bu qayta tekshiruv)
-# 7) HTTP tekshiruvlari  -> xato bo'lsa: avvalgi relizga qaytarish va nolga teng bo'lmagan chiqish kodi.
+# Qadamlar: 1) oldindan tekshiruv (reliz papkasidagi fayllar bilan)  2) obrazlarni tortish  3) production'da zaxira (backup
+# xizmati ishlamasa va bazada ma'lumot bo'lishi mumkin bo'lsa: RAD ETILADI)  -> 1-3 da xato bo'lsa hech narsaga tegilmagan
+# 4) fayllarni almashtirish  5) docker compose up -d  6) edge: caddy reload (yangi Caddyfile)  7) hamma xizmat healthy
+# 8) migrate --force (backend entrypoint allaqachon bajargan, bu qayta tekshiruv)  9) HTTP tekshiruvlari
+# -> xato bo'lsa: avvalgi relizning fayllari va obrazlariga qaytarish (caddy reload bilan) va nolga teng bo'lmagan chiqish kodi.
 #
 # Eslatma: migratsiyalar faqat oldinga ketadi. Orqaga qaytarish KOD obrazini qaytaradi, bazani emas: yangi migratsiya eski kod
 # bilan ishlay olishi kerak (avval ustun qo'shish, keyingi relizda eskisini olib tashlash). Aks holda bazani zaxiradan tiklang
@@ -23,10 +35,29 @@
 
 set -Eeuo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Skript reliz papkasidan (<loyiha>/.deploy/releases/<nom>/infra/deploy/) ishga tushsa, loyiha papkasi shu yo'ldan olinadi va
+# BUNDLE_DIR = reliz papkasi; loyiha papkasining o'zidan ishga tushsa BUNDLE_DIR bo'sh (fayllar allaqachon joyida)
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+case "$SCRIPT_ROOT" in
+    */.deploy/releases/*)
+        APP_DIR="${SCRIPT_ROOT%/.deploy/releases/*}"
+        BUNDLE_DIR="$SCRIPT_ROOT"
+        if [ -z "$APP_DIR" ] || [ "$APP_DIR/.deploy/releases/${BUNDLE_DIR##*/}" != "$BUNDLE_DIR" ]; then
+            echo "reliz papkasi kutilmagan joyda: $BUNDLE_DIR" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        APP_DIR="$SCRIPT_ROOT"
+        BUNDLE_DIR=""
+        ;;
+esac
 cd "$APP_DIR"
 
 STATE_DIR="$APP_DIR/.deploy"
+RELEASES_DIR="$STATE_DIR/releases"
+# Nechta eski reliz papkasi saqlanadi (joriy va avvalgisidan tashqari)
+KEEP_RELEASES="${DEPLOY_KEEP_RELEASES:-3}"
 ENV_FILE="$APP_DIR/.env"
 # Servislar sog'lom bo'lishini kutish (soniya). backend start_period 120 s, scheduler 180 s: standart zaxira bilan
 HEALTH_TIMEOUT="${DEPLOY_HEALTH_TIMEOUT:-600}"
@@ -52,14 +83,20 @@ env_get() {
     printf '%s' "$line"
 }
 
-# env_set KEY VALUE: qatorni almashtiradi yoki oxiriga qo'shadi. Fayl o'sha-o'zida yoziladi (ruxsatlar va egasi saqlanadi)
+# env_set KEY VALUE: qatorni almashtiradi yoki oxiriga qo'shadi. Atomar: yangi mazmun shu papkadagi vaqtinchalik faylga
+# (avval .env nusxasi: ruxsatlar va egasi saqlanadi) yoziladi va `mv` bilan almashtiriladi: yozish o'rtasida uzilsa ham
+# .env yarim qolmaydi (eski yoki yangi, to'liq)
 env_set() {
     local key="$1" value="$2" tmp
-    tmp="$(mktemp)"
-    grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
-    printf '%s=%s\n' "$key" "$value" >> "$tmp"
-    cat "$tmp" > "$ENV_FILE"
+    tmp="$(mktemp "$ENV_FILE.tmp.XXXXXX")"
+    if cp -p "$ENV_FILE" "$tmp" \
+        && { grep -vE "^${key}=" "$ENV_FILE" || true; } > "$tmp" \
+        && printf '%s=%s\n' "$key" "$value" >> "$tmp" \
+        && mv -f "$tmp" "$ENV_FILE"; then
+        return 0
+    fi
     rm -f "$tmp"
+    die ".env ga yozib bo'lmadi ($key)"
 }
 
 # release_get KEY FILE: release.env qiymati (faqat xavfsiz belgilar bilan tekshirilgan)
@@ -94,6 +131,21 @@ apply_release_to_env() {
 # docker compose
 
 dc() { docker compose "$@"; }
+
+# dc_files DIR ...: compose'ni DIR dagi compose fayllari bilan, lekin loyiha papkasi (.env, backend/.env, volume yo'llari,
+# loyiha nomi) bilan ishlatadi. Fayllar almashtirilishidan OLDIN yangi relizni tekshirish va obrazlarni tortish uchun
+dc_files() {
+    local dir="$1" cf file list=""
+    shift
+    if [ "$dir" = "$APP_DIR" ]; then
+        dc "$@"
+        return
+    fi
+    cf="$(env_get COMPOSE_FILE)"
+    # shellcheck disable=SC2086  # COMPOSE_FILE ":" bilan ajratilgan, fayl nomlarida bo'sh joy yo'q
+    for file in ${cf//:/ }; do list="${list:+$list:}$dir/$file"; done
+    COMPOSE_FILE="$list" docker compose --project-directory "$APP_DIR" "$@"
+}
 
 # Compose'ning ko'radigan xizmatlari (db-roles: bir martalik)
 list_services() { dc config --services; }
@@ -213,16 +265,28 @@ run_migrations() {
     dc exec -T -u www-data scheduler php artisan migrate --force
 }
 
-# Oldindan zaxira (faqat bazada nimadir bo'lsa: birinchi deploy'da yo'q)
+# Oldindan zaxira. Faqat haqiqiy birinchi deploy'da (hali hech qanday reliz joylanmagan va postgres konteyneri yo'q) o'tkazib
+# yuboriladi. Bazada ma'lumot bo'lishi mumkin bo'lsa-yu, backup xizmati ishlamasa, deploy RAD ETILADI (hech narsa o'zgarmagan)
 pre_backup() {
-    local want
+    local want backup_state
     want="$(env_get DEPLOY_BACKUP)"
     if [ -z "$want" ]; then
         if [ "$(env_get DEPLOY_TARGET)" = production ]; then want=1; else want=0; fi
     fi
-    [ "$want" = 1 ] || { log "oldindan zaxira o'chiq (DEPLOY_BACKUP=$want)"; return 0; }
-    if [ "$(service_state backup)" != running ]; then
-        log "backup xizmati ishlamayapti (birinchi deploy?): oldindan zaxira o'tkazib yuborildi"
+    if [ "$want" != 1 ]; then
+        if [ "$(env_get DEPLOY_TARGET)" = production ]; then
+            warn "production'da oldindan zaxira o'chirilgan (.env: DEPLOY_BACKUP=$want): migratsiyadan oldin zaxira OLINMAYDI"
+        else
+            log "oldindan zaxira o'chiq (DEPLOY_BACKUP=$want)"
+        fi
+        return 0
+    fi
+    backup_state="$(service_state backup)"
+    if [ "$backup_state" != running ] && [ "$backup_state" != healthy ]; then
+        if [ -f "$STATE_DIR/current.env" ] || [ "$(service_state postgres)" != missing ]; then
+            die "backup xizmati ishlamayapti ($backup_state), bazada esa ma'lumot bor: zaxirasiz deploy qilinmaydi (hech narsa o'zgarmagan). Tuzating: docker compose up -d backup; sababi: docker compose logs --tail=50 backup. Keyin deploy'ni qayta ishga tushiring"
+        fi
+        log "birinchi deploy (reliz ham, postgres konteyneri ham yo'q): oldindan zaxira o'tkazib yuborildi"
         return 0
     fi
     log "oldindan zaxira: backup.sh"
@@ -232,8 +296,9 @@ pre_backup() {
 # ---------------------------------------------------------------------------------------------------------------------
 # Oldindan tekshiruv
 
+# preflight TARGET [DIR]: DIR = tekshiriladigan fayllar (standart: loyiha papkasi; deploy'da: yangi reliz papkasi)
 preflight() {
-    local target="$1" cf file
+    local target="$1" dir="${2:-$APP_DIR}" cf file
     command -v docker > /dev/null || die "docker topilmadi"
     docker compose version > /dev/null 2>&1 || die "docker compose (v2) topilmadi"
     command -v curl > /dev/null || die "curl topilmadi"
@@ -250,53 +315,140 @@ preflight() {
     # COMPOSE_FILE dagi hamma fayl mavjud bo'lsin
     # shellcheck disable=SC2086  # COMPOSE_FILE ":" bilan ajratilgan, fayl nomlarida bo'sh joy yo'q
     for file in ${cf//:/ }; do
-        [ -f "$APP_DIR/$file" ] || die "COMPOSE_FILE dagi fayl yo'q: $file"
+        [ -f "$dir/$file" ] || die "COMPOSE_FILE dagi fayl yo'q: $dir/$file"
     done
     case ":$cf:" in
         *:docker-compose.edge.yml:*)
             [ -n "$(env_get EDGE_DOMAIN)" ] || die ".env da EDGE_DOMAIN bo'sh (rizqim.uz yoki stg.rizqim.uz)"
             [ -n "$(env_get EDGE_ACME_EMAIL)" ] || die ".env da EDGE_ACME_EMAIL bo'sh (Let's Encrypt uchun e-pochta)"
-            [ -f "$APP_DIR/infra/edge/Caddyfile" ] || die "infra/edge/Caddyfile yo'q"
+            [ -f "$dir/infra/edge/Caddyfile" ] || die "infra/edge/Caddyfile yo'q: $dir"
             ;;
     esac
     # Bo'sh yoki namuna qiymatli parollar bilan ishga tushmaylik
     case "$(env_get DB_PASSWORD)" in
         '' | secret | CHANGE_ME*) die ".env da DB_PASSWORD to'ldirilmagan" ;;
     esac
+    # Production'da Redis parolsiz bo'lmasin (navbat, sessiya, kesh shu yerda; compose tarmog'idagi har konteyner unga ulana oladi)
+    if [ "$target" = production ]; then
+        case "$(env_get REDIS_PASSWORD)" in
+            '' | null | secret | CHANGE_ME*) die ".env da REDIS_PASSWORD to'ldirilmagan (production'da shart: openssl rand -hex 24)" ;;
+        esac
+    fi
     [ -n "$(grep -E '^APP_KEY=base64:.+' "$APP_DIR/backend/.env" || true)" ] || die "backend/.env da APP_KEY yo'q (echo \"base64:\$(openssl rand -base64 32)\")"
-    dc config -q || die "docker compose config xato"
+    dc_files "$dir" config -q || die "docker compose config xato"
 }
 
+# Token faqat shu jarayonning vaqtinchalik DOCKER_CONFIG papkasiga (mktemp -d, 0700) yoziladi: ~/.docker/config.json ga
+# tushmaydi va deploy qanday tugamasin (muvaffaqiyat, xato, SSH uzilishi = HUP, INT, TERM) cleanup() uni o'chiradi
+TMP_DOCKER_CONFIG=""
 registry_login() {
-    local user="$1" token
+    local user="$1" token plugins
     [ -n "$user" ] || return 0
     IFS= read -r token || true
     if [ -z "$token" ]; then
         warn "--registry-user berilgan, lekin STDIN'da token yo'q: login qilinmadi"
         return 0
     fi
+    plugins="${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
+    TMP_DOCKER_CONFIG="$(mktemp -d)"
+    # docker compose foydalanuvchi papkasiga (~/.docker/cli-plugins) o'rnatilgan bo'lsa ham topilsin
+    [ ! -d "$plugins" ] || ln -s "$plugins" "$TMP_DOCKER_CONFIG/cli-plugins"
+    export DOCKER_CONFIG="$TMP_DOCKER_CONFIG"
     printf '%s\n' "$token" | docker login "$REGISTRY_HOST" -u "$user" --password-stdin > /dev/null || die "$REGISTRY_HOST ga kirib bo'lmadi"
-    LOGGED_IN=1
-    log "$REGISTRY_HOST ga kirildi"
+    token=""
+    log "$REGISTRY_HOST ga kirildi (vaqtinchalik DOCKER_CONFIG)"
 }
 
-registry_logout() {
-    if [ "${LOGGED_IN:-0}" = 1 ]; then
-        # Vaqtinchalik token (GITHUB_TOKEN) ish tugagach baribir yaroqsiz: serverda qolib ketmasin
+cleanup() {
+    if [ -n "$TMP_DOCKER_CONFIG" ] && [ -d "$TMP_DOCKER_CONFIG" ]; then
         docker logout "$REGISTRY_HOST" > /dev/null 2>&1 || true
+        rm -rf -- "${TMP_DOCKER_CONFIG:?}"
+        TMP_DOCKER_CONFIG=""
     fi
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Reliz holati (.deploy/current.env, previous.env)
 
+# save_state FILE [RELIZ_PAPKASI_NOMI]: current.env (+ current.dir) -> previous.*, yangi reliz -> current.*
 save_state() {
-    local release_file="$1"
+    local release_file="$1" dir_name="${2:-}"
     mkdir -p "$STATE_DIR"
     if [ -f "$STATE_DIR/current.env" ] && ! cmp -s "$STATE_DIR/current.env" "$release_file"; then
         cp "$STATE_DIR/current.env" "$STATE_DIR/previous.env"
+        if [ -f "$STATE_DIR/current.dir" ]; then
+            cp "$STATE_DIR/current.dir" "$STATE_DIR/previous.dir"
+        else
+            rm -f "$STATE_DIR/previous.dir"
+        fi
     fi
     cp "$release_file" "$STATE_DIR/current.env"
+    if [ -n "$dir_name" ]; then
+        printf '%s\n' "$dir_name" > "$STATE_DIR/current.dir"
+    else
+        rm -f "$STATE_DIR/current.dir"
+    fi
+}
+
+# release_dir_of current|previous: shu relizning papkasi (saqlangan bo'lsa), aks holda bo'sh satr
+release_dir_of() {
+    local name
+    [ -f "$STATE_DIR/$1.dir" ] || return 0
+    name="$(head -n 1 "$STATE_DIR/$1.dir")"
+    case "$name" in '' | . | .. | */*) return 0 ;; esac
+    if [ -d "$RELEASES_DIR/$name" ]; then printf '%s' "$RELEASES_DIR/$name"; fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Fayllarni almashtirish (reliz papkasi -> loyiha papkasi)
+
+# install_files DIR: DIR dagi hamma faylni loyiha papkasiga ko'chiradi va avvalgi o'rnatilgan relizda bo'lib, bunda yo'q fayllarni
+# o'chiradi. Faqat reliz bilan kelgan fayllarga tegiladi: .env, backend/.env, infra/edge/conf.d/*.caddy, infra/edge/admin/*.caddy,
+# backups/ va boshqa serverdagi fayllar hech qachon o'chirilmaydi. Papkalar o'rnida qoladi (edge konteyneri infra/edge ni papka
+# sifatida ulaydi va yangi fayllarni darhol ko'radi; keyin reload_edge)
+install_files() {
+    local dir="$1" list f
+    list="$(mktemp "$STATE_DIR/files.XXXXXX")"
+    (cd "$dir" && find . -type f -print | sed 's#^\./##' | LC_ALL=C sort) > "$list"
+    if [ ! -s "$list" ]; then
+        rm -f "$list"
+        die "reliz papkasi bo'sh: $dir"
+    fi
+    if ! (cd "$dir" && tar -cf - -T "$list") | tar -C "$APP_DIR" -xf -; then
+        rm -f "$list"
+        die "fayllarni ko'chirib bo'lmadi: $dir"
+    fi
+    if [ -f "$STATE_DIR/installed.list" ]; then
+        LC_ALL=C comm -23 "$STATE_DIR/installed.list" "$list" | while IFS= read -r f; do
+            case "$f" in '' | /* | *..*) continue ;; esac
+            rm -f -- "${APP_DIR:?}/${f:?}"
+        done
+    fi
+    mv -f "$list" "$STATE_DIR/installed.list"
+    log "fayllar almashtirildi: ${dir#"$APP_DIR"/}"
+}
+
+# Reliz papkalari nomlari, yangisi birinchi
+list_releases() {
+    [ -d "$RELEASES_DIR" ] || return 0
+    find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn | cut -d' ' -f2-
+}
+
+# Eski reliz papkalarini tozalash: joriy, avvalgi, hozir ishlayotgan va eng yangi KEEP_RELEASES tasi qoladi
+prune_releases() {
+    local keep_cur keep_prev name d n=0
+    [ -d "$RELEASES_DIR" ] || return 0
+    keep_cur="$(release_dir_of current)"
+    keep_prev="$(release_dir_of previous)"
+    while IFS= read -r name; do
+        case "$name" in '' | . | .. | */*) continue ;; esac
+        d="$RELEASES_DIR/$name"
+        if [ "$d" = "$keep_cur" ] || [ "$d" = "$keep_prev" ] || [ "$d" = "$BUNDLE_DIR" ]; then continue; fi
+        n=$((n + 1))
+        [ "$n" -le "$KEEP_RELEASES" ] && continue
+        rm -rf -- "${RELEASES_DIR:?}/${name:?}"
+    done < <(list_releases)
 }
 
 summary() {
@@ -320,14 +472,33 @@ export_release() {
     done
 }
 
+# Edge konteyneri `up -d` da faqat obrazi yoki compose sozlamasi o'zgarsa qayta yaratiladi: Caddyfile (va admin/, conf.d/)
+# o'zgarishi o'zi qo'llanmaydi. Shuning uchun har deploy va qaytarishda reload: Caddy yangi faylni tekshiradi va faqat to'g'ri
+# bo'lsa almashtiradi (xato bo'lsa eski sozlama ishlashda davom etadi, reliz esa yaroqsiz deb qaytariladi)
+reload_edge() {
+    local i
+    list_services | grep -qx edge || return 0
+    for i in 1 2 3 4 5; do
+        if dc exec -T edge caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+            log "edge: caddy reload (Caddyfile qo'llandi)"
+            return 0
+        fi
+        # Edge hozirgina qayta yaratilgan bo'lsa admin API hali tayyor emas
+        [ "$i" -lt 5 ] && sleep 3
+    done
+    warn "edge: caddy reload muvaffaqiyatsiz (Caddyfile xato?): docker compose logs --tail=50 edge"
+    return 1
+}
+
 # apply_release FILE: .env ga yozadi va xizmatlarni shu reliz bilan ko'taradi. `up -d` backend healthy bo'lishini kutadi
-# (depends_on): healthcheck o'tmasa u nolga teng bo'lmagan kod bilan chiqadi
+# (depends_on): healthcheck o'tmasa u nolga teng bo'lmagan kod bilan chiqadi. So'ng edge joriy Caddyfile'ni oladi
 apply_release() {
     local file="$1"
     export_release "$file"
     apply_release_to_env "$file"
     log "up -d (tag $(release_get IMAGE_TAG "$file"))"
-    dc up -d --no-build --remove-orphans
+    dc up -d --no-build --remove-orphans || return 1
+    reload_edge
 }
 
 verify_release() {
@@ -338,15 +509,21 @@ verify_release() {
     return 0
 }
 
-# rollback_to FILE: shu relizga qaytaradi (tayyor bo'lishini kutadi)
+# rollback_to FILE [RELIZ_PAPKASI]: shu relizga qaytaradi (tayyor bo'lishini kutadi). Papka berilsa avval uning fayllari
+# (compose, scripts/, infra/edge/Caddyfile ...) qaytariladi; papka yo'q bo'lsa (eski reliz) faqat obrazlar qaytadi
 rollback_to() {
-    local prev="$1"
+    local prev="$1" prev_dir="${2:-}"
     if [ ! -f "$prev" ]; then
         warn "qaytariladigan reliz yo'q (birinchi deploy?): $prev. Loglar: docker compose logs --tail=100"
         return 1
     fi
     summary "ORQAGA QAYTARISH" "$prev"
     validate_release_file "$prev"
+    if [ -n "$prev_dir" ]; then
+        install_files "$prev_dir"
+    elif [ -n "$BUNDLE_DIR" ]; then
+        warn "avvalgi relizning fayllari saqlanmagan: faqat obrazlar qaytariladi (fayllar yangi relizniki bo'lib qoladi)"
+    fi
     if apply_release "$prev" && wait_all_ready && internal_checks; then
         log "orqaga qaytarish muvaffaqiyatli: tizim avvalgi versiyada ishlayapti"
         return 0
@@ -356,7 +533,7 @@ rollback_to() {
 }
 
 cmd_deploy() {
-    local release_file="infra/deploy/release.env" registry_user="" target
+    local release_file="" registry_user="" target files_dir back_dir
     while [ $# -gt 0 ]; do
         case "$1" in
             --release-file) release_file="${2:?--release-file qiymati kerak}"; shift 2 ;;
@@ -364,28 +541,36 @@ cmd_deploy() {
             *) die "noma'lum argument: $1" ;;
         esac
     done
+    # Tekshiriladigan va joylanadigan fayllar: reliz papkasi (CI) yoki loyiha papkasining o'zi (qo'lda)
+    files_dir="${BUNDLE_DIR:-$APP_DIR}"
+    [ -n "$release_file" ] || release_file="$files_dir/infra/deploy/release.env"
     case "$release_file" in /*) ;; *) release_file="$APP_DIR/$release_file" ;; esac
     validate_release_file "$release_file"
     target="$(release_get DEPLOY_TARGET "$release_file")"
     case "$target" in staging | production) ;; *) die "DEPLOY_TARGET staging yoki production bo'lishi kerak: $target" ;; esac
 
-    preflight "$target"
+    # 1-3-qadamlar: shu yergacha ishlayotgan fayllar va konteynerlarga tegilmaydi
+    preflight "$target" "$files_dir"
     summary "yangi reliz" "$release_file"
     summary "joriy reliz" "$STATE_DIR/current.env"
 
     registry_login "$registry_user"
-    trap registry_logout EXIT
 
-    # Yangi obrazlar shu yerda tortiladi: xato bo'lsa (tarmoq, ruxsat, yo'q tag) hech qaysi konteynerga tegilmagan bo'ladi.
-    # Ular ildiz .env ga yozilmaguncha jarayon muhitida beriladi.
+    # Yangi obrazlar shu yerda, yangi relizning compose fayllari bilan tortiladi: xato bo'lsa (tarmoq, ruxsat, yo'q tag) hech
+    # qaysi konteynerga tegilmagan bo'ladi. Ular ildiz .env ga yozilmaguncha jarayon muhitida beriladi.
     export_release "$release_file"
     log "obrazlarni tortish"
-    dc pull --quiet || die "obrazlarni tortib bo'lmadi: deploy to'xtatildi (hech narsa o'zgarmagan)"
+    dc_files "$files_dir" pull --quiet || die "obrazlarni tortib bo'lmadi: deploy to'xtatildi (hech narsa o'zgarmagan)"
 
     pre_backup
 
+    # 4-qadam: tekshiruvlar o'tdi, endi ishlayotgan fayllar almashtiriladi (qaytarish uchun joriy reliz papkasi oldindan olinadi)
+    back_dir="$(release_dir_of current)"
+    [ -z "$BUNDLE_DIR" ] || install_files "$BUNDLE_DIR"
+
     if apply_release "$release_file" && verify_release; then
-        save_state "$release_file"
+        save_state "$release_file" "${BUNDLE_DIR##*/}"
+        prune_releases
         docker image prune -f > /dev/null 2>&1 || true
         log "DEPLOY MUVAFFAQIYATLI: $(release_get GIT_SHA "$release_file")"
         return 0
@@ -396,50 +581,77 @@ cmd_deploy() {
     dc logs --tail=40 backend >&2 || true
     # Oxirgi yaxshi reliz = joriy (current.env). Xuddi shu relizni qayta joylash muvaffaqiyatsiz bo'lsa, undan oldingisi
     local back="$STATE_DIR/current.env"
-    if [ ! -f "$back" ] || cmp -s "$back" "$release_file"; then back="$STATE_DIR/previous.env"; fi
-    if rollback_to "$back"; then
+    if [ ! -f "$back" ] || cmp -s "$back" "$release_file"; then
+        back="$STATE_DIR/previous.env"
+        back_dir="$(release_dir_of previous)"
+    fi
+    if rollback_to "$back" "$back_dir"; then
         die "DEPLOY MUVAFFAQIYATSIZ, tizim avvalgi versiyaga qaytarildi ($(release_get GIT_SHA "$back"))"
     fi
     die "DEPLOY MUVAFFAQIYATSIZ va avtomatik qaytarish ham bo'lmadi"
 }
 
 cmd_rollback() {
-    local target
+    local target prev_dir
     [ -f "$STATE_DIR/previous.env" ] || die "avvalgi reliz yo'q: $STATE_DIR/previous.env"
     target="$(release_get DEPLOY_TARGET "$STATE_DIR/previous.env")"
-    preflight "$target"
+    prev_dir="$(release_dir_of previous)"
+    preflight "$target" "${prev_dir:-$APP_DIR}"
     # Avvalgi obrazlar serverda qolgan bo'lishi kerak; yo'q bo'lsa `up` ularni o'zi tortadi (login kerak bo'lishi mumkin)
-    rollback_to "$STATE_DIR/previous.env" || die "qaytarish bo'lmadi"
-    # Joriy va avvalgi o'rin almashadi: yana rollback qilsa oldingi relizga qaytadi
-    local tmp
+    rollback_to "$STATE_DIR/previous.env" "$prev_dir" || die "qaytarish bo'lmadi"
+    # Joriy va avvalgi o'rin almashadi (reliz fayli ham, papka ko'rsatkichi ham): yana rollback qilsa oldingi relizga qaytadi
+    local tmp ext
     tmp="$(mktemp)"
-    cp "$STATE_DIR/current.env" "$tmp"
-    cp "$STATE_DIR/previous.env" "$STATE_DIR/current.env"
-    cp "$tmp" "$STATE_DIR/previous.env"
+    for ext in env dir; do
+        if [ -f "$STATE_DIR/current.$ext" ]; then cp "$STATE_DIR/current.$ext" "$tmp"; else : > "$tmp"; fi
+        if [ -f "$STATE_DIR/previous.$ext" ]; then
+            cp "$STATE_DIR/previous.$ext" "$STATE_DIR/current.$ext"
+        else
+            rm -f "$STATE_DIR/current.$ext"
+        fi
+        if [ -s "$tmp" ]; then cp "$tmp" "$STATE_DIR/previous.$ext"; else rm -f "$STATE_DIR/previous.$ext"; fi
+    done
     rm -f "$tmp"
     log "joriy reliz endi: $(release_get GIT_SHA "$STATE_DIR/current.env")"
+}
+
+# Birinchi o'rnatish (CI only_upload): reliz papkasidagi fayllarni loyiha papkasiga ko'chiradi, toki serverda .env namunalari
+# paydo bo'lsin. Reliz joylangan serverda (current.env bor) rad etadi: ishlayotgan fayllar faqat `deploy` bilan, tekshiruvlardan
+# keyin almashtiriladi
+cmd_install_files() {
+    [ -n "$BUNDLE_DIR" ] || die "install-files faqat reliz papkasidan ishga tushiriladi (.deploy/releases/<tag>/infra/deploy/deploy.sh)"
+    [ ! -f "$STATE_DIR/current.env" ] || die "bu serverda reliz allaqachon joylangan ($(release_get GIT_SHA "$STATE_DIR/current.env")): fayllar faqat deploy orqali almashtiriladi"
+    install_files "$BUNDLE_DIR"
+    log "fayllar $APP_DIR ga ko'chirildi. Keyingi qadam: .env va backend/.env (docs/SERVER_SETUP.md), so'ng oddiy deploy"
 }
 
 cmd_status() {
     summary "joriy reliz" "$STATE_DIR/current.env"
     summary "avvalgi reliz" "$STATE_DIR/previous.env"
+    log "reliz papkalari (.deploy/releases, yangisi birinchi): $(list_releases | tr '\n' ' ')"
     dc ps
 }
 
 main() {
     local cmd="${1:-}"
-    [ -n "$cmd" ] || die "buyruq kerak: deploy | rollback | status"
+    [ -n "$cmd" ] || die "buyruq kerak: deploy | rollback | status | install-files"
     shift
     mkdir -p "$STATE_DIR"
     case "$cmd" in
         status) cmd_status "$@"; return 0 ;;
-        deploy | rollback) ;;
-        *) die "noma'lum buyruq: $cmd (deploy | rollback | status)" ;;
+        deploy | rollback | install-files) ;;
+        *) die "noma'lum buyruq: $cmd (deploy | rollback | status | install-files)" ;;
     esac
+    # Vaqtinchalik registry tokeni har qanday chiqishda o'chirilsin: signal bilan tugaganda ham EXIT trap ishlashi uchun
+    # signallar `exit` ga aylantiriladi (SSH uzilsa sshd HUP yuboradi)
+    trap cleanup EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     # Bir vaqtda bitta deploy
     exec 9> "$STATE_DIR/lock"
     flock -n 9 || die "boshqa deploy ishlayapti"
-    "cmd_$cmd" "$@"
+    "cmd_${cmd//-/_}" "$@"
 }
 
 main "$@"

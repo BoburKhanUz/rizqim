@@ -4,7 +4,9 @@
 #   EDGE_DOMAIN        rizqim.uz yoki stg.rizqim.uz (production / staging)
 #   EDGE_PROFILE       production (standart) yoki staging (noindex + robots.txt Disallow)
 #   EDGE_ACME_EMAIL    Let's Encrypt ogohlantirishlari uchun e-pochta
-#   EDGE_ADMIN_ACCESS  (ixtiyoriy) admin.<domen> uchun IP ro'yxati fayli; standart: cheklovsiz (admin-open.caddy)
+#   EDGE_ADMIN_ACCESS  (ixtiyoriy) admin.<domen> uchun IP ro'yxati fayli; standart: cheklovsiz (admin-open.caddy).
+#                      Ro'yxat infra/edge/admin/allow.caddy da (conf.d/ da EMAS: conf.d/*.caddy eng yuqori darajada import
+#                      qilinadi va u yerdagi matcher Caddy'ni ishga tushirmaydi)
 # Host -> xizmat (compose tarmog'idagi nomlar):
 #   <domen>, www      landing:8080         (www -> asosiy domenga 301)
 #   app.<domen>       frontend:80          Mini App; /api/ va /app/ (Reverb) ni frontend nginx'i o'zi uzatadi
@@ -13,12 +15,13 @@
 #   admin.<domen>     platform-admin:3000  boshqaruv markazi (IP ro'yxati bilan cheklash mumkin)
 #   pos.<domen>       pos-site:80          POS ilovalarini yuklab olish
 #   links.<domen>     infra/edge/links     vaqtincha sahifa (deep link'lar ishlab chiqilgunicha)
+# Admin API (/api/v1/admin/*) api.<domen> va app.<domen> da YOPIQ (404): unga faqat boshqaruv markazi (platform-admin)
+# compose tarmog'ida http://backend/api orqali boradi, ya'ni faqat admin.<domen> (va uning IP ro'yxati) orqali.
 # Haqiqiy mijoz IP'si: Caddy tashqaridan kelgan X-Forwarded-* ga ISHONMAYDI (trusted_proxies yo'q), ularni o'zi yozadi:
 # X-Forwarded-For = ulanayotgan mijoz manzili. Backend (bootstrap/app.php trustProxies va backend/docker/nginx.conf
 # set_real_ip_from) va hamkor/admin panellari shu bitta yozuvni oladi; Docker tarmog'i 172.16.0.0/12 ichida (ishonchli).
 # Fayl yuklash chegaralari (bayt): Mini App nginx 10m, backend nginx/PHP 16m, admin proksisi 11 MiB (fayl) va sync-import 8 MiB.
 # Hujjat: docs/DEPLOY.md, 11-bo'lim; docs/SERVER_SETUP.md.
-
 {
 	email {$EDGE_ACME_EMAIL}
 
@@ -68,6 +71,16 @@
 	}
 }
 
+# Admin API tashqaridan yopiq: boshqaruv markazi backend'ga ichkaridan (http://backend/api) boradi, shuning uchun
+# api.<domen> va app.<domen> orqali /api/v1/admin/* ga yo'l yo'q (aks holda admin.<domen> IP ro'yxati chetlab o'tilardi).
+# Caddy `path` yo'lni tozalab (%xx, //, ../) va katta-kichik harfni farqlamay solishtiradi: /api/v1/%61dmin ham, //api//v1/admin ham mos.
+(no_admin_api) {
+	@admin_api path /api/v1/admin /api/v1/admin/*
+	handle @admin_api {
+		respond "Not found" 404
+	}
+}
+
 # Upstream'ga ulanish: konteyner qayta yaratilayotganda (deploy) ulanish xatosi bo'lsa so'rov 502 o'rniga 60 soniyagacha
 # kutadi va qayta uriniladi (faqat ulanish xatosida: so'rov hali yuborilmagan, shuning uchun POST ham xavfsiz)
 (upstream) {
@@ -108,6 +121,8 @@ www.{$EDGE_DOMAIN} {
 app.{$EDGE_DOMAIN} {
 	import common
 	import profile_{$EDGE_PROFILE:production}
+	# Mini App nginx'i /api/ ni backend'ga uzatadi: admin API bu yerda ham yopiq
+	import no_admin_api
 
 	handle {
 		# = customer/miniapp/docker/nginx.conf (client_max_body_size 10m)
@@ -134,6 +149,7 @@ app.{$EDGE_DOMAIN} {
 api.{$EDGE_DOMAIN} {
 	import common
 	import profile_{$EDGE_PROFILE:production}
+	import no_admin_api
 
 	# Reverb: faqat /app/{kalit} (Pusher WebSocket). Reverb'ning HTTP API'si (/apps/...) tashqariga berilmaydi:
 	# unga faqat backend compose tarmog'ida reverb:8080 orqali yozadi
@@ -195,7 +211,7 @@ admin.{$EDGE_DOMAIN} {
 	import profile_{$EDGE_PROFILE:production}
 
 	# IP ro'yxati (ixtiyoriy): 403 beradigan `handle @admin_denied` shu yerdan keladi va ENG BIRINCHI tekshiriladi.
-	# Standart fayl hammaga ruxsat beradi; cheklash: docs/SERVER_SETUP.md, "admin.<domen> ni IP bilan cheklash"
+	# Standart fayl hammaga ruxsat beradi; cheklash: infra/edge/admin/allow.caddy.example, docs/SERVER_SETUP.md, "admin.<domen> ni IP bilan cheklash"
 	import {$EDGE_ADMIN_ACCESS:/etc/caddy/admin-open.caddy}
 
 	handle {
@@ -285,5 +301,7 @@ links.{$EDGE_DOMAIN} {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
-# Qo'shimcha domenlar (rizqim.com, rizq.im -> rizqim.uz): infra/edge/conf.d/aliases.caddy.example dan nusxa
+# Qo'shimcha domenlar (rizqim.com, rizq.im -> rizqim.uz): infra/edge/conf.d/aliases.caddy.example dan nusxa.
+# conf.d/ dagi fayllar shu yerda, ENG YUQORI darajada o'qiladi: ularda faqat to'liq sayt bloklari bo'lsin (matcher yoki
+# `handle` emas). admin IP ro'yxati shuning uchun alohida papkada: infra/edge/admin/
 import conf.d/*.caddy

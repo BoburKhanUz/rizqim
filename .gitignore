@@ -65,5 +65,6 @@ packages/dart/*/build/
 
 # Server-local Caddy fragments (infra/edge/conf.d/README.md)
 infra/edge/conf.d/*.caddy
+infra/edge/admin/*.caddy
 infra/deploy/release.env
 .deploy/

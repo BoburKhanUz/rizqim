@@ -1,0 +1,14 @@
+# admin.<domen> faqat shu manzillardan ochiladi (ofis, VPN, uy IP'si). Serverda nusxa oling:
+#   cp infra/edge/admin/allow.caddy.example infra/edge/admin/allow.caddy
+# va manzillarni almashtiring (IPv4 va IPv6, yakka manzil yoki CIDR; bo'sh joy bilan). Keyin ildiz .env ga:
+#   EDGE_ADMIN_ACCESS=/etc/caddy/admin/allow.caddy
+# va `docker compose up -d edge` (yoki `docker compose exec -T edge caddy reload --config /etc/caddy/Caddyfile`).
+# Bu fayl serverda qoladi (git'da emas: infra/edge/admin/*.caddy .gitignore'da). Fayl conf.d/ ga QO'YILMAYDI: conf.d/*.caddy
+# Caddyfile'ning eng yuqori darajasida import qilinadi va u yerdagi matcher bilan Caddy ishga tushmaydi.
+# Diqqat: ro'yxatda o'zingizning joriy IP'ingiz bo'lsin (IPv6 bilan ulansangiz IPv6 manzilingiz ham: uyda/mobil tarmoqda
+# brauzer ko'pincha IPv6 orqali chiqadi; https://ifconfig.co ikkalasini ko'rsatadi), aks holda o'zingiz ham kira olmaysiz.
+# Ro'yxat faqat admin.<domen> ga tegishli: admin API api.<domen> va app.<domen> da baribir yopiq (Caddyfile, no_admin_api).
+@admin_denied not remote_ip 203.0.113.10/32 198.51.100.0/24 2001:db8:10::/48
+handle @admin_denied {
+	respond "Forbidden" 403
+}
