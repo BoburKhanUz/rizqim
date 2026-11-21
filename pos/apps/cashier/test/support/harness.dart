@@ -1,3 +1,5 @@
+import 'dart:io' show Directory;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,7 @@ class CashierHarness {
     bool realtime = true,
     SyncStore? offlineStore,
     CashierHardware? hardware,
+    Directory? Function()? exportDirectory,
   }) {
     adapter = FakePosAdapter(clock: () => now);
     // Sex printeri testda matn rejimida (rasm rejimi Flutter dvigatelini kutadi)
@@ -40,6 +43,7 @@ class CashierHarness {
       settings: settings,
       clock: () => now,
       offlineStore: offlineStore,
+      exportDirectory: exportDirectory,
       // P6 hardware: discovery, scanners and the second screen with fake channels (default: none, not Android)
       hardware: hardware ?? CashierHardware(android: false),
       printing: CashierPrinting(

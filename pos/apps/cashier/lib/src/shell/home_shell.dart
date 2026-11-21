@@ -9,6 +9,7 @@ import '../features/billing/billing_page.dart';
 import '../features/billing/cashier_ui.dart' show showPosMessage;
 import '../features/billing/qr_offline_guard.dart';
 import '../features/order/kitchen_tickets.dart';
+import '../features/settings/zaxira_card.dart' show ExportOutcome, runExport;
 import '../services.dart';
 import 'destinations.dart';
 import 'limited_mode.dart';
@@ -82,6 +83,8 @@ class _HomeShellState extends State<HomeShell> {
           }
         }),
       );
+      // M5 S4: a long outage with a queue: once per outage the till offers to save the queue to a file
+      _subs.add(offline.changes.listen(_offerExport));
       // Sales synced before this sign-in whose receipt did not print yet
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => unawaited(_printSynced()),
@@ -117,6 +120,51 @@ class _HomeShellState extends State<HomeShell> {
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  bool _exportOffered = false;
+
+  /// M5 S4: a non-blocking message (never a dialog) at the first status past the alert of an outage; it comes again
+  /// only after the outage has ended.
+  void _offerExport(OfflineStatus status) {
+    final SyncExporter? exporter = widget.services.exporter;
+    if (exporter == null) return;
+    if (status.level == OfflineLevel.none) {
+      _exportOffered = false;
+      return;
+    }
+    if (_exportOffered || exporter.offerFor(status) != SyncExportOffer.outage) {
+      return;
+    }
+    final ScaffoldMessengerState? messenger = _scopeContext == null
+        ? null
+        : ScaffoldMessenger.maybeOf(_scopeContext!);
+    if (messenger == null) return;
+    _exportOffered = true;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text(
+            "Internet uzoq vaqtdan beri yo'q. Navbatni faylga saqlab qo'yish mumkin.",
+          ),
+          duration: const Duration(seconds: 30),
+          action: SnackBarAction(
+            label: 'Faylga saqlash',
+            onPressed: () => unawaited(() async {
+              final ExportOutcome out = await runExport(exporter);
+              messenger
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(out.text),
+                    duration: const Duration(seconds: 15),
+                  ),
+                );
+            }()),
+          ),
+        ),
+      );
   }
 
   Future<void> _reloadShift() async {
