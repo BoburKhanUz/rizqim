@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "about": "Wave M5 S4 (docs/scale/M5_DESIGN.md 5, \"As built: the export file\"): the till's rescue file. Read by the PHP test (backend/tests/Unit/PosSync/SyncExportVectorsTest.php) and by the Dart test of pos_sync. Generated once by an independent script (Python hmac/hashlib/json), never by the code under test.",
+  "format": {
+    "file": "UTF-8 text without a BOM; every line is one JSON object written without spaces or line breaks and ends with LF (never CRLF). Line 1 the header, then `count` body lines, then the trailer as the last line.",
+    "header": "Keys in this order: format (\"rizqim-sync-export\"), version (1), device (the uuid of the till that writes the file, lower case), kid (the number of the key the file mac is made with), kids (the kid of every signed body line, each once, ascending), first_seq and last_seq (the lowest and highest seq of the header device's own lines; null when it has none), count (the number of body lines), created_at (UTC, ISO 8601). A reader ignores keys it does not know.",
+    "body": "One operation per line, as POST /pos/sync takes it: a signed one {\"signed\",\"mac\",\"prev\",\"kid\"} with the journal's text, mac, prev and kid unchanged (never signed again); an unsigned one as the operation itself {\"op_id\",\"seq\",\"type\",\"occurred_at\",\"staff_id\",\"payload\"[,\"origin_device\"]}. An operation queued under another pairing (a queue set aside, its device uuid is not the header's) carries that uuid in lower case as a last key \"dev\". Order: lines with dev first (by dev as text, then seq, then op_id), then the device's own lines (by seq, then op_id). One line per op_id.",
+    "trailer": "{\"file_mac\":\"<64 lower-case hex>\"} = HMAC-SHA256(key, utf8(file_label) || every byte of the file before the trailer line), i.e. the header line and the body lines, each with its LF. The key is the header device's key number `kid`. A LF after the trailer is written; a reader takes the file without it too.",
+    "json": "As Dart jsonEncode writes it: no spaces, keys in the order given, only the quote, the backslash and characters below U+0020 escaped (\\n, \\r, \\t, \\b, \\f, else \\u00XX), / and non-ASCII left as they are.",
+    "limits": "At most 8 MiB and 10 000 body lines per file.",
+    "never": "No key in the file."
+  },
+  "file_label": "rizqim-sync-export/v1\n",
+  "operation_label": "rizqim-sync/v1/",
+  "test_keys": {
+    "about": "No key is written here. key(device, kid) = HMAC-SHA256(key = utf8(seed), data = utf8(lowercase(device) + \"/kid-\" + kid)), 32 bytes; a test derives them.",
+    "seed": "rizqim-sync-export/v1/test-vector-key",
+    "sha256_of_key": {
+      "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b/kid-1": "6eeb083b05c6a523de484636814c02ff5c765d62875b84645f05249bce3d776b",
+      "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b/kid-2": "a8e67cefc4bd9ee9158969dbe9de45ffe1687de6351bc9445ea5e6cc934f47a7",
+      "0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f/kid-3": "d037fd5f37e36c88ccd9c9b10e23e2043dbe91a49337676c6f11171e418c6759"
+    }
+  },
+  "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+  "earlier_device": "0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f",
+  "files": [
+    {
+      "name": "one till, five signed operations",
+      "about": "The till's own queue under key 1, given out of order. The builder writes them in seq order.",
+      "input": {
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "created_at": "2026-11-20T11:30:00.000Z",
+        "lines": [
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000004\",\"seq\":44,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:04:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"method\":\"cash\",\"amount\":\"32400.00\"}]}}",
+            "mac": "f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b",
+            "prev": "85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6",
+            "kid": 1
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000001\",\"seq\":41,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:01:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0041\",\"channel\":\"pos_takeaway\",\"items\":[{\"line_id\":\"5c0e7b1d-0000-4000-8000-000000000001\",\"variant_id\":\"c3e5b702-0000-4000-8000-000000000001\",\"quantity\":\"2\",\"unit_price\":\"18000.00\"}],\"send\":true,\"note\":\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\"achchiq\\\" emas\\n2-qator \\\\ a/b\"}}",
+            "mac": "6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83",
+            "prev": "00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80",
+            "kid": 1
+          },
+          {
+            "signed": "{ \"seq\": 45, \"op_id\": \"0d5e8f10-0000-4000-8000-000000000005\", \"type\": \"order.close\", \"occurred_at\": \"2026-11-20T09:05:00.000Z\", \"staff_id\": 7, \"payload\": {\"order\": \"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\", \"note\": \"a\\/b \\u00e9\"} }",
+            "mac": "e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7",
+            "prev": "f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b",
+            "kid": 1
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000003\",\"seq\":43,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:03:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"32400.00\"}}",
+            "mac": "85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6",
+            "prev": "7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8",
+            "kid": 1
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000002\",\"seq\":42,\"type\":\"order.discount\",\"occurred_at\":\"2026-11-20T09:02:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"kind\":\"percent\",\"value\":\"10.00\",\"reason\":\"doimiy mijoz\",\"expected_discount\":\"3600.00\"}}",
+            "mac": "7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8",
+            "prev": "6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83",
+            "kid": 1
+          }
+        ]
+      },
+      "header": {
+        "format": "rizqim-sync-export",
+        "version": 1,
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "kids": [
+          1
+        ],
+        "first_seq": 41,
+        "last_seq": 45,
+        "count": 5,
+        "created_at": "2026-11-20T11:30:00.000Z"
+      },
+      "file_mac": "303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3",
+      "file_name": "rizqim-navbat-a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b-41-45.rzq",
+      "sha256_of_text": "5d37047ee1b417243be880b0015666324d48d473e2cbcafb220b552f0cce22a6",
+      "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\n"
+    },
+    {
+      "name": "two keys and an unsigned line",
+      "about": "Operations queued under key 1, one queued unsigned, then two under key 2 after a rotation. The file is under key 2 (the header kid); kids lists the keys of the signed lines.",
+      "input": {
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 2,
+        "created_at": "2026-11-20T12:00:00.000Z",
+        "lines": [
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000011\",\"seq\":50,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:10:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K1-0050\",\"channel\":\"pos_takeaway\",\"items\":[],\"send\":false}}",
+            "mac": "240d66df14bd9f50c4ada9e09fbda1aad84768b32f937173c01a0e1c56b08d6b",
+            "prev": "00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80",
+            "kid": 1
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000012\",\"seq\":51,\"type\":\"order.served\",\"occurred_at\":\"2026-11-20T09:11:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\"}}",
+            "mac": "5fc58b5345d9735b01d1db505469c11dbe9a9cea88bed2e0d2896dff6a94ff32",
+            "prev": "240d66df14bd9f50c4ada9e09fbda1aad84768b32f937173c01a0e1c56b08d6b",
+            "kid": 1
+          },
+          {
+            "op_id": "0d5e8f10-0000-4000-8000-000000000013",
+            "seq": 52,
+            "type": "bill.request",
+            "occurred_at": "2026-11-20T09:12:00.000Z",
+            "staff_id": 7,
+            "payload": {
+              "order": "3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501"
+            }
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000014\",\"seq\":53,\"type\":\"bill.create\",\"occurred_at\":\"2026-11-20T09:13:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"expected_total\":\"0.00\"}}",
+            "mac": "d2d6a94bb1de36aeddfb32609266deedb3b2dba1a22409cd16eee00bca355ce8",
+            "prev": "f9aa17367b279db3dc6c7e91f4fcf567046d8e510dfe24ddb48cd2f4f5fd3fd1",
+            "kid": 2
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000015\",\"seq\":54,\"type\":\"order.close\",\"occurred_at\":\"2026-11-20T09:14:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\"}}",
+            "mac": "d67fd2604abbfdf1a09b43c358b72335f728da1844f4b8b85549a5ad74622ff2",
+            "prev": "d2d6a94bb1de36aeddfb32609266deedb3b2dba1a22409cd16eee00bca355ce8",
+            "kid": 2
+          }
+        ]
+      },
+      "header": {
+        "format": "rizqim-sync-export",
+        "version": 1,
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 2,
+        "kids": [
+          1,
+          2
+        ],
+        "first_seq": 50,
+        "last_seq": 54,
+        "count": 5,
+        "created_at": "2026-11-20T12:00:00.000Z"
+      },
+      "file_mac": "2dc5fc3051592dbe35a0d09eb6f95a77abf4a115c6b20bccf02d120a6a861952",
+      "file_name": "rizqim-navbat-a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b-50-54.rzq",
+      "sha256_of_text": "4b4e9f24ab943275a1a91dd44bc12a8f95e73cf143579e1ab1a1634faf776f9a",
+      "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":2,\"kids\":[1,2],\"first_seq\":50,\"last_seq\":54,\"count\":5,\"created_at\":\"2026-11-20T12:00:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000011\\\",\\\"seq\\\":50,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:10:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0050\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[],\\\"send\\\":false}}\",\"mac\":\"240d66df14bd9f50c4ada9e09fbda1aad84768b32f937173c01a0e1c56b08d6b\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000012\\\",\\\"seq\\\":51,\\\"type\\\":\\\"order.served\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:11:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\"}}\",\"mac\":\"5fc58b5345d9735b01d1db505469c11dbe9a9cea88bed2e0d2896dff6a94ff32\",\"prev\":\"240d66df14bd9f50c4ada9e09fbda1aad84768b32f937173c01a0e1c56b08d6b\",\"kid\":1}\n{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000013\",\"seq\":52,\"type\":\"bill.request\",\"occurred_at\":\"2026-11-20T09:12:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\"}}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000014\\\",\\\"seq\\\":53,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:13:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"0.00\\\"}}\",\"mac\":\"d2d6a94bb1de36aeddfb32609266deedb3b2dba1a22409cd16eee00bca355ce8\",\"prev\":\"f9aa17367b279db3dc6c7e91f4fcf567046d8e510dfe24ddb48cd2f4f5fd3fd1\",\"kid\":2}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000015\\\",\\\"seq\\\":54,\\\"type\\\":\\\"order.close\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:14:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\"}}\",\"mac\":\"d67fd2604abbfdf1a09b43c358b72335f728da1844f4b8b85549a5ad74622ff2\",\"prev\":\"d2d6a94bb1de36aeddfb32609266deedb3b2dba1a22409cd16eee00bca355ce8\",\"kid\":2}\n{\"file_mac\":\"2dc5fc3051592dbe35a0d09eb6f95a77abf4a115c6b20bccf02d120a6a861952\"}\n"
+    },
+    {
+      "name": "a queue set aside before the till was paired again",
+      "about": "Lines of the earlier pairing (another device uuid, its own key 3: signed under it, never re-signed) carry dev and come first; first_seq and last_seq count the header device's own lines only. An own line given with dev equal to the header device (any letter case) is written without dev.",
+      "input": {
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "created_at": "2026-11-20T13:00:00.000Z",
+        "lines": [
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000025\",\"seq\":2,\"type\":\"order.served\",\"occurred_at\":\"2026-11-20T09:31:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\"}}",
+            "mac": "72ae5384185b413fddf2f9ca7def3bd6a3616b6302eb69a9e5ffa09e74fd883f",
+            "prev": "0ae7690ca3776bc172398e85cd9a670b14f265b0a174170e6d30d46323b94e14",
+            "kid": 1,
+            "dev": "A4C1E2F3-5B6D-4E7F-8A9B-0C1D2E3F4A5B"
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000024\",\"seq\":1,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:30:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K3-0001\",\"channel\":\"pos_takeaway\",\"items\":[],\"send\":false}}",
+            "mac": "0ae7690ca3776bc172398e85cd9a670b14f265b0a174170e6d30d46323b94e14",
+            "prev": "00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80",
+            "kid": 1
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000022\",\"seq\":8,\"type\":\"bill.pay\",\"occurred_at\":\"2026-11-20T09:21:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"bill\":\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\"tenders\":[{\"method\":\"card\",\"amount\":\"15000.00\"}]}}",
+            "mac": "abcf5ac3eeac9659189098545df58bbc379200bf9b3caf27d1c66e04bd01991c",
+            "prev": "104cbc3291abb570a146206cd5b1fb944ea529892e1c4fc588b858325257f5b3",
+            "kid": 3,
+            "dev": "0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f"
+          },
+          {
+            "op_id": "0d5e8f10-0000-4000-8000-000000000023",
+            "seq": 9,
+            "type": "order.close",
+            "occurred_at": "2026-11-20T09:22:00.000Z",
+            "staff_id": 7,
+            "payload": {
+              "order": "3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501"
+            },
+            "dev": "0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f"
+          },
+          {
+            "signed": "{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000021\",\"seq\":7,\"type\":\"order.open\",\"occurred_at\":\"2026-11-20T09:20:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\",\"local_number\":\"K2-0007\",\"channel\":\"pos_takeaway\",\"items\":[],\"send\":false}}",
+            "mac": "104cbc3291abb570a146206cd5b1fb944ea529892e1c4fc588b858325257f5b3",
+            "prev": "325c0c81082aa7d7f271c1321c92942791b39b8a632954b4af8051ee3c10d3d2",
+            "kid": 3,
+            "dev": "0F9E8D7C-6B5A-4C3D-9E2F-1A0B9C8D7E6F"
+          }
+        ]
+      },
+      "header": {
+        "format": "rizqim-sync-export",
+        "version": 1,
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "kids": [
+          1,
+          3
+        ],
+        "first_seq": 1,
+        "last_seq": 2,
+        "count": 5,
+        "created_at": "2026-11-20T13:00:00.000Z"
+      },
+      "file_mac": "9ad350e5249e985c4aaf35fb409c671d60c949914c2e3fe23ae01839129a32b0",
+      "file_name": "rizqim-navbat-a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b-1-2.rzq",
+      "sha256_of_text": "fc637416dad39c7091bdedb581d431cc7eae7cf6368ccf6c029af98d5f9f1ce6",
+      "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1,3],\"first_seq\":1,\"last_seq\":2,\"count\":5,\"created_at\":\"2026-11-20T13:00:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000021\\\",\\\"seq\\\":7,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:20:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K2-0007\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[],\\\"send\\\":false}}\",\"mac\":\"104cbc3291abb570a146206cd5b1fb944ea529892e1c4fc588b858325257f5b3\",\"prev\":\"325c0c81082aa7d7f271c1321c92942791b39b8a632954b4af8051ee3c10d3d2\",\"kid\":3,\"dev\":\"0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000022\\\",\\\"seq\\\":8,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:21:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"card\\\",\\\"amount\\\":\\\"15000.00\\\"}]}}\",\"mac\":\"abcf5ac3eeac9659189098545df58bbc379200bf9b3caf27d1c66e04bd01991c\",\"prev\":\"104cbc3291abb570a146206cd5b1fb944ea529892e1c4fc588b858325257f5b3\",\"kid\":3,\"dev\":\"0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f\"}\n{\"op_id\":\"0d5e8f10-0000-4000-8000-000000000023\",\"seq\":9,\"type\":\"order.close\",\"occurred_at\":\"2026-11-20T09:22:00.000Z\",\"staff_id\":7,\"payload\":{\"order\":\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\"},\"dev\":\"0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000024\\\",\\\"seq\\\":1,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:30:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K3-0001\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[],\\\"send\\\":false}}\",\"mac\":\"0ae7690ca3776bc172398e85cd9a670b14f265b0a174170e6d30d46323b94e14\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000025\\\",\\\"seq\\\":2,\\\"type\\\":\\\"order.served\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:31:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\"}}\",\"mac\":\"72ae5384185b413fddf2f9ca7def3bd6a3616b6302eb69a9e5ffa09e74fd883f\",\"prev\":\"0ae7690ca3776bc172398e85cd9a670b14f265b0a174170e6d30d46323b94e14\",\"kid\":1}\n{\"file_mac\":\"9ad350e5249e985c4aaf35fb409c671d60c949914c2e3fe23ae01839129a32b0\"}\n"
+    },
+    {
+      "name": "nothing waiting",
+      "about": "An empty queue: no body line, first_seq and last_seq null, kids empty.",
+      "input": {
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "created_at": "2026-11-20T14:00:00.000Z",
+        "lines": []
+      },
+      "header": {
+        "format": "rizqim-sync-export",
+        "version": 1,
+        "device": "a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+        "kid": 1,
+        "kids": [],
+        "first_seq": null,
+        "last_seq": null,
+        "count": 0,
+        "created_at": "2026-11-20T14:00:00.000Z"
+      },
+      "file_mac": "e69ac35f2f27b443d5a056705708ae91f0c6f3465b306ab2684c42735663f63b",
+      "file_name": "rizqim-navbat-a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b-0-0.rzq",
+      "sha256_of_text": "ccfd255d15411480276cd6db6b9e1dc4a86888a2657a823b09f257ac65237af5",
+      "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[],\"first_seq\":null,\"last_seq\":null,\"count\":0,\"created_at\":\"2026-11-20T14:00:00.000Z\"}\n{\"file_mac\":\"e69ac35f2f27b443d5a056705708ae91f0c6f3465b306ab2684c42735663f63b\"}\n"
+    }
+  ],
+  "readers": {
+    "about": "Texts made from files[0] and what a reader says of each under key(device, 1): ok, or the reason it refuses the whole file with.",
+    "cases": [
+      {
+        "name": "the file as written",
+        "expect": "ok",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\n"
+      },
+      {
+        "name": "without the line break after the trailer",
+        "expect": "ok",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}"
+      },
+      {
+        "name": "one character of a body line changed",
+        "expect": "file_mac_invalid",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0049\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\n"
+      },
+      {
+        "name": "a body line removed",
+        "expect": "file_mac_invalid",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\n"
+      },
+      {
+        "name": "the header changed (another kid)",
+        "expect": "file_mac_invalid",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":2,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\n"
+      },
+      {
+        "name": "line breaks rewritten as CRLF",
+        "expect": "file_mac_invalid",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\r\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\r\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\r\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\r\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\r\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\r\n{\"file_mac\":\"303d2a20e857a2dea058c320a41f8e39f638a95fbf6bc1f0b0b790e6a80a0da3\"}\r\n"
+      },
+      {
+        "name": "the trailer of another file",
+        "expect": "file_mac_invalid",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"e69ac35f2f27b443d5a056705708ae91f0c6f3465b306ab2684c42735663f63b\"}\n"
+      },
+      {
+        "name": "a version this reader does not know (the mac is right)",
+        "expect": "version_unsupported",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":2,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"6fdffa3aea525fef8dc97a49626dcc8d99353bb8900166641551c8571f3310af\"}\n"
+      },
+      {
+        "name": "another format name (the mac is right)",
+        "expect": "not_export_file",
+        "text": "{\"format\":\"rizqim-journal\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n{\"file_mac\":\"96ea87d7d8205c2b88f29e49100a1c6a22c454ad5a9b5cee02dc8ac772ff30d7\"}\n"
+      },
+      {
+        "name": "no trailer",
+        "expect": "not_export_file",
+        "text": "{\"format\":\"rizqim-sync-export\",\"version\":1,\"device\":\"a4c1e2f3-5b6d-4e7f-8a9b-0c1d2e3f4a5b\",\"kid\":1,\"kids\":[1],\"first_seq\":41,\"last_seq\":45,\"count\":5,\"created_at\":\"2026-11-20T11:30:00.000Z\"}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000001\\\",\\\"seq\\\":41,\\\"type\\\":\\\"order.open\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:01:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"local_number\\\":\\\"K1-0041\\\",\\\"channel\\\":\\\"pos_takeaway\\\",\\\"items\\\":[{\\\"line_id\\\":\\\"5c0e7b1d-0000-4000-8000-000000000001\\\",\\\"variant_id\\\":\\\"c3e5b702-0000-4000-8000-000000000001\\\",\\\"quantity\\\":\\\"2\\\",\\\"unit_price\\\":\\\"18000.00\\\"}],\\\"send\\\":true,\\\"note\\\":\\\"Choyxona oshi: o‘zbekcha, Ўзбекча, 🍵 \\\\\\\"achchiq\\\\\\\" emas\\\\n2-qator \\\\\\\\ a/b\\\"}}\",\"mac\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"prev\":\"00b229750465c55646938c73808fd2b3e82979e1a25555f6f8eb441814a63d80\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000002\\\",\\\"seq\\\":42,\\\"type\\\":\\\"order.discount\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:02:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"kind\\\":\\\"percent\\\",\\\"value\\\":\\\"10.00\\\",\\\"reason\\\":\\\"doimiy mijoz\\\",\\\"expected_discount\\\":\\\"3600.00\\\"}}\",\"mac\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"prev\":\"6c1caa2d5ffc2b825c8a8e4a0b1f6fbd510cc84c4e88eba3a9c65b80ad6bba83\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000003\\\",\\\"seq\\\":43,\\\"type\\\":\\\"bill.create\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:03:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"expected_total\\\":\\\"32400.00\\\"}}\",\"mac\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"prev\":\"7ee2adcfa6532b5507387b4001b9051f07818796e169d1ce31d1e5de52efd1c8\",\"kid\":1}\n{\"signed\":\"{\\\"op_id\\\":\\\"0d5e8f10-0000-4000-8000-000000000004\\\",\\\"seq\\\":44,\\\"type\\\":\\\"bill.pay\\\",\\\"occurred_at\\\":\\\"2026-11-20T09:04:00.000Z\\\",\\\"staff_id\\\":7,\\\"payload\\\":{\\\"order\\\":\\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\",\\\"bill\\\":\\\"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\\\",\\\"tenders\\\":[{\\\"method\\\":\\\"cash\\\",\\\"amount\\\":\\\"32400.00\\\"}]}}\",\"mac\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"prev\":\"85869ce11868d2dad63349786383fe2361ac3cb0e4c14ec69f7cdfc21eaf1cf6\",\"kid\":1}\n{\"signed\":\"{ \\\"seq\\\": 45, \\\"op_id\\\": \\\"0d5e8f10-0000-4000-8000-000000000005\\\", \\\"type\\\": \\\"order.close\\\", \\\"occurred_at\\\": \\\"2026-11-20T09:05:00.000Z\\\", \\\"staff_id\\\": 7, \\\"payload\\\": {\\\"order\\\": \\\"3f2b8a54-6c1d-4e7f-8a90-b1c2d3e4f501\\\", \\\"note\\\": \\\"a\\\\/b \\\\u00e9\\\"} }\",\"mac\":\"e5e5da00800806398290263b9944588e4b32bde864972fde5ce722c671b0ead7\",\"prev\":\"f2d601512e43b540363b6d845d07597f4e67960f2cf2b3674b18872302a23f9b\",\"kid\":1}\n"
+      },
+      {
+        "name": "not a file of this kind",
+        "expect": "not_export_file",
+        "text": "PK\u0003\u0004 not json\n"
+      },
+      {
+        "name": "empty",
+        "expect": "not_export_file",
+        "text": ""
+      }
+    ]
+  }
+}

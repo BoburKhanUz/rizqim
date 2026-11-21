@@ -36,6 +36,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * offline discount only then (a till never queues what its server does not know: the whole batch would be refused).
  * Wave M5 S3: `signing: true` the same way for the signed queue (SyncSignature); `signing_kid` the number of the key
  * the server holds for this till. Both follow the kill switch `pos.sync_signing` (off: `false` and `null`).
+ * Wave M5 S4: `export: true` — the server takes the till's rescue file (docs/scale/M5_DESIGN.md §5); `false` with
+ * the same kill switch.
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -135,6 +137,10 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             // Wave M5 S3-d: the number of the key the server holds for this till (null: none yet). A till whose own
             // key has a smaller number (or that has none) asks for the new one: POST /terminal/sync-key
             'signing_kid' => SignaturePolicy::signingOn() && $device !== null && (int) $device->getAttribute('sync_key_id') > 0 ? (int) $device->getAttribute('sync_key_id') : null,
+            // Wave M5 S4: this server takes the till's rescue file (PosSyncImport): the till offers "Navbatni faylga
+            // saqlash" and the restore from its mirror only then. A file is worth nothing without signatures: off
+            // with the kill switch `pos.sync_signing`
+            'export' => SignaturePolicy::signingOn(),
         ]];
     }
 

@@ -12,6 +12,7 @@
 */
 
 use App\Http\Controllers\Api\V1\Management\BranchLanController;
+use App\Http\Controllers\Api\V1\Management\SyncImportController;
 use App\Http\Controllers\Api\V1\Management\SyncSigningController;
 use App\Http\Controllers\Api\V1\Pos\PosLanController;
 use App\Http\Controllers\Api\V1\Pos\PosSyncController;
@@ -42,3 +43,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not
     Route::get('/', [SyncSigningController::class, 'show']);
     Route::put('/', [SyncSigningController::class, 'update']);
 });
+
+// Wave M5 S4-b: a till's rescue file ("Navbatni faylga saqlash") uploaded in the owner's web panel and applied as that
+// till (docs/scale/M5_DESIGN.md §5). Who manages devices, never from a terminal PIN session; a branch manager only
+// their branch's tills (the controller). Every operation is applied once by its op_id: no Idempotency-Key is needed
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session', 'permission:devices.manage'])
+    ->post('/owner/pos/sync/import', [SyncImportController::class, 'store']);

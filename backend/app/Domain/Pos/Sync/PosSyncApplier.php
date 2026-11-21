@@ -118,7 +118,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict, invalid?: ?string}  $op  `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before). `invalid`: a signed line whose text does not hold a usable operation (PosSyncController): recorded rejected `invalid_payload` with this message, never applied
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict, invalid?: ?string, refuse?: array{reason: string, message: string}|null}  $op  `refuse` (wave M5 S4, PosSyncImport): not applied for that reason, a payment still recorded. `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before). `invalid`: a signed line whose text does not hold a usable operation (PosSyncController): recorded rejected `invalid_payload` with this message, never applied
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -160,6 +160,17 @@ final class PosSyncApplier
                 // A signed journal line that no longer holds a whole operation: kept for the manager, never applied,
                 // and never a reason to refuse the batch it came in
                 throw new PosSyncException('invalid_payload', $op['invalid']);
+            }
+            if (($op['refuse'] ?? null) !== null) {
+                // Wave M5 S4 (PosSyncImport): an operation of a rescue file that is not applied (dated after its till
+                // was disconnected): kept rejected for the manager. Money is never dropped: a payment goes the way
+                // of one whose staff check failed (onto its bill when it is open, else unallocated), flagged
+                $refusal = new PosSyncException($op['refuse']['reason'], $op['refuse']['message']);
+                if ($type->isMoney()) {
+                    return $this->staffUnverified($device, $type, $payload, $happenedAt, $clamped, $base, $refusal);
+                }
+
+                throw $refusal;
             }
             if ($verdict === SignatureVerdict::REJECT) {
                 // ...a concession (SignaturePolicy::CONCESSIONS): never applied, for the manager to look at. What the

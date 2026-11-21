@@ -31,6 +31,12 @@ final class SyncSignature
 
     public const KEY_BYTES = 32;
 
+    /**
+     * Wave M5 S4: what a rescue file's MAC starts with (SyncExportFile), so that the MAC of a file is never the MAC of
+     * an operation.
+     */
+    public const FILE_LABEL = "rizqim-sync-export/v1\n";
+
     /** A disconnected device's key is kept this long (a rescue file exported from that till can still be checked). */
     public const KEEP_REVOKED_DAYS = 30;
 
@@ -63,6 +69,29 @@ final class SyncSignature
     public static function isMac(mixed $value): bool
     {
         return is_string($value) && strlen($value) === 64 && strspn($value, '0123456789abcdef') === 64;
+    }
+
+    /**
+     * Wave M5 S4 (docs/scale/M5_DESIGN.md §5): the MAC of a rescue file, over every byte before its trailer line.
+     *
+     * @param  string  $key  the key's bytes
+     * @return string 64 hex characters
+     */
+    public static function fileMac(string $key, string $bytes): string
+    {
+        return hash_hmac('sha256', self::FILE_LABEL . $bytes, $key);
+    }
+
+    /**
+     * Whether a rescue file's MAC is the one the device's key number $kid makes over those bytes. Null: the server
+     * holds no key with that number for the device (never issued, pushed out by two rotations, or erased
+     * KEEP_REVOKED_DAYS after the device was disconnected): the file cannot be checked. The key stays in this class.
+     */
+    public static function verifiesFile(Device $device, int $kid, string $bytes, string $mac): ?bool
+    {
+        $key = self::keysOf($device)[$kid] ?? null;
+
+        return $key === null ? null : self::isMac($mac) && hash_equals(self::fileMac($key, $bytes), $mac);
     }
 
     /**
@@ -130,15 +159,7 @@ final class SyncSignature
         // Read now, not when the request signed in: the caller holds the till's lock (PosSyncService), and a batch
         // that waited for it must see what the batch before it left
         $device = Device::query()->whereKey($device->getKey())->first(['id', 'uuid', 'sync_key', 'sync_key_id', 'sync_key_prev', 'sync_chain', 'sync_last_seq']) ?? $device;
-        $kid = (int) $device->getAttribute('sync_key_id');
-        $keys = [];
-        foreach ([$kid => 'sync_key', $kid - 1 => 'sync_key_prev'] as $number => $column) {
-            $key = $number > 0 ? self::stored($device, $column) : null;
-            $bytes = $key !== null ? base64_decode($key, true) : false;
-            if (is_string($bytes) && strlen($bytes) === self::KEY_BYTES) {
-                $keys[$number] = $bytes;
-            }
-        }
+        $keys = self::keysOf($device);
 
         // The last operations the server recorded (one bounded read over the unique (device_id, seq) index), newest
         // first: the number to follow, and what the device row may have missed when a process was killed between the
@@ -165,6 +186,26 @@ final class SyncSignature
             $claimed,
             $newest?->sig_status === SyncSignatureStatus::MISSING->value,
         );
+    }
+
+    /**
+     * The key bytes the server holds for a device, by kid: the current one and the one before it.
+     *
+     * @return array<int, string>
+     */
+    private static function keysOf(Device $device): array
+    {
+        $kid = (int) $device->getAttribute('sync_key_id');
+        $keys = [];
+        foreach ([$kid => 'sync_key', $kid - 1 => 'sync_key_prev'] as $number => $column) {
+            $key = $number > 0 ? self::stored($device, $column) : null;
+            $bytes = $key !== null ? base64_decode($key, true) : false;
+            if (is_string($bytes) && strlen($bytes) === self::KEY_BYTES) {
+                $keys[$number] = $bytes;
+            }
+        }
+
+        return $keys;
     }
 
     /**
