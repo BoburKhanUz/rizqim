@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 230" aria-hidden="true">
+<defs>
+<linearGradient id="sw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FDBA74"/><stop offset="1" stop-color="#EA580C"/></linearGradient>
+<linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FDE68A"/><stop offset="1" stop-color="#F59E0B"/></linearGradient>
+<linearGradient id="ss" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#F97316"/><stop offset="1" stop-color="#C2410C"/></linearGradient>
+</defs>
+<ellipse cx="150" cy="214" rx="138" ry="12" fill="#7C2D12" opacity=".16"/>
+<path d="M44 92h212v116H44Z" fill="url(#sw)"/>
+<path d="M256 92l14-8v116l-14 8Z" fill="#C2410C"/>
+<rect x="58" y="118" width="128" height="90" rx="4" fill="#7C2D12"/>
+<rect x="63" y="123" width="58" height="80" rx="2" fill="url(#sg)"/><rect x="124" y="123" width="58" height="80" rx="2" fill="url(#sg)"/>
+<g fill="#B45309" opacity=".55"><circle cx="80" cy="132" r="5"/><circle cx="104" cy="132" r="5"/><circle cx="142" cy="132" r="5"/><circle cx="166" cy="132" r="5"/></g>
+<g fill="#92400E"><rect x="70" y="172" width="44" height="5" rx="2"/><rect x="76" y="177" width="4" height="22"/><rect x="104" y="177" width="4" height="22"/><rect x="132" y="172" width="44" height="5" rx="2"/><rect x="138" y="177" width="4" height="22"/><rect x="166" y="177" width="4" height="22"/></g>
+<rect x="196" y="126" width="46" height="82" rx="3" fill="#7C2D12"/><rect x="200" y="130" width="38" height="78" rx="2" fill="#FCD34D"/><circle cx="231" cy="170" r="2.5" fill="#7C2D12"/>
+<path d="M60 22h176l8 8v34l-8 8H60l-8-8V30Z" fill="url(#ss)" transform="rotate(-5 150 46)"/>
+<g transform="rotate(-5 150 46)" fill="#fff"><text x="148" y="57" text-anchor="middle" font-family="'Plus Jakarta Sans','Segoe UI',Arial,sans-serif" font-weight="800" font-style="italic" font-size="26">Rizqim</text></g>
+<path d="M28 78h244l-6 34H34Z" fill="#FFF7ED"/>
+<path d="M28 78h30l-2 34H34ZM88 78h30l-1 34H95ZM148 78h30v34h-30ZM208 78h30l1 34h-22ZM268 78h4l-6 34h-3Z" fill="#EA580C"/>
+<path d="M34 112q11 10 22 0q10 10 20 0q10 10 19 0q11 10 22 0q10 10 20 0q10 10 19 0q11 10 22 0q10 10 19 0q11 10 22 0q10 10 20 0q10 10 19 0q8 8 12 0Z" fill="#EA580C"/>
+<g><path d="M18 210l4-26h24l4 26Z" fill="#C2410C"/><g fill="#16A34A"><ellipse cx="34" cy="166" rx="10" ry="20"/><ellipse cx="22" cy="174" rx="8" ry="16" transform="rotate(-25 22 174)"/><ellipse cx="46" cy="174" rx="8" ry="16" transform="rotate(25 46 174)"/></g></g>
+<g><path d="M250 210l4-26h24l4 26Z" fill="#C2410C"/><g fill="#16A34A"><ellipse cx="266" cy="166" rx="10" ry="20"/><ellipse cx="254" cy="174" rx="8" ry="16" transform="rotate(-25 254 174)"/><ellipse cx="278" cy="174" rx="8" ry="16" transform="rotate(25 278 174)"/></g></g>
+</svg>

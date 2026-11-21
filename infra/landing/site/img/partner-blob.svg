@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 420" aria-hidden="true">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FED7AA"/><stop offset=".5" stop-color="#FDBA74"/><stop offset="1" stop-color="#FB923C"/></linearGradient>
+<linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EA580C" stop-opacity="0"/><stop offset=".4" stop-color="#EA580C" stop-opacity=".22"/><stop offset="1" stop-color="#C2410C" stop-opacity=".3"/></linearGradient>
+<clipPath id="cl"><path id="blob" d="M120 70C190 20 300 8 400 24c110 18 210 40 262 110 46 62 40 160-14 214-56 56-160 66-270 66-110 0-210-4-290-50C20 326 2 256 18 196 32 142 64 110 120 70Z"/></clipPath>
+</defs>
+<use href="#blob" fill="url(#bg)"/>
+<g clip-path="url(#cl)" fill="url(#sk)">
+<path d="M606 400V170h4v-26l-5-4 5-4v-18h3V60h4v58h3v18l5 4-5 4v26h4v230Z"/><circle cx="615" cy="166" r="12"/>
+<rect x="640" y="250" width="40" height="150"/><rect x="560" y="270" width="34" height="130"/><rect x="520" y="300" width="34" height="100"/>
+<path d="M30 400V300h30v100ZM66 400V260h40v140ZM112 400v-70c0-22 46-22 46 0v70Z"/>
+<rect x="0" y="360" width="700" height="60"/>
+</g>
+</svg>

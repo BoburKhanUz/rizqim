@@ -592,6 +592,15 @@ jobs:
           dockerfile: infra/pos-site/Dockerfile
           failure-threshold: error
 
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/landing/Dockerfile
+          failure-threshold: error
+
+      # No dependencies: dictionaries, links, ids, config keys of the rizqim.uz static site
+      - name: Landing static checks
+        run: node infra/landing/tests/check.mjs
+
       # The build itself fails if redis/uv do not load (backend/Dockerfile); then check Reverb really gets the libuv loop
       - name: Backend image has ext-uv and Reverb uses it
         run: |

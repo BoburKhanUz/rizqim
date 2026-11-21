@@ -422,6 +422,22 @@ services:
       retries: 3
       start_period: 10s
 
+  # rizqim.uz: landing va "Hamkor bo'lish" sahifasi (infra/landing, statik nginx, build qadamisiz). Forma faqat
+  # POST /api/v1/store-applications va GET /api/v1/locations ni backend'ga uzatadi. Tashqi TLS proksi rizqim.uz (va www)
+  # ni LANDING_PORT ga yo'naltiradi. Matn, aloqa va havolalar infra/landing/site/site.config.js da (egasi beradi). docs/OPERATIONS.md, 27-bo'lim
+  landing:
+    build:
+      context: ./infra/landing
+    restart: unless-stopped
+    ports:
+      - "${LANDING_BIND:-127.0.0.1}:${LANDING_PORT:-8091}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # Hamkor veb-panel (partner/web, Next.js; restoran egasi va xodimlari, SMS kod bilan kiradi). Tashqi TLS proksi uni
   # alohida hostda beradi: panel.<domen> -> PARTNER_WEB_PORT (Mini App FRONTEND_PORT da bo'lgani kabi). Sozlamalar
   # runtime'da o'qiladi (image har muhitda bir xil): Next serveri backend'ga compose tarmog'i ichida (API_BASE_URL),
