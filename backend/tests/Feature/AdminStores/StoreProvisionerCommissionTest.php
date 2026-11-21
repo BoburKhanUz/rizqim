@@ -17,8 +17,8 @@ use Tests\TestCase;
 
 /**
  * P4-22 + P4-21: the one store creation path (StoreProvisioner, which "convert an application" uses) writes
- * no flat commission rate unless one is typed, so the per-channel policy (RIZQIM courier 15%, own delivery 10%, pickup
- * 5%, hall 0%) applies.
+ * no flat commission rate unless one is typed, so the per-channel policy (RIZQIM courier 10%, own delivery 10%, pickup
+ * 10%, hall 0%) applies.
  */
 class StoreProvisionerCommissionTest extends TestCase
 {
@@ -59,10 +59,10 @@ class StoreProvisionerCommissionTest extends TestCase
 
         $this->assertNull($store->commission_rate);
         $policy = app(CommissionPolicy::class);
-        $this->assertEquals(15, (float) $policy->rateFor($store, CommissionChannel::RIZQIM_COURIER));
+        $this->assertEquals(10, (float) $policy->rateFor($store, CommissionChannel::RIZQIM_COURIER));
         $this->assertEquals(10, (float) $policy->rateFor($store, CommissionChannel::OWN_DELIVERY));
-        $this->assertEquals(5, (float) $policy->rateFor($store, CommissionChannel::PICKUP));
-        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => str_contains($job->params['text'], "Komissiya: <b>kanal bo'yicha (15/10/5/0%)</b>"));
+        $this->assertEquals(10, (float) $policy->rateFor($store, CommissionChannel::PICKUP));
+        Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => str_contains($job->params['text'], "Komissiya: <b>kanal bo'yicha (10/10/10/0%)</b>"));
     }
 
     public function test_a_typed_rate_is_a_flat_rate(): void

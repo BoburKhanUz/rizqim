@@ -84,9 +84,9 @@ return [
     | rate per channel (admin, audited: stores.commission_overrides). docs/BILLING.md, "Komissiya".
     */
     'commission' => [
-        'rizqim_courier' => '15.00',  // delivered by a RIZQIM fleet courier
+        'rizqim_courier' => '10.00',  // delivered by a RIZQIM fleet courier
         'own_delivery' => '10.00',    // delivered by the store's own courier
-        'pickup' => '5.00',           // the customer picks it up
+        'pickup' => '10.00',          // the customer picks it up (owner decision 22.11.2026: same as own delivery)
         'pos' => '0.00',              // the hall and takeaway at the store's own till
         'aggregator' => '0.00',       // Yandex Eats, Uzum Tezkor: the aggregator takes its own commission
     ],

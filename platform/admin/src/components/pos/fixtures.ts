@@ -101,7 +101,7 @@ export const entitlements = (overrides: Partial<Entitlements> = {}): Entitlement
 
 export const commission = (overrides: Partial<Commission> = {}): Commission => ({
   rates: {
-    rizqim_courier: { rate: '15.00', source: 'default', default: '15.00' },
+    rizqim_courier: { rate: '10.00', source: 'default', default: '10.00' },
     own_delivery: { rate: '10.00', source: 'default', default: '10.00' },
     pickup: { rate: '3.00', source: 'override', default: '5.00' },
     pos: { rate: '0.00', source: 'default', default: '0.00' },

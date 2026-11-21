@@ -156,7 +156,7 @@ export interface FakeSync {
 
 const REGIONS = new Map<number, string>([[12, 'Lazzat Oshxona'], [13, 'Lazzat Express'], [14, 'Shirin Qandolat'], [15, 'Qarzdor kafe']])
 const CHANNELS = ['rizqim_courier', 'own_delivery', 'pickup', 'pos', 'aggregator'] as const
-const DEFAULT_RATE: Record<string, string> = { rizqim_courier: '15.00', own_delivery: '10.00', pickup: '5.00', pos: '0.00', aggregator: '0.00' }
+const DEFAULT_RATE: Record<string, string> = { rizqim_courier: '10.00', own_delivery: '10.00', pickup: '10.00', pos: '0.00', aggregator: '0.00' }
 
 export function defaultPlans(): FakePlan[] {
   return [

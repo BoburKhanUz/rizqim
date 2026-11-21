@@ -3413,7 +3413,7 @@
         "/v1/admin/billing/stores/{id}/commission": {
             "put": {
                 "operationId": "admin.billing.commission_updated",
-                "description": "`overrides`: the store's own rate per channel ({\"pickup\": \"3.00\", \"own_delivery\": null, ...}; channels\nrizqim_courier, own_delivery, pickup, pos, aggregator; a percent 0–100 with up to 2 decimals; null removes it\nand the channel takes its default); `flat_rate` (present: the store's flat rate for every online channel, null\nto move it to the channel rates); `delivery_courier` own | fleet (who delivers its Mini App delivery orders:\nown delivery 10% or RIZQIM courier 15%); `reason`. Only new orders are affected: an order keeps the rate it was\nplaced with. Answers the commission block.",
+                "description": "`overrides`: the store's own rate per channel ({\"pickup\": \"3.00\", \"own_delivery\": null, ...}; channels\nrizqim_courier, own_delivery, pickup, pos, aggregator; a percent 0–100 with up to 2 decimals; null removes it\nand the channel takes its default); `flat_rate` (present: the store's flat rate for every online channel, null\nto move it to the channel rates); `delivery_courier` own | fleet (who delivers its Mini App delivery orders:\nown delivery 10% or RIZQIM courier 10%); `reason`. Only new orders are affected: an order keeps the rate it was\nplaced with. Answers the commission block.",
                 "summary": "Change the store's commission",
                 "tags": [
                     "Admin"

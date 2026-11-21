@@ -100,7 +100,7 @@ class AdminBillingApiTest extends TestCase
         $this->adminJson('POST', "/billing/stores/{$id}/subscription", $token, ['plan' => 'asosiy', 'reason' => 'Ulash: sinov'])
             ->assertOk()->assertJsonPath('data.subscription.plan.code', 'asosiy')->assertJsonPath('data.subscription.status', 'trialing')
             ->assertJsonPath('data.entitlements.features.bookings', true)->assertJsonPath('data.debt.subscription_debt', '0.00')
-            ->assertJsonPath('data.commission.rates.pickup.rate', '5.00');
+            ->assertJsonPath('data.commission.rates.pickup.rate', '10.00');
         $entry = AuditLog::where('action', 'admin.billing.subscription_assigned')->sole();
         $this->assertNull($entry->before['plan'] ?? null);
         $this->assertSame('asosiy', $entry->after['plan']);
@@ -145,7 +145,7 @@ class AdminBillingApiTest extends TestCase
             'overrides' => ['pickup' => '3', 'own_delivery' => '8.5'], 'delivery_courier' => 'fleet', 'reason' => 'Shartnoma bo\'yicha',
         ])->assertOk()
             ->assertJsonPath('data.rates.pickup.rate', '3.00')->assertJsonPath('data.rates.pickup.source', 'override')
-            ->assertJsonPath('data.rates.own_delivery.rate', '8.50')->assertJsonPath('data.rates.rizqim_courier.rate', '15.00')
+            ->assertJsonPath('data.rates.own_delivery.rate', '8.50')->assertJsonPath('data.rates.rizqim_courier.rate', '10.00')
             ->assertJsonPath('data.delivery_courier', 'fleet')->assertJsonPath('data.flat_rate', null);
 
         $this->adminJson('PUT', "/billing/stores/{$id}/commission", $token, ['overrides' => ['own_delivery' => null], 'flat_rate' => '7', 'reason' => 'Tuzatish'])
@@ -154,7 +154,7 @@ class AdminBillingApiTest extends TestCase
 
         $entries = AuditLog::where('action', 'admin.billing.commission_updated')->orderBy('id')->get();
         $this->assertCount(2, $entries);
-        $this->assertSame('5.00', $entries[0]->before['rates']['pickup']['rate']);
+        $this->assertSame('10.00', $entries[0]->before['rates']['pickup']['rate']);
         $this->assertSame('3.00', $entries[0]->after['rates']['pickup']['rate']);
         $this->assertSame('Tuzatish', $entries[1]->payload_json['reason']);
 

@@ -3441,7 +3441,7 @@ Bosqichlar (`App\Enums\StoreApplicationStage`): `application` (Ariza) → `revie
   telefoni tasdiqlangan, bir martalik Telegram taklif tokeni), "Asosiy Filial". Maydonlar: `branch_district_id`,
   `branch_address`, `branch_lat`, `branch_lng` (majburiy), `branch_region_id` (standart — arizaniki), `branch_radius` (5),
   `branch_phone`, `branch_open_time`/`branch_close_time`, `name`, `owner_name`, `owner_phone` (standart — arizaniki), `phone`,
-  `tin`, `legal_name`, `commission_rate` (berilmasa `null` yoziladi — Billing v2 kanal stavkalari 15/10/5/0%; qiymat —
+  `tin`, `legal_name`, `commission_rate` (berilmasa `null` yoziladi — Billing v2 kanal stavkalari 15/10/10/0%; qiymat —
   barcha onlayn kanallar uchun yagona foiz), `payment_account_type`. Ovqatxona
   `pending` va **marketpleysda ko'rinmaydi** (`is_active = false`), ariza `faol` bo'lguncha; kassa ishlayveradi.
   Javobda `invite_link` (faqat shu yerda). 409 `already_converted`, 409 `owner_phone_taken`, 422 `owner_phone_invalid`.

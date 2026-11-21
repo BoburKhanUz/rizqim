@@ -401,7 +401,7 @@ export interface paths {
          *     rizqim_courier, own_delivery, pickup, pos, aggregator; a percent 0–100 with up to 2 decimals; null removes it
          *     and the channel takes its default); `flat_rate` (present: the store's flat rate for every online channel, null
          *     to move it to the channel rates); `delivery_courier` own | fleet (who delivers its Mini App delivery orders:
-         *     own delivery 10% or RIZQIM courier 15%); `reason`. Only new orders are affected: an order keeps the rate it was
+         *     own delivery 10% or RIZQIM courier 10%); `reason`. Only new orders are affected: an order keeps the rate it was
          *     placed with. Answers the commission block.
          */
         put: operations["admin.billing.commission_updated"];

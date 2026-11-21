@@ -60,7 +60,7 @@ class StoreProvisioner
         $status = $status instanceof StoreStatus ? $status : StoreStatus::from($status);
 
         // None given: no flat rate (written as null, whatever the column's default), so the per-channel commission
-        // policy applies (P4-21: RIZQIM courier 15%, own delivery 10%, pickup 5%, hall 0%)
+        // policy applies (P4-21: RIZQIM courier 10%, own delivery 10%, pickup 10%, hall 0%)
         $commissionRate = $data['commission_rate'] ?? null;
 
         $result = DB::transaction(function () use ($data, $ownerPhone, $status, $commissionRate) {
@@ -158,7 +158,7 @@ class StoreProvisioner
         foreach ($superAdmins as $admin) {
             $this->telegram->sendMessage($admin->telegram_id, "🏢 <b>Yangi do'kon qo'shildi" . ($channel ? " ({$channel})" : '') . "!</b>\n\n" .
                 'Nomi: <b>' . htmlspecialchars($store->name) . "</b>\n" .
-                'Komissiya: <b>' . ($store->commission_rate !== null ? "{$store->commission_rate}%" : "kanal bo'yicha (15/10/5/0%)") . "</b>\n" .
+                'Komissiya: <b>' . ($store->commission_rate !== null ? "{$store->commission_rate}%" : "kanal bo'yicha (10/10/10/0%)") . "</b>\n" .
                 'Egasi: <b>' . htmlspecialchars($owner->name) . '</b> (' . htmlspecialchars((string) $owner->phone) . ")\n" .
                 'Filial: <b>' . htmlspecialchars((string) $branch->address) . "</b>\n\n" .
                 "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\n{$link}", ['parse_mode' => 'HTML']);

@@ -157,7 +157,7 @@ export const pos = defineSection({
     pos_commission_default: 'Odatda: {{rate}}',
     pos_commission_invalid: "0 dan 100 gacha, ko'pi bilan 2 xona kasr.",
     pos_commission_courier: 'Yetkazishni kim bajaradi',
-    pos_commission_courierHint: "O'z yetkazishi 10%, RIZQIM kuryeri 15% (odatdagi stavkalar).",
+    pos_commission_courierHint: "O'z yetkazishi 10%, RIZQIM kuryeri 10% (odatdagi stavkalar).",
     pos_commission_done: 'Komissiya saqlandi. U yangi buyurtmalardan amal qiladi.',
 
     // Tariflar
