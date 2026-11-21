@@ -96,6 +96,8 @@ jobs:
               - 'packages/ts/**'
               - '.dockerignore'
               - '.github/workflows/ci.yml'
+              # Deploy workflow (actionlint in the infra job) and the edge/deploy files it ships
+              - '.github/workflows/deploy.yml'
             # P1-25: the partner web (partner/web) and the TypeScript packages it links (packages/ts: ui, api-client)
             partnerweb:
               - 'partner/web/**'
@@ -545,9 +547,71 @@ jobs:
           cp backend/.env.staging.example backend/.env
           docker compose config -q
 
+      # Server layouts: the edge proxy and the GHCR images are separate override files (local development never loads them).
+      # The examples carry the COMPOSE_FILE of the real server; the images override has no `build:` left
+      - name: Compose edge and images overrides (production and staging server layouts)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.edge.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.images.yml config -q
+          for example in production staging; do
+            cp ".env.$example.example" .env
+            cp "backend/.env.$example.example" backend/.env
+            docker compose config -q
+            docker compose config --format json > "$RUNNER_TEMP/$example.json"
+            python3 - "$RUNNER_TEMP/$example.json" <<'PY'
+          import json, sys
+          c = json.load(open(sys.argv[1]))
+          s = c['services']
+          assert 'edge' in s, 'edge service missing'
+          assert not [n for n, v in s.items() if 'build' in v], 'a service still builds on the server'
+          # every published port except the edge's 80/443 is bound to the loopback interface
+          for n, v in s.items():
+              for p in v.get('ports', []):
+                  assert n == 'edge' or p.get('host_ip') == '127.0.0.1', f'{n} publishes {p} on all interfaces'
+          print(c['name'], 'ok')
+          PY
+          done
+
       - name: Shellcheck
         run: |
-          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh infra/postgres/*.sh scripts/scale-test/pgbouncer.sh scripts/scale-test/server.sh scripts/scale-test/env.sh
+          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh infra/postgres/*.sh infra/deploy/*.sh scripts/scale-test/pgbouncer.sh scripts/scale-test/server.sh scripts/scale-test/env.sh
+
+      # This job runs when ci.yml or deploy.yml change (the `infra` filter): those two must have zero findings, shellcheck
+      # included (release-pos.yml is linted on its own when it is reworked: it still has an SC2012 note)
+      - name: actionlint (workflows)
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/ci.yml .github/workflows/deploy.yml
+
+      # The edge proxy's Caddyfile loads in the real Caddy image: both profiles, and with the optional admin IP list
+      # (infra/edge/admin/, outside the top-level conf.d/*.caddy glob) and the alias redirects switched on (the .example files
+      # must stay valid). The adapted JSON must keep the admin API (/api/v1/admin/*) closed on api.<domain> and app.<domain>
+      - name: Caddyfile validates (production, staging, with the optional fragments)
+        run: |
+          caddy_run() {
+            local extra=()
+            [ -z "${5:-}" ] || extra=(-e "EDGE_ADMIN_ACCESS=$5")
+            docker run --rm -e "EDGE_DOMAIN=$2" -e "EDGE_PROFILE=$3" -e EDGE_ACME_EMAIL=ops@example.com "${extra[@]}" \
+              -v "$4:/etc/caddy:ro" caddy:2.8-alpine caddy "$1" --config /etc/caddy/Caddyfile --adapter caddyfile
+          }
+          caddy_run validate rizqim.uz production "$PWD/infra/edge"
+          caddy_run validate stg.rizqim.uz staging "$PWD/infra/edge"
+          cp -r infra/edge "$RUNNER_TEMP/edge"
+          cp "$RUNNER_TEMP/edge/admin/allow.caddy.example" "$RUNNER_TEMP/edge/admin/allow.caddy"
+          cp "$RUNNER_TEMP/edge/conf.d/aliases.caddy.example" "$RUNNER_TEMP/edge/conf.d/aliases.caddy"
+          caddy_run validate rizqim.uz production "$RUNNER_TEMP/edge" /etc/caddy/admin/allow.caddy
+          caddy_run adapt rizqim.uz production "$RUNNER_TEMP/edge" /etc/caddy/admin/allow.caddy > "$RUNNER_TEMP/edge.json"
+          python3 - "$RUNNER_TEMP/edge.json" <<'PY'
+          import json, sys
+          cfg = json.load(open(sys.argv[1]))
+          routes = cfg['apps']['http']['servers']['srv0']['routes']
+          def closed(host):
+              site = [r for r in routes if host in [h for m in r.get('match', []) for h in m.get('host', [])]]
+              assert site, f'{host}: no site'
+              body = json.dumps(site)
+              return '"/api/v1/admin/*"' in body and '"status_code": 404' in body
+          for host in ('api.rizqim.uz', 'app.rizqim.uz'):
+              assert closed(host), f'{host}: /api/v1/admin/* is not closed at the edge'
+          print('admin API closed on api. and app.')
+          PY
 
       # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
       - name: pos-e2e.sh guards
@@ -1273,7 +1337,7 @@ jobs:
         run: |
           set -e
           for dir in packages/dart/* pos/apps/* courier partner/mobile customer/mobile; do
-            [ -f "$dir/pubspec.yaml" ] && [ -d "$dir/test" ] || continue
+            if [ ! -f "$dir/pubspec.yaml" ] || [ ! -d "$dir/test" ]; then continue; fi
             echo "::group::$dir"
             if grep -q 'sdk: flutter' "$dir/pubspec.yaml"; then
               (cd "$dir" && flutter test)
@@ -1327,7 +1391,7 @@ jobs:
         run: |
           set -e
           for dir in pos/packages/*; do
-            [ -f "$dir/pubspec.yaml" ] && [ -d "$dir/test" ] || continue
+            if [ ! -f "$dir/pubspec.yaml" ] || [ ! -d "$dir/test" ]; then continue; fi
             echo "::group::$dir"
             if grep -q 'sdk: flutter' "$dir/pubspec.yaml"; then
               (cd "$dir" && flutter test)

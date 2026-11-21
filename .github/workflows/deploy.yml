@@ -1,0 +1,443 @@
+# Deploy: obrazlarni yig'ish -> GHCR -> SSH -> serverda infra/deploy/deploy.sh (tekshiruvlar, tortish, zaxira, fayllarni
+# almashtirish, sog'liq tekshiruvi, xato bo'lsa avtomatik orqaga qaytarish). Hujjat: docs/SERVER_SETUP.md, docs/DEPLOY.md (11-bo'lim).
+#
+# Qachon:
+#   - PRODUCTION: faqat qo'lda (Actions -> Deploy -> Run workflow -> target=production), faqat `main` dan (teg va boshqa
+#     branch'lar rad etiladi) va `production` environment'ining himoyasi bilan: Required reviewers (egasi "Approve" bosmaguncha
+#     deploy qadami boshlanmaydi) va Deployment branches = faqat `main`.
+#   - `main` ga push: STAGING'ga, lekin faqat staging yoqilgan bo'lsa (Variable STAGING_DEPLOY_ENABLED=true). Hozir staging
+#     yo'q: push hech narsa joylamaydi (ish toza o'tkazib yuboriladi, xato emas).
+#
+# Sozlamalar (qiymatlari repoda YO'Q; docs/SERVER_SETUP.md, 5-bo'lim):
+#   Repozitoriy Variables (Settings -> Secrets and variables -> Actions -> Variables; sir EMAS, `prepare` va `build` o'qiydi):
+#     PROD_DEPLOY_ENABLED=true            production deploy yoqilgan (yo'q/boshqa qiymat = o'tkazib yuboriladi)
+#     STAGING_DEPLOY_ENABLED=true         (keyinroq, staging server paydo bo'lganda)
+#     PROD_VITE_BOT_USERNAME, PROD_VITE_PARTNER_WEB_URL, PROD_VITE_MAP_TILE_URL, PROD_VITE_MAP_ATTRIBUTION, PROD_VITE_SENTRY_DSN
+#     (staging uchun STAGING_VITE_*): Mini App obraziga yoziladi. Berilmasa: bot va panel manzili muhit standartiga
+#     (rizqimbot / rizqim_staging_bot, business.<domen>), qolganlari bo'sh.
+#   Environment `production` (Settings -> Environments -> production; staging uchun `staging` da xuddi shu nomlar):
+#     Variables: SSH_HOST, SSH_USER, SSH_PORT (ixtiyoriy, standart 22)
+#     Secrets:   SSH_KEY (maxfiy kalit), SSH_KNOWN_HOSTS (SHART: server kaliti; yo'q bo'lsa deploy XATO bilan to'xtaydi)
+#   SSH sirlari FAQAT environment'da: ularni faqat environment himoyasidan (reviewer, faqat `main`) o'tgan `deploy` ishi ko'radi.
+#   Repozitoriy darajasidagi *_SSH_* sirlar ishlatilmaydi (bo'lsa o'chiring). GHCR uchun alohida sir kerak emas: GITHUB_TOKEN.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Qayerga: production (himoya qoidasi tasdiqlashni so'raydi) yoki staging (keyinroq)"
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
+      only_upload:
+        description: "Faqat fayllarni serverga yuklash (obraz yig'ilmaydi, deploy qilinmaydi): serverga .env yaratishdan oldin, birinchi marta"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Bir muhitga bir vaqtda bitta deploy (navbatda turadi, bekor qilinmaydi: yarim qolgan deploy yomon)
+concurrency:
+  group: deploy-${{ github.event_name == 'push' && 'staging' || inputs.target }}
+  cancel-in-progress: false
+
+env:
+  # Serverdagi loyiha papkasi (docs/SERVER_SETUP.md): deploy foydalanuvchisiga tegishli bo'lsin
+  DEPLOY_PATH: /opt/rizqim
+  STAGING_DOMAIN: stg.rizqim.uz
+  PROD_DOMAIN: rizqim.uz
+
+jobs:
+  # Sirsiz ish: hech qanday sirni o'qimaydi (istalgan branch'dagi workflow nusxasi ishga tushirsa ham chiqarib yubora oladigan
+  # narsa yo'q). Yoqilganmi yo'qmi faqat sir bo'lmagan Variables'dan aniqlanadi
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.plan.outputs.enabled }}
+      target: ${{ steps.plan.outputs.target }}
+      url: ${{ steps.plan.outputs.url }}
+      image_prefix: ${{ steps.plan.outputs.image_prefix }}
+      tag: ${{ steps.plan.outputs.tag }}
+      tag_postgres: ${{ steps.plan.outputs.tag_postgres }}
+      tag_pgbouncer: ${{ steps.plan.outputs.tag_pgbouncer }}
+      tag_backup: ${{ steps.plan.outputs.tag_backup }}
+      vite_bot_username: ${{ steps.plan.outputs.vite_bot_username }}
+      vite_partner_web_url: ${{ steps.plan.outputs.vite_partner_web_url }}
+      vite_map_tile_url: ${{ steps.plan.outputs.vite_map_tile_url }}
+      vite_map_attribution: ${{ steps.plan.outputs.vite_map_attribution }}
+      vite_sentry_dsn: ${{ steps.plan.outputs.vite_sentry_dsn }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Plan (target, enabled?, image tags)
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TARGET: ${{ inputs.target }}
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          STG_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
+          PROD_ENABLED: ${{ vars.PROD_DEPLOY_ENABLED }}
+          V_STG_BOT: ${{ vars.STAGING_VITE_BOT_USERNAME }}
+          V_STG_PARTNER: ${{ vars.STAGING_VITE_PARTNER_WEB_URL }}
+          V_STG_TILE: ${{ vars.STAGING_VITE_MAP_TILE_URL }}
+          V_STG_ATTR: ${{ vars.STAGING_VITE_MAP_ATTRIBUTION }}
+          V_STG_SENTRY: ${{ vars.STAGING_VITE_SENTRY_DSN }}
+          V_PROD_BOT: ${{ vars.PROD_VITE_BOT_USERNAME }}
+          V_PROD_PARTNER: ${{ vars.PROD_VITE_PARTNER_WEB_URL }}
+          V_PROD_TILE: ${{ vars.PROD_VITE_MAP_TILE_URL }}
+          V_PROD_ATTR: ${{ vars.PROD_VITE_MAP_ATTRIBUTION }}
+          V_PROD_SENTRY: ${{ vars.PROD_VITE_SENTRY_DSN }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = push ]; then target=staging; else target="$INPUT_TARGET"; fi
+
+          # Deploy faqat main'dan (teg ham, boshqa branch ham emas): tugallanmagan kod serverga tushmasin. Asosiy himoya esa
+          # environment'ning "Deployment branches" qoidasi (faqat main): boshqa branch'dagi nusxa bu tekshiruvni o'chirsa ham
+          # environment sirlarini ololmaydi
+          if [ "$REF" != refs/heads/main ]; then
+            echo "::error::deploy faqat main branch'dan ishga tushiriladi (hozir: $REF)"
+            exit 1
+          fi
+
+          if [ "$target" = production ]; then
+            [ "$EVENT" = workflow_dispatch ] || { echo "::error::production faqat qo'lda (workflow_dispatch)"; exit 1; }
+            flag="$PROD_ENABLED"; flag_name=PROD_DEPLOY_ENABLED; domain="$PROD_DOMAIN"
+            bot="${V_PROD_BOT:-rizqimbot}"; partner="${V_PROD_PARTNER:-https://business.$PROD_DOMAIN}"
+            tile="$V_PROD_TILE"; attr="$V_PROD_ATTR"; sentry="$V_PROD_SENTRY"
+          else
+            flag="$STG_ENABLED"; flag_name=STAGING_DEPLOY_ENABLED; domain="$STAGING_DOMAIN"
+            bot="${V_STG_BOT:-rizqim_staging_bot}"; partner="${V_STG_PARTNER:-https://business.$STAGING_DOMAIN}"
+            tile="$V_STG_TILE"; attr="$V_STG_ATTR"; sentry="$V_STG_SENTRY"
+          fi
+
+          if [ "$flag" = true ]; then
+            enabled=true
+          else
+            enabled=false
+            echo "::notice::Deploy ($target) o'tkazib yuborildi: repozitoriy Variable $flag_name=true emas (server tayyor bo'lgach qo'shiladi: docs/SERVER_SETUP.md, 5-bo'lim)"
+            {
+              echo "### Deploy o'tkazib yuborildi"
+              echo "Muhit: \`$target\`. Sabab: repozitoriy Variable \`$flag_name\` = \`true\` emas. Bu xato emas: server tayyor bo'lgach qo'shiladi (docs/SERVER_SETUP.md, 5-bo'lim)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          prefix="ghcr.io/$(printf '%s' "$REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          # Postgres, PgBouncer va backup obrazlari papka mazmuniga qarab belgilanadi (git daraxt): papka o'zgarmasa belgi
+          # o'zgarmaydi va har deploy'da ma'lumotlar bazasi konteyneri qayta yaratilmaydi
+          tag_pg="$(git rev-parse HEAD:infra/postgres | cut -c1-12)"
+          tag_pb="$(git rev-parse HEAD:infra/pgbouncer | cut -c1-12)"
+          tag_bk="$(printf '%s%s' "$(git rev-parse HEAD:infra/backup)" "$(git rev-parse HEAD:infra/postgres)" | sha1sum | cut -c1-12)"
+
+          {
+            echo "enabled=$enabled"
+            echo "target=$target"
+            echo "url=https://api.$domain/up"
+            echo "image_prefix=$prefix"
+            echo "tag=${SHA:0:12}"
+            echo "tag_postgres=$tag_pg"
+            echo "tag_pgbouncer=$tag_pb"
+            echo "tag_backup=$tag_bk"
+            echo "vite_bot_username=$bot"
+            echo "vite_partner_web_url=$partner"
+            echo "vite_map_tile_url=$tile"
+            echo "vite_map_attribution=$attr"
+            echo "vite_sentry_dsn=$sentry"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    if: needs.prepare.outputs.enabled == 'true' && inputs.only_upload != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: backend
+            context: backend
+            file: backend/Dockerfile
+          - name: frontend
+            context: .
+            file: customer/miniapp/Dockerfile
+          - name: partner-web
+            context: .
+            file: partner/web/Dockerfile
+          - name: platform-admin
+            context: .
+            file: platform/admin/Dockerfile
+          - name: landing
+            context: infra/landing
+            file: infra/landing/Dockerfile
+          - name: pos-site
+            context: infra/pos-site
+            file: infra/pos-site/Dockerfile
+          # Quyidagi uchtasi papka mazmuni bo'yicha belgilanadi: belgi GHCR'da bor bo'lsa qayta yig'ilmaydi (qayta yig'ish boshqa
+          # digest beradi va serverdagi Postgres'ni keraksiz qayta yaratardi)
+          - name: postgres
+            context: infra/postgres
+            file: infra/postgres/Dockerfile
+          - name: pgbouncer
+            context: infra/pgbouncer
+            file: infra/pgbouncer/Dockerfile
+          - name: backup
+            context: infra
+            file: infra/backup/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Image reference
+        id: image
+        env:
+          NAME: ${{ matrix.name }}
+          TARGET: ${{ needs.prepare.outputs.target }}
+          PREFIX: ${{ needs.prepare.outputs.image_prefix }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          TAG_PG: ${{ needs.prepare.outputs.tag_postgres }}
+          TAG_PB: ${{ needs.prepare.outputs.tag_pgbouncer }}
+          TAG_BK: ${{ needs.prepare.outputs.tag_backup }}
+          V_BOT: ${{ needs.prepare.outputs.vite_bot_username }}
+          V_PARTNER: ${{ needs.prepare.outputs.vite_partner_web_url }}
+          V_TILE: ${{ needs.prepare.outputs.vite_map_tile_url }}
+          V_ATTR: ${{ needs.prepare.outputs.vite_map_attribution }}
+          V_SENTRY: ${{ needs.prepare.outputs.vite_sentry_dsn }}
+        run: |
+          set -euo pipefail
+          reuse=false
+          case "$NAME" in
+            frontend) ref="$PREFIX/frontend-$TARGET:$TAG" ;;
+            postgres) ref="$PREFIX/postgres:$TAG_PG"; reuse=true ;;
+            pgbouncer) ref="$PREFIX/pgbouncer:$TAG_PB"; reuse=true ;;
+            backup) ref="$PREFIX/backup:$TAG_BK"; reuse=true ;;
+            *) ref="$PREFIX/$NAME:$TAG" ;;
+          esac
+          {
+            echo "ref=$ref"
+            echo "reuse=$reuse"
+          } >> "$GITHUB_OUTPUT"
+          # Mini App: build argumentlari (bo'sh qiymat Dockerfile standartini bosib ketmasin: faqat to'ldirilganlari)
+          if [ "$NAME" = frontend ]; then
+            {
+              echo 'build_args<<EOF_BUILD_ARGS'
+              echo "VITE_API_URL=/api/v1"
+              echo "VITE_BOT_USERNAME=$V_BOT"
+              echo "VITE_PARTNER_WEB_URL=$V_PARTNER"
+              echo "VITE_SENTRY_ENVIRONMENT=$TARGET"
+              echo "VITE_SENTRY_RELEASE=$TAG"
+              [ -z "$V_TILE" ] || echo "VITE_MAP_TILE_URL=$V_TILE"
+              [ -z "$V_ATTR" ] || echo "VITE_MAP_ATTRIBUTION=$V_ATTR"
+              [ -z "$V_SENTRY" ] || echo "VITE_SENTRY_DSN=$V_SENTRY"
+              echo 'EOF_BUILD_ARGS'
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Already in GHCR?
+        id: exists
+        if: steps.image.outputs.reuse == 'true'
+        env:
+          REF: ${{ steps.image.outputs.ref }}
+        run: |
+          if docker buildx imagetools inspect "$REF" > /dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "$REF GHCR'da bor: qayta yig'ilmaydi"
+          fi
+
+      - uses: docker/build-push-action@v6
+        if: steps.exists.outputs.found != 'true'
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.image.outputs.ref }}
+          build-args: ${{ steps.image.outputs.build_args }}
+          # Paket repozitoriyga bog'lanadi: GITHUB_TOKEN uni yoza va serverga tortish uchun o'qiy oladi
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}-${{ needs.prepare.outputs.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ needs.prepare.outputs.target }}
+
+  deploy:
+    name: Deploy to ${{ needs.prepare.outputs.target }}
+    needs: [prepare, build]
+    # build `only_upload` da o'tkazib yuboriladi (skipped), bunda ham fayllar yuklanadi
+    if: >-
+      always() && needs.prepare.result == 'success' && needs.prepare.outputs.enabled == 'true'
+      && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # SSH sozlamalari shu environment'da (Variables: SSH_HOST, SSH_USER, SSH_PORT; Secrets: SSH_KEY, SSH_KNOWN_HOSTS).
+    # production: "Required reviewers" tasdiqlamaguncha va ref "Deployment branches" (main) ga mos kelmaguncha qadamlar boshlanmaydi
+    environment:
+      name: ${{ needs.prepare.outputs.target }}
+      url: ${{ needs.prepare.outputs.url }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Environment configuration (fail closed)
+        env:
+          TARGET: ${{ needs.prepare.outputs.target }}
+          REF: ${{ github.ref }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_USER: ${{ vars.SSH_USER }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          HAS_KEY: ${{ secrets.SSH_KEY != '' }}
+          HAS_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS != '' }}
+        run: |
+          set -euo pipefail
+          [ "$REF" = refs/heads/main ] || { echo "::error::deploy faqat main'dan (hozir: $REF)"; exit 1; }
+          missing=""
+          [ -n "$SSH_HOST" ] || missing="$missing variable:SSH_HOST"
+          [ -n "$SSH_USER" ] || missing="$missing variable:SSH_USER"
+          [ "$HAS_KEY" = true ] || missing="$missing secret:SSH_KEY"
+          # known_hosts SHART: usiz har ishga tushishda server kaliti ko'r-ko'rona ishonilardi (man-in-the-middle)
+          [ "$HAS_KNOWN_HOSTS" = true ] || missing="$missing secret:SSH_KNOWN_HOSTS"
+          if [ -n "$missing" ]; then
+            echo "::error::'$TARGET' environment'ida yetishmaydi:$missing (Settings -> Environments -> $TARGET; docs/SERVER_SETUP.md, 5-bo'lim)"
+            exit 1
+          fi
+          case "${SSH_PORT:-22}" in '' | *[!0-9]*) echo "::error::SSH_PORT faqat raqam: $SSH_PORT"; exit 1 ;; esac
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Release bundle
+        env:
+          TARGET: ${{ needs.prepare.outputs.target }}
+          SHA: ${{ github.sha }}
+          PREFIX: ${{ needs.prepare.outputs.image_prefix }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          TAG_PG: ${{ needs.prepare.outputs.tag_postgres }}
+          TAG_PB: ${{ needs.prepare.outputs.tag_pgbouncer }}
+          TAG_BK: ${{ needs.prepare.outputs.tag_backup }}
+        run: |
+          set -euo pipefail
+          # Serverda git yo'q: compose fayllari, skriptlar va sozlamalar paket bo'lib boradi (obrazlarda manba kodi bor).
+          # Paket serverda .deploy/releases/<tag>/ ga ochiladi; ishlayotgan fayllarni deploy.sh tekshiruvlardan keyin almashtiradi.
+          # Serverdagi .env, backend/.env va infra/edge/{conf.d,admin}/*.caddy paketga kirmaydi va ustidan yozilmaydi.
+          cat > infra/deploy/release.env <<EOF
+          DEPLOY_TARGET=$TARGET
+          GIT_SHA=$SHA
+          IMAGE_PREFIX=$PREFIX
+          IMAGE_TAG=$TAG
+          IMAGE_TAG_POSTGRES=$TAG_PG
+          IMAGE_TAG_PGBOUNCER=$TAG_PB
+          IMAGE_TAG_BACKUP=$TAG_BK
+          EOF
+          tar czf "$RUNNER_TEMP/rizqim-bundle.tgz" \
+            --exclude='infra/landing' --exclude='infra/pos-site' --exclude='scripts/scale-test' \
+            --exclude='infra/edge/conf.d/*.caddy' --exclude='infra/edge/admin/*.caddy' \
+            docker-compose.yml docker-compose.staging.yml docker-compose.edge.yml docker-compose.images.yml \
+            .env.example .env.staging.example .env.production.example \
+            backend/.env.example backend/.env.staging.example backend/.env.production.example \
+            scripts infra
+          ls -l "$RUNNER_TEMP/rizqim-bundle.tgz"
+
+      - name: SSH setup
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_USER: ${{ vars.SSH_USER }}
+          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/deploy_key"
+          # Faqat oldindan tekshirilgan server kaliti (SSH_KNOWN_HOSTS siri): ssh-keyscan YO'Q, StrictHostKeyChecking=yes
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          {
+            echo "Host rizqim-deploy"
+            echo "  HostName $SSH_HOST"
+            echo "  User $SSH_USER"
+            echo "  Port $SSH_PORT"
+            echo "  IdentityFile $HOME/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  UserKnownHostsFile $HOME/.ssh/known_hosts"
+            echo "  StrictHostKeyChecking yes"
+            echo "  BatchMode yes"
+            echo "  ConnectTimeout 20"
+            echo "  ServerAliveInterval 30"
+            echo "  ServerAliveCountMax 20"
+          } > "$HOME/.ssh/config"
+          # Ulanish va server kalitini tekshirish (kalit known_hosts ga mos kelmasa: "Host key verification failed")
+          ssh rizqim-deploy true
+
+      - name: Upload bundle (into .deploy/releases/<tag>, live files untouched)
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in *[!0-9a-f]* | '') echo "::error::kutilmagan reliz belgisi: $TAG"; exit 1 ;; esac
+          # shellcheck disable=SC2029  # DEPLOY_PATH va TAG ataylab shu yerda (runner'da) qo'yiladi
+          ssh rizqim-deploy "set -e; d='$DEPLOY_PATH/.deploy/releases/$TAG'; mkdir -p \"\$d\"; tar xzf - -C \"\$d\"" < "$RUNNER_TEMP/rizqim-bundle.tgz"
+
+      - name: First install (only_upload) - copy files into the project folder
+        if: inputs.only_upload == true
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2029  # DEPLOY_PATH va TAG ataylab runner'da qo'yiladi
+          ssh rizqim-deploy "cd '$DEPLOY_PATH' && .deploy/releases/$TAG/infra/deploy/deploy.sh install-files"
+
+      - name: Deploy (server runs the release's infra/deploy/deploy.sh)
+        if: inputs.only_upload != true
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # GHCR tokeni STDIN orqali (buyruq satrida emas): serverda ps'da ko'rinmaydi va logga tushmaydi; serverda u faqat
+          # deploy.sh ning vaqtinchalik DOCKER_CONFIG papkasida turadi va deploy tugashi bilan o'chiriladi
+          # shellcheck disable=SC2029  # DEPLOY_PATH, TAG va GHCR_USER ataylab runner'da qo'yiladi (token esa STDIN'da)
+          printf '%s\n' "$GHCR_TOKEN" | ssh rizqim-deploy \
+            "cd '$DEPLOY_PATH' && .deploy/releases/$TAG/infra/deploy/deploy.sh deploy --registry-user '$GHCR_USER'"
+
+      - name: Summary
+        if: always()
+        env:
+          TARGET: ${{ needs.prepare.outputs.target }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          ONLY_UPLOAD: ${{ inputs.only_upload }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "### Deploy: \`$TARGET\` ($JOB_STATUS)"
+            echo "Reliz: \`$TAG\`"
+            if [ "$ONLY_UPLOAD" = true ]; then
+              echo "Faqat fayllar yuklandi. Keyingi qadam: serverda .env va backend/.env yarating (docs/SERVER_SETUP.md, 6-bo'lim), so'ng workflow'ni only_upload'siz ishga tushiring."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key" "$HOME/.ssh/config"

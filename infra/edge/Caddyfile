@@ -1,0 +1,307 @@
+# RIZQIM edge: bitta kirish nuqtasi (docker-compose.edge.yml, xizmat `edge`). TLS sertifikatlarini Caddy o'zi oladi va
+# yangilaydi (Let's Encrypt, HTTP-01: 80 va 443 portlar ochiq, har bir host nomi DNS'da serverga qaragan bo'lishi kerak).
+# Production va staging BIR XIL fayl; farqi faqat muhit o'zgaruvchilarida (ildiz .env, compose ularni `edge` ga beradi):
+#   EDGE_DOMAIN        rizqim.uz yoki stg.rizqim.uz (production / staging)
+#   EDGE_PROFILE       production (standart) yoki staging (noindex + robots.txt Disallow)
+#   EDGE_ACME_EMAIL    Let's Encrypt ogohlantirishlari uchun e-pochta
+#   EDGE_ADMIN_ACCESS  (ixtiyoriy) admin.<domen> uchun IP ro'yxati fayli; standart: cheklovsiz (admin-open.caddy).
+#                      Ro'yxat infra/edge/admin/allow.caddy da (conf.d/ da EMAS: conf.d/*.caddy eng yuqori darajada import
+#                      qilinadi va u yerdagi matcher Caddy'ni ishga tushirmaydi)
+# Host -> xizmat (compose tarmog'idagi nomlar):
+#   <domen>, www      landing:8080         (www -> asosiy domenga 301)
+#   app.<domen>       frontend:80          Mini App; /api/ va /app/ (Reverb) ni frontend nginx'i o'zi uzatadi
+#   api.<domen>       backend:80           API; /app/ -> reverb:8080 (WebSocket), /apps/ (Reverb HTTP API) yopiq
+#   business.<domen>  partner-web:3000     hamkor paneli
+#   admin.<domen>     platform-admin:3000  boshqaruv markazi (IP ro'yxati bilan cheklash mumkin)
+#   pos.<domen>       pos-site:80          POS ilovalarini yuklab olish
+#   links.<domen>     infra/edge/links     vaqtincha sahifa (deep link'lar ishlab chiqilgunicha)
+# Admin API (/api/v1/admin/*) api.<domen> va app.<domen> da YOPIQ (404): unga faqat boshqaruv markazi (platform-admin)
+# compose tarmog'ida http://backend/api orqali boradi, ya'ni faqat admin.<domen> (va uning IP ro'yxati) orqali.
+# Haqiqiy mijoz IP'si: Caddy tashqaridan kelgan X-Forwarded-* ga ISHONMAYDI (trusted_proxies yo'q), ularni o'zi yozadi:
+# X-Forwarded-For = ulanayotgan mijoz manzili. Backend (bootstrap/app.php trustProxies va backend/docker/nginx.conf
+# set_real_ip_from) va hamkor/admin panellari shu bitta yozuvni oladi; Docker tarmog'i 172.16.0.0/12 ichida (ishonchli).
+# Fayl yuklash chegaralari (bayt): Mini App nginx 10m, backend nginx/PHP 16m, admin proksisi 11 MiB (fayl) va sync-import 8 MiB.
+# Hujjat: docs/DEPLOY.md, 11-bo'lim; docs/SERVER_SETUP.md.
+{
+	email {$EDGE_ACME_EMAIL}
+
+	servers {
+		timeouts {
+			# Sekin sarlavha yuboruvchi ulanishni ushlab turmaydi. `write` qo'yilmagan: fayl yuklab olish va WebSocket uzilmasin
+			read_header 20s
+			idle 5m
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Umumiy qismlar
+
+# Siqish (gzip/zstd; faqat siqiladigan turlar, upstream o'zi siqqan javobga tegmaydi)
+(common) {
+	encode zstd gzip
+
+	# Har so'rov JSON qatorda stdout'ga (docker compose logs edge). Cookie va Authorization Caddy'da standart bo'yicha yashirilgan
+	log {
+		output stdout
+		format json
+	}
+
+	# `defer`: upstream o'zi yuborgan bir xil sarlavha bo'lsa, ikki marta chiqmasin (bizniki almashtiradi)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+		defer
+	}
+}
+
+# Production: qo'shimcha hech narsa
+(profile_production) {
+}
+
+# Staging: qidiruv tizimlari indekslamasin (har javobda sarlavha + robots.txt). Mini App va backend o'zlari ham qo'shadi
+(profile_staging) {
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		defer
+	}
+	handle /robots.txt {
+		root * /etc/caddy/staging
+		file_server
+	}
+}
+
+# Admin API tashqaridan yopiq: boshqaruv markazi backend'ga ichkaridan (http://backend/api) boradi, shuning uchun
+# api.<domen> va app.<domen> orqali /api/v1/admin/* ga yo'l yo'q (aks holda admin.<domen> IP ro'yxati chetlab o'tilardi).
+# Caddy `path` yo'lni tozalab (%xx, //, ../) va katta-kichik harfni farqlamay solishtiradi: /api/v1/%61dmin ham, //api//v1/admin ham mos.
+(no_admin_api) {
+	@admin_api path /api/v1/admin /api/v1/admin/*
+	handle @admin_api {
+		respond "Not found" 404
+	}
+}
+
+# Upstream'ga ulanish: konteyner qayta yaratilayotganda (deploy) ulanish xatosi bo'lsa so'rov 502 o'rniga 60 soniyagacha
+# kutadi va qayta uriniladi (faqat ulanish xatosida: so'rov hali yuborilmagan, shuning uchun POST ham xavfsiz)
+(upstream) {
+	lb_try_duration 60s
+	lb_try_interval 250ms
+	header_up X-Request-Id {http.request.uuid}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# rizqim.uz: landing
+
+{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+
+	handle {
+		request_body {
+			max_size 65536
+		}
+		reverse_proxy landing:8080 {
+			import upstream
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+}
+
+www.{$EDGE_DOMAIN} {
+	import common
+	redir https://{$EDGE_DOMAIN}{uri} permanent
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# app.rizqim.uz: Telegram Mini App (frontend nginx: statika, /api/, /storage/, /app/ -> Reverb)
+
+app.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+	# Mini App nginx'i /api/ ni backend'ga uzatadi: admin API bu yerda ham yopiq
+	import no_admin_api
+
+	handle {
+		# = customer/miniapp/docker/nginx.conf (client_max_body_size 10m)
+		request_body {
+			max_size 10485760
+		}
+		reverse_proxy frontend:80 {
+			import upstream
+			# WebSocket (/app/) Caddy'da o'zi o'tadi (Upgrade). Javob oqimi bufersiz; ochiq soket reload paytida 5 daqiqa kutiladi
+			flush_interval -1
+			stream_close_delay 5m
+			transport http {
+				dial_timeout 5s
+				# = backend fastcgi_read_timeout 300
+				response_header_timeout 310s
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# api.rizqim.uz: backend API, Telegram va to'lov webhook'lari, WebSocket (Reverb)
+
+api.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+	import no_admin_api
+
+	# Reverb: faqat /app/{kalit} (Pusher WebSocket). Reverb'ning HTTP API'si (/apps/...) tashqariga berilmaydi:
+	# unga faqat backend compose tarmog'ida reverb:8080 orqali yozadi
+	handle /app/* {
+		reverse_proxy reverb:8080 {
+			import upstream
+			flush_interval -1
+			stream_close_delay 5m
+		}
+	}
+	handle /apps/* {
+		respond "Not found" 404
+	}
+
+	handle {
+		# = backend/docker/nginx.conf client_max_body_size 16m va php.ini post_max_size 16M
+		request_body {
+			max_size 16777216
+		}
+		reverse_proxy backend:80 {
+			import upstream
+			transport http {
+				dial_timeout 5s
+				# = backend fastcgi_read_timeout 300 (hisobot eksporti)
+				response_header_timeout 310s
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# business.rizqim.uz: hamkor veb-paneli (Next.js; brauzer API'ga api.<domen> orqali boradi: PARTNER_PUBLIC_API_BASE_URL)
+
+business.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+
+	handle {
+		# Panelning o'z so'rovlari kichik JSON (kirish, SMS kod); fayllar brauzerdan to'g'ridan-to'g'ri api.<domen> ga ketadi
+		request_body {
+			max_size 2097152
+		}
+		reverse_proxy partner-web:3000 {
+			import upstream
+			flush_interval -1
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 120s
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# admin.rizqim.uz: RIZQIM boshqaruv markazi (Next.js). Hamma so'rov /api/backend/... orqali backend'ga o'tadi (platform/admin/src/lib/server/proxy.ts)
+
+admin.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+
+	# IP ro'yxati (ixtiyoriy): 403 beradigan `handle @admin_denied` shu yerdan keladi va ENG BIRINCHI tekshiriladi.
+	# Standart fayl hammaga ruxsat beradi; cheklash: infra/edge/admin/allow.caddy.example, docs/SERVER_SETUP.md, "admin.<domen> ni IP bilan cheklash"
+	import {$EDGE_ADMIN_ACCESS:/etc/caddy/admin-open.caddy}
+
+	handle {
+		# sync-import: .rzq fayl <= 8 MiB (backend max:8192 KB) + multipart ortiqchasi; kassa jurnali 10 000 amal: javob 60 s gacha
+		@sync_import path /api/backend/v1/admin/pos/sync-import
+		handle @sync_import {
+			request_body {
+				max_size 9437184
+			}
+			reverse_proxy platform-admin:3000 {
+				import upstream
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 90s
+				}
+			}
+		}
+
+		# Boshqa yuklashlar (moliya tuzatishi hujjati, aksiya va kategoriya rasmlari): proksi 11 MiB gacha qabul qiladi, multipart bilan 12 MiB
+		@admin_upload path_regexp admin_upload ^/api/backend/v1/admin/(finance/adjustments|marketing/(promos|categories)(/[0-9]+)?)$
+		handle @admin_upload {
+			request_body {
+				max_size 12582912
+			}
+			reverse_proxy platform-admin:3000 {
+				import upstream
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 60s
+				}
+			}
+		}
+
+		handle {
+			# Qolgan so'rovlar: proksining o'zi 256 KiB dan kattasini rad etadi
+			request_body {
+				max_size 1048576
+			}
+			reverse_proxy platform-admin:3000 {
+				import upstream
+				flush_interval -1
+				transport http {
+					dial_timeout 5s
+					# Excel eksportlari (20 000 qator): proksi 300 s gacha kutadi
+					response_header_timeout 330s
+				}
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# pos.rizqim.uz: POS ilovalarini yuklab olish sahifasi va fayllari
+
+pos.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+
+	handle {
+		request_body {
+			max_size 65536
+		}
+		reverse_proxy pos-site:80 {
+			import upstream
+			transport http {
+				dial_timeout 5s
+				# Katta APK/ZIP yuklab olish: javob sarlavhasi tez keladi, tanasi esa cheklanmagan
+				response_header_timeout 30s
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# links.rizqim.uz: vaqtincha sahifa (asosiy saytga yo'naltiradi). Mobil ilovalar chiqqanda /.well-known/assetlinks.json va
+# apple-app-site-association shu yerga qo'shiladi (infra/edge/links/)
+
+links.{$EDGE_DOMAIN} {
+	import common
+	import profile_{$EDGE_PROFILE:production}
+
+	handle {
+		root * /etc/caddy/links
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Qo'shimcha domenlar (rizqim.com, rizq.im -> rizqim.uz): infra/edge/conf.d/aliases.caddy.example dan nusxa.
+# conf.d/ dagi fayllar shu yerda, ENG YUQORI darajada o'qiladi: ularda faqat to'liq sayt bloklari bo'lsin (matcher yoki
+# `handle` emas). admin IP ro'yxati shuning uchun alohida papkada: infra/edge/admin/
+import conf.d/*.caddy

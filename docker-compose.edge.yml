@@ -1,0 +1,52 @@
+# RIZQIM edge: 80/443 da bitta kirish nuqtasi (Caddy, avtomatik TLS) va barcha subdomenlarni xizmatlarga yo'naltirish.
+# Alohida fayl: oddiy ishlab chiqishda (docker compose up) ishlatilmaydi, shuning uchun lokal muhit o'zgarmaydi.
+# Faqat SERVERDA (production; keyinroq staging), ildiz .env da COMPOSE_FILE ga qo'shiladi:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.edge.yml:docker-compose.images.yml                 (production)
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml:docker-compose.edge.yml:docker-compose.images.yml   (staging)
+# Kerakli qiymatlar (ildiz .env; namunalar .env.production.example va .env.staging.example):
+#   EDGE_DOMAIN=rizqim.uz | stg.rizqim.uz,  EDGE_PROFILE=production | staging,  EDGE_ACME_EMAIL=<e-pochta>
+# Tekshirish: docker compose -f docker-compose.yml -f docker-compose.edge.yml config -q
+# Marshrutlar, chegaralar va sarlavhalar: infra/edge/Caddyfile. Hujjat: docs/DEPLOY.md, 11-bo'lim; docs/SERVER_SETUP.md.
+
+services:
+  edge:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # HTTP/3 (QUIC)
+      - "443:443/udp"
+    environment:
+      # Bo'sh bo'lsa Caddy ishga tushmaydi (xato logda); deploy skripti ham ularni oldindan tekshiradi (infra/deploy/deploy.sh)
+      EDGE_DOMAIN: ${EDGE_DOMAIN:-}
+      EDGE_PROFILE: ${EDGE_PROFILE:-production}
+      EDGE_ACME_EMAIL: ${EDGE_ACME_EMAIL:-}
+      # admin.<domen> IP ro'yxati: /etc/caddy/admin/allow.caddy (infra/edge/admin/allow.caddy.example); standart cheklovsiz
+      EDGE_ADMIN_ACCESS: ${EDGE_ADMIN_ACCESS:-/etc/caddy/admin-open.caddy}
+    volumes:
+      # Caddyfile, admin-open.caddy, admin/ (IP ro'yxati: admin/allow.caddy), conf.d/ (qo'shimcha saytlar), links/ (vaqtincha
+      # sahifa) va staging/robots.txt: faqat o'qish uchun. Papka sifatida ulanadi: deploy.sh fayllarni almashtirgach
+      # `caddy reload` qiladi (konteyner qayta yaratilmaydi). Qo'lda o'zgartirsangiz:
+      #   docker compose exec -T edge caddy reload --config /etc/caddy/Caddyfile
+      - ./infra/edge:/etc/caddy:ro
+      # Sertifikatlar va ACME hisobi: yo'qotmang (qayta olish Let's Encrypt limitiga tegadi)
+      - edge_data:/data
+      - edge_config:/config
+    healthcheck:
+      # Caddy admin API (konteyner ichida, tashqariga ochilmagan)
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Mini App porti ham faqat shu xostda: asosiy fayldagi "8080:80" hamma interfeysga ochiq edi, Docker uni firewall'ni
+  # chetlab o'tkazadi. Endi hamma ichki port 127.0.0.1 da (qolganlari asosiy faylda allaqachon shunday), tashqaridan faqat edge.
+  frontend:
+    ports: !override
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  edge_data:
+  edge_config:

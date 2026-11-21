@@ -1,0 +1,9 @@
+# Qo'shimcha domenlar asosiyga yo'naltiriladi (egasi qarori 19.11.2026: rizqim.com va rizq.im olingan).
+# Faqat PRODUCTION serverda. Nusxa oling:
+#   cp infra/edge/conf.d/aliases.caddy.example infra/edge/conf.d/aliases.caddy
+# Ikkala domenning ham DNS A yozuvi (va www) shu serverga qaragan bo'lsin, aks holda sertifikat olinmaydi.
+# Keyin: docker compose exec -T edge caddy reload --config /etc/caddy/Caddyfile  (deploy ham har safar reload qiladi)
+# Bu fayl serverda qoladi (git'da emas: *.caddy .gitignore'da).
+rizqim.com, www.rizqim.com, rizq.im, www.rizq.im {
+	redir https://{$EDGE_DOMAIN}{uri} permanent
+}
