@@ -18,63 +18,82 @@ import 'support/p22.dart';
 /// M5 S6 fixes (review 2): the shift is opened at the till AFTER the PIN login (the usual day), and the table is paid
 /// through the real payment page, which takes the session's shift (`session.shift`, read back after the restart from
 /// the till's own copy). The first server answer keeps the record: the offer comes back when the link drops again.
+/// The run before: paired, Kamola enters her PIN at 13:00, opens the shift at the till, the till keeps its copies;
+/// the network goes and the app is closed (plain pos_data, outside the widget clock). Opened again [after] later, the
+/// server still out of reach: the same secure storage and journal. [windowOver]: the server records the
+/// past-the-window mark (owner decision Q1, bootstrap `offline.staff_window_over`).
+Future<({CashierHarness h, String room, MemoryKeyValueStore keys})> restarted(
+  WidgetTester tester, {
+  required Duration after,
+  bool windowOver = false,
+}) async {
+  final MemoryKeyValueStore keys = MemoryKeyValueStore();
+  final MemorySyncStorage disk = MemorySyncStorage();
+  DateTime now = DateTime.utc(2026, 10, 22, 13);
+  CashierHarness? later;
+  // One clock for the fake server and the till of the second run (CashierHarness.now)
+  final FakePosAdapter adapter = FakePosAdapter(clock: () => later?.now ?? now);
+  FakeCashierBackend(adapter.state);
+  final FakeSyncBackend sync = FakeSyncBackend(adapter.state);
+  // No shift yet: it is opened at the till after the PIN login
+  adapter.state
+    ..offlineStaffResume = true
+    ..offlineStaffWindowOver = windowOver;
+  final String room = adapter.state.seedOrder(tableId: 1, guests: 2);
+
+  await tester.runAsync(() async {
+    final RizqimClient client = RizqimClient(
+      baseUrl: 'https://api.test/api',
+      store: keys,
+      dio: Dio()..httpClientAdapter = adapter,
+      clock: () => now,
+    );
+    final PosData before = PosData(
+      client,
+      clock: () => now,
+      offlineStore: await SyncStore.open(disk, clock: () => now),
+    );
+    await client.auth.pairTerminal('ABCD-EFGH');
+    await client.auth.signInStaff(userId: 3, pin: adapter.state.pins[3]!);
+    final PosBootstrap boot = await before.session.loadBootstrap();
+    expect(boot.shift, isNull);
+    await before.catalog.load(PosChannel.hall, menuVersion: boot.menuVersion);
+    // As the shift page does (shift_page.dart): open, then updateShift
+    final PosShift shift = await before.shifts.open(
+      openingCash: const PosMoney.som(100000),
+    );
+    before.session.updateShift(shift.toSummary());
+    await before.floor.load();
+    await before.orders.openOrders();
+    await client.auth.resumeWritten;
+    await before.dispose();
+  });
+  sync.sessionStartedAt[3] = now;
+  expect(keys.values.containsKey(AuthSession.staffResumeKey), isTrue);
+
+  adapter.offline = true;
+  now = now.add(after);
+  final DateTime at = now;
+  final SyncStore reopened = await SyncStore.open(
+    disk,
+    clock: () => later?.now ?? at,
+  );
+  final CashierHarness h = CashierHarness(
+    offlineStore: reopened,
+    store: keys,
+    adapter: adapter,
+  )..now = at;
+  later = h;
+  await drive(tester, h.client.auth.restore());
+  await pumpCashier(tester, h);
+  return (h: h, room: room, keys: keys);
+}
+
 void main() {
   testWidgets("after a restart with no server: Davom etish, the open table is paid, the link is back and the PIN is "
       'asked', (WidgetTester tester) async {
-    final MemoryKeyValueStore keys = MemoryKeyValueStore();
-    final MemorySyncStorage disk = MemorySyncStorage();
-    DateTime now = DateTime.utc(2026, 10, 22, 13);
-    final FakePosAdapter adapter = FakePosAdapter(clock: () => now);
-    FakeCashierBackend(adapter.state);
-    final FakeSyncBackend sync = FakeSyncBackend(adapter.state);
-    // No shift yet: it is opened at the till after the PIN login
-    adapter.state.offlineStaffResume = true;
-    final String room = adapter.state.seedOrder(tableId: 1, guests: 2);
-
-    // The run before: paired, Kamola enters her PIN at 13:00, the till keeps its copies; the network goes and the app
-    // is closed (plain pos_data, outside the widget clock)
-    await tester.runAsync(() async {
-      final RizqimClient client = RizqimClient(
-        baseUrl: 'https://api.test/api',
-        store: keys,
-        dio: Dio()..httpClientAdapter = adapter,
-        clock: () => now,
-      );
-      final PosData before = PosData(
-        client,
-        clock: () => now,
-        offlineStore: await SyncStore.open(disk, clock: () => now),
-      );
-      await client.auth.pairTerminal('ABCD-EFGH');
-      await client.auth.signInStaff(userId: 3, pin: adapter.state.pins[3]!);
-      final PosBootstrap boot = await before.session.loadBootstrap();
-      expect(boot.shift, isNull);
-      await before.catalog.load(PosChannel.hall, menuVersion: boot.menuVersion);
-      // As the shift page does (shift_page.dart): open, then updateShift
-      final PosShift shift = await before.shifts.open(
-        openingCash: const PosMoney.som(100000),
-      );
-      before.session.updateShift(shift.toSummary());
-      await before.floor.load();
-      await before.orders.openOrders();
-      await client.auth.resumeWritten;
-      await before.dispose();
-    });
-    sync.sessionStartedAt[3] = now;
-    expect(keys.values.containsKey(AuthSession.staffResumeKey), isTrue);
-
-    // Opened again 3 h later, the server still out of reach: the same secure storage and journal
-    adapter.offline = true;
-    now = now.add(const Duration(hours: 3));
-    final DateTime later = now;
-    final SyncStore reopened = await SyncStore.open(disk, clock: () => later);
-    final CashierHarness h = CashierHarness(
-      offlineStore: reopened,
-      store: keys,
-      adapter: adapter,
-    )..now = later;
-    await drive(tester, h.client.auth.restore());
-    await pumpCashier(tester, h);
+    final (:CashierHarness h, :String room, :MemoryKeyValueStore keys) =
+        await restarted(tester, after: const Duration(hours: 3));
 
     expect(h.data.session.phase, PosSessionPhase.locked);
     expect(
@@ -155,4 +174,61 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Davom etish:'), findsNothing);
   });
+
+  testWidgets(
+    'owner decision Q1: past the 12 h, still offline, the banner says only payment and closing are left; '
+    'the table is paid through the payment page, marked',
+    (WidgetTester tester) async {
+      final (:CashierHarness h, :String room, keys: _) = await restarted(
+        tester,
+        after: const Duration(hours: 11, minutes: 50),
+        windowOver: true,
+      );
+      await tester.tap(find.text('Davom etish: Kamola Karimova'));
+      await tester.pumpAndSettle();
+      expect(h.data.session.staffResumed, isTrue);
+
+      // 12:05 after the PIN login
+      h.now = h.now.add(const Duration(minutes: 15));
+      // The banner is redrawn with the offline status (every 30 s while offline)
+      await tester.pump(const Duration(seconds: 31));
+      expect(h.data.session.staffResumeWindowOver, isTrue);
+      expect(h.data.session.phase, PosSessionPhase.ready);
+      expect(
+        find.textContaining(
+          "PIN bilan kirilganiga 12 soat o'tdi: endi faqat to'lov olish va ochiq buyurtmani yopish mumkin",
+        ),
+        findsOneWidget,
+      );
+
+      await openBilling(tester, room);
+      await tapButton(tester, 'Schyot chiqarish');
+      await tapText(tester, "To'lash: ", contains: true);
+      expect(find.byType(PaymentPage), findsOneWidget);
+      await tapKey(tester, 'payment-submit');
+      expect(find.byType(PaymentPage), findsNothing);
+      final List<SyncOperation> queued = h.data.offline!.store.pending;
+      expect(queued.map((SyncOperation o) => o.type), <String>[
+        SyncOpType.billCreate,
+        SyncOpType.billPay,
+        SyncOpType.orderClose,
+      ]);
+      for (final SyncOperation o in queued) {
+        expect(o.payload[PosOffline.windowOverKey], isTrue, reason: o.type);
+      }
+
+      // The server answers: the PIN is asked; the payment waits for the manager (staff_unverified), the table is closed
+      h.adapter.offline = false;
+      await drive(tester, h.data.offline!.syncNow());
+      await tester.pumpAndSettle();
+      expect(h.data.session.phase, PosSessionPhase.locked);
+      expect(h.state.orders[room]!['status'], 'delivered');
+      try {
+        await drive(tester, h.data.session.loadBootstrap());
+      } on PosException {
+        // an answer (401: nobody is signed in)
+      }
+      await tester.pumpAndSettle();
+    },
+  );
 }

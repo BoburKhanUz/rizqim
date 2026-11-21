@@ -203,6 +203,13 @@ final class PosSyncApplier
 
                 return $closed;
             }
+            if ($type->isMoney() && ContinuedStaff::pastWindow($payload)) {
+                // Owner decision Q1 (21.11.2026, option 2): money taken by a staff member resumed without a PIN after
+                // the 12 h since their PIN login (`staff_window_over`) passed the staff check above, but is the
+                // manager's to confirm: recorded the way of a payment whose staff check failed (onto its open bill,
+                // else unallocated), a `staff_unverified` conflict. The mark only narrows: never rejected or dropped
+                return $this->staffUnverified($acting, $type, $payload, $happenedAt, $clamped, $base, new PosSyncException(ContinuedStaff::WINDOW_OVER, "PIN'siz davom etilgan, PIN bilan kirilganiga 12 soatdan oshgan."));
+            }
         } catch (PosSyncException $e) {
             // Wave M4 T-1: the row links only a user of this store (the error list shows the linked user's name); an id
             // of anybody else stays only in what the till sent

@@ -154,6 +154,10 @@ class FakePosState {
   /// M5 S6-a: bootstrap `offline.staff_resume: true` (the server records `staff_resumed`). Default: an older server.
   bool offlineStaffResume = false;
 
+  /// Owner decision Q1: bootstrap `offline.staff_window_over: true` (the server records `staff_window_over`: a payment
+  /// past the 12 h is a `staff_unverified` conflict). Default: a server that does not.
+  bool offlineStaffWindowOver = false;
+
   // --- M5 S3: the signed offline queue ------------------------------------------------------------------------------
 
   /// The server signs: bootstrap says `offline.signing: true`, the pairing answer carries `sync_key` and
@@ -1362,6 +1366,7 @@ class FakePosState {
           if (offlineDiscount) 'discount': true,
           if (offlineSigning) 'signing': true,
           if (offlineStaffResume) 'staff_resume': true,
+          if (offlineStaffWindowOver) 'staff_window_over': true,
           if (advertiseSigningKid) 'signing_kid': syncKid == 0 ? null : syncKid,
           'fees': <Object?>[
             <String, Object?>{

@@ -24,12 +24,17 @@ void main() {
     }
   }
 
-  Future<void> boot({bool supported = true, int userId = 3}) async {
+  Future<void> boot({
+    bool supported = true,
+    int userId = 3,
+    bool windowOver = false,
+  }) async {
     h = await OfflineHarness.create();
     FakeCashierBackend(h.state);
     sync = FakeSyncBackend(h.state);
     h.state
       ..offlineStaffResume = supported
+      ..offlineStaffWindowOver = windowOver
       ..offlineDiscount = true
       ..openShift();
     await h.client.auth.pairTerminal('ABCD-EFGH');
@@ -234,7 +239,8 @@ void main() {
       expect((await fetchRecord()), isNull);
     });
 
-    test('resumed at 11:30, the window ends at 12:00: the staff member is signed out', () async {
+    test('resumed at 11:30, the window ends at 12:00: a server that does not record the past-the-window mark '
+        '(no offline.staff_window_over, an older one): the staff member is signed out', () async {
       await boot();
       final String room = await openTableThenOutage();
       h.clock.now = h.clock.now.add(const Duration(hours: 11, minutes: 30));
@@ -252,6 +258,238 @@ void main() {
         h.pos.billing.createBills(room, version: order.version),
         throwsA(isA<PosOfflineUnavailable>()),
       );
+    });
+  });
+
+  // Owner decision Q1 (21.11.2026, option 2): past the 12 h, while still offline, the resumed staff member stays,
+  // only to take payment and close open orders; what is queued then carries `staff_window_over` (the server records
+  // the payment as a `staff_unverified` conflict for the manager)
+  group('past the 12 h window (owner decision Q1)', () {
+    /// Two tables open, resumed at 11:30, a bill made on table 1 inside the window; then the window passes.
+    Future<(String, String)> pastTheWindow() async {
+      await boot(windowOver: true);
+      final String first = h.state.seedOrder(tableId: 1, guests: 2);
+      final String second = h.state.seedOrder(tableId: 2, guests: 1);
+      await h.warmUp();
+      // Both orders opened on the till while online (each kept for the outage)
+      await h.pos.orders.get(first);
+      await h.pos.orders.get(second);
+      await h.goOffline();
+      h.clock.now = h.clock.now.add(const Duration(hours: 11, minutes: 30));
+      await restartOffline();
+      expect(h.pos.session.resumeStaff(), isTrue);
+      await settle();
+      await h.pos.session.loadBootstrap();
+      final PosOrder order = await h.pos.orders.get(first);
+      await h.pos.billing.createBills(first, version: order.version);
+      expect(h.pos.session.staffResumeWindowOver, isFalse);
+
+      h.clock.now = h.clock.now.add(const Duration(minutes: 31));
+      return (first, second);
+    }
+
+    test('the staff member stays; only the payment and the close (and the bill they need) go through, each '
+        'marked; the banner says so', () async {
+      final (String first, String second) = await pastTheWindow();
+      final PosSession s = h.pos.session;
+      expect(s.isSignedIn, isTrue);
+      expect(s.staffResumed, isTrue);
+      expect(s.staffResumeWindowOver, isTrue);
+      expect(s.staffId, 3);
+      expect(h.offline.continuedNotice, contains('12 soat'));
+      expect(
+        h.offline.continuedNotice,
+        contains("faqat to'lov olish va ochiq buyurtmani yopish"),
+      );
+      // Kept for a lock on this run (see below)
+      expect((await fetchRecord())?['staff_id'], 3);
+
+      // Table 1: billed inside the window (not marked), paid and closed past it (marked)
+      final PosBilling billing = await h.pos.billing.bills(first);
+      final PosBill bill = billing.bills.single;
+      final PosBillResult paid = await h.pos.billing.pay(
+        bill.uuid,
+        tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
+        shiftUuid: shift(),
+      );
+      expect(paid.order.isClosed, isTrue);
+      // Table 2: the bill it needs for the payment, the payment and the close, all past the window
+      final PosOrder two = await h.pos.orders.get(second);
+      final PosBill bill2 = (await h.pos.billing.createBills(
+        second,
+        version: two.version,
+      )).bills.single;
+      await h.pos.billing.pay(
+        bill2.uuid,
+        tenders: <PosTenderInput>[PosTenderInput.cash(bill2.total)],
+        shiftUuid: shift(),
+      );
+
+      final List<SyncOperation> queued = h.offline.store.pending;
+      expect(queued.map((SyncOperation o) => o.type), <String>[
+        SyncOpType.billCreate,
+        SyncOpType.billPay,
+        SyncOpType.orderClose,
+        SyncOpType.billCreate,
+        SyncOpType.billPay,
+        SyncOpType.orderClose,
+      ]);
+      expect(
+        queued.first.payload.containsKey(PosOffline.windowOverKey),
+        isFalse,
+      );
+      for (final SyncOperation o in queued.skip(1)) {
+        expect(o.staffId, 3);
+        expect(o.payload[PosOffline.continuedKey], isTrue, reason: o.type);
+        expect(o.payload[PosOffline.resumedKey], isTrue, reason: o.type);
+        expect(o.payload[PosOffline.windowOverKey], isTrue, reason: o.type);
+      }
+    });
+
+    test('a new order, a round, a void, a discount, sending to the kitchen and asking for the bill are refused '
+        'with the reason', () async {
+      final (String first, String second) = await pastTheWindow();
+      await expectLater(
+        h.pos.orders.open(
+          channel: PosChannel.takeaway,
+          items: <PosLineInput>[
+            PosLineInput(
+              variantUuid: FakePosState.variantUuid(1),
+              quantity: PosQuantity.parse('1'),
+            ),
+          ],
+        ),
+        refused(PosOffline.windowOverReason),
+      );
+      final PosOrder order = await h.pos.orders.get(second);
+      await expectLater(
+        h.pos.orders.addRound(
+          second,
+          version: order.version,
+          items: <PosLineInput>[
+            PosLineInput(
+              variantUuid: FakePosState.variantUuid(4),
+              quantity: PosQuantity.parse('1'),
+            ),
+          ],
+        ),
+        refused(PosOffline.windowOverReason),
+      );
+      await expectLater(
+        h.pos.orders.voidItem(
+          second,
+          order.items.first.id,
+          version: order.version,
+        ),
+        throwsA(isA<PosOfflineUnavailable>()),
+      );
+      await expectLater(
+        h.pos.orders.discount(
+          second,
+          version: order.version,
+          kind: PosDiscountKind.percent,
+          value: '5',
+        ),
+        refused(PosOffline.windowOverReason),
+      );
+      await expectLater(
+        h.offline.send(second),
+        refused(PosOffline.windowOverReason),
+      );
+      await expectLater(
+        h.offline.requestBill(second),
+        refused(PosOffline.windowOverReason),
+      );
+      expect(h.offline.discountBlock(first), contains("12 soat"));
+      // Only the bill made inside the window is queued
+      expect(h.offline.store.pending.map((SyncOperation o) => o.type), <String>[
+        SyncOpType.billCreate,
+      ]);
+    });
+
+    test(
+      'the device clock moved back still ends it at once (record deleted)',
+      () async {
+        final (String first, _) = await pastTheWindow();
+        expect(h.pos.session.staffResumeWindowOver, isTrue);
+        h.clock.now = h.clock.now.subtract(const Duration(minutes: 5));
+        expect(h.pos.session.isSignedIn, isFalse);
+        await settle();
+        expect((await fetchRecord()), isNull);
+        expect(h.pos.session.resumeOffer, isNull);
+        final PosBill bill = (await h.pos.billing.bills(first)).bills.single;
+        await expectLater(
+          h.offline.pay(
+            bill.uuid,
+            tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
+            shiftUuid: shift(),
+          ),
+          throwsA(isA<PosOfflineUnavailable>()),
+        );
+      },
+    );
+
+    test('the 12 h by the monotonic clock (the device clock held back) also go on past the window, not out', () async {
+      await boot(windowOver: true);
+      await openTableThenOutage();
+      h.clock.now = h.clock.now.add(const Duration(hours: 2));
+      await restartOffline();
+      Duration real = Duration.zero;
+      h.client.auth.monotonic = () => real;
+      expect(h.pos.session.resumeStaff(), isTrue);
+      expect(h.pos.session.staffResumeWindowOver, isFalse);
+      real = const Duration(hours: 10, minutes: 1);
+      expect(h.pos.session.isSignedIn, isTrue);
+      expect(h.pos.session.staffResumeWindowOver, isTrue);
+    });
+
+    test('the screen locked past the window, still offline: offered again on this run, still past the window', () async {
+      await pastTheWindow();
+      await h.client.auth.signOutStaff(reason: 'idle');
+      await settle();
+      expect(h.pos.session.isSignedIn, isFalse);
+      expect(h.pos.session.resumeOffer?.staffId, 3);
+      expect(h.pos.session.resumeStaff(), isTrue);
+      expect(h.pos.session.staffResumeWindowOver, isTrue);
+    });
+
+    test('an app restart past the 12 h offers nothing (the past-the-window state is only kept on the run it began)', () async {
+      await boot(windowOver: true);
+      await openTableThenOutage();
+      h.clock.now = h.clock.now.add(const Duration(hours: 12, minutes: 1));
+      await restartOffline();
+      expect(h.pos.session.resumeOffer, isNull);
+      expect(h.pos.session.resumeStaff(), isFalse);
+    });
+
+    test('the server answers: the PIN keypad, as inside the window; the marked payment is a staff_unverified '
+        'conflict for the manager (money kept), the close applied', () async {
+      final (String first, _) = await pastTheWindow();
+      final PosBill bill = (await h.pos.billing.bills(first)).bills.single;
+      await h.pos.billing.pay(
+        bill.uuid,
+        tenders: <PosTenderInput>[PosTenderInput.cash(bill.total)],
+        shiftUuid: shift(),
+      );
+      h.adapter.offline = false;
+      final SyncDrainResult synced = await h.offline.syncNow();
+      await settle();
+      expect(h.pos.session.staffResumed, isFalse);
+      expect(h.pos.session.phase, PosSessionPhase.locked);
+
+      expect(synced.left, 0);
+      expect(
+        <String, (SyncOpStatus, String?)>{
+          for (final SyncOperation o in h.offline.store.answered)
+            o.type: (o.status, o.reason),
+        },
+        <String, (SyncOpStatus, String?)>{
+          SyncOpType.billCreate: (SyncOpStatus.applied, null),
+          SyncOpType.billPay: (SyncOpStatus.conflict, 'staff_unverified'),
+          SyncOpType.orderClose: (SyncOpStatus.applied, null),
+        },
+      );
+      expect(h.state.orders[first]?['closed_at'], isNotNull);
     });
   });
 

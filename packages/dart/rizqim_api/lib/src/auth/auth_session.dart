@@ -93,8 +93,9 @@ class AuthSession {
 
   PairedTerminal? get terminal => _terminal;
 
-  /// The signed-in staff member. A resumed one ([staffResumed]) whose 12 h are over, or whose PIN login the device
-  /// clock now puts in the future, is signed out here (reason `resume_expired`).
+  /// The signed-in staff member. A resumed one ([staffResumed]) whose 12 h are over is signed out here (reason
+  /// `resume_expired`) unless the server records the past-the-window mark ([resumePastWindow]: they stay,
+  /// [staffResumeWindowOver]); one whose device clock went back is signed out (reason `resume_clock`).
   StaffSession? get staff {
     _checkResume();
     return _staff;
@@ -183,6 +184,16 @@ class AuthSession {
   StaffResumeRecord? _resumable;
   bool _resumed = false;
 
+  /// Owner decision Q1 (21.11.2026, option 2): the server records the mark of operations made past the 12 h
+  /// (pos_data `PosData` binds bootstrap `offline.staff_window_over`). On: a resumed staff member whose 12 h are over
+  /// stays, past the window ([staffResumeWindowOver]: payment and closing only, marked). Off (default, an older
+  /// server): signed out at the 12 h as before.
+  bool Function() resumePastWindow = () => false;
+
+  /// The kept record whose 12 h ended while it was resumed on this run, with [resumePastWindow] on (in memory only: a
+  /// restart past the 12 h offers nothing). While it is the kept record, a lock on this run offers it again.
+  StaffResumeRecord? _windowOverOf;
+
   /// A record may be on the store (read at [restore] or written since): only then is it deleted (a store that could
   /// not be read is never touched for nothing).
   bool _resumeOnStore = false;
@@ -215,15 +226,21 @@ class AuthSession {
     if (r == null || !rememberStaffForResume) return null;
     final DateTime now = _clock();
     final DateTime? seen = _seenMax;
-    if (!r.usableAt(now) ||
+    // Owner decision Q1: one whose 12 h ended while resumed on this run goes on past the window (a clock behind the
+    // PIN login or behind what this run saw still ends it)
+    final bool pastWindow = _pastWindow(r);
+    if ((pastWindow ? now.isBefore(r.signedInAt) : !r.usableAt(now)) ||
         (seen != null && now.isBefore(seen)) ||
-        _pastResumeDeadline) {
+        (!pastWindow && _pastResumeDeadline)) {
       _dropResume();
       return null;
     }
     if (_terminal == null || _staff != null) return null;
     return r;
   }
+
+  bool _pastWindow(StaffResumeRecord r) =>
+      identical(r, _windowOverOf) && resumePastWindow();
 
   bool get _pastResumeDeadline {
     final Duration? deadline = _resumeDeadline;
@@ -235,6 +252,15 @@ class AuthSession {
   bool get staffResumed {
     _checkResume();
     return _resumed && _staff != null;
+  }
+
+  /// Owner decision Q1 (21.11.2026, option 2): the resumed staff member ([staffResumed]) is past the 12 h after their
+  /// PIN login and the server records it ([resumePastWindow]): only the payment and the close of open orders (pos_data
+  /// `PosOffline` refuses everything else and marks what it queues `staff_window_over`).
+  bool get staffResumeWindowOver {
+    if (!staffResumed) return false;
+    final StaffResumeRecord? r = _resumable;
+    return r != null && _pastWindow(r);
   }
 
   /// Signs the kept staff member in again without a PIN ([AuthEventKind.staffSignedIn], reason `resumed`), with only
@@ -254,6 +280,7 @@ class AuthSession {
       return false;
     }
     _seenMax = now;
+    // (Owner decision Q1: a record past the window gives a deadline already passed: it resumes past the window)
     // The rest of the 12 h by the device clock now, counted from here on by the monotonic clock (never longer than
     // an earlier resume of the same record allowed)
     final Duration end = monotonic() + r.until.difference(now);
@@ -313,23 +340,34 @@ class AuthSession {
     }
     _seenMax = now;
     final StaffResumeRecord? r = _resumable;
+    if (r != null && _pastWindow(r)) return;
     if (r != null && r.usableAt(now) && !_pastResumeDeadline) return;
     _resumeWindowOver();
   }
 
-  /// M5 S6, owner question Q1 (open): THE ONE place that says what happens when the 12 h after the PIN login are over
-  /// while a staff member is resumed after a restart ([StaffResumeRecord.window] by the device clock, or by the
-  /// [monotonic] clock from the resume). The window itself is decided above ([_checkResume]); only the consequence
-  /// is here.
+  /// M5 S6, owner decision Q1 (21.11.2026: "2"): THE ONE place that says what happens when the 12 h after the PIN
+  /// login are over while a staff member is resumed after a restart ([StaffResumeRecord.window] by the device clock,
+  /// or by the [monotonic] clock from the resume). The window itself is decided above ([_checkResume]); only the
+  /// consequence is here.
   ///
-  /// Today (hard end): the staff member is signed out (reason `resume_expired`) and the record deleted; nobody can take
-  /// a payment on this till until the server answers a PIN login. A payment and the close that follow it are one
-  /// action and are never cut in two (pos_data `PosOffline.pay` reads the staff member once).
+  /// The server records the mark ([resumePastWindow], bootstrap `offline.staff_window_over`): the staff member stays
+  /// resumed, past the window ([staffResumeWindowOver]): pos_data `PosOffline` lets only the payment and the close of
+  /// open orders through (and the bill a payment needs), marked `staff_window_over`, which the server records as a
+  /// `staff_unverified` conflict for the manager. Nothing is emitted (the staff member did not change). A clock set
+  /// back still ends it ([_checkResume]), so do the server's answer, a sign-out it hears, the shift's end and the
+  /// terminal's end, as inside the window.
   ///
-  /// The owner's alternative ("payment and close still allowed past 12 h, marked staff_unverified") is a change here:
-  /// keep `_resumed` and set a past-the-window flag instead of [_endResume]; pos_data `PosOffline` then lets only
-  /// `bill.pay` / `order.close` through for that flag and adds the server's `staff_unverified` mark to their payload.
-  void _resumeWindowOver() => _endResume('resume_expired', keepRecord: false);
+  /// An older server (the flag off): the hard end as before: signed out (reason `resume_expired`), the record deleted.
+  /// A payment and the close that follow it are one action and are never cut in two (pos_data `PosOffline.pay` reads
+  /// the staff member once).
+  void _resumeWindowOver() {
+    final StaffResumeRecord? r = _resumable;
+    if (r != null && resumePastWindow()) {
+      _windowOverOf = r;
+      return;
+    }
+    _endResume('resume_expired', keepRecord: false);
+  }
 
   void _keepForResume(StaffSession session, DateTime at) {
     if (!rememberStaffForResume) return;
@@ -341,6 +379,7 @@ class AuthSession {
     );
     _resumable = r;
     _resumeDeadline = null;
+    _windowOverOf = null;
     _resumeOnStore = true;
     _writeResume(r.encode());
   }
@@ -348,6 +387,7 @@ class AuthSession {
   void _dropResume() {
     _resumable = null;
     _resumeDeadline = null;
+    _windowOverOf = null;
     if (!_resumeOnStore) return;
     _resumeOnStore = false;
     _writeResume(null);

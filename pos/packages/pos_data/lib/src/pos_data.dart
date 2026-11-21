@@ -124,6 +124,7 @@ class PosData {
         ..staffContinued = (() => session.staffContinued)
         ..staffFinishOnly = (() => session.staffFinishOnly)
         ..staffResumed = (() => session.staffResumed)
+        ..staffWindowOver = (() => session.staffResumeWindowOver)
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
@@ -136,6 +137,9 @@ class PosData {
       // M5 S6-a: each PIN login on the till is kept (id, name, permissions, time; no PIN, no token) for a restart
       // during an outage (PosSession.resumeOffer)
       client.auth.rememberStaffForResume = true;
+      // Owner decision Q1 (21.11.2026): past the 12 h a resumed staff member goes on (payment and closing only, marked)
+      // only while the server said it records the mark (`offline.staff_window_over`, the kept bootstrap copy)
+      client.auth.resumePastWindow = () => o.settings.staffWindowOver;
       _contactSub = connectivity.changes.listen((PosConnectivityState s) {
         if (!s.online) client.auth.resumeStaffContinuation();
       });

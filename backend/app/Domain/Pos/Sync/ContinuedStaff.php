@@ -21,11 +21,20 @@ use App\Support\Money;
  * `staff_continued`), and on the order a `staff_continued` sync flag (informational, never a conflict): one per order,
  * plus one per `bill.pay` with the payments that operation took (`payments`). The X/Z report counts those payments
  * (`continued: {count, amount}`).
+ *
+ * Owner decision Q1 (21.11.2026, option 2): past the 12 h after the PIN login, while still offline, a resumed staff
+ * member may still take payment and close open orders (nothing else); those operations carry `staff_window_over: true`
+ * too (sent only to a server whose bootstrap says `offline.staff_window_over: true`). A marked payment is recorded as a
+ * `staff_unverified` conflict for the manager (PosSyncApplier, reason `staff_window_over`), never rejected or dropped;
+ * the bill and the close are applied as any other. The order's flag says `window_over: true`.
  */
 final class ContinuedStaff
 {
     /** The order's sync flag (informational). */
     public const FLAG = 'staff_continued';
+
+    /** Owner decision Q1: the payload key (and the staff check's reason) of an operation made past the 12 h. */
+    public const WINDOW_OVER = 'staff_window_over';
 
     /**
      * Whether the till marked the operation as queued by a PIN-less continued staff member.
@@ -35,6 +44,16 @@ final class ContinuedStaff
     public static function marked(array $payload): bool
     {
         return filter_var($payload['staff_continued'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Whether the till marked the operation as made past the 12 h after the PIN login (owner decision Q1).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function pastWindow(array $payload): bool
+    {
+        return filter_var($payload[self::WINDOW_OVER] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -58,6 +77,7 @@ final class ContinuedStaff
         return array_filter([
             'flag' => self::FLAG,
             'resumed' => filter_var($payload['staff_resumed'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'window_over' => self::pastWindow($payload) ? true : null,
             'staff_id' => $staffId,
             'payments' => $payments !== [] ? $payments : null,
         ], fn ($value) => $value !== null);

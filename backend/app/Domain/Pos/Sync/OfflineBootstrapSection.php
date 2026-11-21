@@ -40,6 +40,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * the same kill switch.
  * Wave M5 S6-a: `staff_resume: true` — the server records the mark of operations queued by a staff member resumed
  * without a PIN after the till app restarted during an outage (ContinuedStaff).
+ * Owner decision Q1 (21.11.2026): `staff_window_over: true` — the server records the mark of payments and closes made
+ * past the 12 h by such a staff member (a payment: a `staff_unverified` conflict).
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -146,6 +148,10 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             // Wave M5 S6-a: this server records `staff_resumed` (ContinuedStaff: "PIN'siz davom etilgan" in the
             // reports): the till offers "Davom etish" after an app restart during an outage only then
             'staff_resume' => true,
+            // Owner decision Q1 (21.11.2026): this server records `staff_window_over` (ContinuedStaff): a payment past
+            // the 12 h is a `staff_unverified` conflict. Only then does a resumed staff member go on past the 12 h
+            // (payment and closing only); a till without it signs them out at the 12 h as before
+            'staff_window_over' => true,
         ]];
     }
 

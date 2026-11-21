@@ -235,9 +235,32 @@ Section 9 is a short note of what a "whole day" answer would change later; it ha
   not), and read back into the stored bootstrap after a restart: the shift opened after the PIN login is known. Safety
   net: a resumed staff member with no known shift still takes the payment; `bill.pay` is queued without `shift_uuid`
   and the server takes the till's current shift (`PosSyncApplier::openShiftOf`). The rule for the 12 h end is in ONE
-  place, `AuthSession._resumeWindowOver` (open owner question Q1: today a hard end, signed out with `resume_expired`;
-  the alternative "payment and close still allowed past 12 h, marked `staff_unverified`" is a change there plus the
-  matching `PosOffline` guard and payload mark).
+  place, `AuthSession._resumeWindowOver`.
+  *As built (owner decision Q1, 21.11.2026: option 2; supersedes "the 12 h end" above).* Past the 12 h, while still
+  offline, the resumed staff member STAYS resumed in a "past the window" state (`AuthSession.staffResumeWindowOver`,
+  `PosSession.staffResumeWindowOver`) when the server records the mark: bootstrap `offline.staff_window_over: true`
+  (pos_data `PosOfflineSettings.staffWindowOver`, bound to `AuthSession.resumePastWindow`). Only the payment and the
+  close of open orders are allowed, plus the bill an open order needs before it can be paid (`bill.create`; our
+  reading of "take payment and close open orders": without it an unbilled open table could not be paid, and a bill
+  only states what is already on the order). Everything else (new order, round, void, discount, send to the kitchen,
+  course send, weight, served, bill request, kitchen actions) is refused with reason `staff_window_over` and an Uzbek
+  message, in `PosOffline._guard` (`finishing:` only for pay and bill) and again in `PosOffline._enqueue` (only
+  `bill.create`, `bill.pay`, `order.close` are queued). Each operation queued past the window carries
+  `staff_window_over: true` besides `staff_continued`/`staff_resumed`; who acts and the mark are read once per
+  pay+close action (`_acting`), so a payment begun inside the window and its close stay unmarked together. The banner
+  says the 12 h are over and only payment and closing are left (and that these payments go to the manager). The
+  device clock set back still ends it at once (`resume_clock`, record deleted); so do the first server answer
+  (`resume_ended`, record kept as above), a PIN login, a sign-out the server hears, the shift's end and the terminal's
+  end. The past-the-window state is in memory only: a lock or the idle lock on the same run offers "Davom etish" again
+  (still past the window), an app restart past the 12 h offers nothing. Server (`PosSyncApplier::apply`,
+  `ContinuedStaff::pastWindow`): a `bill.pay` with the mark that passed the 36 h staff check is recorded the way of a
+  payment whose staff check failed (`staffUnverified()`: onto its open bill, else unallocated), status `conflict`,
+  reason `staff_unverified`, flag reason `staff_window_over`, audit `pos.offline_payment_staff_unverified`, the person
+  attributed as usual: never rejected, never dropped. The mark only narrows (a till that leaves it out is no worse
+  than before). `bill.create` and `order.close` are applied as today. The order still gets the `staff_continued` flag
+  (with `window_over: true`) and the payment is in the X/Z `continued` count. A server without
+  `offline.staff_window_over` (S6-a as first shipped) would apply such a payment silently, so the till keeps the old
+  hard end (`resume_expired`) for it.
 
 Rejected: raising the limits to 48-72 h (not asked for; section 9); making the limits a per-store setting (one more
 owner setting to audit, no pilot need); offline PIN verification with hashes on the device (deliberately absent today,
@@ -764,6 +787,10 @@ All nine as recommended, with these additions:
 2. Shared secret per till (HMAC-SHA256), no new library.
 3. Yes: continue as the last staff member, at most 12 h, only closing open tables and taking payment. Such operations
    are marked "PIN'siz davom etilgan" in reports.
+   Owner decision Q1 (21.11.2026, answer "2"): after the 12 h, while still offline, the resumed member may still take
+   payment and close open orders (nothing else); those operations are marked and the server records the payments as
+   `staff_unverified` conflicts for the manager (never rejected, never dropped). A clock moved back still ends it. As
+   built: section 2, "App restart during an outage".
 4. Record and warn first; later refuse per store setting. Payments are never dropped.
 5. Warn + second confirmation; the data stays on the till and can be exported to a file.
 6. Create the real Android signing key NOW (no live store or installed till yet, so switching costs nothing today),

@@ -1043,7 +1043,11 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
   etadi — faqat ochiq buyurtmaga schyot, to'lov va yopish (yangi buyurtma, taom qo'shish yoki o'chirish, chegirma,
   qaytarish, smena va kassani uzish yo'q); server birinchi javob berishi bilan bu rejim tugaydi va PIN so'raladi
   (M5 S6: yozuv saqlanadi — PIN bilan kirilmasdan aloqa yana uzilsa "Davom etish" yana taklif qilinadi; aloqa yo'q
-  paytda ekran qulflansa ham yozuv qoladi; qurilma soati orqaga surilsa rejim to'xtaydi).
+  paytda ekran qulflansa ham yozuv qoladi; qurilma soati orqaga surilsa rejim to'xtaydi). Egasining Q1 qarori
+  (21.11.2026): 12 soat o'tgach, hali internet yo'q bo'lsa, xodim chiqarilmaydi — endi faqat to'lov olish va ochiq
+  buyurtmani yopish mumkin (shu uchun kerak bo'lsa schyot ham), qolgan hamma amal sababi aytilib rad etiladi; lenta
+  shuni yozadi. Bu amallar `staff_window_over: true` bilan yoziladi, server to'lovni menejer uchun `staff_unverified`
+  ziddiyati qilib yozadi (hech qachon rad etilmaydi). Qurilma soati orqaga surilsa rejim baribir to'xtaydi.
   Amallar `staff_continued: true, staff_resumed: true` bilan yoziladi va hisobotda "PIN'siz davom etilgan" deb
   ko'rinadi (docs/API.md). Kassada faqat xodim id'si, ismi, ruxsatlari va PIN bilan kirgan vaqti saqlanadi (PIN,
   uning xeshi yoki token emas).

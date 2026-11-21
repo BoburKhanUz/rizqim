@@ -2506,7 +2506,10 @@ yo'q yoki `false` bo'lsa kassa oflaynda chegirma bermaydi (eski server). M5 S3: 
 ("Imzolangan navbat"). M5 S4: `export` (bool) — server kassaning navbat faylini qabul qiladi ("Navbat faylidan
 tiklash"); `pos.sync_signing` o'chiq bo'lsa `false`.
 M5 S6-a: `staff_resume` (bool, doim `true`) — server PIN'siz davom etgan xodim belgisini yozadi (pastda): faqat shunda
-kassa ilova internetsiz qayta ishga tushganda "Davom etish: (ism)" taklif qiladi.
+kassa ilova internetsiz qayta ishga tushganda "Davom etish: (ism)" taklif qiladi. Egasining Q1 qarori (21.11.2026):
+`staff_window_over` (bool, doim `true`) — server 12 soatdan keyingi belgini yozadi (pastda): faqat shunda davom ettirilgan
+xodim PIN bilan kirganidan 12 soat o'tgach ham (hali internetsiz) to'lov olib, ochiq buyurtmani yopa oladi; kalit yo'q
+bo'lsa (eski server) kassa 12 soatda xodimni chiqaradi.
 
 **PIN'siz davom etilgan amallar (M5 S6-a).** Kassa PIN'siz davom etayotgan xodim navbatga qo'ygan har amal
 `payload` iga `staff_continued: true` qo'yadi (M5 S1: PIN sessiyasi uzilish paytida tugagan; S6-a: ilova internetsiz
@@ -2521,6 +2524,15 @@ to'lovlar (S6 dan oldin saqlangan Z hisobotda bu kalit yo'q), "Sinxronlash xatol
 `staff_continued: bool`. Belgilangan to'lov xodim tekshiruvidan o'tmay (`staff_unverified`, `payment_unverified`, qutqaruv
 fayli `suspect`) schyotga yoki schyotsiz yozilganda ham buyurtma `staff_continued` belgisini `payments` bilan oladi va
 `continued` ga kiradi (qaytarilgan to'lov oldingidek sanaladi).
+
+**12 soatdan keyin (egasining Q1 qarori, 21.11.2026).** Davom ettirilgan xodim PIN bilan kirganidan 12 soat o'tgach (hali
+internetsiz) kassa faqat `bill.create` (to'lanadigan ochiq buyurtmaning schyoti), `bill.pay` va `order.close` ni navbatga
+qo'yadi, ularga `staff_window_over: true` ham qo'shib (faqat bootstrap `offline.staff_window_over: true` aytgan serverga).
+Server belgilangan `bill.pay` ni xodim tekshiruvidan o'tsa ham xodim tekshiruvidan o'tmagan to'lov kabi yozadi: ochiq
+schyotga (bo'lmasa schyotsiz), `status: "conflict"`, `reason: "staff_unverified"`, belgidagi `reason:
+"staff_window_over"`, audit `pos.offline_payment_staff_unverified` — hech qachon rad etilmaydi va tashlanmaydi.
+`bill.create` va `order.close` odatdagidek qo'llanadi. Buyurtma `staff_continued` belgisini (`window_over: true` va
+`payments` bilan) oladi, to'lov X/Z `continued` ga kiradi.
 
 ### Smenani yopish
 

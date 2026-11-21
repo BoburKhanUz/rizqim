@@ -108,6 +108,10 @@ class PosSession {
   /// finish-only too.
   bool get staffResumed => auth.staffResumed;
 
+  /// Owner decision Q1 (21.11.2026): the resumed staff member ([staffResumed]) is past the 12 h after their PIN login
+  /// and goes on only to take payment and close open orders (`AuthSession.staffResumeWindowOver`).
+  bool get staffResumeWindowOver => auth.staffResumeWindowOver;
+
   /// M5 S6-a (owner answer 3): "Davom etish: (ism)" on the PIN keypad. Offered only when all of these hold: the till
   /// has the offline mode and its last bootstrap said the server records the mark (`offline.staff_resume`), the
   /// server does not answer right now (the last request failed), nobody is signed in, and the kept staff member's PIN

@@ -23,6 +23,7 @@ class PosOfflineSettings {
     this.signingKid,
     this.export = false,
     this.staffResume = false,
+    this.staffWindowOver = false,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -40,6 +41,7 @@ class PosOfflineSettings {
     signingKid: j.intOrNull('signing_kid'),
     export: j.boolean('export'),
     staffResume: j.boolean('staff_resume'),
+    staffWindowOver: j.boolean('staff_window_over'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
@@ -71,6 +73,7 @@ class PosOfflineSettings {
         signingKid: signingKid,
         export: export,
         staffResume: staffResume,
+        staffWindowOver: staffWindowOver,
       );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
@@ -112,6 +115,12 @@ class PosOfflineSettings {
   /// then does the till offer "Davom etish" (PosSession.resumeOffer). An older server does not say so: nothing is
   /// offered and the mark is never sent.
   final bool staffResume;
+
+  /// Owner decision Q1 (21.11.2026): the server records the mark of operations made past the 12 h after the PIN login
+  /// by a resumed staff member (`offline.staff_window_over: true`; `staff_window_over` in the payload, a payment
+  /// becomes a `staff_unverified` conflict for the manager). Only then does a resumed staff member go on past the 12 h,
+  /// for payment and closing only. An older server does not say so: they are signed out at the 12 h as before.
+  final bool staffWindowOver;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {

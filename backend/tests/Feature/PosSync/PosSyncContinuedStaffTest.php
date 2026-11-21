@@ -3,6 +3,7 @@
 namespace Tests\Feature\PosSync;
 
 use App\Domain\Pos\Sync\ContinuedStaff;
+use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PosSyncOperation;
@@ -251,5 +252,74 @@ class PosSyncContinuedStaffTest extends TestCase
         $payment = Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->sole();
         $this->assertSame([$payment->uuid], $this->flaggedPayments($sale['order']));
         $this->assertSame(1, ContinuedStaff::ofShift($this->shift->fresh())['count']);
+    }
+
+    // --- Owner decision Q1 (21.11.2026, option 2): payment and closing past the 12 h, marked `staff_window_over` ---
+
+    private const PAST = self::MARK + ['staff_window_over' => true];
+
+    public function test_the_bootstrap_says_the_server_records_the_past_the_window_mark(): void
+    {
+        $this->tillAs('GET', '/pos/bootstrap')->assertOk()->assertJsonPath('data.offline.staff_window_over', true);
+    }
+
+    public function test_a_payment_marked_past_the_window_settles_its_bill_as_a_staff_unverified_conflict_and_the_close_is_applied(): void
+    {
+        $order = (string) Str::uuid();
+        $bill = (string) Str::uuid();
+        $ops = [
+            $this->op('order.open', ['order' => $order, 'channel' => 'pos_takeaway', 'items' => [$this->line($this->shashlik, '2'), $this->line($this->tea, '1')], 'send' => true], null, 30),
+            $this->op('bill.create', ['order' => $order, 'bill' => $bill, 'expected_total' => '41000'] + self::PAST, null, 20),
+            $this->op('bill.pay', ['order' => $order, 'bill' => $bill, 'shift_uuid' => $this->shift->uuid, 'tenders' => [
+                ['tender' => 'cash', 'amount' => '41000', 'tendered_amount' => '50000'],
+            ]] + self::PAST, null, 19),
+            $this->op('order.close', ['order' => $order] + self::PAST, null, 19),
+        ];
+        // Inside the server's own 36 h staff check: only the mark makes the payment a conflict
+        $this->sync($ops)->assertOk()
+            ->assertJsonPath('data.results.0.status', 'applied')
+            ->assertJsonPath('data.results.1.status', 'applied')
+            ->assertJsonPath('data.results.2.status', 'conflict')
+            ->assertJsonPath('data.results.2.reason', 'staff_unverified')
+            ->assertJsonPath('data.results.3.status', 'applied');
+
+        // Never dropped: the money is on its bill, the order closed, the person attributed
+        $model = Order::where('external_id', $order)->firstOrFail();
+        $payment = Payment::where('order_id', $model->id)->sole();
+        $this->assertNotNull($payment->bill_id);
+        $this->assertSame('41000.00', (string) $payment->amount);
+        $this->assertNotNull($model->closed_at);
+        $row = PosSyncOperation::where('op_id', $ops[2]['op_id'])->sole();
+        $this->assertSame($this->cashier->id, $row->staff_id);
+        $this->assertTrue($row->payload['staff_window_over']);
+        $unverified = collect($row->result['flags'])->firstWhere('flag', 'staff_unverified');
+        $this->assertSame(['staff_window_over', '41000.00'], [$unverified['reason'], $unverified['amount']]);
+        $audit = AuditLog::where('action', 'pos.offline_payment_staff_unverified')->sole();
+        $this->assertSame('staff_window_over', $audit->payload_json['reason']);
+
+        // Still "PIN'siz davom etilgan": the order's flag with the payment, the X report's `continued`
+        $this->assertSame([$payment->uuid], $this->flaggedPayments($order));
+        $flag = collect((array) $model->sync_flags)->first(fn (array $f) => $f['flag'] === ContinuedStaff::FLAG && isset($f['payments']));
+        $this->assertTrue($flag['window_over']);
+        $report = $this->tillAs('GET', "/pos/shifts/{$this->shift->uuid}/x-report")->assertOk()->json('data.report');
+        $this->assertSame(['count' => 1, 'amount' => '41000.00'], $report['continued']);
+
+        // The manager sees it among the sync errors
+        $errors = $this->tillAs('GET', '/pos/sync/errors', [], $this->pinSession($this->till, $this->manager, self::MANAGER_PIN))->assertOk()->json('data.errors');
+        $listed = collect($errors)->firstWhere('op_id', $ops[2]['op_id']);
+        $this->assertSame(['conflict', 'staff_unverified', true], [$listed['status'], $listed['reason'], $listed['staff_continued']]);
+    }
+
+    public function test_a_payment_marked_past_the_window_with_no_open_bill_is_recorded_unallocated(): void
+    {
+        $sale = $this->finishedWithoutPin();
+        $this->sync(array_slice($sale['ops'], 0, 3))->assertOk()->assertJsonPath('data.results.2.status', 'applied');
+        // The bill is paid already: a second payment past the window goes unallocated, a conflict, counted
+        $again = $this->op('bill.pay', ['order' => $sale['order'], 'bill' => $sale['bill'], 'shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => '3000']]] + self::PAST);
+        $this->sync([$again])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'conflict')
+            ->assertJsonPath('data.results.0.reason', 'staff_unverified');
+        $this->assertSame(2, Payment::whereHas('order', fn ($query) => $query->where('external_id', $sale['order']))->count());
+        $this->assertSame(['count' => 2, 'amount' => '44000.00'], $this->continued());
     }
 }

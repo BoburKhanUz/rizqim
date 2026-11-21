@@ -144,6 +144,12 @@ class PosOffline {
   /// (`AuthSession.staffResumed`; PosData binds it): continued and finish-only, and what is queued carries
   /// [resumedKey] as well.
   bool Function() staffResumed = () => false;
+
+  /// Owner decision Q1 (21.11.2026, option 2): the resumed staff member ([staffResumed]) is past the 12 h after their
+  /// PIN login (`AuthSession.staffResumeWindowOver`; PosData binds it; only while the server records the mark,
+  /// bootstrap `offline.staff_window_over`). Only the payment and the close of open orders, and the bill a payment
+  /// needs, go through ([windowOverReason] otherwise); what is queued carries [windowOverKey] as well.
+  bool Function() staffWindowOver = () => false;
   String? Function() shiftUuid = () => null;
   PosBootstrap? Function() bootstrap = () => null;
   PosCatalog? Function(PosChannel channel) catalog = (_) => null;
@@ -187,6 +193,26 @@ class PosOffline {
   /// ([staffResumed]); sent only to a server that said it records it (bootstrap `offline.staff_resume`).
   static const String resumedKey = 'staff_resumed';
 
+  /// Owner decision Q1: payload key of an operation queued past the 12 h by a resumed staff member ([staffWindowOver]);
+  /// the server records such a payment as a `staff_unverified` conflict for the manager (never rejected or dropped).
+  static const String windowOverKey = 'staff_window_over';
+
+  /// Owner decision Q1: [PosOfflineUnavailable.reason] of anything but the payment, the close and the bill they need,
+  /// past the 12 h ([staffWindowOver]).
+  static const String windowOverReason = 'staff_window_over';
+
+  /// Owner decision Q1: what may be queued past the 12 h ([staffWindowOver]): the bill an open order needs to be paid,
+  /// the payment and the close.
+  static const Set<String> windowOverTypes = <String>{
+    SyncOpType.billCreate,
+    SyncOpType.billPay,
+    SyncOpType.orderClose,
+  };
+
+  static const String _windowOverMessage =
+      "PIN'siz davom etish muddati (PIN bilan kirilganidan 12 soat) tugadi: endi faqat to'lov olish va ochiq "
+      'buyurtmani yopish mumkin. Internet tiklangach PIN bilan kiring.';
+
   /// M5 S2: [PosOfflineUnavailable.reason] of a discount refused because the server did not say it takes
   /// `order.discount` (bootstrap `offline.discount`): the discount needs the internet, as before.
   static const String discountUnsupportedReason =
@@ -212,6 +238,11 @@ class PosOffline {
   String? get continuedNotice {
     final String? name = continuedStaffName;
     if (name == null) return null;
+    if (staffWindowOver()) {
+      return "PIN'siz davom etilmoqda: $name. PIN bilan kirilganiga 12 soat o'tdi: endi faqat to'lov olish va ochiq "
+          "buyurtmani yopish mumkin (yangi buyurtma, taom qo'shish, oshxonaga yuborish va chegirma yo'q). Bu "
+          "to'lovlar menejer tekshiruviga tushadi. Internet tiklangach PIN bilan kiring.";
+    }
     if (staffResumed()) {
       return "PIN'siz davom etilmoqda: $name (ilova internetsiz qayta ishga tushdi). Faqat ochiq buyurtmalarni "
           "yakunlash va to'lov olish mumkin: schyot, to'lov va buyurtmani yopish (yangi buyurtma, taom qo'shish, "
@@ -857,6 +888,12 @@ class PosOffline {
         reason: limitReason,
       );
     }
+    if (_actor == null && staffWindowOver()) {
+      return const PosOfflineUnavailable(
+        _windowOverMessage,
+        reason: windowOverReason,
+      );
+    }
     if (_continued) {
       return const PosOfflineUnavailable(
         "PIN'siz davom etilmoqda: internetsiz chegirma berilmaydi. Faqat ochiq buyurtmalarni yakunlash va to'lov "
@@ -999,9 +1036,10 @@ class PosOffline {
     String? idempotencyKey,
   }) async {
     if (!_can('orders.manage') && !_can('pos.take_payment')) {
-      _guard('pos.take_payment');
+      _guard('pos.take_payment', finishing: true);
     }
-    _guard(null);
+    // (Owner decision Q1: the bill an open order needs to be paid is allowed past the 12 h too)
+    _guard(null, finishing: true);
     final PosOrder current = order(orderUuid);
     // P6-25: no bill while a line waits for its weight (as on the server: 409 weight_pending)
     if (current.items.any((PosOrderItem i) => i.awaitingWeight)) {
@@ -1126,7 +1164,7 @@ class PosOffline {
     String? idempotencyKey,
     int? tipStaffId,
   }) async {
-    _guard('pos.take_payment');
+    _guard('pos.take_payment', finishing: true);
     // M5 S1 review: the payment and the close that follows it are one action. [forget] waits for it ([_composing]),
     // so the close cannot land in the middle of the setting aside, or after it in the next pairing's journal
     final Completer<void> whole = Completer<void>();
@@ -1602,10 +1640,14 @@ class PosOffline {
   /// [changing]: the operation changes what is on an open order (a new round, a void). A continued staff member
   /// whose PIN login is more than 12 h old ([staffFinishOnly]) may not; the bill, the payment and the close never
   /// pass it.
+  ///
+  /// [finishing]: the payment, or the bill a payment needs (owner decision Q1: the only actions left past the 12 h,
+  /// [staffWindowOver]; everything else is refused with [windowOverReason]).
   void _guard(
     String? permission, {
     bool opening = false,
     bool changing = false,
+    bool finishing = false,
   }) {
     if (_forgetting != null) {
       // The till is being cut off right now: the queue is being set aside, nothing may join it
@@ -1624,6 +1666,13 @@ class PosOffline {
     }
     if (_actor == null && staffId() == null) {
       throw const PosOfflineUnavailable('Xodim kirmagan.');
+    }
+    // Owner decision Q1: past the 12 h only the payment and the close of open orders (and the bill they need)
+    if (!finishing && _actor == null && staffWindowOver()) {
+      throw const PosOfflineUnavailable(
+        _windowOverMessage,
+        reason: windowOverReason,
+      );
     }
     // M5 S1-e: a staff member whose PIN session ran out during the outage finishes open orders, starts none
     if (opening && _continued) {
@@ -1662,15 +1711,22 @@ class PosOffline {
     if (composed != null) return composed;
     final PosOfflineActor? a = _actor;
     if (a != null) {
-      return _Acting(staffId: a.staffId, continued: false, resumed: false);
+      return _Acting(
+        staffId: a.staffId,
+        continued: false,
+        resumed: false,
+        windowOver: false,
+      );
     }
     final int? id = staffId();
     if (id == null) throw const PosOfflineUnavailable('Xodim kirmagan.');
     final bool continued = staffContinued();
+    final bool resumed = continued && staffResumed();
     return _Acting(
       staffId: id,
       continued: continued,
-      resumed: continued && staffResumed(),
+      resumed: resumed,
+      windowOver: resumed && staffWindowOver(),
     );
   }
 
@@ -1699,6 +1755,14 @@ class PosOffline {
   Future<SyncOperation> _enqueue(String type, Map<String, Object?> payload) {
     final PosOfflineActor? a = _actor;
     final _Acting who = _acting();
+    // Owner decision Q1: past the 12 h nothing but the payment, the close and the bill they need is queued, whatever
+    // the caller checked ([_guard])
+    if (who.windowOver && !windowOverTypes.contains(type)) {
+      throw const PosOfflineUnavailable(
+        _windowOverMessage,
+        reason: windowOverReason,
+      );
+    }
     return store.enqueue(
       type,
       who.continued
@@ -1706,6 +1770,7 @@ class PosOffline {
               ...payload,
               continuedKey: true,
               if (who.resumed) resumedKey: true,
+              if (who.windowOver) windowOverKey: true,
             }
           : payload,
       staffId: who.staffId,
@@ -2092,9 +2157,13 @@ class _Acting {
     required this.staffId,
     required this.continued,
     required this.resumed,
+    required this.windowOver,
   });
 
   final int staffId;
   final bool continued;
   final bool resumed;
+
+  /// Owner decision Q1: past the 12 h (`PosOffline.staffWindowOver`).
+  final bool windowOver;
 }
