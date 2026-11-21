@@ -55,6 +55,7 @@ class AuthRemote {
     final String? normalized = PairingCode.normalize(code);
     if (normalized == null) throw const InvalidPairingCodeException();
     final Map<String, Object?> data = await _send(
+      pairing: true,
       () => _dio.post<Object?>(
         '/v1/devices/pair',
         data: <String, Object?>{
@@ -181,9 +182,10 @@ class AuthRemote {
   }
 
   Future<Map<String, Object?>> _send(
-    Future<Response<Object?>> Function() call,
-  ) async {
-    final Response<Object?> response = await _raw(call);
+    Future<Response<Object?>> Function() call, {
+    bool pairing = false,
+  }) async {
+    final Response<Object?> response = await _raw(call, pairing: pairing);
     final Object? data = (response.data as Map<Object?, Object?>?)?['data'];
     if (data is! Map) {
       throw ApiException(
@@ -195,11 +197,21 @@ class AuthRemote {
   }
 
   Future<Response<Object?>> _raw(
-    Future<Response<Object?>> Function() call,
-  ) async {
+    Future<Response<Object?>> Function() call, {
+    bool pairing = false,
+  }) async {
     try {
       return await call();
     } on DioException catch (e) {
+      // M5 S5: a version below the minimum is refused at pairing with 426 and the download link
+      final Response<Object?>? r = e.response;
+      if (pairing && r != null) {
+        final AppOutdatedException? outdated = AppOutdatedException.tryFrom(
+          r,
+          cause: e,
+        );
+        if (outdated != null) throw outdated;
+      }
       throw ApiException.from(e);
     }
   }
