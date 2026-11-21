@@ -222,6 +222,30 @@ class PosQrTillTest extends TestCase
         $this->pos('POST', "/qr/{$click['uuid']}/simulate-paid")->assertNotFound();
     }
 
+    public function test_the_qr_sandbox_and_simulation_stay_off_on_production_without_the_flag(): void
+    {
+        // QR_PAYMENTS_SANDBOX / QR_PAYMENTS_SIMULATE(_DRIVERS) left on a production server: a cashier could close a
+        // bill as paid with no money. Only PAYMENTS_ALLOW_TEST_MODE=true allows them there.
+        config([
+            'app.env' => 'production',
+            'services.payments.allow_test_mode' => false,
+            'qr_payments.sandbox' => true,
+            'qr_payments.simulate' => true,
+            'qr_payments.simulate_drivers' => ['uzqr'],
+        ]);
+        [, $bill] = $this->billed();
+
+        $click = $this->qr($bill, 'click')->assertCreated()->json('data.qr');
+        $this->assertFalse($click['simulated']);
+        $this->assertStringStartsWith('https://my.click.uz/services/pay?', $click['payload']);
+        $this->assertSame('click', $this->qrModel($click['uuid'])->driver);
+        $this->pos('POST', "/qr/{$click['uuid']}/simulate-paid")->assertNotFound();
+        $this->assertFalse(\App\Domain\Pos\QrPayments\QrProviders::sandboxed(\App\Domain\Pos\QrPayments\QrProvider::UZQR));
+
+        config(['services.payments.allow_test_mode' => true]);
+        $this->assertTrue(\App\Domain\Pos\QrPayments\QrProviders::sandboxed(\App\Domain\Pos\QrPayments\QrProvider::UZQR));
+    }
+
     public function test_a_real_providers_qr_is_never_simulated(): void
     {
         [, $bill] = $this->billed();

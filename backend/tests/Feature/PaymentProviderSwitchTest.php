@@ -211,6 +211,25 @@ class PaymentProviderSwitchTest extends TestCase
         $this->assertStringStartsWith('https://my.click.uz/services/pay?', $this->placeOrder('click')->assertCreated()->json('data.payment_url'));
     }
 
+    public function test_a_test_mode_left_on_a_production_server_never_reaches_a_live_customer(): void
+    {
+        // A row still in `test` (set on staging, copied database, or while PAYMENTS_ALLOW_TEST_MODE was on): the admin
+        // screen refuses only a move INTO test, so the checkout itself must not follow it on production
+        $this->switchProvider('payme', ['mode' => 'test']);
+        config(['app.env' => 'production', 'services.payments.allow_test_mode' => false]);
+        PaymentProviderSwitch::forget();
+
+        $this->assertSame('production', app(PaymentProviderSwitch::class)->mode('payme'));
+        $this->assertStringStartsWith('https://checkout.paycom.uz/', $this->placeOrder('payme')->assertCreated()->json('data.payment_url'));
+        $topup = $this->actingAs($this->owner)->postJson('/api/v1/owner/finance/top-up', ['amount' => 50000, 'provider' => 'payme'])->assertOk()->json('data.payment_url');
+        $this->assertStringStartsWith('https://checkout.paycom.uz/', $topup);
+
+        // Deliberate testing on production: only with the server flag
+        config(['services.payments.allow_test_mode' => true]);
+        $this->assertSame('test', app(PaymentProviderSwitch::class)->mode('payme'));
+        $this->assertStringStartsWith('https://checkout.test.paycom.uz/', $this->placeOrder('payme')->assertCreated()->json('data.payment_url'));
+    }
+
     public function test_a_provider_without_a_row_is_on_and_in_production(): void
     {
         PaymentProvider::query()->delete();

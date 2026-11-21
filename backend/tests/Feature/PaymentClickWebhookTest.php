@@ -87,6 +87,26 @@ class PaymentClickWebhookTest extends TestCase
         return $this->postJson('/api/v1/payments/click/webhook', array_merge($data, $overrides));
     }
 
+    public function test_a_request_missing_a_required_field_is_a_click_request_error(): void
+    {
+        // SHOP API: -8 "Error in request from click" when a required parameter is absent
+        foreach (['click_trans_id', 'service_id', 'merchant_trans_id', 'amount', 'action', 'sign_time', 'sign_string'] as $field) {
+            $data = [
+                'click_trans_id' => '9001', 'service_id' => '32104', 'click_paydoc_id' => '555', 'merchant_trans_id' => $this->order->uuid,
+                'amount' => '50000', 'action' => 0, 'error' => 0, 'error_note' => 'Success', 'sign_time' => '2026-10-18 12:00:00', 'sign_string' => 'x',
+            ];
+            unset($data[$field]);
+            $this->postJson('/api/v1/payments/click/webhook', $data)->assertExactJson(['error' => -8, 'error_note' => 'Error in request from click'], $field);
+        }
+
+        // Complete without merchant_prepare_id
+        $this->postJson('/api/v1/payments/click/webhook', [
+            'click_trans_id' => '9001', 'service_id' => '32104', 'click_paydoc_id' => '555', 'merchant_trans_id' => $this->order->uuid,
+            'amount' => '50000', 'action' => 1, 'error' => 0, 'error_note' => 'Success', 'sign_time' => '2026-10-18 12:00:00', 'sign_string' => 'x',
+        ])->assertJson(['error' => -8]);
+        $this->assertSame(PaymentStatus::PENDING, $this->order->fresh()->payment_status);
+    }
+
     public function test_missing_or_incorrect_signature_is_rejected(): void
     {
         $this->click(1, $this->order->uuid, '50000', overrides: ['sign_string' => ''])

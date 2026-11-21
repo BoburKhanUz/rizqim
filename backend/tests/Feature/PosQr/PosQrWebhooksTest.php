@@ -243,10 +243,31 @@ class PosQrWebhooksTest extends TestCase
         $this->payme('CheckTransaction', ['id' => 'pm-tx-5'])->assertJsonPath('result.state', -2)->assertJsonPath('result.reason', 5);
     }
 
+    public function test_the_store_cashbox_statement_lists_its_till_qr_transactions(): void
+    {
+        // GetStatement from the store's own cashbox (its key, no account): Payme reconciles the till's QR payments too
+        $qr = $this->paymeQr();
+        $tiyin = Money::of($qr->amount)->toTiyin();
+        $this->payme('CreateTransaction', ['id' => 'pm-st-1', 'time' => 1763550000000, 'amount' => $tiyin, 'account' => $this->paymeAccount($qr)])->assertJsonPath('result.state', 1);
+        $this->payme('PerformTransaction', ['id' => 'pm-st-1'])->assertJsonPath('result.state', 2);
+
+        $statement = $this->payme('GetStatement', ['from' => 1763549999000, 'to' => 1763550001000])->assertOk();
+        $this->assertSame(['pm-st-1'], array_column($statement->json('result.transactions'), 'id'));
+        $statement->assertJsonPath('result.transactions.0.amount', $tiyin)
+            ->assertJsonPath('result.transactions.0.account.order_id', $qr->account())
+            ->assertJsonPath('result.transactions.0.state', 2)
+            ->assertJsonPath('result.transactions.0.create_time', 1763550000000);
+
+        $this->assertSame([], $this->payme('GetStatement', ['from' => 1, 'to' => 2])->json('result.transactions'));
+    }
+
     public function test_online_order_webhooks_are_untouched(): void
     {
         // A regular order reference still goes to the order logic (unknown order: Click -5, Payme -31050)
-        $this->postJson('/api/v1/payments/click/webhook', ['merchant_trans_id' => (string) \Illuminate\Support\Str::uuid(), 'action' => 0])->assertJsonPath('error', -5);
+        $this->postJson('/api/v1/payments/click/webhook', [
+            'click_trans_id' => '1', 'service_id' => '1', 'merchant_trans_id' => (string) \Illuminate\Support\Str::uuid(), 'amount' => '100',
+            'action' => 0, 'sign_time' => '2026-11-21 10:00:00', 'sign_string' => 'x',
+        ])->assertJsonPath('error', -5);
         $this->payme('CheckPerformTransaction', ['amount' => 100, 'account' => ['order_id' => (string) \Illuminate\Support\Str::uuid()]], 'platform_payme_key')->assertJsonPath('error.code', -31050);
     }
 }

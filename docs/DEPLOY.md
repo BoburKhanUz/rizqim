@@ -40,7 +40,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `REDIS_CLIENT`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | `phpredis`, Redis manzili (`redis`, `6379` va parolni compose o'zi beradi) |
 | `REDIS_DB`, `REDIS_CACHE_DB` | `0`, `1` (farqli bo'lsin; `REDIS_URL` ni o'rnatmang) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBAPP_URL`, `TELEGRAM_WEBHOOK_SECRET` | 1-bo'limdagi qiymatlar. `TELEGRAM_WEBAPP_URL` majburiy va `https://` bilan boshlanishi shart (`app:check-production` tekshiradi). `APP_URL` HTTPS bo'lmasa `TELEGRAM_WEBHOOK_URL` ham kerak |
-| `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (+ `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID`) | merchant ma'lumotlari. Standart id'lar `config/services.php` dagi namunalar |
+| `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (+ `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `PAYME_MERCHANT_ID`) | merchant ma'lumotlari. Standart qiymat yo'q (bo'sh bo'lsa to'lov havolasi ishlamaydi). Ishga tushirish tartibi: [PAYMENTS_GO_LIVE.md](PAYMENTS_GO_LIVE.md) |
 | `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` | faqat `SuperAdminSeeder` uchun (ixtiyoriy, parol kamida 12 belgi). Birinchi superadmin odatda `rizqim:admin:create` bilan yaratiladi (5-bo'lim) |
 | `ADMIN_APP_URL` | boshqaruv markazining manzili (`https://admin.<domen>`): taklif havolalari shundan yasaladi (4-bo'lim) |
 | `PARTNER_WEB_URL` | hamkor paneli manzili (`https://panel.<domen>`): ovqatxona balansini onlayn to'ldirgan ega to'lovdan keyin panelning Moliya sahifasiga (`/finance`) qaytadi. Bo'sh bo'lsa `APP_URL` ga qaytadi. Buyurtma to'lovidan keyin mijoz Mini App'ga (`TELEGRAM_WEBAPP_URL`) qaytadi |

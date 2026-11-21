@@ -173,7 +173,7 @@ class OwnerFinanceController extends Controller
             ? $providers->clickUrl(
                 PaymentProvider::platformCredential('click', 'service_id'),
                 PaymentProvider::platformCredential('click', 'merchant_id'),
-                (string) $amount->toFloat(),
+                $amount,
                 "topup_{$topupRequest->uuid}",
                 $returnUrl,
             )

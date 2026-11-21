@@ -51,18 +51,19 @@ return [
         ],
     ],
 
-    // Platform-level merchant credentials. Secrets deliberately have no default: webhooks fail closed when unset.
+    // Platform-level merchant credentials. No defaults at all: secrets so the webhooks fail closed when unset, ids so a
+    // server without them never sends customers to a sample Click service / Payme cashbox (go-live review)
     'click' => [
         'secret_key' => env('CLICK_SECRET_KEY'),
-        'service_id' => env('CLICK_SERVICE_ID', '32104'),
-        'merchant_id' => env('CLICK_MERCHANT_ID', '24185'),
+        'service_id' => env('CLICK_SERVICE_ID'),
+        'merchant_id' => env('CLICK_MERCHANT_ID'),
         // P3-14: Merchant API user (Click cabinet) for sending fiscal receipt items; unset = no Click fiscal data
         'merchant_user_id' => env('CLICK_MERCHANT_USER_ID'),
     ],
 
     'payme' => [
         'secret_key' => env('PAYME_SECRET_KEY'),
-        'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
+        'merchant_id' => env('PAYME_MERCHANT_ID'),
     ],
 
     // Review S#7: Tizim → To'lov tizimlari may put a platform provider in `test` (Payme's sandbox checkout) on

@@ -20,6 +20,12 @@ use App\Services\Payment\Fiscal\OnlineFiscalReceipt;
 use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
 use App\Services\Payment\Fiscal\PaymeReceiptDetail;
+use App\Services\Payment\PaymeRpcMessage;
+use App\Domain\Pos\QrPayments\Providers\StoreMerchant;
+use App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook;
+use App\Models\PosQrPayment;
+use App\Models\Store;
+use Brick\Math\BigDecimal;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +47,12 @@ class PaymeWebhookController extends Controller
      */
     public function handle(Request $request): JsonResponse
     {
+        // "Общие ошибки": a body that is not JSON is -32700 (Laravel would read it as an empty request)
+        $raw = (string) $request->getContent();
+        if (trim($raw) !== '' && !is_array(json_decode($raw, true))) {
+            return $this->rpcError(null, -32700, 'Parse error');
+        }
+
         $payload = $request->all();
         Log::info("Payme Webhook Received", $payload);
 
@@ -54,16 +66,25 @@ class PaymeWebhookController extends Controller
             return app(\App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id);
         }
 
+        // GetStatement names no account: the key says which cashbox asks (the platform's, or a restaurant's own)
+        if ($method === 'GetStatement') {
+            $cashbox = $this->statementCashbox($request);
+            if ($cashbox === false) {
+                return $this->rpcError($id, -32504, 'Insufficient privileges');
+            }
+
+            try {
+                return $this->getStatement($params, $id, $cashbox);
+            } catch (\Throwable $e) {
+                Log::error('Payme Webhook Exception: ' . $e->getMessage());
+
+                return $this->rpcError($id, -32400, 'System error');
+            }
+        }
+
         // 1. Basic Auth check for Payme (merchant key validation)
         if (!$this->authorizePayme($request, $params)) {
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'error' => [
-                    'code' => -32504,
-                    'message' => 'Unauthorized merchant key'
-                ]
-            ]);
+            return $this->rpcError($id, -32504, 'Insufficient privileges');
         }
 
         try {
@@ -78,30 +99,17 @@ class PaymeWebhookController extends Controller
                     return $this->cancelTransaction($params, $id);
                 case 'CheckTransaction':
                     return $this->checkTransaction($params, $id);
-                case 'GetStatement':
-                    return $this->getStatement($params, $id);
                 case 'SetFiscalData':
                     return $this->setFiscalData($params, $id);
                 default:
-                    return response()->json([
-                        'jsonrpc' => '2.0',
-                        'id' => $id,
-                        'error' => [
-                            'code' => -32601,
-                            'message' => 'Method not found'
-                        ]
-                    ]);
+                    // "Общие ошибки": the requested method's name goes in `data`
+                    return $this->rpcError($id, -32601, 'Method not found', is_scalar($method) ? (string) $method : null);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            // -32400: a system failure (database, undefined behaviour). The transaction rolled back: nothing was recorded
             Log::error("Payme Webhook Exception: " . $e->getMessage());
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'error' => [
-                    'code' => -31008,
-                    'message' => 'Internal server error'
-                ]
-            ]);
+
+            return $this->rpcError($id, -32400, 'System error');
         }
     }
 
@@ -110,19 +118,8 @@ class PaymeWebhookController extends Controller
      */
     protected function authorizePayme(Request $request, array $params): bool
     {
-        $header = (string) $request->header('Authorization');
-        if (!str_starts_with($header, 'Basic ')) {
-            return false;
-        }
-
-        $credentials = base64_decode(substr($header, 6), true);
-        if ($credentials === false) {
-            return false;
-        }
-
-        // Payme sends basic auth as 'Paycom:secret_key'
-        $parts = explode(':', $credentials, 2);
-        if (count($parts) < 2 || $parts[0] !== 'Paycom') {
+        $presented = $this->presentedKey($request);
+        if ($presented === null) {
             return false;
         }
 
@@ -132,7 +129,58 @@ class PaymeWebhookController extends Controller
             return false;
         }
 
-        return hash_equals($expectedKey, trim($parts[1]));
+        return hash_equals($expectedKey, $presented);
+    }
+
+    /**
+     * The key of HTTP Basic `Paycom:<key>`, or null.
+     */
+    protected function presentedKey(Request $request): ?string
+    {
+        $header = (string) $request->header('Authorization');
+        if (!str_starts_with($header, 'Basic ')) {
+            return null;
+        }
+
+        $credentials = base64_decode(substr($header, 6), true);
+        if ($credentials === false) {
+            return null;
+        }
+
+        // Payme sends basic auth as 'Paycom:secret_key'
+        $parts = explode(':', $credentials, 2);
+        if (count($parts) < 2 || $parts[0] !== 'Paycom' || trim($parts[1]) === '') {
+            return null;
+        }
+
+        return trim($parts[1]);
+    }
+
+    /**
+     * Which cashbox a GetStatement comes from: null for the platform's key, the store whose own Payme key it is, or
+     * false for no known key. The platform key wins; a store key is looked up among stores that saved one.
+     */
+    protected function statementCashbox(Request $request): Store|false|null
+    {
+        $presented = $this->presentedKey($request);
+        if ($presented === null) {
+            return false;
+        }
+
+        $platformKey = OrderMerchantAccount::secretKey('payme', null);
+        if ($platformKey !== null && hash_equals($platformKey, $presented)) {
+            return null;
+        }
+
+        $stores = Store::query()->whereNotNull('payment_settings->payme->secret_key')->get();
+        foreach ($stores as $store) {
+            $key = StoreMerchant::credential($store, 'payme', 'secret_key');
+            if ($key !== null && hash_equals($key, $presented)) {
+                return $store;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -454,7 +502,7 @@ class PaymeWebhookController extends Controller
     /**
      * Transactions Payme created within [from, to] (ms), for reconciliation.
      */
-    protected function getStatement(array $params, $id): JsonResponse
+    protected function getStatement(array $params, $id, ?Store $cashbox = null): JsonResponse
     {
         $from = $params['from'] ?? null;
         $to = $params['to'] ?? null;
@@ -470,10 +518,10 @@ class PaymeWebhookController extends Controller
                 "(CASE WHEN payload->>'time' ~ '^[0-9]+$' THEN CAST(payload->>'time' AS BIGINT) END) BETWEEN ? AND ?",
                 [(int) $from, (int) $to]
             )
+            ->when($cashbox !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->where('store_id', $cashbox->id)))
             ->get()
-            // A statement request names no account, so it is the platform cashbox asking: leave out stores' own cashboxes.
-            ->filter(fn (Payment $payment) => !OrderMerchantAccount::isStore($payment->order))
-            ->sortBy(fn (Payment $payment) => $this->createTime($payment))
+            // The platform cashbox: the platform-collected orders and top-ups; a store's: its STORE-owned orders
+            ->filter(fn (Payment $payment) => $cashbox === null ? !OrderMerchantAccount::isStore($payment->order) : OrderMerchantAccount::isStore($payment->order))
             ->values()
             ->map(fn (Payment $payment) => [
                 'id' => $payment->provider_transaction_id,
@@ -489,8 +537,25 @@ class PaymeWebhookController extends Controller
                 'receivers' => null,
             ]);
 
+        // A store's own cashbox also takes the till's QR payments (P6-41)
+        if ($cashbox !== null) {
+            $qrWebhook = app(PaymePosQrWebhook::class);
+            $transactions = $transactions->concat(PosQrPayment::query()
+                ->where('store_id', $cashbox->id)
+                ->where('provider', \App\Domain\Pos\QrPayments\QrProvider::PAYME->value)
+                ->where('driver', 'payme')
+                ->whereNotNull('provider_transaction_id')
+                ->whereRaw(
+                    "(CASE WHEN provider_payload->'payme'->>'time' ~ '^[0-9]+$' THEN CAST(provider_payload->'payme'->>'time' AS BIGINT) END) BETWEEN ? AND ?",
+                    [(int) $from, (int) $to]
+                )
+                ->get()
+                ->map(fn (PosQrPayment $qr) => $qrWebhook->statementRow($qr)));
+        }
+
+        // "по возрастанию даты создания"
         return $this->result($id, [
-            'transactions' => $transactions,
+            'transactions' => $transactions->sortBy('time')->values(),
         ]);
     }
 
@@ -628,8 +693,8 @@ class PaymeWebhookController extends Controller
             return [-31050, 'Order not found', 'order_id'];
         }
 
-        // Payme sends tiyin (UZS * 100)
-        if (!is_numeric($amount) || !Money::fromTiyin($amount)->equals($expectedAmount)) {
+        // Payme sends whole tiyin (UZS * 100): a fraction would be rounded into a match
+        if (!is_numeric($amount) || BigDecimal::of((string) $amount)->hasNonZeroFractionalPart() || !Money::fromTiyin($amount)->equals($expectedAmount)) {
             return [-31001, 'Incorrect amount'];
         }
 
@@ -777,9 +842,10 @@ class PaymeWebhookController extends Controller
      */
     protected function rpcError($id, int $code, string $message, ?string $data = null): JsonResponse
     {
+        // The payer sees `message` in their language; SetFiscalData's parameter errors (-32602, -32001) stay plain text
         $error = [
             'code' => $code,
-            'message' => $message
+            'message' => in_array($code, [-32602, -32001], true) ? $message : PaymeRpcMessage::of($message),
         ];
 
         // Account errors name the offending account field

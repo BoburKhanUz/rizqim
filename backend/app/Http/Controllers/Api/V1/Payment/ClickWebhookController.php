@@ -40,6 +40,19 @@ class ClickWebhookController extends Controller
 
         Log::info("Click Webhook Received", $request->all());
 
+        // SHOP API errors: -8 "Error in request from click" when a required parameter is absent (Complete also needs
+        // merchant_prepare_id). An empty value is still checked as usual (an empty sign_string is a -1).
+        $required = ['click_trans_id', 'service_id', 'merchant_trans_id', 'amount', 'action', 'sign_time', 'sign_string'];
+        if ($action === '1') {
+            $required[] = 'merchant_prepare_id';
+        }
+        if (!$request->exists($required)) {
+            return response()->json([
+                'error' => -8,
+                'error_note' => 'Error in request from click'
+            ]);
+        }
+
         // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`) confirms a bill, never an order: the store's own key, no
         // Click fiscal submission (Rizqim issues the receipt)
         if (\App\Models\PosQrPayment::isAccount($merchantTransId)) {

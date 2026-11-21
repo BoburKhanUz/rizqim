@@ -399,7 +399,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | POS: bron va nasiya (P3-17) | `/pos/bookings` (+ `calendar`, `{uuid}/confirm`, `/cancel`, `/no-show`, `/arrive`, `/items`, `/deposits`, `.../refund`, `.../retain`), `/pos/customer-accounts` (+ `debtors`, `{uuid}/statement`, `/repayments`, `/adjustments`) | bron taqvimi va to'qnashuv, oldindan buyurtma, avans (bo'nak cheki), "Keldi", nasiya hisoblari va qarz to'lovi (kredit cheki) ("Bron, avans va nasiya (P3-17)" bo'limi) |
 | POS: schyot, to'lov va smena (P3-18) | `/pos/orders/{uuid}/bills`, `/pos/bills/{uuid}/print`, `/pos/bills/{uuid}/payments`, `/pos/bills/{uuid}/fiscal-retry`, `POST /pos/orders/{uuid}/close`, `POST /pos/refunds`, `/pos/shifts` (+ `current`, `{uuid}`, `/x-report`, `/cash-movements`, `/close`), `POST /pos/approvals` | schyot va bo'lish, aralash to'lov, sotuv cheki, smena ichida qaytarish, smena, X va Z, menejer PIN tasdig'i ("Schyot, to'lov va smena (P3-18)" bo'limi) |
 | Feature flag'lar | `GET /features` | do'kon bo'yicha yoqilgan imkoniyatlar |
-| Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan |
+| Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan. Payme xatosida `message` — `{uz, ru, en}` obyekti (SetFiscalData xatolari bundan mustasno), tizim xatosi `-32400`, JSON emas `-32700`, noma'lum metod `-32601` (`data` = metod nomi); Click'da majburiy maydon yo'q bo'lsa `-8`. Ishga tushirish: [PAYMENTS_GO_LIVE.md](PAYMENTS_GO_LIVE.md) |
 | Xizmat | `GET /health` (va `/api/v1/health`), `POST /api/broadcasting/auth` | monitoring, real-time obuna |
 
 ### 9.1. Xodim buyurtmalari va oshxona ekrani (P2-11)

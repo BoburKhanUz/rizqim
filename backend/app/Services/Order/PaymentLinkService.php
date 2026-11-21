@@ -5,6 +5,7 @@ namespace App\Services\Order;
 use App\Models\Order;
 use App\Models\PaymentProvider;
 use App\Services\Payment\PaymentProviderSwitch;
+use App\Support\Money;
 
 class PaymentLinkService
 {
@@ -22,7 +23,8 @@ class PaymentLinkService
             return null;
         }
 
-        $amount = (float) $order->total_price;
+        // Exact decimal money (brick/math), never a float
+        $amount = Money::of($order->total_price);
         // P4-32: back to the Mini App (it used to be the old store panel, /admin)
         $returnUrl = PaymentProviderSwitch::orderReturnUrl();
 
@@ -42,7 +44,7 @@ class PaymentLinkService
             $serviceId = $useStore ? $clickConfig['service_id'] : PaymentProvider::platformCredential('click', 'service_id');
             $merchantId = $useStore ? $clickConfig['merchant_id'] : PaymentProvider::platformCredential('click', 'merchant_id');
 
-            return $this->providers->clickUrl($serviceId, $merchantId, (string) $amount, (string) $order->uuid, $returnUrl);
+            return $this->providers->clickUrl($serviceId, $merchantId, $amount, (string) $order->uuid, $returnUrl);
         }
 
         $paymeConfig = is_array($settings['payme'] ?? null) ? $settings['payme'] : [];
@@ -52,7 +54,7 @@ class PaymentLinkService
 
         $merchantId = $useStore ? $paymeConfig['merchant_id'] : PaymentProvider::platformCredential('payme', 'merchant_id');
         // Payme expects amount in tiyin (1 UZS = 100 tiyin); P4-32: the platform account's mode picks the sandbox host
-        $tiyinAmount = (int) round($amount * 100);
+        $tiyinAmount = $amount->toTiyin();
 
         return $this->providers->paymeUrl($merchantId, $tiyinAmount, (string) $order->uuid, $returnUrl, !$useStore);
     }

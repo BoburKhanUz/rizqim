@@ -10,6 +10,7 @@ use App\Domain\Pos\QrPayments\QrRefunds;
 use App\Models\PaymentProvider;
 use App\Models\PosQrPayment;
 use App\Models\Store;
+use App\Services\Payment\PaymeRpcMessage;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,7 +63,7 @@ final class PaymePosQrWebhook
     {
         $qr = $this->target($params);
         if (!$this->authorized($request, $qr)) {
-            return $this->error($id, -32504, 'Unauthorized merchant key');
+            return $this->error($id, -32504, 'Insufficient privileges');
         }
 
         try {
@@ -73,12 +74,12 @@ final class PaymePosQrWebhook
                 'CancelTransaction' => $this->cancel($qr, $params, $id),
                 'CheckTransaction' => $qr !== null && $qr->provider_transaction_id !== null ? $this->result($id, $this->state($qr)) : $this->error($id, -31003, 'Transaction not found'),
                 'SetFiscalData' => $this->setFiscalData($qr, $id),
-                default => $this->error($id, -32601, 'Method not found'),
+                default => $this->error($id, -32601, 'Method not found', $method),
             };
         } catch (\Throwable $e) {
             Log::error('Payme POS QR webhook exception: ' . $e->getMessage(), ['qr' => $qr?->uuid]);
 
-            return $this->error($id, -31008, 'Internal server error');
+            return $this->error($id, -32400, 'System error');
         }
     }
 
@@ -240,6 +241,25 @@ final class PaymePosQrWebhook
     }
 
     /**
+     * One GetStatement transaction of the store's own cashbox (PaymeWebhookController::getStatement).
+     *
+     * @return array<string, mixed>
+     */
+    public function statementRow(PosQrPayment $qr): array
+    {
+        $state = $this->state($qr);
+
+        return [
+            'id' => (string) $qr->provider_transaction_id,
+            'time' => $state['create_time'],
+            'amount' => Money::of($qr->amount)->toTiyin(),
+            'account' => ['order_id' => $qr->account()],
+            ...$state,
+            'receivers' => null,
+        ];
+    }
+
+    /**
      * @return array{perform_time: int, transaction: string, state: int}
      */
     private function performed(PosQrPayment $qr): array
@@ -316,7 +336,9 @@ final class PaymePosQrWebhook
 
     private function error(mixed $id, int $code, string $message, ?string $data = null): JsonResponse
     {
-        $error = ['code' => $code, 'message' => $message];
+        // The payer sees `message` in their language (Payme "Формат ответа": a localized object); SetFiscalData's
+        // -32001 stays plain text, as PaymeWebhookController's
+        $error = ['code' => $code, 'message' => $code === -32001 ? $message : PaymeRpcMessage::of($message)];
         if ($data !== null) {
             $error['data'] = $data;
         }
