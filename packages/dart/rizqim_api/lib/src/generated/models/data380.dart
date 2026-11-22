@@ -8,13 +8,24 @@ part 'data380.g.dart';
 
 @JsonSerializable()
 class Data380 {
-  const Data380({required this.key, required this.kid});
+  const Data380({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.staffCode,
+    required this.photoUrl,
+  });
 
   factory Data380.fromJson(Map<String, Object?> json) =>
       _$Data380FromJson(json);
 
-  final String key;
-  final int kid;
+  final int id;
+  final String name;
+  final String role;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'photo_url')
+  final String? photoUrl;
 
   Map<String, Object?> toJson() => _$Data380ToJson(this);
 }

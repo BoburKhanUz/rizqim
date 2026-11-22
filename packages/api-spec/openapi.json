@@ -58913,7 +58913,7 @@
         "/v1/owner/fiscal/uzqr/tills/{uuid}": {
             "put": {
                 "operationId": "uzQrSettings.updateTill",
-                "description": "`api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512\nprintable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is\nkept. `remove_api_key: true` clears it (the till then offers the other methods). Never returned: the answer has\n`has_api_key` and `api_key_last4`. Audited. settings.manage on the till's branch; a till of another store or a\nrevoked one: 404.",
+                "description": "`api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512\nprintable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is\nkept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe\nits key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it\nafter a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.\nsettings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.",
                 "summary": "Set a till's UzQR API key",
                 "tags": [
                     "Owner: fiscal"
@@ -68705,6 +68705,142 @@
                                                 "settings",
                                                 "merchants",
                                                 "options"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/pos/qr-payments/unmatched": {
+            "get": {
+                "operationId": "qrPaymentSettings.unmatched",
+                "description": "Wave P (review 11): the QR payments the provider took that no bill took (`paid_unmatched`: paid after the cashier\ncancelled it or after a newer QR, of another amount, after the bill was paid another way or the shift closed),\nnewest first, at most 200, and their `total`. The owner is also told of each one when it happens (Telegram /\npush). Give the money back from the provider's own cabinet (uzqr.uz, Click, Payme) or count it in the\nreconciliation. `branch_id` narrows to one branch (a branch-bound caller: theirs). finance.view.",
+                "summary": "QR money no bill took",
+                "tags": [
+                    "Owner: QR payments"
+                ],
+                "parameters": [
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "description": "Filial.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "bill_uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "order_uuid": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "branch_id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "transaction_id": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "unmatched_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "bill_uuid",
+                                                            "order_uuid",
+                                                            "branch_id",
+                                                            "provider",
+                                                            "provider_label",
+                                                            "amount",
+                                                            "transaction_id",
+                                                            "reason",
+                                                            "status",
+                                                            "created_at",
+                                                            "unmatched_at"
+                                                        ]
+                                                    }
+                                                },
+                                                "total": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "items",
+                                                "total"
                                             ]
                                         }
                                     },
@@ -175123,19 +175259,6 @@
                     "sync_key_id": {
                         "type": "integer"
                     },
-                    "uzqr_api_key_last4": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "uzqr_api_key_set_at": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
-                        "format": "date-time"
-                    },
                     "user": {
                         "anyOf": [
                             {
@@ -175199,9 +175322,7 @@
                     "display_for_device_id",
                     "app",
                     "app_outdated_notified_release_id",
-                    "sync_key_id",
-                    "uzqr_api_key_last4",
-                    "uzqr_api_key_set_at"
+                    "sync_key_id"
                 ],
                 "title": "Device"
             },

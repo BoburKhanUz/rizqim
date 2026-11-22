@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidCoursesCourseSendResponseFromJson(
 ) => PostV1PosOrdersUuidCoursesCourseSendResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data312.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data313.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidCoursesCourseSendResponseToJson(

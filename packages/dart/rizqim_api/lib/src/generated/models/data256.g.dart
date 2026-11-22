@@ -7,13 +7,13 @@ part of 'data256.dart';
 // **************************************************************************
 
 Data256 _$Data256FromJson(Map<String, dynamic> json) => Data256(
-  requestId: json['request_id'] as String,
-  printerId: (json['printer_id'] as num?)?.toInt(),
-  targetDevice: json['target_device'] as String?,
+  bill: Bill5.fromJson(json['bill'] as Map<String, dynamic>),
+  copy: json['copy'] as bool,
+  order: Order8.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data256ToJson(Data256 instance) => <String, dynamic>{
-  'request_id': instance.requestId,
-  'printer_id': instance.printerId,
-  'target_device': instance.targetDevice,
+  'bill': instance.bill,
+  'copy': instance.copy,
+  'order': instance.order,
 };

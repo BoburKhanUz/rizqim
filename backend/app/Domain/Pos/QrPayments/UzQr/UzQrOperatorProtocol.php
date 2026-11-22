@@ -61,7 +61,7 @@ final class UzQrOperatorProtocol
     /**
      * @return array<string, string>
      */
-    public static function headers(string $apiKey): array
+    public static function headers(#[\SensitiveParameter] string $apiKey): array
     {
         return [self::AUTH_HEADER => $apiKey];
     }

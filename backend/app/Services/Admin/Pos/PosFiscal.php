@@ -136,10 +136,7 @@ class PosFiscal
             'original_receipt_uuid' => $receipt->originalReceipt?->uuid,
             'sold_at' => $receipt->sold_at?->toIso8601String(),
             'lines' => $receipt->lines ?? [],
-            'payments' => FiscalSnapshot::payments(array_map(
-                fn (array $row) => FiscalSnapshot::payment($row),
-                array_values(array_filter((array) ($receipt->payments ?? []), 'is_array')),
-            )),
+            'payments' => FiscalSnapshot::paymentsView($receipt->payments),
         ];
     }
 

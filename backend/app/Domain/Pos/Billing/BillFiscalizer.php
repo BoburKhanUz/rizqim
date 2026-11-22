@@ -407,6 +407,8 @@ final class BillFiscalizer
             cardType: $text('card_type', 32),
             transactionId: $text('rrn', 128) ?? $text('pay_id', 128),
             cardLast4: $last4 !== null && preg_match('/^\d{4}$/', $last4) === 1 ? $last4 : null,
+            // Review 11 M3: card money that never went through the bank terminal (BankTerminalReconciler leaves it out)
+            channel: \App\Domain\Pos\QrPayments\QrProvider::UZQR->value,
         );
     }
 

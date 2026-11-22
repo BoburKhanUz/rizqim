@@ -12,7 +12,7 @@ _$DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponseFromJson(
 ) => DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data239.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data240.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic>

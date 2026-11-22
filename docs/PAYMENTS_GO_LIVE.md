@@ -395,7 +395,12 @@ havolasi UzQR'ga yuboriladi. Tadqiqot: `docs/research/reports/UzQR integratsiyas
 4. Kalitni **o'zi** Rizqim panelida kiritadi (12.2). Kalitni **chatga, Telegram'ga, xatga, skrinshotga yozmaydi va
    bizga yubormaydi** — jamoa kalitni hech qachon so'ramaydi.
 5. Kalit yo'qolsa yoki kimdir ko'rgan bo'lsa: uzqr.uz da eski API'ni **o'chiradi**, yangisini yaratadi va Rizqim'da
-   almashtiradi.
+   almashtiradi. Rizqim'da har QR **o'zini yaratgan kalitni** saqlaydi (shifrlangan): kalit almashtirilgach ham eski
+   QR'ning holati, bekor qilinishi, qaytarishlari va chek havolasi eski kalit bilan so'raladi. Shuning uchun kalit
+   oshkor bo'lmagan bo'lsa (kassa almashtirildi, qayta sozlandi), eski API'ni uzqr.uz da **o'chirishdan oldin** shu
+   kassaning ochiq QR'lari va qaytarishlari tugashini kuting (odatda QR muddati + 10 daqiqa; ochiq qaytarish bo'lsa
+   u tugaguncha). Oshkor bo'lgan bo'lsa darhol o'chiring: o'sha kassaning eski to'lovlarini qaytarish keyin uzqr.uz
+   kabinetidan qilinadi.
 6. Dinamik QR bloklansa yangi to'lov QR'lari yaratilmaydi (kassa boshqa usullarni taklif qiladi).
 
 ### 12.2. Rizqim'da nima kiritiladi (egasi, panel)
@@ -406,6 +411,9 @@ havolasi UzQR'ga yuboriladi. Tadqiqot: `docs/research/reports/UzQR integratsiyas
    «Kalitni saqlash». Kalit shifrlangan holda saqlanadi va **qayta ko'rsatilmaydi** (faqat oxirgi 4 belgisi). Kalitsiz
    kassa UzQR'ni taklif qilmaydi, naqd/karta/Click/Payme ishlayveradi.
 3. Faqat `settings.manage` ruxsati bor (egasi) kiritadi; har o'zgarish auditda (`devices.uzqr_key_changed`, kalitsiz).
+4. Kalitni istalgan vaqtda o'chirish mumkin (`remove_api_key`), **o'chirilgan (revoked) kassada ham** — ochiq QR'lar
+   o'z nusxasi bilan tugaydi. To'lanmay yopilgan QR'ning kalit nusxasi u yakunlangach, to'liq qaytarilgan QR'niki
+   qaytarishdan so'ng o'chiriladi; to'langan QR'niki qaytarish uchun saqlanadi.
 
 ### 12.3. Operatordan nima so'raladi (jamoa; tadqiqot 7A savollari)
 
@@ -421,9 +429,26 @@ havolasi UzQR'ga yuboriladi. Tadqiqot: `docs/research/reports/UzQR integratsiyas
 | `UZQR_OPERATOR_URL` | operator bergan **production** manzili (`https://...`) |
 | `UZQR_OPERATOR_TEST_URL` | sinov konturi manzili |
 | `UZQR_OPERATOR_TEST` | `true` — sinov konturi. **Production**'da (`APP_ENV=production`, `PAYMENTS_ALLOW_TEST_MODE` yo'q) drayver bunda ishlamaydi; `UZQR_OPERATOR_URL` sinov manziliga teng bo'lsa ham ishlamaydi |
+| `UZQR_RECEIPT_HOSTS` | operatorga yuboriladigan chek havolasining xostlari (vergul bilan; standart `ofd.soliq.uz`). Faqat `https://` va shu xostdagi havola yuboriladi, boshqasi `receipt_link: failed` |
 
-Kalitlar env'ga yozilmaydi: ular har kassada, bazada shifrlangan. Ish: `pos:expire-qr-payments` (har daqiqa) — muddati
-o'tgan va yaqinda tugagan UzQR'larni operatordan qayta so'raydi, javobsiz qaytarishlarni tekshiradi.
+Kalitlar env'ga yozilmaydi: ular har kassada, bazada shifrlangan. Operator so'rovlari **redirect'ga ergashmaydi**
+(kalit sarlavhada: boshqa xostga ketmasin) — 3xx javob rad deb olinadi; manzil o'zgarsa env'ni yangilang.
+
+Ish: `pos:expire-qr-payments` (har daqiqa, `withoutOverlapping`) — muddati o'tgan QR'larni yopadi, javobsiz
+qaytarishlarni tekshiradi va **yopilgan, lekin operator hali hal qilmagan UzQR'larni** qayta so'raydi
+(`config/qr_payments.php` → `uzqr.recheck`):
+
+- QR bizda yopilgach (muddati o'tdi, kassir bekor qildi, yangi QR, schyot o'zgardi) operator uni **bekor qilganini
+  tasdiqlamaguncha** (bekor qilish har so'rovda qayta yuboriladi) va QR muddati + `grace_minutes` (10) o'tmaguncha
+  har daqiqa so'raladi. Operator "to'langan" desa: faqat muddati o'tgan QR schyotga yoziladi (vaqt chegarasisiz),
+  boshqasi `paid_unmatched` bo'ladi (12.5a) — pul hech qachon yo'qolmaydi.
+- Operator javob bermasa: 1, 1, 1, 2, 4, 8, 16 daqiqadan keyin, so'ng har 30 daqiqada so'raladi, **hech qachon
+  to'xtamaydi**. QR yopilganidan 60 daqiqa o'tib ham hal bo'lmasa egasiga bir marta xabar boradi.
+- Bir yurishda ko'pi bilan 50 ta QR va 40 soniya (holat so'rovi 2 s ulanish / 5 s javob kutadi), eng kechikkanlari
+  birinchi: qolganlari keyingi daqiqada navbatning boshida.
+
+Sinxron navbatda (`QUEUE_CONNECTION=sync`) chek havolasi so'rovdan **keyin** (javob yuborilgach) jo'natiladi; production'da
+navbat ishchisi bo'lishi kerak.
 
 ### 12.5. Sinov va birinchi to'lov
 
@@ -434,10 +459,23 @@ o'tgan va yaqinda tugagan UzQR'larni operatordan qayta so'raydi, javobsiz qaytar
    kassada 500 so'm qisman qaytarish → qolganini qaytarish → uzqr.uz **Qaytarishlar**ida ikkalasi.
 3. Bankdan **ikki marta chek chiqmasligini** yozma tasdiqlang (tadqiqot, 3-bo'lim).
 
+### 12.5a. To'langan, lekin schyotga yozilmagan pul
+
+Operator "to'langan" degan, lekin schyot ololmagan UzQR (kassir bekor qilgandan keyin to'langan, summa boshqa, schyot
+boshqa usulda to'langan, smena yopilgan) `paid_unmatched` bo'lib qoladi: **egasiga darhol xabar** (Telegram admin
+chati va egalarga push/Telegram, `pos_alerts`) va ro'yxat `GET /owner/pos/qr-payments/unmatched` (`finance.view`).
+Pulni uzqr.uz kabinetidan mijozga qaytaring yoki hisob-kitobda inobatga oling. Click va Payme'dagi shunday holatlar ham
+shu ro'yxatda.
+
+Smart-kassada bank terminali bilan solishtirish (`source: provider`): provayder chekdagi barcha karta to'lovlarini
+sanaydi, UzQR esa chekda karta bo'lsa-da bank terminalidan o'tmagan — Rizqim o'z cheklaridagi UzQR qismlarini (RRN
+bilan) provayder summasidan ayiradi, ikki tomon faqat bank terminali pulini solishtiradi.
+
 ### 12.6. Orqaga qaytish
 
-Fiskal sozlamalarda UzQR drayverini o'chiring (`driver: null`): kassalar UzQR'ni taklif qilmaydi. Kalitlarni
-o'chirmang: to'langan QR'larni so'rash va qaytarish uchun kerak.
+Fiskal sozlamalarda UzQR drayverini o'chiring (`driver: null`): kassalar UzQR'ni taklif qilmaydi. Har QR o'z kalit
+nusxasini saqlaydi: ochiq va to'langan QR'larni so'rash va qaytarish shu nusxa bilan davom etadi. Shunga qaramay
+uzqr.uz dagi API'larni ochiq QR va qaytarishlar tugamaguncha o'chirmang.
 
 ### 12.7. Tekshiruv ro'yxati
 
@@ -449,4 +487,6 @@ o'chirmang: to'langan QR'larni so'rash va qaytarish uchun kerak.
 | 4 | STIR va `uzqr_operator` drayveri fiskal sozlamalarda | Ega | ☐ |
 | 5 | Birinchi 1 000 so'mlik to'lov, qisman va to'liq qaytarish, chek havolasi `sent` | Ega + jamoa | ☐ |
 | 6 | Bankdan "ikki marta chek yo'q" yozma tasdig'i | Ega | ☐ |
+| 7 | Do'kon Telegram admin chati / egasining `pos_alerts` bildirishnomalari yoqilgan (12.5a xabarlari) | Ega | ☐ |
+| 8 | Navbat ishchisi ishlaydi (`QUEUE_CONNECTION` sync emas) va `pos:expire-qr-payments` rejalashtirilgan | Jamoa | ☐ |
 

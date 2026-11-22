@@ -35,10 +35,10 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
       : PickupStatus.fromJson(json['pickup_status'] as String),
   assembly: json['assembly'] == null
       ? null
-      : Assembly3.fromJson(json['assembly'] as Map<String, dynamic>),
+      : Assembly2.fromJson(json['assembly'] as Map<String, dynamic>),
   pickup: json['pickup'] == null
       ? null
-      : Pickup32.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup31.fromJson(json['pickup'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data371ToJson(Data371 instance) => <String, dynamic>{

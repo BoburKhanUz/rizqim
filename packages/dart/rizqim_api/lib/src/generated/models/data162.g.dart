@@ -10,7 +10,7 @@ Data162 _$Data162FromJson(Map<String, dynamic> json) => Data162(
   enforce: json['enforce'] as bool,
   signingTills: (json['signing_tills'] as num).toInt(),
   unsignedTills: (json['unsigned_tills'] as List<dynamic>)
-      .map((e) => UnsignedTills2.fromJson(e as Map<String, dynamic>))
+      .map((e) => UnsignedTills.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

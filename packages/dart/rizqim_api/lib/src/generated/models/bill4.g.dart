@@ -37,7 +37,7 @@ Bill4 _$Bill4FromJson(Map<String, dynamic> json) => Bill4(
   paidAt: json['paid_at'] as String?,
   fiscal: Fiscal27.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items14.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items15.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
       .map((e) => Payments18.fromJson(e as Map<String, dynamic>))

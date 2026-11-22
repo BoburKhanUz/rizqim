@@ -9,7 +9,10 @@ use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
 use App\Enums\Permission;
 use App\Models\Branch;
+use App\Models\Order;
+use App\Models\PosQrPayment;
 use App\Models\Store;
+use App\Support\Money;
 use App\Services\Finance\Billing\Entitlements;
 use Dedoc\Scramble\Attributes\BodyParameter;
 use Dedoc\Scramble\Attributes\Group;
@@ -81,6 +84,56 @@ class QrPaymentSettingsController extends ManagementController
         $settings->update($branch, array_intersect_key($data, array_flip(['providers', 'default_provider', 'expiry_minutes'])), $request->user());
 
         return $this->success($this->view($branch), "QR to'lov sozlamalari saqlandi.");
+    }
+
+    public const UNMATCHED = 'array{uuid: string, bill_uuid: string, order_uuid: string|null, branch_id: int, provider: string, provider_label: string, amount: string, transaction_id: string|null, reason: string|null, status: string, created_at: string|null, unmatched_at: string|null}';
+
+    /**
+     * QR money no bill took
+     *
+     * Wave P (review 11): the QR payments the provider took that no bill took (`paid_unmatched`: paid after the cashier
+     * cancelled it or after a newer QR, of another amount, after the bill was paid another way or the shift closed),
+     * newest first, at most 200, and their `total`. The owner is also told of each one when it happens (Telegram /
+     * push). Give the money back from the provider's own cabinet (uzqr.uz, Click, Payme) or count it in the
+     * reconciliation. `branch_id` narrows to one branch (a branch-bound caller: theirs). finance.view.
+     */
+    #[QueryParameter('branch_id', description: 'Filial.', type: 'int', required: false)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{items: list<' . self::UNMATCHED . '>, total: string}}')]
+    public function unmatched(Request $request): JsonResponse
+    {
+        $request->validate(['branch_id' => 'nullable|integer|min:1|max:999999999999999999']);
+        $store = $this->currentStore($request);
+        $only = $this->branchFilter($request, Permission::FINANCE_VIEW);
+        // Tenancy: the caller's store only (and its branch when bound to one)
+        $rows = PosQrPayment::query()
+            ->where('store_id', $store->id)
+            ->where('cancel_reason', 'paid_unmatched')
+            ->when($only !== null, fn ($query) => $query->where('branch_id', $only?->id))
+            ->orderByDesc('cancelled_at')->orderByDesc('id')
+            ->limit(200)
+            ->get();
+        $orders = Order::where('store_id', $store->id)->whereIn('id', $rows->pluck('order_id')->unique()->all())->pluck('uuid', 'id');
+
+        $items = $rows->map(function (PosQrPayment $qr) use ($orders) {
+            $unmatched = (array) (($qr->provider_payload ?? [])['unmatched'] ?? []);
+
+            return [
+                'uuid' => (string) $qr->uuid,
+                'bill_uuid' => (string) $qr->bill_uuid,
+                'order_uuid' => isset($orders[$qr->order_id]) ? (string) $orders[$qr->order_id] : null,
+                'branch_id' => (int) $qr->branch_id,
+                'provider' => $qr->provider->value,
+                'provider_label' => $qr->provider->label(),
+                'amount' => Money::of($qr->amount)->toString(),
+                'transaction_id' => $qr->provider_transaction_id,
+                'reason' => is_string($unmatched['reason'] ?? null) ? $unmatched['reason'] : null,
+                'status' => $qr->status->value,
+                'created_at' => $qr->created_at?->toIso8601String(),
+                'unmatched_at' => is_string($unmatched['at'] ?? null) ? $unmatched['at'] : null,
+            ];
+        })->values()->all();
+
+        return $this->success(['items' => $items, 'total' => Money::sum(...$rows->pluck('amount')->all())->toString()]);
     }
 
     /**

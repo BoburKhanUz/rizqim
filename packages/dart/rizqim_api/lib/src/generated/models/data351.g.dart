@@ -7,13 +7,25 @@ part of 'data351.dart';
 // **************************************************************************
 
 Data351 _$Data351FromJson(Map<String, dynamic> json) => Data351(
-  errors: (json['errors'] as List<dynamic>)
-      .map((e) => Errors.fromJson(e as Map<String, dynamic>))
+  serverTime: json['server_time'] as String,
+  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
+  clockWarning: json['clock_warning'] as bool,
+  stoppedAt: (json['stopped_at'] as num?)?.toInt(),
+  results: (json['results'] as List<dynamic>)
+      .map((e) => Results2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  meta: Meta3.fromJson(json['meta'] as Map<String, dynamic>),
+  unreadable: (json['unreadable'] as List<dynamic>)
+      .map((e) => Unreadable.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  device: Device21.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data351ToJson(Data351 instance) => <String, dynamic>{
-  'errors': instance.errors,
-  'meta': instance.meta,
+  'server_time': instance.serverTime,
+  'clock_skew_seconds': instance.clockSkewSeconds,
+  'clock_warning': instance.clockWarning,
+  'stopped_at': instance.stoppedAt,
+  'results': instance.results,
+  'unreadable': instance.unreadable,
+  'device': instance.device,
 };

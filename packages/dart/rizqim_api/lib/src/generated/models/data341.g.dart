@@ -7,11 +7,27 @@ part of 'data341.dart';
 // **************************************************************************
 
 Data341 _$Data341FromJson(Map<String, dynamic> json) => Data341(
-  releases: (json['releases'] as List<dynamic>)
-      .map((e) => Releases.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  orderUuid: json['order_uuid'] as String?,
+  billUuid: json['bill_uuid'] as String?,
+  paymentUuid: json['payment_uuid'] as String?,
+  amount: json['amount'] as String,
+  method: json['method'] as String,
+  reason: json['reason'] as String,
+  approvedBy: (json['approved_by'] as num?)?.toInt(),
+  fiscal: Fiscal39.fromJson(json['fiscal'] as Map<String, dynamic>),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data341ToJson(Data341 instance) => <String, dynamic>{
-  'releases': instance.releases,
+  'uuid': instance.uuid,
+  'order_uuid': instance.orderUuid,
+  'bill_uuid': instance.billUuid,
+  'payment_uuid': instance.paymentUuid,
+  'amount': instance.amount,
+  'method': instance.method,
+  'reason': instance.reason,
+  'approved_by': instance.approvedBy,
+  'fiscal': instance.fiscal,
+  'created_at': instance.createdAt,
 };

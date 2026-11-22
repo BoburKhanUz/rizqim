@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data253.dart';
+import 'data254.dart';
 
 part 'post_v1_pos_bills_uuid_fiscal_retry_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosBillsUuidFiscalRetryResponse {
 
   final bool success;
   final String message;
-  final Data253 data;
+  final Data254 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosBillsUuidFiscalRetryResponseToJson(this);

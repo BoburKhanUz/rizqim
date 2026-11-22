@@ -19,7 +19,7 @@ Packages2 _$Packages2FromJson(Map<String, dynamic> json) => Packages2(
   isActive: json['is_active'] as bool,
   sortOrder: (json['sort_order'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items9.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items10.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

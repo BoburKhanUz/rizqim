@@ -201,7 +201,9 @@ class PaylovApi
 
     private function http(): PendingRequest
     {
-        return Http::acceptJson()->asJson()->connectTimeout(self::CONNECT_TIMEOUT)->timeout(self::TIMEOUT);
+        // Review 12: the token request's body (the API password) and the bearer token never follow a redirect (a 307
+        // re-sends the body, to http too): a 3xx is a refusal
+        return Http::acceptJson()->asJson()->withOptions(['allow_redirects' => false])->connectTimeout(self::CONNECT_TIMEOUT)->timeout(self::TIMEOUT);
     }
 
     private function result(Response $response): PaylovResult

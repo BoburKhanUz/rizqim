@@ -4,32 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event9.dart';
-import 'guests2.dart';
-import 'stations9.dart';
-import 'osh5.dart';
-import 'warnings17.dart';
+import 'schedule2.dart';
+import 'entry2.dart';
+import 'fiscal22.dart';
 
 part 'data242.g.dart';
 
 @JsonSerializable()
 class Data242 {
   const Data242({
-    required this.event,
-    required this.guests,
-    required this.stations,
-    required this.osh,
-    required this.warnings,
+    required this.schedule,
+    required this.entry,
+    required this.fiscal,
   });
 
   factory Data242.fromJson(Map<String, Object?> json) =>
       _$Data242FromJson(json);
 
-  final Event9 event;
-  final Guests2 guests;
-  final List<Stations9> stations;
-  final Osh5? osh;
-  final List<Warnings17> warnings;
+  final Schedule2 schedule;
+  final Entry2 entry;
+  final Fiscal22 fiscal;
 
   Map<String, Object?> toJson() => _$Data242ToJson(this);
 }

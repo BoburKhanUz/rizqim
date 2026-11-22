@@ -7,23 +7,23 @@ part of 'data228.dart';
 // **************************************************************************
 
 Data228 _$Data228FromJson(Map<String, dynamic> json) => Data228(
-  branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  events: (json['events'] as List<dynamic>)
-      .map((e) => Events3.fromJson(e as Map<String, dynamic>))
+  persons: (json['persons'] as num).toInt(),
+  personsPerKg: json['persons_per_kg'] as String,
+  oshKg: json['osh_kg'] as String,
+  ingredients: (json['ingredients'] as List<dynamic>)
+      .map((e) => Ingredients4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  dishes: (json['dishes'] as List<dynamic>)
-      .map((e) => Dishes4.fromJson(e as Map<String, dynamic>))
+  kazans: (json['kazans'] as List<dynamic>)
+      .map((e) => Kazans.fromJson(e as Map<String, dynamic>))
       .toList(),
-  osh: Osh4.fromJson(json['osh'] as Map<String, dynamic>),
+  kazanCapacityKg: json['kazan_capacity_kg'] as String,
 );
 
 Map<String, dynamic> _$Data228ToJson(Data228 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'events': instance.events,
-  'dishes': instance.dishes,
-  'osh': instance.osh,
+  'persons': instance.persons,
+  'persons_per_kg': instance.personsPerKg,
+  'osh_kg': instance.oshKg,
+  'ingredients': instance.ingredients,
+  'kazans': instance.kazans,
+  'kazan_capacity_kg': instance.kazanCapacityKg,
 };

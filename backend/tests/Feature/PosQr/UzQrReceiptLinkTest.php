@@ -131,4 +131,22 @@ class UzQrReceiptLinkTest extends TestCase
         Http::assertNothingSent();
         $this->assertSame('sent', $qr->refresh()->provider_payload['receipt_link']['status'] ?? 'sent');
     }
+
+    /**
+     * Review 11 LOW: on a sync queue (no worker) the job ran inside the request that fiscalised the bill, holding the
+     * cashier's answer for up to the operator's timeout. Inside a request it now runs after the answer was sent.
+     */
+    public function test_on_a_sync_queue_inside_a_request_the_link_is_sent_after_the_answer(): void
+    {
+        $qr = $this->paid();
+        $this->fakeOperator([Api::PATH_RECEIPT => ['success' => true]]);
+        $receipt = $this->issued($qr);
+
+        \App\Domain\Pos\QrPayments\UzQr\SendUzQrReceiptLink::send((int) $qr->id, (int) $receipt->id, inRequest: true);
+        $this->assertSame(0, $this->countSent(Api::PATH_RECEIPT));
+
+        $this->app->terminate();
+        $this->assertSame(1, $this->countSent(Api::PATH_RECEIPT));
+        $this->assertSame('sent', $qr->refresh()->provider_payload['receipt_link']['status']);
+    }
 }

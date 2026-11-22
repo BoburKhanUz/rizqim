@@ -23,5 +23,8 @@ final readonly class FiscalPayment
         public ?string $transactionId = null,
         // P6-16: the card's last four digits as the bank terminal's slip shows them (optional; never the full number)
         public ?string $cardLast4 = null,
+        // Review 11 M3: how the card money came in when not through the bank terminal (`uzqr`: the UzQR operator) —
+        // Rizqim's own mark, never sent to a provider; the bank-terminal comparison leaves these out
+        public ?string $channel = null,
     ) {}
 }

@@ -60,7 +60,7 @@ class PosQrPaymentsServiceProvider extends ServiceProvider
                     ->whereIn('status', [QrPaymentStatus::PAID->value, QrPaymentStatus::REFUNDED->value])
                     ->whereNotNull('payment_id')
                     ->pluck('id')
-                    ->each(fn (int $id) => SendUzQrReceiptLink::dispatch($id, (int) $receipt->id));
+                    ->each(fn (int $id) => SendUzQrReceiptLink::send($id, (int) $receipt->id));
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('UzQR receipt link not queued: ' . $e->getMessage(), ['receipt' => $event->uuid]);
             }

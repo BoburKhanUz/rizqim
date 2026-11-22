@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data161.dart';
+import 'data162.dart';
 
 part 'get_v1_owner_pos_sync_signing_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1OwnerPosSyncSigningResponse {
 
   final bool success;
   final String message;
-  final Data161 data;
+  final Data162 data;
 
   Map<String, Object?> toJson() =>
       _$GetV1OwnerPosSyncSigningResponseToJson(this);

@@ -11,7 +11,7 @@ GetV1PosBanquetsCalendarResponse _$GetV1PosBanquetsCalendarResponseFromJson(
 ) => GetV1PosBanquetsCalendarResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data225.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data226.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBanquetsCalendarResponseToJson(

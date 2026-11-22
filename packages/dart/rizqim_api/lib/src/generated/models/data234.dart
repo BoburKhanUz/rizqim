@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings14.dart';
+import 'warnings13.dart';
 
 part 'data234.g.dart';
 
@@ -26,7 +26,7 @@ class Data234 {
   final String text;
   final List<String> lines;
   final Map<String, String> fields;
-  final List<Warnings14> warnings;
+  final List<Warnings13> warnings;
 
   Map<String, Object?> toJson() => _$Data234ToJson(this);
 }

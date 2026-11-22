@@ -8,12 +8,14 @@ part of 'data182.dart';
 
 Data182 _$Data182FromJson(Map<String, dynamic> json) => Data182(
   productId: (json['product_id'] as num).toInt(),
+  channels: json['channels'] as List<dynamic>,
   prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data182ToJson(Data182 instance) => <String, dynamic>{
   'product_id': instance.productId,
+  'channels': instance.channels,
   'prices': instance.prices,
 };

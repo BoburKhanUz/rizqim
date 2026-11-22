@@ -22,11 +22,20 @@ use Illuminate\Support\Facades\Log;
  * The connection address: qr_payments.uzqr.operator.url (production) or .test_url while .test is on. The test
  * contour is used only where test payments are allowed (PaymentProviders::testModeAllowed, as the QR sandboxes); on
  * production a test flag, a production URL equal to the test one, or a non-https URL leaves the driver unconfigured.
- * Timeouts as SetRetail10's defaults (3 s connect, 20 s answer). No retry inside a call: the till's poll, the minute
- * job and the receipt-link job ask again. Nothing it logs or throws holds the key or a request body.
+ * Timeouts as SetRetail10's defaults (3 s connect, 20 s answer) for what changes money (create, refund, the receipt
+ * link); the asks that are repeated anyway (status, cancel, refund status) wait less (qr_payments.uzqr.operator.
+ * poll_timeout), so one minute-job run is never held by a slow operator. No retry inside a call: the till's poll,
+ * the minute job and the receipt-link job ask again. Nothing it logs or throws holds the key or a request body.
+ *
+ * Review 12: a redirect is never followed (the key travels in a header of its own, which Guzzle re-sends to any host;
+ * a 307/308 re-sends the body): a 3xx is a refusal. Review 11 M2: every call about a request uses the key that created
+ * it (pos_qr_payments.uzqr_api_key, stamped at create), whatever the till's key is now.
  */
 final class UzQrOperatorGateway implements UzQrGateway
 {
+    /** The calls that are asked again anyway: the short timeouts. */
+    private const POLLS = ['status', 'cancel', 'refund_status'];
+
     public function __construct(private readonly UzQrTillKeys $keys) {}
 
     public function readyFor(?Device $device, Store $store): ?string
@@ -50,11 +59,14 @@ final class UzQrOperatorGateway implements UzQrGateway
 
     public function createDynamicQr(Money $amount, PosQrPayment $qr, Store $store): UzQrDynamicQr
     {
-        [$key, $tin] = $this->credentials($qr, $store);
+        [$key, $tin] = $this->credentials($qr, $store, true);
         $answer = $this->call('create', UzQrOperatorProtocol::PATH_CREATE, UzQrOperatorProtocol::create($amount, $qr, $tin), $key, $qr);
-
-        return UzQrOperatorProtocol::created($answer)
+        $created = UzQrOperatorProtocol::created($answer)
             ?? throw $this->failure('create', 'bad_answer', 'the answer has no invoice id or QR', false, $qr);
+        // M2: the request keeps the key its invoice was made with (saved with it, encrypted)
+        $qr->uzqr_api_key = $key;
+
+        return $created;
     }
 
     public function status(PosQrPayment $qr, Store $store): array
@@ -142,15 +154,20 @@ final class UzQrOperatorGateway implements UzQrGateway
     }
 
     /**
-     * The key of the till that made the request and the store's STIR.
+     * The key the request was made with (else, for one made before it was kept, or at create: the till's current
+     * key) and the store's STIR.
      *
      * @return array{0: string, 1: string}
      */
-    private function credentials(PosQrPayment $qr, Store $store): array
+    private function credentials(PosQrPayment $qr, Store $store, bool $creating = false): array
     {
-        // Tenancy: the till must be the request's store's (the request carries its device id)
-        $device = $qr->device_id !== null ? Device::where('store_id', $store->id)->whereKey($qr->device_id)->first() : null;
-        $key = $device !== null ? $this->keys->key($device) : null;
+        $own = $creating ? null : $qr->uzqr_api_key;
+        $key = is_string($own) && $own !== '' ? $own : null;
+        if ($key === null && $qr->device_id !== null) {
+            // Tenancy: the till must be the request's store's (the request carries its device id)
+            $device = Device::where('store_id', $store->id)->whereKey($qr->device_id)->first();
+            $key = $device !== null ? $this->keys->key($device) : null;
+        }
         $tin = $this->keys->tin($store);
         if ($key === null || $tin === null) {
             throw $this->failure('credentials', $key === null ? 'till_key_missing' : 'tin_missing', 'the till has no UzQR key or the store no STIR', false, $qr);
@@ -165,18 +182,24 @@ final class UzQrOperatorGateway implements UzQrGateway
      * @param  array<string, mixed>  $body
      * @return array<string, mixed>
      */
-    private function call(string $operation, string $path, array $body, string $key, PosQrPayment $qr): array
+    private function call(string $operation, string $path, array $body, #[\SensitiveParameter] string $key, PosQrPayment $qr): array
     {
         $base = self::baseUrl() ?? throw $this->failure($operation, 'not_configured', 'the operator address is not configured', false, $qr);
+        $poll = in_array($operation, self::POLLS, true);
         try {
             $response = Http::withHeaders(UzQrOperatorProtocol::headers($key))
+                ->withOptions(['allow_redirects' => false])
                 ->acceptJson()
                 ->asJson()
-                ->connectTimeout((int) config('qr_payments.uzqr.operator.connect_timeout', 3))
-                ->timeout((int) config('qr_payments.uzqr.operator.timeout', 20))
+                ->connectTimeout((int) config($poll ? 'qr_payments.uzqr.operator.poll_connect_timeout' : 'qr_payments.uzqr.operator.connect_timeout', 3))
+                ->timeout((int) config($poll ? 'qr_payments.uzqr.operator.poll_timeout' : 'qr_payments.uzqr.operator.timeout', 20))
                 ->post($base . $path, $body);
         } catch (ConnectionException) {
             throw $this->failure($operation, 'no_answer', 'no answer', true, $qr);
+        }
+        if ($response->redirect()) {
+            // Never followed (the key would go with it): the operator's address is wrong or moved — a refusal
+            throw $this->failure($operation, "http_{$response->status()}", "HTTP {$response->status()} redirect (not followed)", false, $qr);
         }
 
         $answer = $response->json();

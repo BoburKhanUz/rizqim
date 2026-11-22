@@ -310,18 +310,65 @@ final class BankTerminalReconciler
         }
 
         $gateway = $this->gateways->driver(FiscalSettings::of($store)->smartKassaDriver());
-        $totals = $gateway instanceof SmartKassaGateway
-            ? $gateway->cardTotals($device, $store, $shift->opened_at->toImmutable(), ($shift->closed_at ?? now())->toImmutable())
-            : null;
+        $from = $shift->opened_at->toImmutable();
+        $to = ($shift->closed_at ?? now())->toImmutable();
+        $totals = $gateway instanceof SmartKassaGateway ? $gateway->cardTotals($device, $store, $from, $to) : null;
         if ($totals === null) {
             throw PosActionException::conflict('provider_report_unavailable', "Fiskal provayder kunlik karta hisobotini bermadi: uni qo'lda kiriting.");
         }
 
-        return [
-            $totals->total,
-            $totals->count,
-            array_map(fn (array $row) => ['rrn' => $row['rrn'], 'amount' => $row['amount'], 'matched' => false], $totals->transactions),
-        ];
+        // Review 11 M3: a UzQR payment is a card payment on the receipt (so the provider counts it with the kassa's
+        // card money) but it never went through the bank terminal and the shift keeps it as a `qr` tender. Rizqim's
+        // own receipts of this kassa for the period name those parts (channel `uzqr`): they are left out of the
+        // provider's figures, so both sides count bank-terminal money only.
+        $total = $totals->total;
+        $count = $totals->count;
+        $transactions = array_map(fn (array $row) => ['rrn' => $row['rrn'], 'amount' => $row['amount'], 'matched' => false], $totals->transactions);
+        foreach ($this->offTerminalCard($device, $store, $from, $to) as [$sign, $amount, $rrn]) {
+            $total = $sign > 0 ? $total->minus($amount) : $total->plus($amount);
+            if ($sign < 0) {
+                continue;
+            }
+            $count = max(0, $count - 1);
+            foreach ($transactions as $i => $row) {
+                if ($row['rrn'] === $rrn && Money::of($row['amount'])->equals($amount)) {
+                    unset($transactions[$i]);
+                    break;
+                }
+            }
+        }
+
+        return [$total, $count, array_values($transactions)];
+    }
+
+    /**
+     * Review 11 M3: the card parts of this kassa's issued receipts for the period that came in through the UzQR
+     * operator, not the bank terminal: [+1 sale | -1 refund, amount, RRN].
+     *
+     * @return list<array{0: int, 1: Money, 2: string|null}>
+     */
+    private function offTerminalCard(Device $device, Store $store, \Carbon\CarbonImmutable $from, \Carbon\CarbonImmutable $to): array
+    {
+        $out = [];
+        // Tenancy: the shift's own store and kassa
+        $receipts = \App\Models\FiscalReceipt::query()
+            ->where('store_id', $store->id)
+            ->where('device_id', $device->id)
+            ->where('status', \App\Domain\Fiscal\FiscalReceiptStatus::ISSUED->value)
+            ->whereBetween('created_at', [$from, $to])
+            ->orderBy('id')
+            ->get(['type', 'payments']);
+        foreach ($receipts as $receipt) {
+            foreach ((array) $receipt->payments as $row) {
+                $payment = \App\Domain\Fiscal\FiscalSnapshot::payment($row);
+                if ($payment->channel !== \App\Domain\Pos\QrPayments\QrProvider::UZQR->value || $payment->form !== \App\Domain\Fiscal\FiscalPaymentForm::CARD || $payment->prepayment || $payment->credit) {
+                    continue;
+                }
+                $out[] = [$receipt->type === \App\Domain\Fiscal\FiscalReceiptType::REFUND ? -1 : 1, $payment->amount, $payment->transactionId];
+            }
+        }
+
+        return $out;
     }
 
     private function alert(BankTerminalReport $report, ?User $actor): void

@@ -76,6 +76,8 @@ final class PaymeQrProvider implements QrPaymentProvider
 
         try {
             $response = Http::connectTimeout(5)->timeout(20)->acceptJson()->asJson()
+                // Review 12: X-Auth (merchant:key) and the body never follow a redirect: a 3xx is a refusal
+                ->withOptions(['allow_redirects' => false])
                 ->withHeaders(['X-Auth' => "{$merchant}:{$key}"])
                 ->post((string) config('qr_payments.payme.api_url'), [
                     'id' => $refundUuid,
@@ -120,6 +122,8 @@ final class PaymeQrProvider implements QrPaymentProvider
 
         try {
             $response = Http::connectTimeout(5)->timeout(20)->acceptJson()->asJson()
+                // Review 12: X-Auth (merchant:key) and the body never follow a redirect: a 3xx is a refusal
+                ->withOptions(['allow_redirects' => false])
                 ->withHeaders(['X-Auth' => "{$merchant}:{$key}"])
                 ->post((string) config('qr_payments.payme.api_url'), [
                     'id' => $refundUuid,

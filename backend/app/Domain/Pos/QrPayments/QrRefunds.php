@@ -128,12 +128,14 @@ final class QrRefunds
         $refunded = Money::of($qr->refunded_amount)->plus($amount);
         $payload = $qr->provider_payload ?? [];
         $payload['refunds'] = [...(array) ($payload['refunds'] ?? []), ['refund' => $refund->uuid, 'amount' => $amount->toString(), 'reference' => $result->reference, 'at' => now()->toIso8601String()]];
+        $full = $refunded->isGreaterThanOrEqualTo($qr->amount);
+        // Review 12: a UzQR given back in full needs its key copy no more: wiped
         $qr->forceFill([
             'refunded_amount' => $refunded->toString(),
             'refunded_at' => now(),
-            'status' => $refunded->isGreaterThanOrEqualTo($qr->amount) ? QrPaymentStatus::REFUNDED : $qr->status,
+            'status' => $full ? QrPaymentStatus::REFUNDED : $qr->status,
             'provider_payload' => $payload,
-        ])->save();
+        ] + ($full ? ['uzqr_api_key' => null] : []))->save();
         $attempt->forceFill([
             'status' => QrRefundStatus::REFUNDED,
             'refund_id' => $refund->id,
@@ -146,9 +148,9 @@ final class QrRefunds
     /**
      * The minute job: asks the provider about `unknown` attempts (and `requested` ones whose request died) and records
      * the reversed ones as refunds; "not reversed" makes them `failed` (the cashier may refund again). Returns how
-     * many were resolved.
+     * many were resolved. Review 11 H2: none is started after $until (microtime): the rest go next minute.
      */
-    public function reconcile(): int
+    public function reconcile(?float $until = null): int
     {
         $resolved = 0;
         PosQrRefundAttempt::query()
@@ -156,7 +158,10 @@ final class QrRefunds
                 ->orWhere(fn ($query) => $query->where('status', QrRefundStatus::REQUESTED->value)->where('updated_at', '<', now()->subSeconds(self::IN_FLIGHT_SECONDS))))
             ->where(fn ($query) => $query->whereNull('checked_at')->orWhere('checked_at', '<', now()->subSeconds(self::CHECK_SECONDS)))
             ->orderBy('id')->limit(20)->get()
-            ->each(function (PosQrRefundAttempt $attempt) use (&$resolved) {
+            ->each(function (PosQrRefundAttempt $attempt) use (&$resolved, $until) {
+                if ($until !== null && microtime(true) > $until) {
+                    return false;
+                }
                 $claimed = DB::transaction(function () use ($attempt) {
                     $attempt = PosQrRefundAttempt::whereKey($attempt->id)->lockForUpdate()->firstOrFail();
                     $stale = $attempt->status === QrRefundStatus::REQUESTED && $attempt->updated_at?->lt(now()->subSeconds(self::IN_FLIGHT_SECONDS));
@@ -181,6 +186,8 @@ final class QrRefunds
                     Log::error('QR refund reconcile failed: ' . $e->getMessage(), ['attempt' => $claimed->uuid]);
                     PosQrRefundAttempt::whereKey($claimed->id)->where('status', QrRefundStatus::REQUESTED->value)->update(['status' => QrRefundStatus::UNKNOWN->value]);
                 }
+
+                return true;
             });
 
         return $resolved;

@@ -68,8 +68,11 @@ class Device extends Model implements AuthenticatableContract
         'sync_key',
         'sync_key_prev',
         'sync_chain',
-        // Wave P: the till's UzQR API key never leaves the server
+        // Wave P: the till's UzQR API key never leaves the server (review 12: nor its traces; the UzQR settings
+        // endpoint shows them to the owner)
         'uzqr_api_key',
+        'uzqr_api_key_last4',
+        'uzqr_api_key_set_at',
     ];
 
     protected function casts(): array

@@ -700,6 +700,7 @@ $owner = [
     'PUT api/v1/owner/pos/lan' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'hub_device_id' => $s['till']['device']->uuid, 'port' => 8787], 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/pos/lan/rotate' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/qr-payments' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
+    'GET api/v1/owner/pos/qr-payments/unmatched' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/pos/qr-payments' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'providers' => ['click'], 'default_provider' => 'click'], 'ok' => $o(200, 403, 403)],
     // Wave M5 S3-d: the store's own signature mode; no id in the request
     'GET api/v1/owner/pos/sync-signing' => ['ok' => $o(200, 403, 403)],

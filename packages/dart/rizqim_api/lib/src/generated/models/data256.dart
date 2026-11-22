@@ -4,25 +4,21 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bill5.dart';
+import 'order8.dart';
+
 part 'data256.g.dart';
 
 @JsonSerializable()
 class Data256 {
-  const Data256({
-    required this.requestId,
-    required this.printerId,
-    required this.targetDevice,
-  });
+  const Data256({required this.bill, required this.copy, required this.order});
 
   factory Data256.fromJson(Map<String, Object?> json) =>
       _$Data256FromJson(json);
 
-  @JsonKey(name: 'request_id')
-  final String requestId;
-  @JsonKey(name: 'printer_id')
-  final int? printerId;
-  @JsonKey(name: 'target_device')
-  final String? targetDevice;
+  final Bill5 bill;
+  final bool copy;
+  final Order8 order;
 
   Map<String, Object?> toJson() => _$Data256ToJson(this);
 }

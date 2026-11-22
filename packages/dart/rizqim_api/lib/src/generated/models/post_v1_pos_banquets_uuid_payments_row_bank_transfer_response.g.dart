@@ -12,7 +12,7 @@ _$PostV1PosBanquetsUuidPaymentsRowBankTransferResponseFromJson(
 ) => PostV1PosBanquetsUuidPaymentsRowBankTransferResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data240.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data241.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic>

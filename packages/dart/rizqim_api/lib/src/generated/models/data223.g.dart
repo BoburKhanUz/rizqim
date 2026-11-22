@@ -7,11 +7,15 @@ part of 'data223.dart';
 // **************************************************************************
 
 Data223 _$Data223FromJson(Map<String, dynamic> json) => Data223(
-  events: (json['events'] as List<dynamic>)
-      .map((e) => Events.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  token: json['token'] as String,
+  permission: json['permission'] as String,
+  expiresAt: json['expires_at'] as String,
+  approvedBy: ApprovedBy.fromJson(json['approved_by'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data223ToJson(Data223 instance) => <String, dynamic>{
-  'events': instance.events,
+  'token': instance.token,
+  'permission': instance.permission,
+  'expires_at': instance.expiresAt,
+  'approved_by': instance.approvedBy,
 };

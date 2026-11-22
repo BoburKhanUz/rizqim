@@ -71,9 +71,10 @@ class UzQrSettingsController extends ManagementController
      *
      * `api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512
      * printable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is
-     * kept. `remove_api_key: true` clears it (the till then offers the other methods). Never returned: the answer has
-     * `has_api_key` and `api_key_last4`. Audited. settings.manage on the till's branch; a till of another store or a
-     * revoked one: 404.
+     * kept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe
+     * its key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it
+     * after a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.
+     * settings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.
      */
     #[BodyParameter('api_key', description: "Kassaning UzQR API kaliti (yashirin; maskalangan qiymat saqlanganini o'zgartirmaydi).", required: false, type: 'string|null')]
     #[BodyParameter('remove_api_key', required: false, type: 'bool')]
@@ -95,9 +96,11 @@ class UzQrSettingsController extends ManagementController
             throw ValidationException::withMessages(['remove_api_key' => "Kalitni bir vaqtda kiritib va o'chirib bo'lmaydi."]);
         }
 
-        // Tenancy: a live POS till of the caller's store
+        // Tenancy: a POS till of the caller's store; a revoked one only to wipe its key (review 12: a request it made
+        // keeps its own copy, so its open QRs and refunds still finish)
+        $removing = (bool) ($data['remove_api_key'] ?? false);
         $device = Str::isUuid($uuid) ? Device::where('store_id', $store->id)->where('uuid', $uuid)
-            ->where('type', DeviceType::POS->value)->whereNull('revoked_at')->first() : null;
+            ->where('type', DeviceType::POS->value)->when(!$removing, fn ($query) => $query->whereNull('revoked_at'))->first() : null;
         $branch = $device?->branch_id !== null ? Branch::where('store_id', $store->id)->find($device->branch_id) : null;
         if ($device === null || $branch === null) {
             return $this->error('Kassa topilmadi.', [], 404);

@@ -40,6 +40,7 @@ final class FiscalSnapshot
      */
     public static function payments(array $payments): array
     {
+        // Review 11 M3: `channel` only when set (the rows of every other payment stay as they were)
         return array_map(fn (FiscalPayment $payment) => [
             'form' => $payment->form->value,
             'amount' => $payment->amount->toString(),
@@ -48,7 +49,22 @@ final class FiscalSnapshot
             'card_type' => $payment->cardType,
             'transaction_id' => $payment->transactionId,
             'card_last4' => $payment->cardLast4,
-        ], $payments);
+        ] + ($payment->channel !== null ? ['channel' => $payment->channel] : []), $payments);
+    }
+
+    /**
+     * A receipt's stored payments as the APIs show them: in today's shape (a receipt stored before a flag existed
+     * answers credit: false), without Rizqim's internal `channel` mark (review 11 M3).
+     *
+     * @param  mixed  $rows  fiscal_receipts.payments
+     * @return list<array<string, mixed>>
+     */
+    public static function paymentsView(mixed $rows): array
+    {
+        return array_map(
+            fn (array $row) => array_diff_key($row, ['channel' => true]),
+            self::payments(array_map(fn (array $row) => self::payment($row), array_values(array_filter((array) ($rows ?? []), 'is_array')))),
+        );
     }
 
     /**
@@ -86,6 +102,8 @@ final class FiscalSnapshot
             transactionId: isset($row['transaction_id']) ? (string) $row['transaction_id'] : null,
             // P6-16: receipts stored before it existed have none
             cardLast4: isset($row['card_last4']) ? (string) $row['card_last4'] : null,
+            // Review 11 M3: receipts stored before it existed have none
+            channel: isset($row['channel']) ? (string) $row['channel'] : null,
         );
     }
 

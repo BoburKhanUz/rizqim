@@ -6,10 +6,18 @@ part of 'data380.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data380 _$Data380FromJson(Map<String, dynamic> json) =>
-    Data380(key: json['key'] as String, kid: (json['kid'] as num).toInt());
+Data380 _$Data380FromJson(Map<String, dynamic> json) => Data380(
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: json['role'] as String,
+  staffCode: json['staff_code'] as String?,
+  photoUrl: json['photo_url'] as String?,
+);
 
 Map<String, dynamic> _$Data380ToJson(Data380 instance) => <String, dynamic>{
-  'key': instance.key,
-  'kid': instance.kid,
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'staff_code': instance.staffCode,
+  'photo_url': instance.photoUrl,
 };

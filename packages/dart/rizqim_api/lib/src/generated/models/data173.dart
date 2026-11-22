@@ -4,48 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'sold.dart';
-import 'redeemed.dart';
-import 'refunded.dart';
-import 'outstanding.dart';
-import 'blocked2.dart';
-import 'expired.dart';
+import 'vouchers.dart';
+import 'meta.dart';
 
 part 'data173.g.dart';
 
 @JsonSerializable()
 class Data173 {
-  const Data173({
-    required this.from,
-    required this.to,
-    required this.branchId,
-    required this.sold,
-    required this.redeemed,
-    required this.refunded,
-    required this.netChange,
-    required this.outstanding,
-    required this.blocked,
-    required this.expired,
-    required this.asOf,
-  });
+  const Data173({required this.vouchers, required this.meta});
 
   factory Data173.fromJson(Map<String, Object?> json) =>
       _$Data173FromJson(json);
 
-  final String from;
-  final String to;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Sold sold;
-  final Redeemed redeemed;
-  final Refunded refunded;
-  @JsonKey(name: 'net_change')
-  final String netChange;
-  final Outstanding outstanding;
-  final Blocked2 blocked;
-  final Expired expired;
-  @JsonKey(name: 'as_of')
-  final String asOf;
+  final List<Vouchers> vouchers;
+  final Meta meta;
 
   Map<String, Object?> toJson() => _$Data173ToJson(this);
 }

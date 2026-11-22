@@ -217,9 +217,10 @@ abstract class OwnerFiscalApi {
   ///
   /// `api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512.
   /// printable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is.
-  /// kept. `remove_api_key: true` clears it (the till then offers the other methods). Never returned: the answer has.
-  /// `has_api_key` and `api_key_last4`. Audited. settings.manage on the till's branch; a till of another store or a.
-  /// revoked one: 404.
+  /// kept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe.
+  /// its key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it.
+  /// after a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.
+  /// settings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.
   @PUT('/v1/owner/fiscal/uzqr/tills/{uuid}')
   Future<PutV1OwnerFiscalUzqrTillsUuidResponse> uzQrSettingsUpdateTill({
     @Path('uuid') required String uuid,

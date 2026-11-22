@@ -7,8 +7,8 @@ part of 'data170.dart';
 // **************************************************************************
 
 Data170 _$Data170FromJson(Map<String, dynamic> json) => Data170(
-  settings: Settings4.fromJson(json['settings'] as Map<String, dynamic>),
-  options: Options7.fromJson(json['options'] as Map<String, dynamic>),
+  settings: Settings3.fromJson(json['settings'] as Map<String, dynamic>),
+  options: Options6.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data170ToJson(Data170 instance) => <String, dynamic>{

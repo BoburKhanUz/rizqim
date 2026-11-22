@@ -20,7 +20,7 @@ Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
       .map((e) => (e as num).toInt())
       .toList(),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls8.fromJson(e as Map<String, dynamic>))
+      .map((e) => Halls7.fromJson(e as Map<String, dynamic>))
       .toList(),
   eventType: json['event_type'] as String,
   eventTypeLabel: json['event_type_label'] as String,
@@ -48,13 +48,13 @@ Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
   packageSnapshot: json['package_snapshot'] as Map<String, dynamic>?,
   packageTotal: json['package_total'] as String,
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings12.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings11.fromJson(e as Map<String, dynamic>))
       .toList(),
   extrasTotal: json['extras_total'] as String,
   ordersTotal: json['orders_total'] as String,
   quote: json['quote'] == null
       ? null
-      : Quote3.fromJson(json['quote'] as Map<String, dynamic>),
+      : Quote2.fromJson(json['quote'] as Map<String, dynamic>),
   frozenAt: json['frozen_at'] as String?,
   note: json['note'] as String?,
   orderUuid: json['order_uuid'] as String?,
@@ -68,10 +68,10 @@ Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines18.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines17.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments6.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
       .toList(),
   hallTotal: json['hall_total'] as String,
 );

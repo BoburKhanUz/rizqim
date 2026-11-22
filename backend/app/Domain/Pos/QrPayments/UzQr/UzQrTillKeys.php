@@ -14,7 +14,9 @@ use App\Services\Audit\AuditLogger;
  * A "till" is a POS terminal (devices, type pos): the device a cashier takes money on is what the operator calls a
  * cash register (kassa). The operator's manual (v1.1) asks for one dynamic QR and one API key per cash register
  * ("Each API key works only with the QR to which it is linked"), and the QR request already keeps the device that
- * made it (pos_qr_payments.device_id), so its later calls (status, cancel, refund, receipt link) use the same key.
+ * made it (pos_qr_payments.device_id). Review 11 M2: the key that created a QR is also kept on it (pos_qr_payments.
+ * uzqr_api_key, encrypted), so its later calls (status, cancel, refund, receipt link) use that key even after the
+ * owner removed or replaced the till's key; a key may be removed at any time, a revoked till's too.
  * Not the branch's bank terminal (bank_terminal_reports): that is the bank's card reader, not a Rizqim till.
  *
  * The key is encrypted at rest (devices.uzqr_api_key, the `encrypted` cast) and never returned: only whether it is
@@ -49,7 +51,7 @@ final class UzQrTillKeys
     /**
      * Whether a submitted key is the masked one the form shows (or nothing): the stored key is kept.
      */
-    public static function keeps(mixed $value): bool
+    public static function keeps(#[\SensitiveParameter] mixed $value): bool
     {
         return $value === null || (is_string($value) && preg_match('/^[\s*•]*([\s*•][\x21-\x7E]{0,4})?$/u', $value) === 1);
     }
@@ -57,7 +59,7 @@ final class UzQrTillKeys
     /**
      * Sets (or with null, clears) the till's key; audited when it changed.
      */
-    public function set(Device $device, ?string $key, User $actor): void
+    public function set(Device $device, #[\SensitiveParameter] ?string $key, User $actor): void
     {
         if ($key === $this->key($device)) {
             return;

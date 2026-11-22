@@ -51,10 +51,7 @@ final class PosFiscalReceipt
             'original_receipt_uuid' => $receipt->originalReceipt?->uuid,
             'lines' => array_values(array_map(fn (array $row) => self::line($row), array_filter((array) ($receipt->lines ?? []), 'is_array'))),
             // Through the snapshot, so a receipt stored before a flag existed answers in today's shape (credit: false)
-            'payments' => FiscalSnapshot::payments(array_map(
-                fn (array $row) => FiscalSnapshot::payment($row),
-                array_values(array_filter((array) ($receipt->payments ?? []), 'is_array')),
-            )),
+            'payments' => FiscalSnapshot::paymentsView($receipt->payments),
         ];
     }
 

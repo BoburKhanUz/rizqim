@@ -6,12 +6,9 @@ part of 'data259.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data259 _$Data259FromJson(Map<String, dynamic> json) => Data259(
-  bookings: (json['bookings'] as List<dynamic>)
-      .map((e) => Bookings.fromJson(e as Map<String, dynamic>))
-      .toList(),
-);
+Data259 _$Data259FromJson(Map<String, dynamic> json) =>
+    Data259(qr: Qr.fromJson(json['qr'] as Map<String, dynamic>));
 
 Map<String, dynamic> _$Data259ToJson(Data259 instance) => <String, dynamic>{
-  'bookings': instance.bookings,
+  'qr': instance.qr,
 };

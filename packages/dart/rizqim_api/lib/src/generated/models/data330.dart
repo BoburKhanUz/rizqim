@@ -4,15 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall27.dart';
-import 'table25.dart';
-import 'waiter28.dart';
+import 'hall26.dart';
+import 'table24.dart';
+import 'waiter27.dart';
 import 'discount_kind.dart';
-import 'pickup26.dart';
-import 'charges27.dart';
-import 'offline23.dart';
-import 'queue26.dart';
-import 'courses22.dart';
+import 'pickup25.dart';
+import 'charges26.dart';
+import 'offline22.dart';
+import 'queue25.dart';
+import 'courses21.dart';
 import 'items57.dart';
 
 part 'data330.g.dart';
@@ -83,8 +83,8 @@ class Data330 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall27? hall;
-  final Table25? table;
+  final Hall26? hall;
+  final Table24? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -93,7 +93,7 @@ class Data330 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter28? waiter;
+  final Waiter27? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -137,14 +137,14 @@ class Data330 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup26? pickup;
+  final Pickup25? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges27 charges;
-  final Offline23? offline;
-  final Queue26? queue;
+  final Charges26 charges;
+  final Offline22? offline;
+  final Queue25? queue;
   final int rounds;
-  final List<Courses22> courses;
+  final List<Courses21> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
   final List<Items57> items;

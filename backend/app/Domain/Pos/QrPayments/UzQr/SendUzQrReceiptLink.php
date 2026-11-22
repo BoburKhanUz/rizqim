@@ -24,6 +24,10 @@ use Throwable;
  * A failure the operator may get over (no answer, 5xx) is retried with backoff; then, or on a refusal, it is
  * `failed`: logged and shown on the request (pos_qr_payments.provider_payload.receipt_link, QrPaymentPresenter
  * `receipt_link`). A later announcement of the receipt (a retry, the owner's) sends it again.
+ *
+ * Review 12: only an https link on the tax committee's receipt host (qr_payments.uzqr.receipt_hosts, ofd.soliq.uz)
+ * goes; any other is `failed` without a call. Review 11: send() on a sync queue inside a request runs it after the
+ * answer was sent (the cashier never waits for the operator); with a real queue it is queued after commit as before.
  */
 class SendUzQrReceiptLink implements ShouldQueueAfterCommit
 {
@@ -34,6 +38,36 @@ class SendUzQrReceiptLink implements ShouldQueueAfterCommit
     public int $timeout = 60;
 
     public function __construct(public int $qrId, public int $receiptId) {}
+
+    /**
+     * Sends it now on a queue worker (after commit), or — on a sync queue inside a request ($inRequest: by default,
+     * not running in the console) — after the answer went out.
+     */
+    public static function send(int $qrId, int $receiptId, ?bool $inRequest = null): void
+    {
+        $inRequest ??= !app()->runningInConsole();
+        if ($inRequest && config('queue.connections.' . config('queue.default') . '.driver') === 'sync') {
+            app()->terminating(fn () => self::dispatchSync($qrId, $receiptId));
+
+            return;
+        }
+        self::dispatch($qrId, $receiptId);
+    }
+
+    /**
+     * Whether $url is a receipt link the operator may be given: https, no credentials or port, on an allowed host.
+     */
+    public static function allowedLink(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])) {
+            return false;
+        }
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $allowed = array_map('strtolower', array_filter((array) config('qr_payments.uzqr.receipt_hosts', []), 'is_string'));
+
+        return $host !== '' && in_array($host, $allowed, true) && preg_match('/[\s\x00-\x1F]/', $url) !== 1;
+    }
 
     /**
      * @return list<int>
@@ -54,6 +88,12 @@ class SendUzQrReceiptLink implements ShouldQueueAfterCommit
         }
         $link = (array) (($qr->provider_payload ?? [])['receipt_link'] ?? []);
         if (($link['status'] ?? null) === 'sent' && ($link['url'] ?? null) === $url) {
+            return;
+        }
+        if (!self::allowedLink($url)) {
+            Log::warning('UzQR receipt link refused: not an https tax receipt link', ['qr' => $qr->uuid, 'receipt' => $receipt->uuid]);
+            $this->mark($qr, ['status' => 'failed', 'url' => null, 'receipt' => $receipt->uuid, 'error' => 'not an https link on an allowed tax receipt host']);
+
             return;
         }
 

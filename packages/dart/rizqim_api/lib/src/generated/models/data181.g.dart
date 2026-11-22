@@ -7,15 +7,11 @@ part of 'data181.dart';
 // **************************************************************************
 
 Data181 _$Data181FromJson(Map<String, dynamic> json) => Data181(
-  productId: (json['product_id'] as num).toInt(),
-  channels: json['channels'] as List<dynamic>,
-  prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  changed: json['changed'] as String,
+  brandId: (json['brand_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data181ToJson(Data181 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'channels': instance.channels,
-  'prices': instance.prices,
+  'changed': instance.changed,
+  'brand_id': instance.brandId,
 };
