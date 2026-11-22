@@ -3215,20 +3215,39 @@ soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
 - mijoz va ovqatxonaga ko'rinadi: to'lov `refunded`, buyurtmaning `payment_status` — `refunded`, buyurtma holati
   `delivered` qoladi (taom berilgan);
 - RIZQIM pulini o'zgartirmaydi: komissiya qaytarilmaydi, ledger'ga yozuv tushmaydi; to'lovda
-  `payload.store_refund_review {status: pending, provider, reason, reported_at}`, buyurtmada `store_refund_review_at`,
-  jurnalda `order.store_refund_held`, `Log::critical` (faqat id'lar), Bugun → «Diqqat talab qiladi» (`store_refund_review`);
-- qaytariladigan summa 0 bo'ladi (to'lov `refunded`), qaytarish so'rovi yaratib bo'lmaydi — qarorni menejer chiqaradi:
+  `payload.store_refund_review {status: pending, provider, reason, reported_at}`, buyurtmada `store_refund_review_at`
+  (ichki maydon: mijoz, ovqatxona va POS buyurtma JSON'ida yo'q — faqat admin kartasida), jurnalda
+  `order.store_refund_held` (`payme_reason`, `payment_id`, `amount`), `Log::critical` (faqat id'lar), Bugun → «Diqqat
+  talab qiladi» (`store_refund_review`);
+- qaytariladigan summa 0 bo'ladi (to'lov `refunded`), qaytarish so'rovi yaratib bo'lmaydi — qarorni menejerlar chiqaradi:
   - `POST /admin/orders/{uuid}/store-refund-review/approve {reason}` — pul haqiqatan qaytgan (ovqatxona kabinetida
-    tekshirildi): buyurtma RIZQIM'ning o'z qaytarish yo'li bilan `delivered → refunded` (`OrderStatusService::refund`,
-    `refunded_by_provider`: komissiya va yetkazishda yozilgan hamma narsa bir marta qaytariladi, qo'lda qaytarish
-    belgilanmaydi);
+    tekshirildi). **Ikki xodim** (to'rt ko'z, qaytarish so'rovlaridagidek — so'ragan xodim qaror qilmaydi): birinchi
+    xodimning tasdig'i faqat **taklif** — tekshiruv kutishda qoladi (`status: pending`, `proposed_by`, `proposed_at`,
+    `proposal_note`), hech narsa yozilmaydi, xabar «Qaytarish taklif qilindi: uni boshqa xodim tasdiqlashi kerak.».
+    **Boshqa** xodimning tasdig'i buyurtmani RIZQIM'ning o'z qaytarish yo'li bilan `delivered → refunded` qiladi
+    (`OrderStatusService::refund`, `refunded_by_provider`: komissiya va yetkazishda yozilgan hamma narsa bir marta
+    qaytariladi, qo'lda qaytarish belgilanmaydi). Taklif qilgan xodim yana tasdiqlasa — 403 `four_eyes` (superadmin ham);
   - `POST /admin/orders/{uuid}/store-refund-review/dismiss {reason}` — komissiya saqlanadi (ovqatxona o'zi yuborgan
-    so'rov yoki o'z hisobidan qilgan qaytarish), ledger o'zgarmaydi, buyurtma `delivered`, to'lov `refunded`.
+    so'rov yoki o'z hisobidan qilgan qaytarish), ledger o'zgarmaydi, buyurtma `delivered`, to'lov `refunded`. Bitta
+    xodim yetadi (platforma puli joyida qoladi); kutayotgan taklif ham shu bilan yopiladi.
   Ikkalasi `admin.orders.refund_approve`, step-up (`admin.recent`), `Idempotency-Key` qabul qiladi, jurnalga yoziladi
-  (`admin.orders.store_refund_review.approved|dismissed`), buyurtma kartasini qaytaradi; qaror kutilmayotgan bo'lsa
-  (allaqachon qaror qilingan) — 409 `no_store_refund_review`. Kartada `store_refund_review {status, provider,
-  payment_uuid, amount, reason_code, reported_at, decided_at, decided_by, note}` (yo'q bo'lsa `null`) va
-  `actions.can_decide_store_refund`.
+  (`admin.orders.store_refund_review.approved|dismissed`, `payload: {short_code, decision: proposed|approved|dismissed,
+  payment_ids, amount}`), buyurtma kartasini qaytaradi; qaror kutilmayotgan bo'lsa (allaqachon qaror qilingan) — 409
+  `no_store_refund_review`. Kartada `store_refund_review {status, provider, payment_uuid, amount, reason_code,
+  reported_at, proposed_by, proposed_at, proposal_note, decided_at, decided_by, note}` (oxirgisi; yo'q bo'lsa `null`),
+  `store_refund_reviews` (shu buyurtmaning hamma tekshiruvlari, oxirgisi birinchi — avvalgi qaror yashirilmaydi),
+  `actions.can_decide_store_refund` (tasdiqlash/rad etish huquqi, tekshiruv kutmoqda) va `actions.can_approve_store_refund`
+  (taklif qilgan xodimga `false`).
+- Qaytgan pul bilan yetkazilgan buyurtma (`delivered`, `payment_status: refunded`) **qayta to'lanmaydi**: Payme
+  `CheckPerformTransaction`/`CreateTransaction` — `-31051` («Order is not payable»), Click Prepare/Complete — `-9`.
+  Shunday qilib ovqatxona rad etilgan tekshiruvni o'z kaliti bilan qayta to'lab-bekor qilib yana ko'tara olmaydi. Hali
+  hech narsa to'lanmagan yetkazilgan buyurtma (`pending`) kechikkan to'lovni avvalgidek qabul qiladi.
+- Payme `CancelTransaction` `reason` faqat butun son 1–10 (Payme: 1–5, 10); boshqasi (satr, kasr, massiv, yo'q) — `-32600`,
+  hech narsa o'zgarmaydi. Bekor qilingan/rad etilgan buyurtmaning to'langan tranzaksiyasi Payme orqali qaytsa,
+  buyurtmaning `payment_status` — `refunded` (avval xato ravishda `pending` bo'lardi; Paylov'dagidek).
+- Boshqa kassaning tranzaksiya id'si, o'z buyurtmasi `account` sifatida ko'rsatilsa, noma'lum tranzaksiya kabi javob oladi
+  (`-31003`, SetFiscalData'da `-32001`), `-32504` emas: javob boshqa kassalardagi id'lar borligini oshkor qilmaydi;
+  tranzaksiya o'zgarmaydi. `account` siz — avvalgidek `-32504`.
 - RIZQIM o'zi avval qaytargan buyurtma (`refunded`: admin qaytarishi, tasdiqlangan so'rov) ushlanmaydi: keyingi Payme
   bekor qilishi faqat shu pulni qaytaradi. Hali yetkazilmagan buyurtma (komissiya yozilmagan) avvalgidek yana
   «to'lanmagan» bo'ladi. Platforma kassasi (`PLATFORM`) qoidasi o'zgarmagan: pul ovqatxonaga o'tkazilgan bo'lsa `-31007`.

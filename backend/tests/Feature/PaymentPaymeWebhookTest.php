@@ -112,11 +112,13 @@ class PaymentPaymeWebhookTest extends TestCase
         $ownOrder = $this->makeOrder(['payment_owner' => 'STORE']);
         $this->create('trx-own', $ownOrder->uuid, key: 'owner_chosen_key')->assertJsonPath('result.state', 1);
 
-        // ...but that key must not perform another order's transaction by pointing `account` at its own order.
+        // ...but that key must not perform another order's transaction by pointing `account` at its own order. Wave P
+        // review F3: to that key the other cashbox's transaction does not exist (-31003, as an unknown id), so the
+        // answer tells nothing about it either
         $this->rpc('PerformTransaction', [
             'id' => 'trx-platform',
             'account' => ['order_id' => $ownOrder->uuid],
-        ], 'owner_chosen_key')->assertJsonPath('error.code', -32504);
+        ], 'owner_chosen_key')->assertJsonPath('error.code', -31003);
 
         $this->assertSame(PaymentStatus::PENDING, Payment::where('provider_transaction_id', 'trx-platform')->first()->status);
         $this->assertSame(PaymentStatus::PENDING, $this->order->fresh()->payment_status);

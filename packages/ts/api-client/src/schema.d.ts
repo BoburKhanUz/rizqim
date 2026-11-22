@@ -2199,10 +2199,13 @@ export interface paths {
         put?: never;
         /**
          * Approve a store's provider refund
-         * @description The money did go back to the customer (checked in the store's Payme cabinet): the order is refunded through
+         * @description Two members (four eyes, as refund requests): the money did go back to the customer (checked in the store's Payme
+         *     cabinet). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
+         *     `pending`, `proposed_by` set) and nothing is booked. A DIFFERENT member's approval refunds the order through
          *     RIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,
-         *     nothing flagged for a manual refund (the provider already returned it). `reason` is required. Answers the order
-         *     card. 409 `no_store_refund_review` when nothing waits (decided already).
+         *     nothing flagged for a manual refund (the provider already returned it). The proposer approving again: 403
+         *     `four_eyes` (a superadmin too). `reason` is required. Answers the order card. 409 `no_store_refund_review` when
+         *     nothing waits (decided already).
          */
         post: operations["admin.orders.store_refund_review.approved"];
         delete?: never;
@@ -2223,7 +2226,8 @@ export interface paths {
         /**
          * Dismiss a store's provider refund
          * @description RIZQIM's commission stays (a cancel the store sent itself, or a refund it makes at its own cost): the order stays
-         *     delivered with its payment refunded, the ledger is not touched. `reason` is required. Answers the order card.
+         *     delivered with its payment refunded, the ledger is not touched. One member is enough (it keeps the platform's
+         *     money), a proposal to approve waiting is dropped with it. `reason` is required. Answers the order card.
          *     409 `no_store_refund_review` when nothing waits (decided already).
          */
         post: operations["admin.orders.store_refund_review.dismissed"];
@@ -13559,8 +13563,6 @@ export interface components {
             promo_note: string | null;
             banquet_amount: string;
             banquet_lines: string | null;
-            /** Format: date-time */
-            store_refund_review_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -21057,6 +21059,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            /** @description The proposer cannot confirm it (four_eyes) or step-up needed (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description No such order (not_found) */
             404: {
                 headers: {

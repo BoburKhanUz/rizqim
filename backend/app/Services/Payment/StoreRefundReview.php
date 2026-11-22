@@ -7,6 +7,7 @@ use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\Audit\AuditLogger;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -22,8 +23,10 @@ use Illuminate\Support\Facades\Log;
  * the order stays `delivered` (the food was handed over) — and the platform's money is kept: no commission reversal,
  * no ledger row. The refund is recorded as store-initiated (payment payload `store_refund_review`, orders
  * `store_refund_review_at`), audited, alerted (Log::critical, ids only) and listed in Bugun → "Diqqat talab qiladi";
- * a manager decides it in the Boshqaruv markazi (App\Services\Admin\Orders\StoreRefundReviewDecision): approve runs
- * RIZQIM's own refund path (OrderStatusService::refund, the commission reversed once), dismiss keeps the commission.
+ * managers decide it in the Boshqaruv markazi (App\Services\Admin\Orders\StoreRefundReviewDecision): approve — one
+ * member proposes, a different one confirms (four eyes) — runs RIZQIM's own refund path (OrderStatusService::refund,
+ * the commission reversed once), dismiss (one member) keeps the commission. The order is then never payable again
+ * (moneyWentBack), so the store cannot raise the review once more by re-paying and cancelling.
  *
  * A refund RIZQIM itself made first (the order is `refunded`: admin refund, approved refund request) is not held:
  * the provider's cancel then only gives the money back it was flagged for. Platform-owned orders keep their own rule
@@ -45,6 +48,18 @@ final class StoreRefundReview
     public static function applies(?Order $order): bool
     {
         return $order !== null && OrderMerchantAccount::isStore($order) && $order->status === OrderStatus::DELIVERED;
+    }
+
+    /**
+     * Wave P review: a delivered order whose money was paid and given back (payment status `refunded`: a provider
+     * refund held for review, dismissed or not, or a refund request that returned everything) never takes a payment
+     * again — else a store re-pays it on its own cashbox and cancels again, raising a dismissed review once more. A
+     * delivered order nothing was paid for yet (`pending`) still takes its late payment. Payme's accountError and
+     * Click's isPayable read it.
+     */
+    public static function moneyWentBack(Order $order): bool
+    {
+        return $order->status === OrderStatus::DELIVERED && $order->payment_status === PaymentStatus::REFUNDED;
     }
 
     /**
@@ -73,7 +88,8 @@ final class StoreRefundReview
             $order,
             ['payment_status' => PaymentStatus::PAID->value],
             ['payment_status' => PaymentStatus::REFUNDED->value],
-            ['short_code' => $order->short_code, 'provider' => $provider, 'reason_code' => $reason, 'payment_id' => (int) $payment->id],
+            // `payme_reason`, not `*_code`: AuditRedactor drops code-named keys as secrets
+            ['short_code' => $order->short_code, 'provider' => $provider, 'payme_reason' => $reason, 'payment_id' => (int) $payment->id, 'amount' => Money::of($payment->amount)->toString()],
             ['actor' => null],
         );
 
@@ -85,7 +101,7 @@ final class StoreRefundReview
             'order_id' => $orderId,
             'payment_id' => $paymentId,
             'store_id' => $storeId,
-            'reason_code' => $reason,
+            'payme_reason' => $reason,
         ]));
     }
 

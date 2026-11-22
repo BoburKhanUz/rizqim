@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\Payment\OrderMerchantAccount;
+use App\Services\Payment\StoreRefundReview;
 use App\Models\StoreTopupRequest;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -359,8 +360,10 @@ class ClickWebhookController extends Controller
 
     protected function isPayable(Order $order): bool
     {
+        // Wave P review: a delivered order whose money was given back is never paid again (StoreRefundReview::moneyWentBack)
         return $order->payment_status !== PaymentStatus::PAID
-            && !in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true);
+            && !in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true)
+            && !StoreRefundReview::moneyWentBack($order);
     }
 
     /**

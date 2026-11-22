@@ -16,6 +16,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\AdminPii;
+use App\Services\Payment\StoreRefundReview;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -138,6 +139,7 @@ class AdminOrderPresenter
             'statusHistories.user:id,name,role,platform_role',
         ]);
         $order->load('payments'); // fresh: the money part must not come from a relation read before a change
+        $storeRefundReviews = $this->storeRefundReviews($order);
         $now = now();
         $histories = $order->statusHistories->sortBy([['created_at', 'asc'], ['id', 'asc']])->values();
         $acceptedAt = $histories->first(fn (OrderStatusHistory $row) => $row->status->value === 'accepted')?->created_at;
@@ -232,9 +234,10 @@ class AdminOrderPresenter
                 'provider_refund' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['refund']['status'] ?? null) ? $payment->payload['paylov']['refund']['status'] : null,
                 'created_at' => $payment->created_at?->toIso8601String(),
             ])->all(),
-            // Wave P: a provider refund on the store's own cashbox waiting for (or given) a manager's decision
-            // (StoreRefundReview): the latest one, null when none
-            'store_refund_review' => $this->storeRefundReview($order),
+            // Wave P: provider refunds on the store's own cashbox waiting for (or given) a manager's decision
+            // (StoreRefundReview): the latest one (null when none) and the whole history, the latest first
+            'store_refund_review' => $storeRefundReviews[0] ?? null,
+            'store_refund_reviews' => $storeRefundReviews,
             'refunds' => [
                 'paid' => $balance['paid']->toString(),
                 'refunded' => $balance['refunded']->toString(),
@@ -279,6 +282,9 @@ class AdminOrderPresenter
                     : [],
                 'transitions' => array_map(fn ($status) => ['status' => $status->value, 'label' => $status->label()], OrderInterventionService::fixableTo($order)),
                 'can_decide_store_refund' => $can(AdminPermission::ORDERS_REFUND_APPROVE) && $order->store_refund_review_at !== null,
+                // Approving needs a member other than the one who proposed it (four eyes); dismissing does not
+                'can_approve_store_refund' => $can(AdminPermission::ORDERS_REFUND_APPROVE) && $order->store_refund_review_at !== null
+                    && ($storeRefundReviews[0]['proposed_by'] ?? null) !== (int) $viewer->id,
                 'message_store' => $can(AdminPermission::ORDERS_INTERVENE),
                 'message_customer' => $can(AdminPermission::ORDERS_INTERVENE) && $order->user?->telegram_id !== null,
                 'can_request_refund' => $can(AdminPermission::ORDERS_REFUND_REQUEST) && $this->refunds->canRequest($order)
@@ -346,30 +352,40 @@ class AdminOrderPresenter
     }
 
     /**
-     * Wave P: the latest provider refund held by StoreRefundReview on this order's payments (pending, approved or
-     * dismissed), or null. Ids and codes only: never a key or the provider's payload.
+     * Wave P: every provider refund held by StoreRefundReview on this order's payments (pending, approved or dismissed),
+     * the latest first; the card shows the latest as `store_refund_review` and all of them as `store_refund_reviews`, so
+     * an earlier decision is never hidden by a later one. Ids and codes only: never a key or the provider's payload.
+     * A pending one with `proposed_by` set waits for a second member's approval (four eyes).
      *
-     * @return array{status: string, provider: string|null, payment_uuid: string, amount: string, reason_code: int|null, reported_at: string|null, decided_at: string|null, decided_by: int|null, note: string|null}|null
+     * @return list<array{status: string, provider: string|null, payment_uuid: string, amount: string, reason_code: int|null, reported_at: string|null, proposed_by: int|null, proposed_at: string|null, proposal_note: string|null, decided_at: string|null, decided_by: int|null, note: string|null}>
      */
-    private function storeRefundReview(Order $order): ?array
+    private function storeRefundReviews(Order $order): array
     {
-        $payment = $order->payments->sortByDesc('id')->first(fn (Payment $payment) => \App\Services\Payment\StoreRefundReview::of($payment) !== null);
-        if ($payment === null) {
-            return null;
-        }
-        $review = \App\Services\Payment\StoreRefundReview::of($payment) ?? [];
+        $string = fn (array $review, string $key): ?string => is_string($review[$key] ?? null) ? $review[$key] : null;
+        $int = fn (array $review, string $key): ?int => is_numeric($review[$key] ?? null) ? (int) $review[$key] : null;
 
-        return [
-            'status' => (string) $review['status'],
-            'provider' => is_string($review['provider'] ?? null) ? $review['provider'] : null,
-            'payment_uuid' => (string) $payment->uuid,
-            'amount' => (string) $payment->amount,
-            'reason_code' => is_numeric($review['reason'] ?? null) ? (int) $review['reason'] : null,
-            'reported_at' => is_string($review['reported_at'] ?? null) ? $review['reported_at'] : null,
-            'decided_at' => is_string($review['decided_at'] ?? null) ? $review['decided_at'] : null,
-            'decided_by' => is_numeric($review['decided_by'] ?? null) ? (int) $review['decided_by'] : null,
-            'note' => is_string($review['note'] ?? null) ? $review['note'] : null,
-        ];
+        return $order->payments->sortByDesc('id')
+            ->filter(fn (Payment $payment) => StoreRefundReview::of($payment) !== null)
+            ->map(function (Payment $payment) use ($string, $int) {
+                $review = StoreRefundReview::of($payment) ?? [];
+
+                return [
+                    'status' => (string) ($review['status'] ?? ''),
+                    'provider' => $string($review, 'provider'),
+                    'payment_uuid' => (string) $payment->uuid,
+                    'amount' => (string) $payment->amount,
+                    'reason_code' => $int($review, 'reason'),
+                    'reported_at' => $string($review, 'reported_at'),
+                    'proposed_by' => $int($review, 'proposed_by'),
+                    'proposed_at' => $string($review, 'proposed_at'),
+                    'proposal_note' => $string($review, 'proposal_note'),
+                    'decided_at' => $string($review, 'decided_at'),
+                    'decided_by' => $int($review, 'decided_by'),
+                    'note' => $string($review, 'note'),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private static function mayOweRefund(Order $order): bool

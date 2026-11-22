@@ -129,6 +129,10 @@ class Order extends Model
     
     protected $appends = ['address', 'type'];
 
+    // Wave P review: the platform's review of a store-initiated provider refund is internal (control centre only: the
+    // admin order card reads it explicitly); never serialized into the customer's, the store's or the POS order JSON
+    protected $hidden = ['store_refund_review_at'];
+
     /** The column default, so an order just created reads its channel like one loaded back (P1-21). */
     protected $attributes = [
         'channel' => 'telegram',

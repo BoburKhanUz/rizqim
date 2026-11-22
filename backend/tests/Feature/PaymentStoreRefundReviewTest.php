@@ -168,6 +168,12 @@ class PaymentStoreRefundReviewTest extends TestCase
         $token = $this->confirmedSession($member);
         $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $token, [])->assertStatus(422)->assertJsonValidationErrors('reason');
 
+        // Four eyes (PaymentStoreRefundReviewFollowUpTest): another member proposed it, this one confirms it
+        $proposer = $this->makeMember(PlatformRole::FINANCE);
+        $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $this->confirmedSession($proposer), ['reason' => 'Kabinetda tekshirildi'])
+            ->assertOk()->assertJsonPath('data.store_refund_review.status', 'pending');
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
+
         $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $token, ['reason' => 'Kabinetda tekshirildi'])
             ->assertOk()
             ->assertJsonPath('data.status', 'refunded')

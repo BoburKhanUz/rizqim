@@ -39,6 +39,12 @@ class PaymeWebhookController extends Controller
     private const TRANSACTION_TIMEOUT_MS = 43200000;
 
     /**
+     * Wave P review F3: the id of a transaction of another cashbox this request named (authorizePayme), treated as
+     * unknown by every method. Reset per request: the route keeps its controller instance.
+     */
+    private ?string $foreignTransactionId = null;
+
+    /**
      * Payme: Merchant API (JSON-RPC 2.0)
      *
      * Payme Merchant API methods (CheckPerformTransaction, CreateTransaction, PerformTransaction, CancelTransaction,
@@ -54,6 +60,7 @@ class PaymeWebhookController extends Controller
             return $this->rpcError(null, -32700, 'Parse error');
         }
 
+        $this->foreignTransactionId = null;
         $payload = $request->all();
         Log::info("Payme Webhook Received", $payload);
 
@@ -133,7 +140,24 @@ class PaymeWebhookController extends Controller
             return false;
         }
 
-        return hash_equals($expectedKey, $presented);
+        if (hash_equals($expectedKey, $presented)) {
+            return true;
+        }
+
+        // Wave P review F3: a transaction of another cashbox, named with an `account` this key does sign, is to this
+        // caller an unknown transaction (-31003, -32001 for SetFiscalData), never -32504: the answer must not tell a
+        // store which Payme ids exist on other cashboxes. The transaction is then invisible to this request.
+        if ($this->findPayment($params) !== null && $this->accountReference($params) !== '') {
+            [$order, $topupRequest] = $this->findTarget($this->accountReference($params));
+            $accountKey = ($order || $topupRequest) ? $this->secretKey($order) : null;
+            if ($accountKey !== null && hash_equals($accountKey, $presented)) {
+                $this->foreignTransactionId = $this->transactionId($params);
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -466,7 +490,12 @@ class PaymeWebhookController extends Controller
             return $this->rpcError($id, -31003, 'Transaction not found');
         }
 
-        $reason = (int) ($params['reason'] ?? 0);
+        // Wave P review F4: Payme sends an integer reason (1-5, 10); anything else is a malformed request, refused
+        // before anything changes (-32600), never coerced into a reason code
+        $reason = $params['reason'] ?? null;
+        if (!is_int($reason) || $reason < 1 || $reason > 10) {
+            return $this->rpcError($id, -32600, 'Invalid parameter: reason');
+        }
         [$order, $topupRequest] = $this->targetOf($payment);
 
         return DB::transaction(function () use ($id, $payment, $reason, $order, $topupRequest) {
@@ -509,8 +538,9 @@ class PaymeWebhookController extends Controller
                     'payment_owner' => $order->payment_owner,
                     'amount' => Money::of($payment->amount)->toString(),
                 ]);
-            } elseif ($wasPaid && $order?->status === OrderStatus::REFUNDED) {
-                // The money an admin refund left for a manual refund went back through Payme.
+            } elseif ($wasPaid && $order && in_array($order->status, [OrderStatus::REFUNDED, OrderStatus::CANCELED, OrderStatus::REJECTED], true)) {
+                // The money an admin refund, or the cancellation of a paid order, left for a manual refund went back
+                // through Payme: the order is refunded, never unpaid again (as Paylov's applyCancel)
                 $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
             } elseif ($wasPaid && $order?->payment_status === PaymentStatus::PAID) {
                 // If order was already paid, revert back to pending
@@ -733,7 +763,8 @@ class PaymeWebhookController extends Controller
             if ($order->payment_status === PaymentStatus::PAID) {
                 return [-31051, 'Order already paid', 'order_id'];
             }
-            if (in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true)) {
+            if (in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true)
+                || StoreRefundReview::moneyWentBack($order)) {
                 return [-31051, 'Order is not payable', 'order_id'];
             }
             $expectedAmount = $order->total_price;
@@ -810,7 +841,7 @@ class PaymeWebhookController extends Controller
     protected function findPayment(array $params): ?Payment
     {
         $trxId = $this->transactionId($params);
-        if ($trxId === '') {
+        if ($trxId === '' || $trxId === $this->foreignTransactionId) {
             return null;
         }
 

@@ -179,9 +179,11 @@ RIZQIM ovqatxona uchun yig'gan pul ovqatxonaga yetishidan oldin uning qarzini yo
    qayta urinish (`SettlementRecoveryService`) o'sha zahoti shunday har qismni qaytaradi — jamlanib, har so'rov bir marta,
    go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_on_retry`).
    Wave P: ovqatxonaning **o'z kassasi** orqali kelgan qaytarish (o'z kaliti bilan imzolangan Payme `CancelTransaction`,
-   yetkazilgan buyurtma) komissiyani o'zi qaytarmaydi: to'lov «qaytarilgan», ledger o'zgarmaydi, komissiya faqat menejer
-   Boshqaruv markazida tasdiqlasa (`POST /admin/orders/{uuid}/store-refund-review/approve` → buyurtmaning odatdagi
-   qaytarish yo'li) qaytariladi; rad etilsa qoladi (docs/API.md «Ovqatxona kassasidan qaytarish»).
+   yetkazilgan buyurtma) komissiyani o'zi qaytarmaydi: to'lov «qaytarilgan», ledger o'zgarmaydi, komissiya faqat **ikki
+   xil** xodim Boshqaruv markazida tasdiqlasa (`POST /admin/orders/{uuid}/store-refund-review/approve`: birinchisi taklif,
+   boshqasi tasdiq → buyurtmaning odatdagi qaytarish yo'li) qaytariladi; bitta xodim rad etsa qoladi. Bunday buyurtma
+   qayta to'lanmaydi (Payme `-31051`, Click `-9`), tekshiruv qayta ko'tarilmaydi (docs/API.md «Ovqatxona kassasidan
+   qaytarish»).
 5. **Qo'lda to'lov** (hisob raqami, naqd) — Moliya → Qo'lda tuzatish → "To'lov qabul qilindi": xuddi shu tartibda yopadi.
    1 000 000 so'm va undan katta tuzatish yoki payoutni ikki xil xodim tasdiqlaydi. Bo'lib yuborish yordam bermaydi: oxirgi
    24 soatda bitta xodim tasdig'i bilan qo'llangan tuzatishlar (shu xodimniki — istalgan do'konda, shu do'konniki —
