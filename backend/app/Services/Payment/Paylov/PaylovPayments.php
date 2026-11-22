@@ -27,13 +27,23 @@ use Illuminate\Support\Facades\Log;
  *    PaymentPaid after the commit, the fiscal receipt queued. `failed` / `cancel` / `refunded` close it (state
  *    `rejected`). Anything else (no answer, an error, an empty list, created / transfer / pending / waiting) leaves it
  *    `unconfirmed` for the next check: ConfirmPaylovPayment's retries, then `payments:paylov-reconcile` every five
- *    minutes (routes/console.php), which also alerts once about one still unconfirmed after an hour. A `payed` answer for
- *    another amount is state `mismatch`: never settled, never re-checked, a critical log for the team;
+ *    minutes (routes/console.php), which also alerts once about one still unconfirmed after an hour. The transaction must
+ *    be this order's: getTransactions' `account.order_id` is compared with the order's uuid (accountMatches): another
+ *    order's transaction closes the payment (`rejected`, rejected_reason transaction_of_another_order, never settled and
+ *    never refunded from here: the money is that other order's); one listed without its account is not settled on the
+ *    amount alone and stays `unconfirmed`. A `payed` answer for another amount is state `mismatch` (review 1 note: never
+ *    left pending with money in it): never the order's payment, given back in full like a refused one (refused
+ *    `amount_mismatch`, payment/cancel) and a critical log for the team;
  *  - money Paylov took for an order that cannot take it (paid by another transaction, cancelled meanwhile: perform was
  *    answered +1 and payload.paylov.refused says why) is `paid` on the payment only, never on the order, and given back
  *    in full through payment/cancel (refund());
- *  - refund() is the full refund (subscribe/cancel-payment has no amount); applyCancel() records a cancellation however
- *    it came (our own payment/cancel, or the transaction.cancel webhook, which Paylov retries up to 3 times), once.
+ *  - refund() is the full refund (subscribe/cancel-payment has no amount). Before a refund is ever flagged for a manual
+ *    one, Paylov is asked for the transaction's status (review 1: our earlier payment/cancel may have gone through with
+ *    its answer lost, and API cancels send no webhook); a status that cannot be read is asked again, never flagged;
+ *  - the transaction.cancel webhook carries Basic Auth only, which a store on its own Paylov account knows: it is applied
+ *    only once getTransactions reports the transaction cancelled (verifyCancel, review 2). Until Paylov answers it is
+ *    `cancel_reported_at` and the scheduled re-check asks again; a cancel Paylov does not confirm is logged and ignored.
+ *    applyCancel() records a cancellation however it came (our own payment/cancel, or a verified webhook), once.
  *
  * An order with a payment still unconfirmed is never expired as unpaid (CancelUnpaidOnlineOrdersJob).
  */
@@ -49,6 +59,12 @@ class PaylovPayments
     public const PAID_STATUS = 'payed';
     public const WAITING_STATUSES = ['created', 'transfer', 'pending', 'waiting'];
     public const CLOSED_STATUSES = ['failed' => PaymentStatus::FAILED, 'cancel' => PaymentStatus::CANCELLED, 'refunded' => PaymentStatus::CANCELLED];
+
+    /** The getTransactions statuses of a transaction whose money went back (a cancel or a refund) */
+    public const CANCELLED_STATUSES = ['cancel', 'refunded'];
+
+    /** A cancel webhook Paylov has not confirmed for this long is alerted once (a critical log); still asked after that */
+    public const CANCEL_STALE_MINUTES = 60;
 
     /** payload.paylov.refund.status */
     public const REFUND_REQUESTED = 'requested';
@@ -109,11 +125,16 @@ class PaylovPayments
         $result = $this->api->transaction(PaylovAccount::forOrder($payment->order), $transactionId);
         $transaction = $result->ok ? $this->transactionOf($result, $transactionId) : null;
         $status = is_array($transaction) ? strtolower((string) ($transaction['status'] ?? '')) : null;
+        $ours = is_array($transaction) ? self::accountMatches($transaction, $payment) : null;
 
-        if ($status === self::PAID_STATUS) {
+        if ($ours === false) {
+            return $this->foreign($payment, $status);
+        }
+
+        if ($status === self::PAID_STATUS && $ours === true) {
             $tiyin = self::wholeTiyin($transaction['amount_in_tiyin'] ?? null);
             if ($tiyin === null || $tiyin !== Money::of($payment->amount)->toTiyin()) {
-                return $this->mismatch($payment, $tiyin);
+                return $this->mismatch($payment, $transaction['amount_in_tiyin'] ?? null);
             }
 
             return $this->settle($payment);
@@ -121,6 +142,11 @@ class PaylovPayments
 
         if ($status !== null && isset(self::CLOSED_STATUSES[$status])) {
             return $this->close($payment, self::CLOSED_STATUSES[$status], $status);
+        }
+
+        if ($status === self::PAID_STATUS) {
+            // Listed `payed` without the account it was paid for: never settled on the amount alone
+            $status = 'account_missing';
         }
 
         // Not decided yet: no answer, an error, Paylov does not list it (yet), or it is still being processed
@@ -189,9 +215,9 @@ class PaylovPayments
         return $outcome;
     }
 
-    private function close(Payment $payment, PaymentStatus $to, string $paylovStatus): string
+    private function close(Payment $payment, PaymentStatus $to, string $paylovStatus, ?string $reason = null): string
     {
-        return DB::transaction(function () use ($payment, $to, $paylovStatus) {
+        return DB::transaction(function () use ($payment, $to, $paylovStatus, $reason) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
             if (!$locked || !self::isUnconfirmed($locked)) {
                 return 'noop';
@@ -201,33 +227,99 @@ class PaylovPayments
                 'state' => self::STATE_REJECTED,
                 'paylov_status' => $paylovStatus,
                 'closed_at' => now()->toIso8601String(),
-            ]);
+            ] + ($reason !== null ? ['rejected_reason' => $reason] : []), ['cancel_reported_at']);
 
             return self::STATE_REJECTED;
         });
     }
 
+    /**
+     * Review 1 (L): Paylov lists the transaction for another order (account.order_id): the perform that named this order
+     * was wrong. Closed and alerted, never settled, never refunded from here (the money is the other order's).
+     */
+    private function foreign(Payment $payment, ?string $paylovStatus): string
+    {
+        Log::critical('Paylov lists the performed transaction for another order: not settled, check it in the Paylov business panel', [
+            'payment_id' => $payment->id,
+            'order_id' => $payment->order_id,
+            'paylov_status' => $paylovStatus !== null ? mb_substr($paylovStatus, 0, 32) : null,
+        ]);
+
+        return $this->close($payment, PaymentStatus::FAILED, (string) $paylovStatus, 'transaction_of_another_order');
+    }
+
+    /**
+     * Whether a getTransactions entry is this payment's order (account.order_id is the uuid the checkout link carries,
+     * PaymentProviderSwitch::paylovUrl); null when Paylov lists it without an account. The transaction-status page shows
+     * `account` in its answer but not whether a link payment always has it: treating a missing one as "cannot tell" (never
+     * settled, checked again) is our guess, kept here.
+     *
+     * @param  array<string, mixed>  $transaction
+     */
+    public static function accountMatches(array $transaction, Payment $payment): ?bool
+    {
+        $reference = is_array($transaction['account'] ?? null) ? ($transaction['account']['order_id'] ?? null) : null;
+        if (!is_scalar($reference) || trim((string) $reference) === '') {
+            return null;
+        }
+        $uuid = $payment->order?->uuid;
+        if ($uuid === null) {
+            return null;
+        }
+
+        return strcasecmp(trim((string) $reference), (string) $uuid) === 0;
+    }
+
+    /**
+     * Review 1 note: Paylov took another amount than the order's for this order's transaction. Never the order's payment
+     * and never left pending with the money in it: recorded as money to give back (paid on the payment only, refused
+     * `amount_mismatch`) and refunded in full through payment/cancel (a whole-transaction refund, whatever amount Paylov
+     * took), with a critical log for the team. A refund Paylov refuses for good is flagged for a manual one as any other.
+     */
     private function mismatch(Payment $payment, mixed $tiyin): string
     {
-        $this->note($payment, [
-            'state' => self::STATE_MISMATCH,
-            'reported_tiyin' => is_scalar($tiyin) ? (string) $tiyin : null,
-            'last_check_at' => now()->toIso8601String(),
-        ]);
-        Log::critical('Paylov reports another amount for a performed transaction: not settled, check it in the Paylov business panel', [
+        $reported = is_scalar($tiyin) ? mb_substr((string) $tiyin, 0, 32) : null;
+
+        $refund = DB::transaction(function () use ($payment, $reported) {
+            // The order row first, as every other write about this order's money
+            if ($payment->order_id) {
+                Order::whereKey($payment->order_id)->lockForUpdate()->first();
+            }
+            $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
+            if (!$locked || !self::isUnconfirmed($locked)) {
+                return null;
+            }
+
+            $this->write($locked, ['status' => PaymentStatus::PAID, 'paid_at' => now()], [
+                'state' => self::STATE_MISMATCH,
+                'reported_tiyin' => $reported,
+                'last_check_at' => now()->toIso8601String(),
+                'refused' => 'amount_mismatch',
+                'refund' => ['status' => self::REFUND_REQUESTED, 'reason' => 'amount_mismatch', 'requested_at' => now()->toIso8601String()],
+            ]);
+
+            return $locked;
+        });
+
+        if ($refund === null) {
+            return 'noop';
+        }
+
+        Log::critical('Paylov reports another amount for a performed transaction: not settled, given back in full through payment/cancel', [
             'payment_id' => $payment->id,
             'order_id' => $payment->order_id,
             'expected_tiyin' => Money::of($payment->amount)->toTiyin(),
-            'reported_tiyin' => is_scalar($tiyin) ? $tiyin : null,
+            'reported_tiyin' => $reported,
         ]);
+        RefundPaylovPayment::dispatch((int) $refund->id);
 
         return self::STATE_MISMATCH;
     }
 
     /**
      * The full refund of a paid Paylov payment through payment/cancel (subscribe/cancel-payment). Returns refunded,
-     * retry (Paylov did not answer, or answered a passing error: asked again later), manual (refused for good: flagged
-     * for a manual refund) or noop.
+     * retry (Paylov did not answer, or answered a passing error, or its status cannot be read: asked again later), manual
+     * (refused for good and Paylov's status says the money is still there: flagged for a manual refund) or noop.
      */
     public function refund(int $paymentId): string
     {
@@ -248,18 +340,45 @@ class PaylovPayments
             return 'refunded';
         }
 
-        // Already cancelled at Paylov (its panel, or our earlier call whose answer was lost): read it back
-        if ($result->errorCode === 'transaction_not_available_for_cancel') {
+        $attempts = (int) ($refund['attempts'] ?? 0) + 1;
+        $lastTry = !$result->transient || $attempts >= self::REFUND_MAX_ATTEMPTS;
+
+        // Review 1: before a refund is ever flagged for a manual one, Paylov is asked whether it is cancelled already (its
+        // panel, or our earlier payment/cancel whose answer was lost: API cancels send no webhook). A status that cannot
+        // be read is asked again later, never flagged: a manual refund on top of Paylov's would give the money back twice
+        if ($result->errorCode === 'transaction_not_available_for_cancel' || $lastTry) {
             $status = $this->api->transaction($account, $transactionId);
             $transaction = $status->ok ? $this->transactionOf($status, $transactionId) : null;
-            if (is_array($transaction) && in_array(strtolower((string) ($transaction['status'] ?? '')), ['cancel', 'refunded'], true)) {
+            $paylovStatus = is_array($transaction) ? strtolower((string) ($transaction['status'] ?? '')) : null;
+            if ($paylovStatus !== null && in_array($paylovStatus, self::CANCELLED_STATUSES, true) && self::accountMatches($transaction, $payment) !== false) {
                 $this->applyCancel($payment, 'merchant');
 
                 return 'refunded';
             }
+
+            if ($paylovStatus === null) {
+                $this->note($payment, ['refund' => array_merge($refund, [
+                    'status' => self::REFUND_RETRYING,
+                    'attempts' => $attempts,
+                    'last_error' => $result->errorCode,
+                    'last_status_error' => $status->ok ? 'not_listed' : $status->errorCode,
+                    'last_attempt_at' => now()->toIso8601String(),
+                ])]);
+                if ($attempts >= self::REFUND_MAX_ATTEMPTS && $this->noteOnce((int) $payment->id, 'refund_unverified_alerted_at')) {
+                    Log::critical('Paylov refund not confirmed and its status cannot be read: still asked again, check it in the Paylov business panel', [
+                        'payment_id' => $payment->id,
+                        'order_id' => $payment->order_id,
+                        'amount' => Money::of($payment->amount)->toString(),
+                        'error' => $result->errorCode,
+                        'attempts' => $attempts,
+                    ]);
+                }
+                Log::warning('Paylov refund not done yet and its status unreadable, asked again later', ['payment_id' => $payment->id, 'error' => $result->errorCode, 'attempts' => $attempts]);
+
+                return 'retry';
+            }
         }
 
-        $attempts = (int) ($refund['attempts'] ?? 0) + 1;
         if ($result->transient && $attempts < self::REFUND_MAX_ATTEMPTS) {
             $this->note($payment, ['refund' => array_merge($refund, [
                 'status' => self::REFUND_RETRYING,
@@ -300,6 +419,79 @@ class PaylovPayments
     }
 
     /**
+     * Review 2 (H1): the transaction.cancel webhook, applied only once Paylov itself reports the transaction cancelled.
+     * Its Basic Auth is no proof: a store on its own Paylov account knows its callback login and password, and an
+     * unverified cancel would refund a delivered order (its commission and settlement reversed) while the money stays
+     * in the store's account. The status is read with the account the order was paid into. Returns closed / refunded
+     * (applied), noop (applied before: a retry), not_cancelled (Paylov says otherwise: logged, ignored) or unverified
+     * (Paylov did not answer: `cancel_reported_at` is kept and the scheduled re-check asks again).
+     */
+    public function verifyCancel(Payment $payment, ?int $cancelTime = null): string
+    {
+        $payment = Payment::with('order')->find($payment->id);
+        if (!$payment || !in_array($payment->status, [PaymentStatus::PENDING, PaymentStatus::PAID], true)) {
+            return 'noop';
+        }
+
+        $transactionId = (string) $payment->provider_transaction_id;
+        $result = $this->api->transaction(PaylovAccount::forOrder($payment->order), $transactionId);
+        $transaction = $result->ok ? $this->transactionOf($result, $transactionId) : null;
+        $status = is_array($transaction) ? strtolower((string) ($transaction['status'] ?? '')) : null;
+
+        if ($status === null) {
+            $reported = self::state($payment)['cancel_reported_at'] ?? null;
+            if (!is_string($reported)) {
+                $this->note($payment, ['cancel_reported_at' => now()->toIso8601String(), 'cancel_reported_time' => $cancelTime]);
+            } elseif (now()->subMinutes(self::CANCEL_STALE_MINUTES)->gt(\Illuminate\Support\Carbon::parse($reported))
+                && $this->noteOnce((int) $payment->id, 'cancel_alerted_at')) {
+                Log::critical('Paylov cancel webhook still not confirmed by Paylov after an hour: check the transaction in the Paylov business panel', [
+                    'payment_id' => $payment->id,
+                    'order_id' => $payment->order_id,
+                ]);
+            }
+            Log::warning('Paylov cancel webhook not applied yet: Paylov did not confirm it, asked again later', [
+                'payment_id' => $payment->id,
+                'error' => $result->ok ? 'not_listed' : $result->errorCode,
+            ]);
+
+            return 'unverified';
+        }
+
+        if (in_array($status, self::CANCELLED_STATUSES, true) && self::accountMatches($transaction, $payment) !== false) {
+            $time = $cancelTime ?? (is_numeric(self::state($payment)['cancel_reported_time'] ?? null) ? (int) self::state($payment)['cancel_reported_time'] : null);
+
+            return $this->applyCancel($payment, 'webhook', $time);
+        }
+
+        // Paylov says the money is still there (or the transaction is another order's): a forged or mistaken cancel
+        $this->note($payment, [], ['cancel_reported_at', 'cancel_reported_time']);
+        Log::warning('Paylov cancel webhook not confirmed by Paylov: ignored', [
+            'payment_id' => $payment->id,
+            'order_id' => $payment->order_id,
+            'paylov_status' => mb_substr($status, 0, 32),
+        ]);
+
+        return 'not_cancelled';
+    }
+
+    /**
+     * Sets payload.paylov.$key to now under the payment's lock unless it is set already; whether it was set now (an
+     * alert sent once). Review 1 note: never a save of a payload read before, which would erase another writer's change.
+     */
+    public function noteOnce(int $paymentId, string $key): bool
+    {
+        return DB::transaction(function () use ($paymentId, $key) {
+            $locked = Payment::whereKey($paymentId)->lockForUpdate()->first();
+            if (!$locked || !empty(self::state($locked)[$key])) {
+                return false;
+            }
+            $this->write($locked, [], [$key => now()->toIso8601String()]);
+
+            return true;
+        });
+    }
+
+    /**
      * Records that Paylov cancelled the transaction (by us, from its business panel, or by its staff), exactly once.
      * A pending (unconfirmed) payment is closed; a paid one is refunded, and its order follows as with Payme's
      * CancelTransaction: a delivered order is refunded (its commission and settlement reversed), a cancelled or refunded
@@ -323,7 +515,7 @@ class PaylovPayments
             ];
 
             if ($locked->status === PaymentStatus::PENDING) {
-                $this->write($locked, ['status' => PaymentStatus::CANCELLED, 'cancelled_at' => now()], ['state' => self::STATE_CANCELLED] + $cancel);
+                $this->write($locked, ['status' => PaymentStatus::CANCELLED, 'cancelled_at' => now()], ['state' => self::STATE_CANCELLED] + $cancel, ['cancel_reported_at']);
 
                 return ['closed', null];
             }
@@ -336,7 +528,7 @@ class PaylovPayments
             $refund = is_array($state['refund'] ?? null) ? $state['refund'] : [];
             $this->write($locked, ['status' => PaymentStatus::REFUNDED, 'cancelled_at' => now()], $cancel + [
                 'refund' => array_merge($refund, ['status' => self::REFUND_DONE, 'done_at' => now()->toIso8601String()]),
-            ]);
+            ], ['cancel_reported_at']);
 
             // Money taken for an order that could not take it never was the order's
             if (($state['refused'] ?? null) !== null || $order === null) {
@@ -470,13 +662,14 @@ class PaylovPayments
      * Merges $state into payload.paylov (no other column), under the payment's lock.
      *
      * @param  array<string, mixed>  $state
+     * @param  list<string>  $forget  keys of payload.paylov to remove
      */
-    private function note(Payment $payment, array $state): void
+    private function note(Payment $payment, array $state, array $forget = []): void
     {
-        DB::transaction(function () use ($payment, $state) {
+        DB::transaction(function () use ($payment, $state, $forget) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
             if ($locked) {
-                $this->write($locked, [], $state);
+                $this->write($locked, [], $state, $forget);
             }
         });
     }
@@ -484,11 +677,15 @@ class PaylovPayments
     /**
      * @param  array<string, mixed>  $columns
      * @param  array<string, mixed>  $state  merged into payload.paylov
+     * @param  list<string>  $forget  keys of payload.paylov to remove
      */
-    private function write(Payment $payment, array $columns, array $state): void
+    private function write(Payment $payment, array $columns, array $state, array $forget = []): void
     {
         $payload = $payment->payload ?? [];
-        $payload['paylov'] = array_merge(is_array($payload['paylov'] ?? null) ? $payload['paylov'] : [], $state);
+        $payload['paylov'] = array_diff_key(
+            array_merge(is_array($payload['paylov'] ?? null) ? $payload['paylov'] : [], $state),
+            array_flip($forget),
+        );
 
         $payment->forceFill($columns + ['payload' => $payload])->save();
     }

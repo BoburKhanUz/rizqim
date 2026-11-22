@@ -358,6 +358,30 @@ class PaylovWebhookTest extends TestCase
         $this->assertSame('*/5 * * * *', $events->first()->expression);
     }
 
+    public function test_the_stale_alert_never_overwrites_what_was_written_meanwhile(): void
+    {
+        $order = $this->paylovOrder($this->store);
+        $txn = (string) Str::uuid();
+        $this->paylovStatus = 'http500';
+        $this->perform($order, $txn)->assertExactJson(self::answer());
+        $this->travel(61)->minutes();
+
+        // Another writer (a cancel webhook, a refund) changes the payment while the alert goes out
+        Log::listen(function ($event) use ($txn) {
+            if ($event->level === 'critical' && str_contains($event->message, 'unconfirmed for over an hour')) {
+                $payment = $this->paylovPayment($txn);
+                $payload = $payment->payload;
+                $payload['paylov']['written_meanwhile'] = true;
+                $payment->forceFill(['payload' => $payload])->save();
+            }
+        });
+        Artisan::call('payments:paylov-reconcile');
+
+        $state = $this->paylovPayment($txn)->payload['paylov'];
+        $this->assertTrue($state['written_meanwhile'] ?? false, 'the alert saved a stale payload');
+        $this->assertNotEmpty($state['stale_alerted_at'] ?? null);
+    }
+
     public function test_a_transaction_paylov_reports_failed_or_cancelled_is_closed_and_the_order_stays_unpaid(): void
     {
         foreach (['failed' => PaymentStatus::FAILED, 'cancel' => PaymentStatus::CANCELLED, 'refunded' => PaymentStatus::CANCELLED] as $status => $expected) {
@@ -381,7 +405,7 @@ class PaylovWebhookTest extends TestCase
         $this->assertSame('unconfirmed', $this->paylovPayment($txn)->payload['paylov']['state']);
     }
 
-    public function test_a_confirmation_for_another_amount_is_never_settled(): void
+    public function test_a_confirmation_for_another_amount_is_never_settled_and_given_back_in_full(): void
     {
         Log::spy();
         $order = $this->paylovOrder($this->store);
@@ -390,16 +414,24 @@ class PaylovWebhookTest extends TestCase
 
         $this->perform($order, $txn)->assertExactJson(self::answer());
 
+        // Review 1 note: never left pending with the money in it. Paylov took another amount for this order: never the
+        // order's payment, given back whole through payment/cancel, and the team is alerted
         $payment = $this->paylovPayment($txn);
-        $this->assertSame(PaymentStatus::PENDING, $payment->status);
         $this->assertSame('mismatch', $payment->payload['paylov']['state']);
+        $this->assertSame('amount_mismatch', $payment->payload['paylov']['refused']);
+        $this->assertSame('100', $payment->payload['paylov']['reported_tiyin']);
+        $this->assertSame(PaymentStatus::REFUNDED, $payment->status);
+        $this->assertCount(1, $this->sentTo('/merchant/payment/cancel/'));
         $this->assertSame(PaymentStatus::PENDING, $order->fresh()->payment_status);
         Log::shouldHaveReceived('critical')->withArgs(fn ($message) => str_contains($message, 'Paylov'));
 
-        // The re-check leaves it for the team
+        // A replay of the perform gets the first answer; the re-check never settles it
+        $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->paylovAmount = null;
         Artisan::call('payments:paylov-reconcile');
-        $this->assertSame('mismatch', $payment->fresh()->payload['paylov']['state']);
+        $this->assertSame(PaymentStatus::REFUNDED, $payment->fresh()->status);
+        $this->assertSame(PaymentStatus::PENDING, $order->fresh()->payment_status);
+        $this->assertCount(1, $this->sentTo('/merchant/payment/cancel/'));
     }
 
     public function test_a_second_transaction_for_a_paid_order_is_recorded_and_refunded_never_counted(): void
@@ -475,7 +507,8 @@ class PaylovWebhookTest extends TestCase
         $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->assertSame(OrderStatus::ACCEPTED, $order->fresh()->status);
 
-        // Retried up to 3 times by Paylov: every delivery is a 2xx, the first one counts
+        // Retried up to 3 times by Paylov: every delivery is a 2xx, the first one counts (Paylov reports it cancelled)
+        $this->paylovStatus = 'cancel';
         foreach (range(1, 3) as $attempt) {
             $this->cancelWebhook($order, $txn)->assertOk();
         }
@@ -500,6 +533,7 @@ class PaylovWebhookTest extends TestCase
         $this->assertSame(1, $this->settlements($order));
         $wallet = (string) $this->store->fresh()->wallet_balance;
 
+        $this->paylovStatus = 'refunded';
         $this->cancelWebhook($order, $txn)->assertOk();
         $this->cancelWebhook($order, $txn)->assertOk();
 
@@ -520,6 +554,7 @@ class PaylovWebhookTest extends TestCase
         $this->paylovStatus = 'pending';
         $this->perform($order, $txn)->assertExactJson(self::answer());
 
+        $this->paylovStatus = 'cancel';
         $this->cancelWebhook($order, $txn)->assertOk();
         $payment = $this->paylovPayment($txn);
         $this->assertSame(PaymentStatus::CANCELLED, $payment->status);

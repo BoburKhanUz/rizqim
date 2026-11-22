@@ -38,6 +38,9 @@ class PaylovWebhookController extends Controller
     /** merchants/creating-payment-link: currency_id "860 - UZS"; the only currency RIZQIM charges in */
     private const UZS = 860;
 
+    /** How much of a request value is logged or kept (review 2, L1/L3): a uuid is 36 */
+    private const LOG_CAP = 64;
+
     public function __construct(private readonly PaylovPayments $payments) {}
 
     /**
@@ -47,8 +50,9 @@ class PaylovWebhookController extends Controller
      * `transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and
      * password of the account the order is paid into (the platform's, or the store's own). Answers
      * `{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is
-     * settled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is any
-     * 2xx, and a failure to record it a 500 so that Paylov retries it.
+     * settled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is
+     * applied only once getTransactions reports it cancelled, answered any 2xx, and a failure to record it a 500 so that
+     * Paylov retries it.
      */
     #[ApiDocResponse(200, type: self::ANSWER)]
     #[ApiDocResponse(401, description: "Callback login yoki paroli noto'g'ri yoki sozlanmagan", type: self::ANSWER)]
@@ -66,12 +70,13 @@ class PaylovWebhookController extends Controller
         $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
         $id = $payload['id'] ?? null;
 
-        // Ids only: the callbacks carry no card data, and the Authorization header is never logged
+        // Ids only: the callbacks carry no card data, and the Authorization header is never logged. Logged before the
+        // Basic Auth check, so from anyone: each field is capped (review 2, L1)
         Log::info('Paylov Webhook Received', [
-            'method' => $method,
-            'id' => is_scalar($id) ? $id : null,
-            'transaction_id' => is_scalar($params['transaction_id'] ?? null) ? $params['transaction_id'] : null,
-            'order_id' => is_scalar($params['account']['order_id'] ?? null) ? $params['account']['order_id'] : null,
+            'method' => self::capped($method),
+            'id' => self::capped($id),
+            'transaction_id' => self::capped($params['transaction_id'] ?? null),
+            'order_id' => self::capped(is_array($params['account'] ?? null) ? ($params['account']['order_id'] ?? null) : null),
         ]);
 
         try {
@@ -177,7 +182,7 @@ class PaylovWebhookController extends Controller
                         'performed_at' => now()->toIso8601String(),
                         'refused' => $refused,
                     ], fn ($value) => $value !== null),
-                    'perform_params' => $params,
+                    'perform_params' => self::recordedParams($params),
                 ],
             ]);
 
@@ -204,14 +209,15 @@ class PaylovWebhookController extends Controller
     private function replay(mixed $id, Payment $payment): array
     {
         $state = PaylovPayments::state($payment);
-        if (($state['refused'] ?? null) !== null) {
+        if (($state['refused'] ?? null) !== null && ($state['state'] ?? null) !== PaylovPayments::STATE_MISMATCH) {
             return [$this->answer($id, self::CUSTOM, (string) $state['refused']), null, null];
         }
 
         return match (true) {
+            // Answered OK the first time; the money is being given back (PaylovPayments::mismatch), never the order's
+            ($state['state'] ?? null) === PaylovPayments::STATE_MISMATCH => [$this->answer($id, ...self::OK), null, null],
             $payment->status === PaymentStatus::PAID => [$this->answer($id, ...self::OK), null, $payment],
             PaylovPayments::isUnconfirmed($payment) => [$this->answer($id, ...self::OK), $payment, null],
-            ($state['state'] ?? null) === PaylovPayments::STATE_MISMATCH => [$this->answer($id, ...self::OK), null, null],
             default => [$this->answer($id, self::CUSTOM, 'transaction_cancelled'), null, null],
         };
     }
@@ -219,13 +225,16 @@ class PaylovWebhookController extends Controller
     /**
      * transaction.cancel (subscribe/payment/cancel-webhook): "Return any HTTP 2xx status code. The response body is not
      * checked." Sent when the transaction is cancelled from Paylov's business panel or by its staff (and, it is our
-     * reading, after our own payment/cancel), retried up to 3 times: recorded once by transaction_id.
+     * reading, after our own payment/cancel), retried up to 3 times. Review 2 (H1): its Basic Auth is not proof enough (a
+     * store on its own Paylov account knows its callback login and password), so it is applied only once getTransactions
+     * reports the transaction cancelled (PaylovPayments::verifyCancel); when Paylov does not answer, the scheduled
+     * re-check asks again. Every delivery is a 2xx: whatever happens next is ours to do, not Paylov's to retry.
      */
     private function cancel(mixed $id, array $params, ?Payment $payment): JsonResponse
     {
         if (!$payment) {
             Log::warning('Paylov cancel webhook for a transaction RIZQIM never recorded: nothing to do', [
-                'transaction_id' => $this->transactionId($params),
+                'transaction_id' => self::capped($this->transactionId($params)),
             ]);
 
             return $this->answer($id, ...self::OK);
@@ -233,12 +242,12 @@ class PaylovWebhookController extends Controller
 
         $tiyin = PaylovPayments::wholeTiyin($params['amount_in_tiyin'] ?? null);
         if ($tiyin !== null && $tiyin !== Money::of($payment->amount)->toTiyin()) {
-            // A cancel is always the whole transaction (cancel-payment has no amount): recorded, but worth a look
+            // A cancel is always the whole transaction (cancel-payment has no amount): checked with Paylov, but worth a look
             Log::warning('Paylov cancel webhook names another amount than the payment', ['payment_id' => $payment->id, 'amount_in_tiyin' => $tiyin]);
         }
 
         $cancelTime = is_numeric($params['cancel_time'] ?? null) ? (int) $params['cancel_time'] : null;
-        $this->payments->applyCancel($payment, 'webhook', $cancelTime);
+        $this->payments->verifyCancel($payment, $cancelTime);
 
         return $this->answer($id, ...self::OK);
     }
@@ -321,6 +330,31 @@ class PaylovWebhookController extends Controller
         }
 
         return Order::where('uuid', (string) $reference)->first();
+    }
+
+    /**
+     * A value from the request as logged: a scalar cut to LOG_CAP characters, else null.
+     */
+    private static function capped(mixed $value): ?string
+    {
+        return is_scalar($value) ? mb_substr((string) $value, 0, self::LOG_CAP) : null;
+    }
+
+    /**
+     * What payload.perform_params keeps of perform's params (review 2, L3): only the fields
+     * merchants/transaction-perform documents, each a capped scalar, never whatever size the body had.
+     *
+     * @return array{transaction_id: string|null, account: array{order_id: string|null}, amount: string|null, amount_tiyin: string|null, currency: string|null}
+     */
+    private static function recordedParams(array $params): array
+    {
+        return [
+            'transaction_id' => self::capped($params['transaction_id'] ?? null),
+            'account' => ['order_id' => self::capped(is_array($params['account'] ?? null) ? ($params['account']['order_id'] ?? null) : null)],
+            'amount' => self::capped($params['amount'] ?? null),
+            'amount_tiyin' => self::capped($params['amount_tiyin'] ?? null),
+            'currency' => self::capped($params['currency'] ?? null),
+        ];
     }
 
     private function transactionId(array $params): ?string

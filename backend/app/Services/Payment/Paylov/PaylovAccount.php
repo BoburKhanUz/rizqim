@@ -3,6 +3,7 @@
 namespace App\Services\Payment\Paylov;
 
 use App\Models\Order;
+use App\Models\PaymentProvider;
 use App\Services\Payment\OrderMerchantAccount;
 
 /**
@@ -32,12 +33,28 @@ final class PaylovAccount
 
     public static function forOrder(?Order $order): self
     {
+        if (!OrderMerchantAccount::isStore($order)) {
+            // Review 2 (L2): the platform's provider row is read once for all seven keys (the webhook does this before
+            // its Basic Auth check), with the same fallback to config as PaymentProvider::platformCredential
+            $stored = PaymentProvider::where('slug', 'paylov')->first()?->credentials;
+            $credentials = [];
+            foreach (self::KEYS as $key) {
+                $value = is_array($stored) ? ($stored[$key] ?? null) : null;
+                if (blank($value)) {
+                    $value = config("services.paylov.{$key}");
+                }
+                $credentials[$key] = filled($value) && is_scalar($value) ? trim((string) $value) : null;
+            }
+
+            return new self($credentials, false);
+        }
+
         $credentials = [];
         foreach (self::KEYS as $key) {
             $credentials[$key] = OrderMerchantAccount::credential('paylov', $order, $key);
         }
 
-        return new self($credentials, OrderMerchantAccount::isStore($order));
+        return new self($credentials, true);
     }
 
     public static function platform(): self
@@ -75,11 +92,20 @@ final class PaylovAccount
     }
 
     /**
-     * The cache key of this account's access token: a hash, so no credential is readable in the cache key.
+     * The cache key of this account's access token: a hash, so no credential is readable in the cache key. Review 2
+     * (M1): all four OAuth2 credentials are in it, so an account that shares another's consumer_key and username but
+     * not its secret and password is never handed the other's token (it asks Paylov, which refuses it). Each part is
+     * length-prefixed so no two different sets of values give the same string.
      */
     public function tokenCacheKey(string $baseUrl): string
     {
-        return 'paylov:token:' . hash('sha256', $baseUrl . '|' . $this->get('consumer_key') . '|' . $this->get('username'));
+        $parts = [$baseUrl];
+        foreach (['consumer_key', 'consumer_secret', 'username', 'password'] as $key) {
+            $parts[] = (string) $this->get($key);
+        }
+
+        // Keyed with the app key: the cache never holds a plain hash a password could be guessed against
+        return 'paylov:token:' . hash_hmac('sha256', implode('', array_map(fn (string $part) => strlen($part) . ':' . $part, $parts)), (string) config('app.key'));
     }
 
     /**

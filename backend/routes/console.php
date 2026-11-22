@@ -19,8 +19,8 @@ Schedule::job(new CancelUnpaidOnlineOrdersJob)->everyMinute()->withoutOverlappin
 // refunds Paylov did not answer are asked again (App\Services\Payment\Paylov\PaylovReconciler)
 Artisan::command('payments:paylov-reconcile', function (\App\Services\Payment\Paylov\PaylovReconciler $reconciler) {
     $done = $reconciler->run();
-    $this->info("{$done['checked']} unconfirmed Paylov payment(s) checked, {$done['refunds']} refund(s) asked again");
-})->purpose('Re-check unconfirmed Paylov payments and retry pending Paylov refunds');
+    $this->info("{$done['checked']} unconfirmed Paylov payment(s) checked, {$done['refunds']} refund(s) asked again, {$done['cancels']} cancel report(s) checked");
+})->purpose('Re-check unconfirmed Paylov payments, retry pending Paylov refunds and verify reported Paylov cancels');
 Schedule::command('payments:paylov-reconcile')->everyFiveMinutes()->withoutOverlapping(10);
 
 // Delivered orders whose ledger booking failed are booked again until config('orders.settlement_retry_max_attempts')

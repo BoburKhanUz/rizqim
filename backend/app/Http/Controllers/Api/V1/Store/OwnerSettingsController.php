@@ -35,6 +35,9 @@ class OwnerSettingsController extends Controller
     /** Wave P: Paylov in POST /owner/settings: `enabled`; with an own merchant account its seven keys */
     private const PAYLOV_IN = 'array{enabled?: bool, merchant_id?: string|null, consumer_key?: string|null, consumer_secret?: string|null, username?: string|null, password?: string|null, callback_login?: string|null, callback_password?: string|null}';
 
+    /** Review 2 (L4): the shortest webhook (callback) password an owner may set for its own Paylov account */
+    private const PAYLOV_CALLBACK_PASSWORD_MIN = 16;
+
     /** Wave P: the own-account keys an owner may save per provider (Paylov's: PaylovAccount::KEYS) */
     private const OWN_FIELDS = ['merchant_id', 'service_id', 'secret_key'];
 
@@ -133,10 +136,11 @@ class OwnerSettingsController extends Controller
     #[IgnoreParam('payment_settings.*.password')]
     #[IgnoreParam('payment_settings.*.callback_login')]
     #[IgnoreParam('payment_settings.*.callback_password')]
+    #[IgnoreParam('payment_settings.paylov.callback_password')]
     #[BodyParameter('tin', description: "P3-11: STIR, 9 ta raqam.", required: false, type: 'string|null')]
     #[BodyParameter('tax_regime', description: 'P3-11: vat | vat_simplified | turnover.', required: false, type: "'vat'|'vat_simplified'|'turnover'|null")]
     #[BodyParameter('fiscal_settings', description: 'P3-11: fiskal sozlamalar (PUT /owner/fiscal/settings kabi).', required: false, infer: false, type: 'array{enabled?: bool, driver?: string|null, charges?: array<string, array{name?: string|null, mxik?: string|null, package_code?: string|null, unit?: string|null}>, sandbox?: array{latency_ms?: int, fail_attempts?: int, failure_rate?: int, reject?: bool}, deposit_refund_receipt?: bool|null, retained_deposit_receipt?: bool|null}')]
-    #[BodyParameter('payment_settings', description: "To'lov va yetkazish sozlamalari (obyekt).", required: true, infer: false, type: 'array{delivery_fee?: float|null, delivery_enabled?: bool|null, pickup_enabled?: bool|null, working_hours?: array{open?: string|null, close?: string|null}|null, cash?: ' . self::PROVIDER_IN . ', click?: ' . self::PROVIDER_IN . ', payme?: ' . self::PROVIDER_IN . ', uzum?: ' . self::PROVIDER_IN . ', paynet?: ' . self::PROVIDER_IN . ', paylov?: ' . self::PAYLOV_IN . '}')]
+    #[BodyParameter('payment_settings', description: "To'lov va yetkazish sozlamalari (obyekt). Paylov callback_password (o'z hisobi): kamida 16 belgi.", required: true, infer: false, type: 'array{delivery_fee?: float|null, delivery_enabled?: bool|null, pickup_enabled?: bool|null, working_hours?: array{open?: string|null, close?: string|null}|null, cash?: ' . self::PROVIDER_IN . ', click?: ' . self::PROVIDER_IN . ', payme?: ' . self::PROVIDER_IN . ', uzum?: ' . self::PROVIDER_IN . ', paynet?: ' . self::PROVIDER_IN . ', paylov?: ' . self::PAYLOV_IN . '}')]
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -180,6 +184,13 @@ class OwnerSettingsController extends Controller
             'payment_settings.*.password' => 'nullable|string|max:255',
             'payment_settings.*.callback_login' => 'nullable|string|max:255',
             'payment_settings.*.callback_password' => 'nullable|string|max:255',
+            // Review 2 (L4): Paylov's webhook password is the only thing guarding the callbacks of the store's own
+            // account: at least PAYLOV_CALLBACK_PASSWORD_MIN characters (a blank or masked value keeps the stored one)
+            'payment_settings.paylov.callback_password' => [function (string $attribute, mixed $value, \Closure $fail) {
+                if (is_string($value) && preg_match('/^[\s*•]*$/u', $value) !== 1 && mb_strlen(trim($value)) < self::PAYLOV_CALLBACK_PASSWORD_MIN) {
+                    $fail("Paylov webhook paroli kamida " . self::PAYLOV_CALLBACK_PASSWORD_MIN . " belgidan iborat bo'lishi kerak.");
+                }
+            }],
         ], [
             'name.required' => "Do'kon nomini kiriting.",
             'name.max' => "Do'kon nomi ko'pi bilan 255 belgi bo'lishi mumkin.",

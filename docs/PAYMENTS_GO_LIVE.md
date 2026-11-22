@@ -243,25 +243,41 @@ hisobotiga qarang). Rasmiy hujjat: https://developer.paylov.uz (2026-yil 22-noya
 2. Paylov serverga `transaction.check` yuboradi: buyurtma, summa (aniq tiyin, kasr rad etiladi) va holat tekshiriladi.
 3. Mijoz to'laydi → Paylov `transaction.perform` yuboradi. Server to'lovni **«tasdiqlanmagan»** (`unconfirmed`) deb
    yozadi va darhol javob beradi. Paylov webhook'lari imzolanmagan (faqat login/parol), shuning uchun keyin server
-   Paylov API'sidan (`getTransactions`) tranzaksiya holatini o'qiydi: `payed` va summa bir xil bo'lsa — buyurtma
-   **bir marta** «to'langan» bo'ladi, aks holda to'lov tegilmaydi.
+   Paylov API'sidan (`getTransactions`) tranzaksiya holatini o'qiydi: `payed`, summa bir xil va `account.order_id`
+   aynan shu buyurtma bo'lsa — buyurtma **bir marta** «to'langan» bo'ladi, aks holda to'lov tegilmaydi. Paylov
+   tranzaksiyani **boshqa buyurtmaniki** deb ko'rsatsa, to'lov yopiladi (`rejected`, `transaction_of_another_order`,
+   logda `critical`) — bu pul boshqa buyurtmaniki, shuning uchun bu yerdan qaytarilmaydi. `account` umuman bo'lmasa,
+   to'lov hisoblanmaydi va «tasdiqlanmagan» bo'lib qayta tekshiriladi.
 4. API javob bermasa yoki holat hali `pending` bo'lsa, to'lov «tasdiqlanmagan» bo'lib qoladi va har 5 daqiqada
    (`php artisan payments:paylov-reconcile`, scheduler) qayta tekshiriladi. Bunday buyurtma 30 daqiqalik «to'lanmagan»
    muddat bilan **bekor qilinmaydi**. Bir soatdan oshsa logda `critical` ogohlantirish chiqadi — Paylov biznes panelida
-   tekshiring. Paylov boshqa summani ko'rsatsa — `mismatch`: to'lov hech qachon avtomatik hisoblanmaydi, logda
-   `critical`, qo'lda ko'rib chiqiladi.
+   tekshiring (ogohlantirish belgisi to'lov qatori qulflanib yoziladi: shu payt kelgan boshqa yozuv o'chmaydi). Paylov
+   boshqa summani ko'rsatsa — `mismatch`: to'lov buyurtmaga **hech qachon** hisoblanmaydi va pul ichida qolib
+   «kutilmoqda» bo'lib turmaydi: server `payment/cancel` bilan uni **to'liq qaytaradi** (to'lovda
+   `refused: amount_mismatch`), logda `critical`. Paylov qaytarishni rad etsa — «qo'lda qaytarish» belgisi (7-band).
 5. Paylov pulni to'langan yoki bekor qilingan buyurtma uchun olgan bo'lsa (javobimiz `+1` bo'lsa ham), to'lov yoziladi
    va `payment/cancel` orqali **to'liq qaytariladi** — buyurtmaga hisoblanmaydi.
 6. Chek: ovqatxonada fiskal rejim yoqilgan bo'lsa, to'lov **tasdiqlangandan keyin** `fiscalization/register`
    yuboriladi (taomlar, MXIK, qadoq kodi, QQS, ovqatxona STIR/JShShIR; yetkazish alohida qator). Natija hamkor paneli →
    To'lovlar'da (`recorded`, `blocked`, `failed`).
 7. Qaytarish: **faqat to'liq** (Paylov `payment/cancel` summa olmaydi). To'langan buyurtma bekor qilinsa yoki
-   boshqaruv markazida to'liq qaytarish tasdiqlansa, server o'zi `payment/cancel` chaqiradi; Paylov rad etsa — to'lov
-   «qo'lda qaytarish» deb belgilanadi (Paylov biznes panelidan qaytariladi). **Qisman qaytarish so'rovi rad etiladi**
-   («Paylov faqat to'liq qaytarishni qo'llaydi...»). Paylov panelidan yoki xodimidan bekor qilinsa, `transaction.cancel`
-   webhook'i keladi (3 martagacha takrorlanadi) — bir marta yoziladi: yetkazilgan buyurtma «qaytarilgan» bo'ladi
-   (komissiya va hisob-kitob qaytariladi). Qaytarish cheki Paylov'da avtomatik bekor qilinadi; bo'lmasa server
-   `fiscalization/refund` bilan so'raydi.
+   boshqaruv markazida to'liq qaytarish tasdiqlansa, server o'zi `payment/cancel` chaqiradi. «Qo'lda qaytarish» belgisi
+   qo'yilishidan **oldin** server har doim Paylov'dan tranzaksiya holatini o'qiydi (oldingi `payment/cancel` o'tgan,
+   lekin javobi yo'qolgan bo'lishi mumkin, API orqali bekor qilishda webhook kelmaydi): `cancel`/`refunded` bo'lsa —
+   qaytarilgan deb yoziladi; holatni o'qib bo'lmasa — belgi qo'yilmaydi, keyinroq yana so'raladi (12 urinishdan keyin
+   logda bir marta `critical`); faqat Paylov pul hali o'zida (`payed`) desa — «qo'lda qaytarish» (Paylov biznes
+   panelidan qaytariladi). Shu tufayli pul ikki marta qaytarilmaydi. **Qisman qaytarish so'rovi rad etiladi**
+   («Paylov faqat to'liq qaytarishni qo'llaydi...»).
+8. `transaction.cancel` webhook'i (Paylov panelidan yoki xodimidan bekor qilinganda, 3 martagacha takrorlanadi) faqat
+   login/parol bilan keladi, imzosi yo'q — o'z Paylov hisobli ovqatxona egasi o'z callback parolini biladi. Shuning
+   uchun server uni **Paylov API'sidan tekshiradi** (buyurtma to'langan hisob bilan `getTransactions`): Paylov
+   `cancel`/`refunded` desagina bir marta yoziladi (yetkazilgan buyurtma «qaytarilgan», komissiya va hisob-kitob
+   qaytariladi). Paylov `payed` desa — e'tiborsiz qoldiriladi (logda ogohlantirish). Paylov javob bermasa — to'lovda
+   `cancel_reported_at` qoladi va har 5 daqiqalik qayta tekshiruv uni yana so'raydi (bir soatdan oshsa logda bir marta
+   `critical`). Webhook'ga har doim 2xx javob beriladi.
+9. Qaytarish cheki Paylov'da avtomatik bekor qilinadi; bo'lmasa server `fiscalization/refund` bilan so'raydi. Pul chek
+   ro'yxatga olinayotgan paytda qaytarilsa ham qaytarish cheki albatta so'raladi (chek holati to'lov qatori qulflanib
+   yoziladi, shu payt yozilgan qaytarish so'rovi o'chmaydi).
 
 ### 11.2. Paylov'dan nima olish kerak (egasi)
 
@@ -284,7 +300,7 @@ Paylov ochiq ro'yxatdan o'tish bermaydi: shartnoma va hisobni Paylov xodimi ocha
 |---|---|
 | Callback URL (Checkout: `transaction.check`, `transaction.perform`) | `https://api.rizqim.uz/api/v1/payments/paylov/webhook` |
 | Cancel webhook URL (`transaction.cancel`) | `https://api.rizqim.uz/api/v1/payments/paylov/webhook` (o'sha manzil) |
-| Callback login va parol (Basic Auth) | o'zingiz yarating: uzun tasodifiy qiymat (masalan `openssl rand -base64 32`); serverga `PAYLOV_CALLBACK_LOGIN` / `PAYLOV_CALLBACK_PASSWORD` sifatida yozing va Paylov'ga **xavfsiz kanal** orqali bering. Hujjatda bu "Merchant's API login/password" deb atalgan — Paylov API login/paroli bilan bir xil bo'lishi kerakmi, so'rang; bir xil bo'lsa, ikkala juftga bir xil qiymat yozing |
+| Callback login va parol (Basic Auth) | o'zingiz yarating: uzun tasodifiy qiymat (masalan `openssl rand -base64 32`; o'z hisobli ovqatxonaning callback paroli hamkor panelida **kamida 16 belgi**, qisqasi 422 bilan rad etiladi); serverga `PAYLOV_CALLBACK_LOGIN` / `PAYLOV_CALLBACK_PASSWORD` sifatida yozing va Paylov'ga **xavfsiz kanal** orqali bering. Hujjatda bu "Merchant's API login/password" deb atalgan — Paylov API login/paroli bilan bir xil bo'lishi kerakmi, so'rang; bir xil bo'lsa, ikkala juftga bir xil qiymat yozing |
 | Account maydoni | `order_id` (matn, UUID, 36 belgi) |
 | `return_url` | Mini App manzili (`TELEGRAM_WEBAPP_URL`), server o'zi qo'yadi |
 
@@ -321,7 +337,12 @@ Paylov'da ochiq sinov muhiti **yo'q** (hujjatda faqat production manzillar). Shu
    qaytarish va chek ham soxta. Webhook'larni curl bilan yuborib sinang (Basic Auth bilan):
    `transaction.check` → `{"status":"0"}`, noto'g'ri summa → `5`, noma'lum buyurtma → `303`, noto'g'ri parol → HTTP 401;
    `transaction.perform` → buyurtma «to'langan»; ikkinchi marta → o'sha javob, ikki marta hisoblanmaydi;
-   `transaction.cancel` → to'lov qaytarilgan.
+   `transaction.cancel` → soxta drayver to'lovni doim `payed` deb ko'rsatadi, shuning uchun webhook orqali bekor
+   qilish Sinov rejimida **qo'llanmaydi** (8-band: tekshiruvdan o'tmaydi); bekor qilish/qaytarishni boshqaruv markazidan
+   sinang (soxta `payment/cancel` darhol `cancelled` beradi).
+   Eslatma: Sinov rejimi platforma qatoriga qo'yiladi, lekin production bo'lmagan serverda **o'z Paylov hisobli
+   ovqatxonalar** to'lovlari ham soxta drayver bilan ishlaydi (ataylab: staging'da hech qanday haqiqiy Paylov hisobiga
+   so'rov ketmaydi). Productionda bu holat yo'q.
 2. **Productionda Sinov rejimi yoqilmaydi** (`PAYMENTS_ALLOW_TEST_MODE=true` bo'lsa ham): server rad etadi, bazada
    qolgan «Sinov» ham productionda haqiqiy Paylov bilan ishlaydi.
 3. Birinchi haqiqiy to'lov — productionda, o'z kartangiz bilan, **1 000 so'm**: to'lang → buyurtma «to'langan»

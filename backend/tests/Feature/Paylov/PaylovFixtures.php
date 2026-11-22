@@ -40,6 +40,9 @@ trait PaylovFixtures
     /** @var array<string, int> tiyin by transaction id, as perform reported it (what getTransactions echoes back) */
     protected array $performed = [];
 
+    /** @var array<string, string> the order uuid (account.order_id) by transaction id, as perform reported it */
+    protected array $performedOrders = [];
+
     protected function setUpPaylov(): void
     {
         $this->paylov = self::makeAccount();
@@ -111,7 +114,8 @@ trait PaylovFixtures
                 'amount' => intdiv($tiyin, 100) + 0.0,
                 'amount_in_tiyin' => $tiyin,
                 'status' => $this->paylovStatus,
-                'account' => ['order_id' => 'x'],
+                // getTransactions echoes the account the transaction was paid for (the order perform named)
+                'account' => ['order_id' => $this->performedOrders[$id] ?? (string) Str::uuid()],
                 'cancel_time' => null,
                 'error_message' => null,
                 'date' => '2026-11-22 06:38:38',
@@ -171,6 +175,7 @@ trait PaylovFixtures
     {
         $tiyin ??= (int) round((float) $order->total_price * 100);
         $this->performed[$transactionId] = $tiyin;
+        $this->performedOrders[$transactionId] ??= (string) $order->uuid;
 
         return $this->paylovRpc('transaction.perform', array_merge([
             'transaction_id' => $transactionId,

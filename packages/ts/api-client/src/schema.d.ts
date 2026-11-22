@@ -8642,8 +8642,9 @@ export interface paths {
          *     `transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and
          *     password of the account the order is paid into (the platform's, or the store's own). Answers
          *     `{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is
-         *     settled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is any
-         *     2xx, and a failure to record it a 500 so that Paylov retries it.
+         *     settled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is
+         *     applied only once getTransactions reports it cancelled, answered any 2xx, and a failure to record it a 500 so that
+         *     Paylov retries it.
          */
         post: operations["paylovWebhook.handle"];
         delete?: never;
@@ -39452,7 +39453,7 @@ export interface operations {
                         deposit_refund_receipt?: boolean | null;
                         retained_deposit_receipt?: boolean | null;
                     };
-                    /** @description To'lov va yetkazish sozlamalari (obyekt). */
+                    /** @description To'lov va yetkazish sozlamalari (obyekt). Paylov callback_password (o'z hisobi): kamida 16 belgi. */
                     payment_settings: {
                         delivery_fee?: number | null;
                         delivery_enabled?: boolean | null;

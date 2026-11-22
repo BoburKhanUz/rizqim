@@ -102,6 +102,13 @@ class RegisterPaylovFiscalReceipt implements ShouldQueueAfterCommit
             'qr_code_url' => $data['qr_code_url'],
             'receipt_uuid' => $recorded?->receiptUuid,
         ]);
+
+        // Review 1: refunded while Paylov was registering the sale (the cancel found no receipt to refund yet). mark()
+        // read the row under its lock, so either the refund came first and is seen here, or it comes after and
+        // PaylovPayments::applyCancel sees this receipt: the refund receipt is asked for exactly once
+        if ($payment->status === PaymentStatus::REFUNDED) {
+            RefundPaylovFiscalReceipt::dispatch((int) $payment->id);
+        }
     }
 
     /**

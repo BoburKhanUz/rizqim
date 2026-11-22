@@ -78122,7 +78122,7 @@
                                     },
                                     "payment_settings": {
                                         "type": "object",
-                                        "description": "To'lov va yetkazish sozlamalari (obyekt).",
+                                        "description": "To'lov va yetkazish sozlamalari (obyekt). Paylov callback_password (o'z hisobi): kamida 16 belgi.",
                                         "properties": {
                                             "delivery_fee": {
                                                 "type": [
@@ -84850,7 +84850,7 @@
         "/v1/payments/paylov/webhook": {
             "post": {
                 "operationId": "paylovWebhook.handle",
-                "description": "`transaction.check` and `transaction.perform` (developer.paylov.uz/merchants/paylov-payment-gateway) and the\n`transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and\npassword of the account the order is paid into (the platform's, or the store's own). Answers\n`{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is\nsettled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is any\n2xx, and a failure to record it a 500 so that Paylov retries it.",
+                "description": "`transaction.check` and `transaction.perform` (developer.paylov.uz/merchants/paylov-payment-gateway) and the\n`transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and\npassword of the account the order is paid into (the platform's, or the store's own). Answers\n`{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is\nsettled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is\napplied only once getTransactions reports it cancelled, answered any 2xx, and a failure to record it a 500 so that\nPaylov retries it.",
                 "summary": "Paylov: Checkout callbacks and the cancel webhook (JSON-RPC 2.0)",
                 "tags": [
                     "Webhooks"

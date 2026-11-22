@@ -666,7 +666,8 @@ vaqtincha o'chirgan); `POST` uni yoqishga urinsa 422. `own_account` ovqatxona Cl
 `password`, `callback_login`, `callback_password` — yettalasi ham kerak) kalitlarini `payment_settings.<tizim>` ichida
 yuboradi; maxfiy kalit hech qachon qaytmaydi (`has_secret_key`, Paylov'da `has_consumer_key`, `has_consumer_secret`,
 `has_username`, `has_password`, `has_callback_login`, `has_callback_password`), bo'sh yoki yulduzchali qiymat saqlanganini
-qoldiradi. Paylov mijozga (do'kon ro'yxati, `payment_settings.paylov`) faqat RIZQIM yoqqan **va** to'lov tushadigan hisobning
+qoldiradi. Paylov `callback_password` (webhook paroli) kamida 16 belgi — qisqasi 422
+(`payment_settings.paylov.callback_password`: «Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.»). Paylov mijozga (do'kon ro'yxati, `payment_settings.paylov`) faqat RIZQIM yoqqan **va** to'lov tushadigan hisobning
 (do'konning o'zi yoki platforma) yetti kaliti to'liq bo'lsa ko'rsatiladi, aks holda `{enabled: false, available: false}`. Hamkor panelida: «Sozlamalar»
 (Telegram guruhi, o'z kassa kalitlari), «Harakatlar jurnali» (`/audit`, `GET /owner/audit-logs`), «Xodimlar» → «Mening PIN
 kodim» (`PUT /owner/staff/{o'z id}/pin`).
@@ -888,21 +889,32 @@ JSON-RPC 2.0. Rasmiy hujjat: [paylov-payment-gateway](https://developer.paylov.u
 - `transaction.perform {transaction_id, ...}` — xuddi shu tekshiruvlar, buyurtma qatori qulfi ostida to'lov `pending`,
   `payload.paylov.state = unconfirmed` bilan yoziladi va darhol `0` qaytadi. Webhook imzolanmagani uchun to'lov faqat
   `GET BASE_URL/merchant/getTransactions/?id=` (Bearer token, [transaction-status](https://developer.paylov.uz/subscribe/payment/transaction-status))
-  `status = payed` va `amount_in_tiyin` teng deganda **bir marta** `paid` bo'ladi (buyurtma `paid`, `PaymentPaid`,
-  chek). `failed`/`cancel`/`refunded` — to'lov yopiladi (`rejected`); javob yo'q, xato, bo'sh ro'yxat yoki
+  `status = payed`, `amount_in_tiyin` teng va `account.order_id` shu buyurtmaning uuid'i deganda **bir marta** `paid`
+  bo'ladi (buyurtma `paid`, `PaymentPaid`, chek). Boshqa buyurtmaning `account.order_id` si — to'lov `failed`
+  (`rejected`, `rejected_reason: transaction_of_another_order`, `critical` log, qaytarilmaydi); `account` yo'q —
+  hisoblanmaydi, `unconfirmed` qoladi. `failed`/`cancel`/`refunded` — to'lov yopiladi (`rejected`); javob yo'q, xato, bo'sh ro'yxat yoki
   `created`/`transfer`/`pending`/`waiting` — `unconfirmed` qoladi va `payments:paylov-reconcile` (har 5 daqiqa) qayta
   tekshiradi; bunday buyurtma to'lanmagan deb bekor qilinmaydi, 1 soatdan keyin `critical` log. Boshqa summa —
-  `mismatch`, hech qachon hisoblanmaydi. Takroriy perform o'sha javobni oladi (to'langan bo'lsa `PaymentPaid` qayta
+  `mismatch`: buyurtmaga hech qachon hisoblanmaydi, to'lov `paid` (faqat to'lovda, `refused: amount_mismatch`) va
+  `payment/cancel` bilan to'liq qaytariladi (`refunded`), `critical` log; takroriy perform `0` oladi. Takroriy perform o'sha javobni oladi (to'langan bo'lsa `PaymentPaid` qayta
   yuboriladi, ikki marta hisoblanmaydi). To'langan yoki bekor qilingan buyurtmaga perform `+1` oladi, lekin to'lov baribir
   yoziladi: Paylov `payed` desa pul `payment/cancel` bilan to'liq qaytariladi, buyurtmaga hisoblanmaydi.
 - `transaction.cancel {transaction_id, status, account, amount, amount_in_tiyin, cancel_time}` (id'siz notification,
-  3 martagacha takrorlanadi) — har doim 2xx; bir marta yoziladi: `unconfirmed` to'lov `cancelled`, to'langan — `refunded`;
+  3 martagacha takrorlanadi) — har doim 2xx. Faqat Basic Auth bilan keladi (o'z hisobli do'kon egasi uni biladi), shuning
+  uchun **Paylov'dan tekshiriladi**: buyurtma to'langan hisob bilan `getTransactions` `cancel`/`refunded` desagina
+  qo'llanadi; `payed` (yoki boshqa holat) — e'tiborsiz, ogohlantirish logi; Paylov javob bermasa — to'lovda
+  `payload.paylov.cancel_reported_at`, `payments:paylov-reconcile` qayta so'raydi (1 soatdan keyin bir marta `critical`).
+  Tasdiqlangani bir marta yoziladi: `unconfirmed` to'lov `cancelled`, to'langan — `refunded`;
   yetkazilgan buyurtma `refunded` (komissiya va hisob-kitob qaytadi, "qo'lda qaytarish" yo'q), bekor qilingan/qaytarilgan
   buyurtmaning `payment_status` — `refunded`, jarayondagi buyurtma yana `pending` (Payme `CancelTransaction` kabi).
   Noma'lum tranzaksiya — 2xx, hech narsa yozilmaydi. Yozib bo'lmasa — HTTP 500 (Paylov qayta yuboradi).
 - Rejim: Tizim → To'lov tizimlari → Paylov `test` faqat `APP_ENV` production bo'lmagan serverda — soxta drayver (Paylov
-  API'siga so'rov ketmaydi); productionda `test` ga o'tkazib bo'lmaydi (422 `test_mode_not_allowed`), bazada qolgan `test`
-  ham haqiqiy Paylov bilan ishlaydi.
+  API'siga so'rov ketmaydi, o'z hisobli do'konlar to'lovlari uchun ham); productionda `test` ga o'tkazib bo'lmaydi (422
+  `test_mode_not_allowed`), bazada qolgan `test` ham haqiqiy Paylov bilan ishlaydi. Soxta drayver tranzaksiyani doim
+  `payed` deydi: Sinov rejimida `transaction.cancel` qo'llanmaydi.
+- Log va saqlash: Basic Auth tekshiruvidan oldingi log maydonlari (metod, id, transaction_id, order_id) 64 belgigacha
+  qisqartiriladi; `payload.perform_params` da faqat hujjatdagi maydonlar (`transaction_id`, `account.order_id`, `amount`,
+  `amount_tiyin`, `currency`), har biri 64 belgigacha.
 
 ## Onlayn to'lov fiskal cheki (P3-14)
 
@@ -3199,8 +3211,11 @@ uchun Paylov buyurtmasiga so'rov faqat **butun qaytariladigan summaga**: qismi �
 `OrderStatusService::refund`) "qo'lda qaytarish" belgisi o'rniga commit'dan keyin `RefundPaylovPayment` ni navbatga
 qo'yadi: `POST BASE_URL/merchant/payment/cancel/ {transactionId}` → `result.status = cancelled` bo'lsa to'lov `refunded`.
 Paylov javob bermasa — qayta uriniladi (navbat, keyin har 5 daqiqada `payments:paylov-reconcile`, 12 marta); butunlay
-rad etsa (`transaction_not_available_for_cancel` va tranzaksiya Paylov'da bekor qilinmagan, `permission_denied`...) —
-to'lovga `manual_refund_required` (`manual_refund_reason: paylov_cancel_failed`), Paylov biznes panelidan qaytariladi.
+rad etsa (`transaction_not_available_for_cancel` va tranzaksiya Paylov'da bekor qilinmagan, `permission_denied`...) yoki
+12 urinish tugasa — avval `getTransactions` o'qiladi: `cancel`/`refunded` — to'lov `refunded` (oldingi so'rov o'tgan,
+javobi yo'qolgan); holatni o'qib bo'lmasa — belgi qo'yilmaydi, `retrying` qoladi va yana so'raladi (12-urinishdan keyin
+bir marta `critical`); faqat Paylov `payed` (pul hali unda) desa — to'lovga `manual_refund_required`
+(`manual_refund_reason: paylov_cancel_failed`), Paylov biznes panelidan qaytariladi. Pul ikki marta qaytarilmaydi.
 
 **Qaytariladigan summa** (`RefundRequestService::balanceOf`): to'langan = `paid`/`refunded` to'lovlar yig'indisi;
 qaytarilgan = har bir `refunded` to'lovning **to'liq** summasi (bekor qilishda keshbek, Payme bekor qilishi — oldin uning
