@@ -31,6 +31,9 @@ PaymentSettings2 _$PaymentSettings2FromJson(Map<String, dynamic> json) =>
       paynet: json['paynet'] == null
           ? null
           : Paynet.fromJson(json['paynet'] as Map<String, dynamic>),
+      paylov: json['paylov'] == null
+          ? null
+          : Paylov.fromJson(json['paylov'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PaymentSettings2ToJson(PaymentSettings2 instance) =>
@@ -44,4 +47,5 @@ Map<String, dynamic> _$PaymentSettings2ToJson(PaymentSettings2 instance) =>
       'payme': instance.payme,
       'uzum': instance.uzum,
       'paynet': instance.paynet,
+      'paylov': instance.paylov,
     };

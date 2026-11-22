@@ -10,6 +10,7 @@ import 'click.dart';
 import 'payme.dart';
 import 'uzum.dart';
 import 'paynet.dart';
+import 'paylov.dart';
 
 part 'payment_settings2.g.dart';
 
@@ -25,6 +26,7 @@ class PaymentSettings2 {
     this.payme,
     this.uzum,
     this.paynet,
+    this.paylov,
   });
 
   factory PaymentSettings2.fromJson(Map<String, Object?> json) =>
@@ -43,6 +45,7 @@ class PaymentSettings2 {
   final Payme? payme;
   final Uzum? uzum;
   final Paynet? paynet;
+  final Paylov? paylov;
 
   Map<String, Object?> toJson() => _$PaymentSettings2ToJson(this);
 }

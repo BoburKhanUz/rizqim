@@ -1178,6 +1178,7 @@ export 'models/click.dart';
 export 'models/payme.dart';
 export 'models/uzum.dart';
 export 'models/paynet.dart';
+export 'models/paylov.dart';
 export 'models/payment_settings2.dart';
 export 'models/v1_owner_settings_request_body.dart';
 export 'models/data195.dart';
