@@ -2,6 +2,8 @@
 
 namespace App\Domain\Pos\QrPayments;
 
+use App\Services\Admin\System\PaymentProviders;
+
 use App\Domain\Pos\QrPayments\Providers\ClickQrProvider;
 use App\Domain\Pos\QrPayments\Providers\PaymeQrProvider;
 use App\Domain\Pos\QrPayments\Providers\SandboxQrProvider;
@@ -26,7 +28,7 @@ final class QrProviders
             return $this->uzqr($this->uzqrDriver($store));
         }
 
-        if ((bool) config('qr_payments.sandbox')) {
+        if (self::sandboxOn()) {
             return new SandboxQrProvider($provider);
         }
 
@@ -52,7 +54,7 @@ final class QrProviders
      */
     public function uzqrDriver(Store $store): ?string
     {
-        return \App\Domain\Fiscal\FiscalSettings::of($store)->uzqrDriver() ?? ((bool) config('qr_payments.sandbox') ? 'sandbox' : null);
+        return \App\Domain\Fiscal\FiscalSettings::of($store)->uzqrDriver() ?? (self::sandboxOn() ? 'sandbox' : null);
     }
 
     /**
@@ -77,7 +79,26 @@ final class QrProviders
      */
     public static function sandboxed(QrProvider $provider): bool
     {
-        return (bool) config('qr_payments.sandbox') || in_array($provider->value, (array) config('qr_payments.simulate_drivers', []), true);
+        return self::sandboxOn()
+            || (PaymentProviders::testModeAllowed() && in_array($provider->value, (array) config('qr_payments.simulate_drivers', []), true));
+    }
+
+    /**
+     * Go-live review: QR_PAYMENTS_SANDBOX, on a demo or e2e stand. On APP_ENV=production it counts only with
+     * PAYMENTS_ALLOW_TEST_MODE=true, as Payme's sandbox checkout (PaymentProviders::testModeAllowed): a flag left
+     * on there would make every till QR a sandbox one and let a cashier "simulate" a bill paid with no money.
+     */
+    public static function sandboxOn(): bool
+    {
+        return (bool) config('qr_payments.sandbox') && PaymentProviders::testModeAllowed();
+    }
+
+    /**
+     * Whether any QR sandbox may be used here (the sandbox, or a provider's in simulate_drivers).
+     */
+    public static function anySandbox(): bool
+    {
+        return self::sandboxOn() || (PaymentProviders::testModeAllowed() && (array) config('qr_payments.simulate_drivers', []) !== []);
     }
 
     /**

@@ -3,6 +3,8 @@
 namespace App\Services\Payment;
 
 use App\Models\PaymentProvider;
+use App\Services\Admin\System\PaymentProviders;
+use App\Support\Money;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -43,11 +45,16 @@ final class PaymentProviderSwitch
     }
 
     /**
+     * Go-live review: a row left in `test` on APP_ENV=production (staging copy, or set while PAYMENTS_ALLOW_TEST_MODE
+     * was on) is read as production unless the flag is on now: a live customer never pays into Payme's sandbox.
+     *
      * @return 'test'|'production'
      */
     public function mode(string $slug): string
     {
-        return ($this->state()[$slug]['mode'] ?? 'production') === 'test' ? 'test' : 'production';
+        $test = ($this->state()[$slug]['mode'] ?? 'production') === 'test';
+
+        return $test && PaymentProviders::testModeAllowed() ? 'test' : 'production';
     }
 
     /**
@@ -64,10 +71,13 @@ final class PaymentProviderSwitch
     }
 
     /**
-     * The Click checkout link: `transaction_param` is what the webhooks find the order (or `topup_<uuid>`) by.
+     * The Click checkout link: `transaction_param` is what the webhooks find the order (or `topup_<uuid>`) by; the
+     * amount in so'm as Click's payment button asks, "N.NN" (an exact decimal string, never a float).
      */
-    public function clickUrl(?string $serviceId, ?string $merchantId, string $amount, string $transactionParam, string $returnUrl): string
+    public function clickUrl(?string $serviceId, ?string $merchantId, Money|string $amount, string $transactionParam, string $returnUrl): string
     {
+        $amount = Money::of($amount)->toString();
+
         return $this->clickCheckoutBase()
             . "?service_id={$serviceId}"
             . "&merchant_id={$merchantId}"
@@ -77,12 +87,13 @@ final class PaymentProviderSwitch
     }
 
     /**
-     * The Payme checkout link (amount in tiyin; `ac.order_id` is what the webhooks find the order or top-up by).
+     * The Payme checkout link (amount in tiyin; `ac.order_id` is what the webhooks find the order or top-up by; the
+     * checkout page in Uzbek, `l=uz`).
      */
     public function paymeUrl(?string $merchantId, int $tiyin, string $orderId, string $returnUrl, bool $platformAccount = true): string
     {
         return $this->paymeCheckoutBase($platformAccount)
-            . base64_encode("m={$merchantId};ac.order_id={$orderId};a={$tiyin};c=" . urlencode($returnUrl));
+            . base64_encode("m={$merchantId};ac.order_id={$orderId};a={$tiyin};l=uz;c=" . urlencode($returnUrl));
     }
 
     /**

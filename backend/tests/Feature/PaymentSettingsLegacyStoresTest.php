@@ -54,7 +54,8 @@ class PaymentSettingsLegacyStoresTest extends TestCase
 
     private function legacySettings(array $settings, ?Store $store = null): void
     {
-        DB::table('stores')->where('id', ($store ?? $this->store)->id)->update(['payment_settings' => json_encode($settings)]);
+        // A legacy row as stored now: encrypted at rest (migration 2026_12_01_100000)
+        DB::table('stores')->where('id', ($store ?? $this->store)->id)->update(['payment_settings' => \Illuminate\Support\Facades\Crypt::encryptString(json_encode($settings))]);
     }
 
     private function assertEverythingStillOn(): void

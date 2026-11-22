@@ -4650,6 +4650,8 @@ export interface paths {
          *     P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and
          *     `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already
          *     show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
+         *     The same 422 shape with `payment_provider_unconfigured` when the order would be paid to the platform's merchant
+         *     account and its ids are not set (no order is created).
          */
         post: operations["order.store"];
         delete?: never;
@@ -5994,7 +5996,8 @@ export interface paths {
         /**
          * Initiate a store balance top-up payment
          * @description P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov
-         *     tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
+         *     tizimlari), `payment_provider_unconfigured` when the platform's merchant ids for it are not set (nothing is
+         *     created). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
          *     (PARTNER_WEB_URL).
          */
         post: operations["ownerFinance.initiateTopup"];

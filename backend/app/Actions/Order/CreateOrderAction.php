@@ -63,6 +63,12 @@ class CreateOrderAction
         if (!\App\Models\Store::isPaymentMethodAvailable($method)) {
             throw \App\Services\Payment\PaymentProviderSwitch::refusal($method);
         }
+        // Go-live review M2: a Click/Payme order the platform would collect needs the platform's merchant ids, else
+        // its checkout link opens nothing: 422 payment_provider_unconfigured before any row
+        $checkoutStore = isset($payload['store_id']) ? \App\Models\Store::find($payload['store_id']) : null;
+        if ($checkoutStore !== null) {
+            \App\Services\Order\PaymentLinkService::assertCheckoutConfigured($checkoutStore, $method);
+        }
 
         return DB::transaction(function () use ($user, $items, $payload) {
             

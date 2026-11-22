@@ -25,6 +25,11 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="REALTIME_REVISION_STORE" value="array"/>
         <env name="DB_DATABASE" value="testing"/>
+        <!-- Go-live review M2: checkout and top-ups refuse a platform provider without merchant ids; the suite runs as a
+             configured server (tests of the refusal set them to null) -->
+        <env name="PAYME_MERCHANT_ID" value="test-payme-cashbox"/>
+        <env name="CLICK_SERVICE_ID" value="test-click-service"/>
+        <env name="CLICK_MERCHANT_ID" value="test-click-merchant"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

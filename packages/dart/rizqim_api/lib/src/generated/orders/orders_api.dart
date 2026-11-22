@@ -76,6 +76,8 @@ abstract class OrdersApi {
   /// P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and.
   /// `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already.
   /// show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
+  /// The same 422 shape with `payment_provider_unconfigured` when the order would be paid to the platform's merchant.
+  /// account and its ids are not set (no order is created).
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/orders')

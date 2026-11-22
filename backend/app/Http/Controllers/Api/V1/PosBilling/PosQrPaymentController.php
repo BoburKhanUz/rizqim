@@ -141,7 +141,8 @@ class PosQrPaymentController extends PosBillingController
     public function simulatePaid(Request $request, string $uuid): JsonResponse
     {
         // Review P6W4 S3: only on a sandbox stand (or one allowing a provider's sandbox), never by APP_ENV alone
-        if (!(bool) config('qr_payments.simulate') || (!(bool) config('qr_payments.sandbox') && (array) config('qr_payments.simulate_drivers', []) === [])) {
+        // Go-live review: on APP_ENV=production only with PAYMENTS_ALLOW_TEST_MODE=true (QrProviders::anySandbox)
+        if (!(bool) config('qr_payments.simulate') || !QrProviders::anySandbox()) {
             throw new HttpResponseException($this->error('Topilmadi.', [], 404));
         }
         $user = $this->staff($request);

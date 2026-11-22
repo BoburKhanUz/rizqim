@@ -25,7 +25,7 @@ class CheckProductionConfigCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Fail (exit 1) on production-unsafe settings (APP_ENV production or staging): APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password; warns on a payment provider in test mode or switched off (production)';
+    protected $description = 'Fail (exit 1) on production-unsafe settings (APP_ENV production or staging): APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password; warns on a payment provider in test mode or switched off (production) and on an active Click/Payme platform account missing merchant_id / service_id / secret_key';
 
     private const DEFAULT_SEED_PASSWORD = '12345678';
 
@@ -91,6 +91,7 @@ class CheckProductionConfigCommand extends Command
 
         $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->tenantRlsProblems(), $this->accountProblems());
         $this->warnPaymentProviders();
+        $this->warnPaymentCredentials();
 
         if ($problems !== []) {
             $this->error('XAVFLI SOZLAMALAR: production uchun ishga tushirish rad etildi.');
@@ -251,6 +252,35 @@ class CheckProductionConfigCommand extends Command
             if (!$provider->is_active) {
                 $this->warn("OGOHLANTIRISH: To'lov tizimi {$name} o'chirilgan — hech bir ovqatxona uni taklif qilmaydi. Ataylab bo'lmasa, Tizim → To'lov tizimlari'da yoqing.");
             }
+        }
+    }
+
+    /**
+     * Go-live review M2: an active platform Click / Payme account missing a credential (resolved as the payments do,
+     * PaymentProvider::platformCredential: Tizim → To'lov tizimlari, else .env) refuses checkout and top-ups
+     * (payment_provider_unconfigured) or every webhook. Named one by one, never with a value. A warning: the team may
+     * switch the provider off on purpose until its keys come.
+     */
+    private function warnPaymentCredentials(): void
+    {
+        try {
+            $switch = app(\App\Services\Payment\PaymentProviderSwitch::class);
+            foreach (\App\Services\Admin\System\PaymentProviders::WIRED as $provider) {
+                if (!\App\Models\Store::isPaymentMethodIntegrated($provider) || !$switch->isActive($provider)) {
+                    continue;
+                }
+                $missing = [];
+                foreach (\App\Models\Store::OWN_MERCHANT_CREDENTIALS[$provider] as $key) {
+                    if (\App\Models\PaymentProvider::platformCredential($provider, $key) === null) {
+                        $missing[] = $key . ' (' . strtoupper("{$provider}_{$key}") . ')';
+                    }
+                }
+                if ($missing !== []) {
+                    $this->warn("OGOHLANTIRISH: To'lov tizimi {$provider}: " . implode(', ', $missing) . " o'rnatilmagan — platforma hisobiga buyurtma va balans to'ldirish rad etiladi yoki webhook rad etiladi. backend/.env ga yoki Boshqaruv markazi → Tizim → To'lov tizimlari'ga yozing (yoki tizimni o'chiring). docs/PAYMENTS_GO_LIVE.md, 2-bo'lim.");
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->warn("OGOHLANTIRISH: to'lov tizimlari kalitlarini tekshirib bo'lmadi: " . mb_substr($e->getMessage(), 0, 200));
         }
     }
 
