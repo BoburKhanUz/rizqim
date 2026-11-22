@@ -3055,6 +3055,7 @@ Bugun bo'limining manbalari (`App\Services\Admin\Today\Attention`, `App\Provider
 | `invoice_overdue` | to'lov muddati (Toshkent sanasi) o'tgan, to'lanmagan obuna hisob-fakturalari | `finance.view` | `warning` | `/pos?invoice={uuid}` |
 | `payout_pending` | tasdiq kutayotgan pul yechish so'rovlari (karta raqami ko'rsatilmaydi) | `finance.view` | `warning` | `/finance?payout={id}` |
 | `topup_pending` | 30 daqiqadan beri to'lanmagan balans to'ldirishlari (Click/Payme), oxirgi 3 kun | `finance.view` | `info` | `/finance?topup={uuid}` |
+| `store_refund_review` | Wave P: ovqatxonaning o'z kassasi orqali qaytarilgan yetkazilgan buyurtmalar — komissiya menejer qaroriga qadar saqlanmoqda (`store_refund_review_at`; quyida «Ovqatxona kassasidan qaytarish») | `finance.view` | `critical` | `/orders/{uuid}` |
 
 Boshqa bo'limlarniki: buyurtmalar (P4-14 — qabul qilinmagan, kechikkan, kuryersiz), monitoring (P4-15 — ochiq
 ogohlantirishlar). `/pos?…` va `/finance?…` havolalari shu bo'limlar o'z kartalarini qo'shguncha bo'lim sahifasini ochadi.
@@ -3203,6 +3204,37 @@ bo'lsa `"none"`), `allocations[]` — `{payment_id, provider, amount, kind: "bal
 tegishli to'lovlar `payload.refund_request_ids` oladi; tasdiqdan oldin qaytarilgan to'lov hech qachon belgilanmaydi.
 **Click/Payme orqali avtomatik qaytarish yo'q**: kodda Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i
 sifatida keladi (kabinetdan qilinganda), Click qaytarish API (`payment/reversal`) va Uzum ulanmagan.
+
+**Ovqatxona kassasidan qaytarish (wave P).** Ovqatxona o'z Payme kassasiga pul yig'sa (`payment_owner: STORE`), Payme
+Merchant API chaqiruvlarini tasdiqlaydigan kalitni ovqatxonaning o'zi biladi (u kalitni hamkor panelida kiritgan), Payme
+Merchant API'da esa tranzaksiyani qayta tekshirish usuli yo'q. Shuning uchun yetkazilgan (komissiyasi yozilgan) buyurtmaning
+bajarilgan tranzaksiyasiga kelgan `CancelTransaction` — haqiqiy kabinet qaytarishimi yoki ovqatxonaning o'zi yuborgan
+soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
+- Payme'ga odatdagidek javob oladi (`result.state: -2`, `cancel_time`; qayta yuborilsa — xuddi shu javob), Payme
+  tomoni izchil qoladi va qayta urinmaydi;
+- mijoz va ovqatxonaga ko'rinadi: to'lov `refunded`, buyurtmaning `payment_status` — `refunded`, buyurtma holati
+  `delivered` qoladi (taom berilgan);
+- RIZQIM pulini o'zgartirmaydi: komissiya qaytarilmaydi, ledger'ga yozuv tushmaydi; to'lovda
+  `payload.store_refund_review {status: pending, provider, reason, reported_at}`, buyurtmada `store_refund_review_at`,
+  jurnalda `order.store_refund_held`, `Log::critical` (faqat id'lar), Bugun → «Diqqat talab qiladi» (`store_refund_review`);
+- qaytariladigan summa 0 bo'ladi (to'lov `refunded`), qaytarish so'rovi yaratib bo'lmaydi — qarorni menejer chiqaradi:
+  - `POST /admin/orders/{uuid}/store-refund-review/approve {reason}` — pul haqiqatan qaytgan (ovqatxona kabinetida
+    tekshirildi): buyurtma RIZQIM'ning o'z qaytarish yo'li bilan `delivered → refunded` (`OrderStatusService::refund`,
+    `refunded_by_provider`: komissiya va yetkazishda yozilgan hamma narsa bir marta qaytariladi, qo'lda qaytarish
+    belgilanmaydi);
+  - `POST /admin/orders/{uuid}/store-refund-review/dismiss {reason}` — komissiya saqlanadi (ovqatxona o'zi yuborgan
+    so'rov yoki o'z hisobidan qilgan qaytarish), ledger o'zgarmaydi, buyurtma `delivered`, to'lov `refunded`.
+  Ikkalasi `admin.orders.refund_approve`, step-up (`admin.recent`), `Idempotency-Key` qabul qiladi, jurnalga yoziladi
+  (`admin.orders.store_refund_review.approved|dismissed`), buyurtma kartasini qaytaradi; qaror kutilmayotgan bo'lsa
+  (allaqachon qaror qilingan) — 409 `no_store_refund_review`. Kartada `store_refund_review {status, provider,
+  payment_uuid, amount, reason_code, reported_at, decided_at, decided_by, note}` (yo'q bo'lsa `null`) va
+  `actions.can_decide_store_refund`.
+- RIZQIM o'zi avval qaytargan buyurtma (`refunded`: admin qaytarishi, tasdiqlangan so'rov) ushlanmaydi: keyingi Payme
+  bekor qilishi faqat shu pulni qaytaradi. Hali yetkazilmagan buyurtma (komissiya yozilmagan) avvalgidek yana
+  «to'lanmagan» bo'ladi. Platforma kassasi (`PLATFORM`) qoidasi o'zgarmagan: pul ovqatxonaga o'tkazilgan bo'lsa `-31007`.
+- Click: SHOP API'da faqat Prepare/Complete bor, qaytarish (`payment/reversal`) — RIZQIM'ning o'zi yuboradigan chaqiruv;
+  `error < 0` bilan kelgan Complete — `-9`, to'langan buyurtma o'zgarmaydi. Kassadagi QR (Payme/Click) — bajarilgan
+  tranzaksiyani faqat RIZQIM qaytarishi so'raganda bekor qiladi (`-31007` aks holda), platforma puli yo'q.
 
 **Paylov (wave P) — faqat to'liq qaytarish.** Paylov `payment/cancel` faqat `transactionId` oladi, summa yo'q. Shuning
 uchun Paylov buyurtmasiga so'rov faqat **butun qaytariladigan summaga**: qismi — 422 `paylov_partial_refund_not_supported`

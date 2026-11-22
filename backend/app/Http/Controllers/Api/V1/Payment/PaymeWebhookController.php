@@ -21,6 +21,7 @@ use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
 use App\Services\Payment\Fiscal\PaymeReceiptDetail;
 use App\Services\Payment\PaymeRpcMessage;
+use App\Services\Payment\StoreRefundReview;
 use App\Domain\Pos\QrPayments\Providers\StoreMerchant;
 use App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook;
 use App\Models\PosQrPayment;
@@ -453,7 +454,9 @@ class PaymeWebhookController extends Controller
     }
 
     /**
-     * Cancel/refund payment transaction.
+     * Cancel/refund payment transaction. Wave P: a performed transaction of a delivered STORE-owned order (the store
+     * knows the key that signed this) is cancelled and shown refunded, but RIZQIM's commission is kept until a manager
+     * decides it (StoreRefundReview); answered state -2 like any cancel, so Payme never retries it or sees it broken.
      */
     protected function cancelTransaction(array $params, $id): JsonResponse
     {
@@ -473,7 +476,8 @@ class PaymeWebhookController extends Controller
             if ($payment->status === PaymentStatus::PAID) {
                 // Refused only while the money is passed on: a top-up reduced the store's debt, or a platform-collected
                 // order was credited to the store's wallet and not taken back by the admin refund (the path for it).
-                // A STORE-owned order's money is the store's to refund.
+                // A STORE-owned order's money is the store's to refund (wave P: of a delivered one, without RIZQIM's
+                // commission until a manager decides it, StoreRefundReview below).
                 if ($topupRequest || ($order && $order->payment_owner === 'PLATFORM' && $order->status !== OrderStatus::REFUNDED
                     && app(LedgerService::class)->hasSettlement($order))) {
                     return $this->rpcError($id, -31007, 'Unable to cancel transaction');
@@ -488,6 +492,12 @@ class PaymeWebhookController extends Controller
 
             if ($topupRequest && $topupRequest->status === 'pending') {
                 $topupRequest->update(['status' => 'cancelled']);
+            } elseif ($wasPaid && StoreRefundReview::applies($order)) {
+                // Wave P: the store's own cashbox key signed this, and the store knows it: a forged cancel and a real
+                // cabinet refund look the same, and Payme's Merchant API has no read-back of the transaction. Answered
+                // as cancelled (state -2, Payme's side stays consistent), shown as refunded, the commission kept until a
+                // manager decides it (StoreRefundReview)
+                app(StoreRefundReview::class)->hold($order, $payment, 'payme', $reason);
             } elseif ($wasPaid && $order?->status === OrderStatus::DELIVERED) {
                 // Refunded after delivery: the order is refunded with it, which reverses its commission.
                 $payment->update(['payload' => array_merge($payment->payload ?? [], ['refunded_after_delivery' => true])]);

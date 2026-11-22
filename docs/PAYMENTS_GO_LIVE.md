@@ -187,6 +187,12 @@ Productionda, jonli kalitlar bilan, **o'zingizning kartangiz** bilan:
    `CancelTransaction` yuboradi, buyurtma «to'lanmagan»ga qaytadi. Yetkazilgan va ovqatxonaga hisoblangan buyurtma
    uchun avval boshqaruv markazida qaytarish so'rovini tasdiqlang (hisob-kitob qaytariladi), keyin Payme kabinetida
    bekor qiling — aks holda Payme rad javobi (`-31007`) oladi va pul ikki marta qaytmaydi.
+   Ovqatxonaning **o'z Payme kassasi** (`own_account`) bo'lsa: yetkazilgan buyurtmani kabinetda bekor qilish Payme'dan
+   o'tadi (javob `state -2`), mijoz va ovqatxona to'lovni «qaytarilgan» deb ko'radi, lekin RIZQIM komissiyasi
+   **qaytarilmaydi** — Bugun → «Diqqat talab qiladi» → «Ovqatxona kassasidan qaytarishlar» paydo bo'ladi. Menejer
+   ovqatxona kabinetida pul qaytganini tekshirib, buyurtma kartasida tasdiqlaydi (komissiya qaytariladi) yoki rad etadi
+   (komissiya qoladi). Sabab: o'z kassa kalitini ovqatxona biladi, `CancelTransaction` ni o'zi ham yubora oladi, Payme
+   Merchant API'da esa tranzaksiyani qayta so'rash yo'q (docs/API.md «Ovqatxona kassasidan qaytarish»).
 5. Xuddi shuni Click bilan qiling. **Click qaytarishi** serverga xabar bermaydi: avval boshqaruv markazida qaytarishni
    tasdiqlang («qo'lda qaytarish» deb belgilanadi), keyin Click kabinetida to'lovni qaytaring (Click: faqat joriy oy
    to'lovlari, faqat onlayn karta).

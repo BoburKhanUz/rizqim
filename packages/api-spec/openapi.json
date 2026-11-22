@@ -21448,6 +21448,176 @@
                 ]
             }
         },
+        "/v1/admin/orders/{uuid}/store-refund-review/approve": {
+            "post": {
+                "operationId": "admin.orders.store_refund_review.approved",
+                "description": "The money did go back to the customer (checked in the store's Payme cabinet): the order is refunded through\nRIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,\nnothing flagged for a manual refund (the provider already returned it). `reason` is required. Answers the order\ncard. 409 `no_store_refund_review` when nothing waits (decided already).",
+                "summary": "Approve a store's provider refund",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such order (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "Nothing waits for a decision (no_store_refund_review)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/orders/{uuid}/store-refund-review/dismiss": {
+            "post": {
+                "operationId": "admin.orders.store_refund_review.dismissed",
+                "description": "RIZQIM's commission stays (a cancel the store sent itself, or a refund it makes at its own cost): the order stays\ndelivered with its payment refunded, the ledger is not touched. `reason` is required. Answers the order card.\n409 `no_store_refund_review` when nothing waits (decided already).",
+                "summary": "Dismiss a store's provider refund",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such order (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "409": {
+                        "description": "Nothing waits for a decision (no_store_refund_review)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/pos/devices": {
             "get": {
                 "operationId": "admin.pos.devices",
@@ -176927,6 +177097,13 @@
                             "null"
                         ]
                     },
+                    "store_refund_review_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -177161,6 +177338,7 @@
                     "promo_note",
                     "banquet_amount",
                     "banquet_lines",
+                    "store_refund_review_at",
                     "type",
                     "address"
                 ],

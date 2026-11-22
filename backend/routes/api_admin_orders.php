@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
 use App\Http\Controllers\Api\V1\Admin\AdminOrderInterventionController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundRequestController;
+use App\Http\Controllers\Api\V1\Admin\AdminStoreRefundReviewController;
 use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
@@ -44,4 +45,15 @@ Route::middleware(['admin.can:orders.refund_approve', 'admin.recent'])->group(fu
         ->where('id', RowId::ROUTE_PATTERN)
         ->middleware(EnsureIdempotency::class . ':admin.refund_requests.reject')
         ->name('refund_requests.rejected');
+
+    // Wave P: a provider refund on the store's own cashbox of a delivered order waits for this decision
+    // (App\Services\Payment\StoreRefundReview): approve reverses the commission through the refund path, dismiss keeps it
+    Route::post('/orders/{uuid}/store-refund-review/approve', [AdminStoreRefundReviewController::class, 'approve'])
+        ->whereUuid('uuid')
+        ->middleware(EnsureIdempotency::class . ':admin.store_refund_review.approve')
+        ->name('orders.store_refund_review.approved');
+    Route::post('/orders/{uuid}/store-refund-review/dismiss', [AdminStoreRefundReviewController::class, 'dismiss'])
+        ->whereUuid('uuid')
+        ->middleware(EnsureIdempotency::class . ':admin.store_refund_review.dismiss')
+        ->name('orders.store_refund_review.dismissed');
 });

@@ -232,6 +232,9 @@ class AdminOrderPresenter
                 'provider_refund' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['refund']['status'] ?? null) ? $payment->payload['paylov']['refund']['status'] : null,
                 'created_at' => $payment->created_at?->toIso8601String(),
             ])->all(),
+            // Wave P: a provider refund on the store's own cashbox waiting for (or given) a manager's decision
+            // (StoreRefundReview): the latest one, null when none
+            'store_refund_review' => $this->storeRefundReview($order),
             'refunds' => [
                 'paid' => $balance['paid']->toString(),
                 'refunded' => $balance['refunded']->toString(),
@@ -275,6 +278,7 @@ class AdminOrderPresenter
                     ? collect(CancelReason::staffOptionsFor($order->order_type, $order->status))->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all()
                     : [],
                 'transitions' => array_map(fn ($status) => ['status' => $status->value, 'label' => $status->label()], OrderInterventionService::fixableTo($order)),
+                'can_decide_store_refund' => $can(AdminPermission::ORDERS_REFUND_APPROVE) && $order->store_refund_review_at !== null,
                 'message_store' => $can(AdminPermission::ORDERS_INTERVENE),
                 'message_customer' => $can(AdminPermission::ORDERS_INTERVENE) && $order->user?->telegram_id !== null,
                 'can_request_refund' => $can(AdminPermission::ORDERS_REFUND_REQUEST) && $this->refunds->canRequest($order)
@@ -339,6 +343,33 @@ class AdminOrderPresenter
         $approved = $this->approved[(int) $order->id] ?? RefundRequestService::approvedRequests([(int) $order->id])->get()->all();
 
         return RefundRequestService::balanceOf($order->payments, $approved)['refundable']->isPositive();
+    }
+
+    /**
+     * Wave P: the latest provider refund held by StoreRefundReview on this order's payments (pending, approved or
+     * dismissed), or null. Ids and codes only: never a key or the provider's payload.
+     *
+     * @return array{status: string, provider: string|null, payment_uuid: string, amount: string, reason_code: int|null, reported_at: string|null, decided_at: string|null, decided_by: int|null, note: string|null}|null
+     */
+    private function storeRefundReview(Order $order): ?array
+    {
+        $payment = $order->payments->sortByDesc('id')->first(fn (Payment $payment) => \App\Services\Payment\StoreRefundReview::of($payment) !== null);
+        if ($payment === null) {
+            return null;
+        }
+        $review = \App\Services\Payment\StoreRefundReview::of($payment) ?? [];
+
+        return [
+            'status' => (string) $review['status'],
+            'provider' => is_string($review['provider'] ?? null) ? $review['provider'] : null,
+            'payment_uuid' => (string) $payment->uuid,
+            'amount' => (string) $payment->amount,
+            'reason_code' => is_numeric($review['reason'] ?? null) ? (int) $review['reason'] : null,
+            'reported_at' => is_string($review['reported_at'] ?? null) ? $review['reported_at'] : null,
+            'decided_at' => is_string($review['decided_at'] ?? null) ? $review['decided_at'] : null,
+            'decided_by' => is_numeric($review['decided_by'] ?? null) ? (int) $review['decided_by'] : null,
+            'note' => is_string($review['note'] ?? null) ? $review['note'] : null,
+        ];
     }
 
     private static function mayOweRefund(Order $order): bool

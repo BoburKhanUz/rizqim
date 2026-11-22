@@ -2188,6 +2188,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/orders/{uuid}/store-refund-review/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a store's provider refund
+         * @description The money did go back to the customer (checked in the store's Payme cabinet): the order is refunded through
+         *     RIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,
+         *     nothing flagged for a manual refund (the provider already returned it). `reason` is required. Answers the order
+         *     card. 409 `no_store_refund_review` when nothing waits (decided already).
+         */
+        post: operations["admin.orders.store_refund_review.approved"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/store-refund-review/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss a store's provider refund
+         * @description RIZQIM's commission stays (a cancel the store sent itself, or a refund it makes at its own cost): the order stays
+         *     delivered with its payment refunded, the ledger is not touched. `reason` is required. Answers the order card.
+         *     409 `no_store_refund_review` when nothing waits (decided already).
+         */
+        post: operations["admin.orders.store_refund_review.dismissed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/pos/devices": {
         parameters: {
             query?: never;
@@ -13514,6 +13559,8 @@ export interface components {
             promo_note: string | null;
             banquet_amount: string;
             banquet_lines: string | null;
+            /** Format: date-time */
+            store_refund_review_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -20972,6 +21019,104 @@ export interface operations {
             };
             /** @description Not allowed from the current status (illegal, stale, use_cancel, use_refund_request) or no courier (courier) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.store_refund_review.approved": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such order (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Nothing waits for a decision (no_store_refund_review) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.store_refund_review.dismissed": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such order (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Nothing waits for a decision (no_store_refund_review) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
