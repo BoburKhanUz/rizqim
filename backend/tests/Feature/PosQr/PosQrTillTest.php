@@ -96,6 +96,8 @@ class PosQrTillTest extends TestCase
     public function test_it_expires_after_the_branch_expiry_and_reading_it_expires_it(): void
     {
         Event::fake([QrPaymentBroadcast::class]);
+        // Freeze the clock: the expiry is compared to the second.
+        $this->freezeTime();
         [, $bill] = $this->billed();
         $uuid = $this->qr($bill)->json('data.qr.uuid');
         $this->assertSame(now()->addMinutes(5)->toIso8601String(), $this->qrModel($uuid)->expires_at->toIso8601String());
