@@ -16,6 +16,8 @@ enum PaymentMethod {
   uzum('uzum'),
   @JsonValue('paynet')
   paynet('paynet'),
+  @JsonValue('paylov')
+  paylov('paylov'),
   @JsonValue('keshbek')
   keshbek('keshbek'),
 

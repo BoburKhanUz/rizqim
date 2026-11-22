@@ -77,7 +77,8 @@ class PaymentUnavailableMethodsTest extends TestCase
             ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
             ->assertJsonPath('data.payment_settings.paynet', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
             ->assertJsonPath('data.payment_settings.payme.enabled', true)
-            ->assertJsonPath('data.allowed_methods', ['cash', 'click', 'payme']);
+            // Wave P: Paylov is integrated and on (the store still needs keys, its own or the platform's, to offer it)
+            ->assertJsonPath('data.allowed_methods', ['cash', 'click', 'payme', 'paylov']);
 
         $payload = fn (array $uzum) => ['is_open' => true, 'payment_settings' => ['payme' => ['enabled' => true], 'uzum' => $uzum]];
 

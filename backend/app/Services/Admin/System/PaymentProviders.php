@@ -26,10 +26,23 @@ final class PaymentProviders
         'click' => ['service_id' => 'Service ID', 'merchant_id' => 'Merchant ID', 'secret_key' => 'Maxfiy kalit', 'merchant_user_id' => 'Merchant API foydalanuvchisi'],
         'uzum' => ['terminal_id' => 'Terminal ID', 'secret_key' => 'Maxfiy kalit'],
         'paynet' => ['merchant_id' => 'Merchant ID', 'secret_key' => 'Maxfiy kalit'],
+        // Wave P (developer.paylov.uz): the checkout link's merchant, the API's OAuth2 keys, the webhook's Basic Auth
+        'paylov' => [
+            'merchant_id' => 'Merchant ID (to\'lov havolasi)',
+            'consumer_key' => 'Consumer key',
+            'consumer_secret' => 'Consumer secret',
+            'username' => 'API login',
+            'password' => 'API paroli',
+            'callback_login' => 'Webhook login',
+            'callback_password' => 'Webhook paroli',
+        ],
     ];
 
-    // Wired into checkout and the webhooks (App\Services\Order\PaymentLinkService, Payme/ClickWebhookController)
-    public const WIRED = ['payme', 'click'];
+    // Wired into checkout and the webhooks (App\Services\Order\PaymentLinkService, Payme/Click/PaylovWebhookController)
+    public const WIRED = ['payme', 'click', 'paylov'];
+
+    // Wave P: providers with no sandbox at all, whose `test` mode is a fake driver that must never run on production
+    public const NO_SANDBOX = ['paylov'];
 
     public const MODES = ['test', 'production'];
 
@@ -117,6 +130,14 @@ final class PaymentProviders
         if (array_key_exists('mode', $change)) {
             $after['mode'] = (string) $change['mode'];
         }
+        // Wave P: Paylov's `test` is a fake driver (no sandbox exists): never on production, whatever the override
+        if ($after['mode'] === 'test' && $before['mode'] !== 'test' && in_array((string) $provider->slug, self::NO_SANDBOX, true) && config('app.env') === 'production') {
+            throw new SystemAdminException(
+                "Paylov'da sinov (sandbox) muhiti yo'q: test rejimi soxta javoblar bilan ishlaydi va productionda yoqilmaydi.",
+                self::TEST_MODE_NOT_ALLOWED,
+            );
+        }
+
         // Only a move INTO test is refused: a row already in test may still be saved or switched back
         if ($after['mode'] === 'test' && $before['mode'] !== 'test' && !self::testModeAllowed()) {
             throw new SystemAdminException(

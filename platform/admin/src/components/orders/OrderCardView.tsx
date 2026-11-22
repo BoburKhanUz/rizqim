@@ -303,6 +303,10 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
                   <span className="text-fg">{exactMoney(payment.amount)}</span>
                   <Pill tone={payment.status === 'paid' ? 'success' : payment.status === 'refunded' ? 'neutral' : 'warning'}>{payment.status}</Pill>
                   {payment.manual_refund_required && <Pill tone="danger">{t('orders_paymentManual')}</Pill>}
+                  {payment.confirmation === 'unconfirmed' && <Pill tone="warning">{t('orders_paylovUnconfirmed')}</Pill>}
+                  {payment.confirmation === 'mismatch' && <Pill tone="danger">{t('orders_paylovMismatch')}</Pill>}
+                  {(payment.provider_refund === 'requested' || payment.provider_refund === 'retrying') && <Pill tone="warning">{t('orders_paylovRefunding')}</Pill>}
+                  {payment.provider_refund === 'failed' && <Pill tone="danger">{t('orders_paylovRefundFailed')}</Pill>}
                 </span>
                 {payment.manual_refund_approved.map((row) => (
                   <span key={row.refund_request_id} className="text-caption text-fg-muted">

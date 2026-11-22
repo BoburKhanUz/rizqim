@@ -4,8 +4,8 @@ import type { PaymentSettings } from '../types';
 // customer is never offered a choice that placing the order would refuse.
 
 // The payment methods the cart offers. Uzum and Paynet are not integrated yet, so they are never offered here,
-// whatever a store's payment settings say.
-export type CartPaymentMethod = 'naqd' | 'click' | 'payme' | 'keshbek';
+// whatever a store's payment settings say. Wave P: Paylov, only while the server offers it (Store::paylovConfigured).
+export type CartPaymentMethod = 'naqd' | 'click' | 'payme' | 'paylov' | 'keshbek';
 
 // How the customer gets the order: brought to the door, or fetched from a branch.
 export type CartOrderType = 'delivery' | 'pickup';
@@ -36,6 +36,11 @@ function isOrderTypeOn(flag: unknown): boolean {
   return flag === undefined || flag === null ? true : isTruthy(flag);
 }
 
+// A section the server marks `available: false` (switched off by RIZQIM, not integrated, or for Paylov: its keys missing)
+function isOffered(section: unknown): boolean {
+  return !(typeof section === 'object' && section !== null && (section as { available?: unknown }).available === false);
+}
+
 /**
  * The payment methods a store takes, in the order the cart lists them. Cash is on unless the store switched it off; an
  * online method has to be switched on explicitly, so one the store never set up is off. Settings that did not load
@@ -43,12 +48,13 @@ function isOrderTypeOn(flag: unknown): boolean {
  * Empty when nothing can be paid with.
  */
 export function getAllowedPaymentMethods(settings: PaymentSettings | null | undefined, balance: number | undefined): CartPaymentMethod[] {
-  const allowed = settings?.allowed_methods || ['cash', 'click', 'payme'];
+  const allowed = settings?.allowed_methods || ['cash', 'click', 'payme', 'paylov'];
   const methods: CartPaymentMethod[] = [];
 
   if ((allowed.includes('cash') || allowed.includes('naqd')) && isProviderOn(settings?.cash, true)) methods.push('naqd');
   if (allowed.includes('click') && isProviderOn(settings?.click, false)) methods.push('click');
   if (allowed.includes('payme') && isProviderOn(settings?.payme, false)) methods.push('payme');
+  if (allowed.includes('paylov') && isProviderOn(settings?.paylov, false) && isOffered(settings?.paylov)) methods.push('paylov');
   if (balance !== undefined && balance > 0) methods.push('keshbek');
 
   return methods;

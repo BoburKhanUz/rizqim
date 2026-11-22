@@ -58,7 +58,7 @@ class V1OwnerSettingsRequestBody {
   @JsonKey(name: 'fiscal_settings')
   final FiscalSettings5? fiscalSettings;
 
-  /// To'lov va yetkazish sozlamalari (obyekt).
+  /// To'lov va yetkazish sozlamalari (obyekt). Paylov callback_password (o'z hisobi): kamida 16 belgi.
   @JsonKey(name: 'payment_settings')
   final PaymentSettings2 paymentSettings;
 

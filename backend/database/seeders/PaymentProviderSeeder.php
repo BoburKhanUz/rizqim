@@ -57,6 +57,15 @@ class PaymentProviderSeeder extends Seeder
                     'secret_key' => '',
                 ]
             ],
+            // Wave P: on, but offered to no store until every key is set (Store::paylovConfigured); rerunning the
+            // seeder on a live server adds this row and keeps the others as they are
+            [
+                'name' => 'Paylov',
+                'slug' => 'paylov',
+                'is_active' => true,
+                'mode' => 'production',
+                'credentials' => [],
+            ],
         ];
 
         // Adds the providers that are missing; one that exists keeps its credentials and switch (re-running the seeder

@@ -141,6 +141,9 @@ class OrderStatusService
                 $this->restoreStock($order);
                 $this->refundKeshbek($order);
 
+                if ($providerNote = $this->refundThroughProvider($order, $to)) {
+                    $notes[] = $providerNote;
+                }
                 if ($refundNote = $this->flagManualRefund($order, $to)) {
                     $notes[] = $refundNote;
                     $manualRefund = true;
@@ -154,6 +157,9 @@ class OrderStatusService
                 }
                 $this->refundKeshbek($order);
 
+                if (empty($options['refunded_by_provider']) && ($providerNote = $this->refundThroughProvider($order, $to))) {
+                    $notes[] = $providerNote;
+                }
                 if (empty($options['refunded_by_provider']) && ($refundNote = $this->flagManualRefund($order, $to))) {
                     $notes[] = $refundNote;
                     $manualRefund = true;
@@ -509,6 +515,8 @@ class OrderStatusService
     /**
      * Money already taken by Click/Payme (or collected cash) cannot be returned from here: the payment stays
      * paid and is flagged for a manual refund. Returns the history note, or null when nothing is owed.
+     * Wave P: a Paylov payment is given back in full through Paylov's payment/cancel instead (RefundPaylovPayment, after
+     * the commit; PaylovPayments::refund flags it for a manual refund only if Paylov refuses it for good).
      */
     protected function flagManualRefund(Order $order, OrderStatus $to): ?string
     {
@@ -517,6 +525,60 @@ class OrderStatusService
         }
 
         $payments = $order->payments()->where('status', PaymentStatus::PAID->value)->lockForUpdate()->get();
+        // Wave P: Paylov payments are refunded through Paylov (refundThroughProvider), never flagged here
+        $paylov = $payments->filter(fn ($payment) => self::refundsThroughPaylov($payment));
+        $payments = $payments->reject(fn ($payment) => self::refundsThroughPaylov($payment))->values();
+        if ($payments->isEmpty() && $paylov->isNotEmpty()) {
+            return null;
+        }
+
+        return $this->flagPaymentsForManualRefund($order, $to, $payments);
+    }
+
+    protected static function refundsThroughPaylov(\App\Models\Payment $payment): bool
+    {
+        return $payment->provider === 'paylov' && $payment->provider_transaction_id !== null;
+    }
+
+    /**
+     * Wave P: the full refund of the order's paid Paylov payments through Paylov's payment/cancel, queued for after the
+     * commit (RefundPaylovPayment). Returns the history note, or null when there is none.
+     */
+    protected function refundThroughProvider(Order $order, OrderStatus $to): ?string
+    {
+        if ($order->payment_status !== PaymentStatus::PAID) {
+            return null;
+        }
+
+        $payments = $order->payments()->where('status', PaymentStatus::PAID->value)->where('provider', 'paylov')->whereNotNull('provider_transaction_id')->lockForUpdate()->get();
+        if ($payments->isEmpty()) {
+            return null;
+        }
+
+        foreach ($payments as $payment) {
+            $payload = $payment->payload ?? [];
+            $refund = $payload['paylov']['refund'] ?? null;
+            if (!is_array($refund) || !in_array($refund['status'] ?? null, [\App\Services\Payment\Paylov\PaylovPayments::REFUND_REQUESTED, \App\Services\Payment\Paylov\PaylovPayments::REFUND_RETRYING], true)) {
+                $payload['paylov']['refund'] = [
+                    'status' => \App\Services\Payment\Paylov\PaylovPayments::REFUND_REQUESTED,
+                    'reason' => "order_{$to->value}",
+                    'requested_at' => now()->toIso8601String(),
+                ];
+                $payment->update(['payload' => $payload]);
+            }
+            \App\Jobs\RefundPaylovPayment::dispatch((int) $payment->id);
+        }
+
+        $amount = Money::sum(...$payments->pluck('amount')->all());
+
+        return "To'lov Paylov orqali mijozga avtomatik qaytarilmoqda: " . number_format($amount->toFloat(), 0, '.', ' ') . ' UZS.';
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Payment>  $payments  paid payments, locked
+     */
+    protected function flagPaymentsForManualRefund(Order $order, OrderStatus $to, \Illuminate\Support\Collection $payments): string
+    {
         foreach ($payments as $payment) {
             $payment->update(['payload' => array_merge($payment->payload ?? [], [
                 'manual_refund_required' => true,

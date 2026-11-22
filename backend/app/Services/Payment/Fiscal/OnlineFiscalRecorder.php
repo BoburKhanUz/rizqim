@@ -11,6 +11,7 @@ use App\Domain\Fiscal\FiscalReceiptType;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Support\Money;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -32,16 +33,29 @@ class OnlineFiscalRecorder
     public function __construct(protected OnlineFiscalReceiptBuilder $receipts) {}
 
     /**
-     * Merges $fiscal into the payment's payload.fiscal.
+     * Merges $fiscal into the payment's payload.fiscal. Review 1 (Paylov wave): the row is re-read under its lock and only
+     * payload.fiscal is merged, so whatever another request wrote meanwhile (a refund request in payload.paylov, a
+     * status change) is kept; a receipt job holds its Payment for the length of a slow provider call. $payment is
+     * brought up to date with the row as saved.
      *
      * @param  array<string, mixed>  $fiscal
      */
     public function mark(Payment $payment, array $fiscal): void
     {
-        $payload = $payment->payload ?? [];
-        $payload['fiscal'] = array_merge(is_array($payload['fiscal'] ?? null) ? $payload['fiscal'] : [], $fiscal);
+        $fresh = DB::transaction(function () use ($payment, $fiscal) {
+            $locked = $payment->exists ? Payment::whereKey($payment->getKey())->lockForUpdate()->first() : null;
+            $target = $locked ?? $payment;
 
-        $payment->forceFill(['payload' => $payload])->save();
+            $payload = $target->payload ?? [];
+            $payload['fiscal'] = array_merge(is_array($payload['fiscal'] ?? null) ? $payload['fiscal'] : [], $fiscal);
+            $target->forceFill(['payload' => $payload])->save();
+
+            return $target;
+        });
+
+        if ($fresh !== $payment) {
+            $payment->setRawAttributes($fresh->getAttributes(), true);
+        }
     }
 
     /**

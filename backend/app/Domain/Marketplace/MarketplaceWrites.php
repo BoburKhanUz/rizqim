@@ -22,6 +22,7 @@ final class MarketplaceWrites
         'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count',
         'payment_settings', 'status', 'credit_limit', 'open_time', 'close_time', 'min_order_amount', 'is_active',
         'deleted_at', 'timezone', 'marketplace_offline_minutes', 'slug', 'accept_cash', 'accept_click', 'accept_payme',
+        'payment_account_type', // wave P: decides whether a card offers Paylov (Store::paylovConfigured)
     ];
 
     /** Columns of a branches row an area document shows or filters by */

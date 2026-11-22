@@ -41,7 +41,7 @@ export function orderTypeLabel(type: string | null | undefined, language: Langua
 }
 
 // The methods the API sends in Order.payment_method ("cash", "CASH", "click" ...)
-export const PAYMENT_METHODS = ['cash', 'card', 'click', 'payme', 'uzum', 'paynet', 'keshbek'] as const;
+export const PAYMENT_METHODS = ['cash', 'card', 'click', 'payme', 'uzum', 'paynet', 'paylov', 'keshbek'] as const;
 export type PaymentMethodId = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethodId, Required<Localized>> = {
@@ -51,6 +51,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethodId, Required<Localized>>
   payme: { uz: 'Payme', ru: 'Payme', en: 'Payme' },
   uzum: { uz: 'Uzum', ru: 'Uzum', en: 'Uzum' },
   paynet: { uz: 'Paynet', ru: 'Paynet', en: 'Paynet' },
+  paylov: { uz: 'Paylov', ru: 'Paylov', en: 'Paylov' },
   keshbek: { uz: 'Keshbek', ru: 'Кешбэк', en: 'Cashback' },
 };
 

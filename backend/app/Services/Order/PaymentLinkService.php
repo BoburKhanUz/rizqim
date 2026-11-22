@@ -16,6 +16,9 @@ class PaymentLinkService
     public const LINK_CREDENTIALS = [
         'click' => ['service_id', 'merchant_id'],
         'payme' => ['merchant_id'],
+        // Wave P: not only the link's merchant_id: a Paylov payment is settled only after the API confirms it, and the
+        // webhook is refused without its Basic Auth, so an account missing any key would take money it cannot confirm
+        'paylov' => \App\Services\Payment\Paylov\PaylovAccount::KEYS,
     ];
 
     public function __construct(
@@ -71,12 +74,12 @@ class PaymentLinkService
     }
 
     /**
-     * The Click/Payme checkout URL for a new online order: null for other payment methods, '' when the store has
-     * switched the provider off.
+     * The Click/Payme/Paylov checkout URL for a new online order: null for other payment methods, '' when the store
+     * has switched the provider off.
      */
     public function forOrder(Order $order): ?string
     {
-        if (!in_array($order->payment_method, ['click', 'payme'])) {
+        if (!in_array($order->payment_method, ['click', 'payme', 'paylov'])) {
             return null;
         }
 
@@ -91,6 +94,18 @@ class PaymentLinkService
         // Store merchant credentials only for a STORE-owned order of a store that can collect this provider itself;
         // everything else is paid to the platform merchant whose key the webhooks verify.
         $useStore = $order->payment_owner !== 'PLATFORM' && (bool) $store?->collectsOwnPayments((string) $order->payment_method);
+
+        if ($order->payment_method === 'paylov') {
+            $paylovConfig = is_array($settings['paylov'] ?? null) ? $settings['paylov'] : [];
+            if (isset($paylovConfig['enabled']) && !$paylovConfig['enabled']) {
+                return ''; // Disabled by store merchant
+            }
+
+            // Wave P: the account the order is paid into (payment_owner), as the webhook authorises it
+            $merchantId = \App\Services\Payment\OrderMerchantAccount::credential('paylov', $order, 'merchant_id');
+
+            return $this->providers->paylovUrl($merchantId, $amount->toTiyin(), (string) $order->uuid, $returnUrl);
+        }
 
         if ($order->payment_method === 'click') {
             $clickConfig = is_array($settings['click'] ?? null) ? $settings['click'] : [];

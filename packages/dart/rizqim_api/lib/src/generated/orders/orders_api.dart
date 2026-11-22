@@ -49,7 +49,8 @@ abstract class OrdersApi {
   /// Place an order (checkout).
   ///
   /// Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online.
-  /// payment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason.
+  /// payment methods (Click, Payme, Paylov): open it to pay; the order is cancelled when it stays unpaid (a Paylov payment.
+  /// still being confirmed with Paylov is never cancelled as unpaid). 400 with the reason.
   /// when the order cannot be placed (store closed, item unavailable, minimum not reached...).
   ///
   /// P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least.

@@ -16,6 +16,7 @@ class PaymentSettings {
     this.payme,
     this.uzum,
     this.paynet,
+    this.paylov,
     this.deliveryFee,
     this.deliveryEnabled,
     this.pickupEnabled,
@@ -31,6 +32,7 @@ class PaymentSettings {
   final dynamic payme;
   final dynamic uzum;
   final dynamic paynet;
+  final dynamic paylov;
   @JsonKey(name: 'delivery_fee')
   final dynamic deliveryFee;
   @JsonKey(name: 'delivery_enabled')

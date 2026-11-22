@@ -66,6 +66,26 @@ return [
         'merchant_id' => env('PAYME_MERCHANT_ID'),
     ],
 
+    // Wave P: Paylov (developer.paylov.uz). merchant_id names the checkout link; consumer_key/consumer_secret and
+    // username/password get the API token (subscribe/authorization) that confirms each payment, refunds it and
+    // registers its fiscal receipt; callback_login/callback_password are the Basic Auth Paylov sends to our webhook
+    // (merchants/paylov-payment-gateway, "STEP 1"). No defaults: the webhook fails closed and checkout refuses Paylov
+    // (payment_provider_unconfigured) until all of them are set here or in Tizim → To'lov tizimlari.
+    'paylov' => [
+        'merchant_id' => env('PAYLOV_MERCHANT_ID'),
+        'consumer_key' => env('PAYLOV_CONSUMER_KEY'),
+        'consumer_secret' => env('PAYLOV_CONSUMER_SECRET'),
+        'username' => env('PAYLOV_USERNAME'),
+        'password' => env('PAYLOV_PASSWORD'),
+        'callback_login' => env('PAYLOV_CALLBACK_LOGIN'),
+        'callback_password' => env('PAYLOV_CALLBACK_PASSWORD'),
+        // The docs call it BASE_URL and show gw2.paylov.uz only in an example (subscribe/card-bind/create-link): the
+        // host Paylov names at onboarding goes here
+        'base_url' => env('PAYLOV_BASE_URL', 'https://gw2.paylov.uz'),
+        // merchants/creating-payment-link: "Combine encoded query with base URL (https://my.paylov.uz/checkout/create/{query})"
+        'checkout_url' => env('PAYLOV_CHECKOUT_URL', 'https://my.paylov.uz/checkout/create/'),
+    ],
+
     // Review S#7: Tizim → To'lov tizimlari may put a platform provider in `test` (Payme's sandbox checkout) on
     // APP_ENV=production only with this set: a live customer would otherwise pay into the sandbox
     'payments' => [

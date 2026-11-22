@@ -132,6 +132,11 @@ export const orders = defineSection({
     orders_refundable: 'Qaytarish mumkin',
     orders_paymentManual: "Qo'lda qaytarilishi kerak",
     orders_paymentManualDone: "{{amount}} qo'lda qaytarish tasdiqlangan",
+    // Wave P: Paylov's own states of a payment (backend PaylovPayments)
+    orders_paylovUnconfirmed: 'Paylov tasdiqlamagan',
+    orders_paylovMismatch: 'Paylov boshqa summa ko\'rsatdi',
+    orders_paylovRefunding: 'Paylov orqali qaytarilmoqda',
+    orders_paylovRefundFailed: 'Paylov qaytarmadi',
     orders_noPayments: "To'lov yozuvi yo'q",
     orders_refundRequests: "Qaytarish so'rovlari",
     orders_refundBy: "So'radi: {{name}}, {{time}}",

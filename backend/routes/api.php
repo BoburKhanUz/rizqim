@@ -154,6 +154,8 @@ Route::prefix('v1')->group(function () {
     // Decoupled Billing Webhooks (server-to-server: no auth; a generous per-IP limit that a provider's bursts never reach)
     Route::post('/payments/click/webhook', [\App\Http\Controllers\Api\V1\Payment\ClickWebhookController::class, 'handle'])->middleware('throttle:payment-webhooks');
     Route::post('/payments/payme/webhook', [\App\Http\Controllers\Api\V1\Payment\PaymeWebhookController::class, 'handle'])->middleware('throttle:payment-webhooks');
+    // Wave P: Paylov Checkout callbacks (transaction.check / perform) and the cancel webhook
+    Route::post('/payments/paylov/webhook', [\App\Http\Controllers\Api\V1\Payment\PaylovWebhookController::class, 'handle'])->middleware('throttle:payment-webhooks');
 
     // Telegram Webhook
     Route::post('/telegram/webhook', [\App\Http\Controllers\Api\V1\Telegram\TelegramWebhookController::class, 'handle'])

@@ -46,7 +46,7 @@ export interface PaymentProviderSettings {
   enabled?: boolean;
   merchant_id?: string;
   service_id?: string;
-  available?: boolean; // false for a provider the platform cannot process yet (uzum, paynet)
+  available?: boolean; // false for a provider the platform cannot process yet (uzum, paynet) or, Paylov, not configured
 }
 
 // Store.payment_settings (a JSON column). A provider is either a bare boolean (legacy) or a settings object.
@@ -56,6 +56,8 @@ export interface PaymentSettings {
   payme?: boolean | PaymentProviderSettings;
   uzum?: boolean | PaymentProviderSettings;
   paynet?: boolean | PaymentProviderSettings;
+  // Wave P: {enabled: false, available: false} unless RIZQIM switched it on and its keys are all set
+  paylov?: boolean | PaymentProviderSettings;
   delivery_fee?: Amount; // a JSON column: whatever the owner's form saved
   delivery_enabled?: boolean;
   pickup_enabled?: boolean;

@@ -20,6 +20,10 @@ class CheckProductionStagingTest extends TestCase
             // Go-live review M2: the platform's Click / Payme accounts complete (else a warning names each missing one)
             'services.payme.merchant_id' => 'cashbox', 'services.payme.secret_key' => 'payme-key',
             'services.click.service_id' => 'service', 'services.click.merchant_id' => 'merchant', 'services.click.secret_key' => 'click-key']);
+        // Wave P: and the platform's Paylov account (made at runtime, never a key-shaped literal)
+        foreach (\App\Services\Payment\Paylov\PaylovAccount::KEYS as $key) {
+            config(["services.paylov.{$key}" => \Illuminate\Support\Str::random(24)]);
+        }
     }
 
     public function test_staging_environment_passes_the_check(): void

@@ -77,6 +77,7 @@ const PAYMENT_ICONS: Record<CartPaymentMethod, LucideIcon> = {
   naqd: Banknote,
   click: CreditCard,
   payme: Smartphone,
+  paylov: CreditCard,
   keshbek: Wallet,
 };
 
@@ -545,7 +546,7 @@ export default function Cart() {
         // orders (refreshed slowly while the socket is up) could miss the new one when they go to look at it
         void queryClient.invalidateQueries({ queryKey: ORDERS_KEY });
 
-        // Handle redirect to click/payme URL if present
+        // Handle redirect to the click/payme/paylov URL if present
         const paymentUrl = orderData.payment_url;
         if (paymentUrl) {
           if (typeof tg.openLink === 'function') {

@@ -55,6 +55,17 @@ describe('getAllowedPaymentMethods: what the server takes at checkout', () => {
     expect(getAllowedPaymentMethods(settings({ cash: { enabled: false }, click: { enabled: false }, payme: { enabled: false } }), undefined)).toEqual([]);
   });
 
+  it('offers Paylov once the store switched it on and the server offers it (on and configured)', () => {
+    expect(getAllowedPaymentMethods(settings({ paylov: { enabled: true } }), undefined)).toEqual(['naqd', 'paylov']);
+    expect(getAllowedPaymentMethods(settings({ click: { enabled: true }, payme: { enabled: true }, paylov: { enabled: true, merchant_id: 'm' } }), undefined)).toEqual(['naqd', 'click', 'payme', 'paylov']);
+    // The server sends {enabled: false, available: false} while it is switched off or its keys are missing
+    expect(getAllowedPaymentMethods(settings({ paylov: { enabled: false, available: false } }), undefined)).toEqual(['naqd']);
+    expect(getAllowedPaymentMethods(settings({ paylov: { enabled: true, available: false } }), undefined)).toEqual(['naqd']);
+    expect(getAllowedPaymentMethods(settings({ paylov: { enabled: false } }), undefined)).toEqual(['naqd']);
+    expect(getAllowedPaymentMethods(settings({ allowed_methods: ['cash', 'click'], paylov: { enabled: true } }), undefined)).toEqual(['naqd']);
+    expect(getAllowedPaymentMethods(settings({ allowed_methods: ['cash', 'paylov'], paylov: { enabled: true } }), undefined)).toEqual(['naqd', 'paylov']);
+  });
+
   it('never offers Uzum or Paynet, whatever the store says', () => {
     expect(getAllowedPaymentMethods(settings({ uzum: { enabled: true }, paynet: { enabled: true } }), undefined)).toEqual(['naqd']);
   });

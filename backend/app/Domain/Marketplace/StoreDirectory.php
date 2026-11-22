@@ -27,6 +27,8 @@ final class StoreDirectory
         'id', 'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium',
         'review_count', 'payment_settings', 'status', 'debt_balance', 'subscription_debt', 'credit_limit', 'open_time',
         'close_time', 'min_order_amount',
+        // Wave P: whose account a Paylov order is paid into (Store::paylovConfigured); never in the JSON (INTERNAL_ATTRIBUTES)
+        'payment_account_type',
     ];
 
     public const BRANCH_COLUMNS = ['id', 'store_id', 'name', 'latitude', 'longitude', 'radius_km', 'address', 'phone'];

@@ -856,6 +856,7 @@ $notTenant = [
     'POST api/broadcasting/auth' => 'realtime channel auth, checked per channel in routes/channels.php (M4_DESIGN section 2)',
     'POST api/v1/payments/click/webhook' => 'provider webhook: signed with the order\'s own merchant key, no ambient tenant',
     'POST api/v1/payments/payme/webhook' => 'provider webhook: signed with the platform or store cashbox key, no ambient tenant',
+    'POST api/v1/payments/paylov/webhook' => 'provider webhook (wave P): Basic Auth of the account the order is paid into (platform or store), no ambient tenant',
     'POST api/v1/telegram/webhook' => 'Telegram webhook: secret token, staff of the order\'s store checked per callback',
     'POST api/v1/auth/phone/select-account' => 'sign-in',
     'POST api/v1/auth/phone/send-code' => 'sign-in',

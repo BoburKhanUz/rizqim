@@ -156,6 +156,9 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
     paid_at: string | null;
     manual_refund_required: boolean;
     manual_refund_approved: { refund_request_id: number; amount: string; approved_at: string | null }[];
+    // Wave P: Paylov only (null otherwise): whether Paylov confirmed the payment yet, and its full refund through Paylov
+    confirmation?: 'unconfirmed' | 'confirmed' | 'rejected' | 'mismatch' | 'cancelled' | null;
+    provider_refund?: 'requested' | 'retrying' | 'done' | 'failed' | null;
     created_at: string | null;
   }[];
   refunds: { paid: string; refunded: string; refundable: string; requests: RefundRequest[] };

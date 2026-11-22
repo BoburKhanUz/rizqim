@@ -98,6 +98,7 @@ class FpmPoolRoutingTest extends TestCase
             'terminal pairing' => ['POST', '/api/v1/devices/pair', '', '', '', 'fpm_critical'],
             'token refresh' => ['POST', '/api/v1/auth/refresh', '', '', $customer, 'fpm_critical'],
             'Payme webhook' => ['POST', '/api/v1/payments/payme/webhook', '', '', '', 'fpm_critical'],
+            'Paylov webhook' => ['POST', '/api/v1/payments/paylov/webhook', '', '', '', 'fpm_critical'],
             'Click webhook' => ['POST', '/api/v1/payments/click/webhook', '', '', '', 'fpm_critical'],
             // The till's own requests of the paths it shares with the Mini App (pos_data catalog_repository, kitchen_setup)
             'till menu' => ['GET', '/api/v1/catalog', 'channel=pos_hall', 'cashier', $till, 'fpm_critical'],

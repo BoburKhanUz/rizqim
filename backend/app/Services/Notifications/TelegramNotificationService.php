@@ -241,6 +241,7 @@ class TelegramNotificationService
                         'payme' => 'Payme 📱',
                         'paynet' => 'Paynet 📱',
                         'uzum' => 'Uzum Bank 📱',
+                        'paylov' => 'Paylov 📱',
                         default => strtoupper($order->payment_method)
                     };
                     $message .= "💳 *To'lov usuli:* {$paymentMethodText}\n";

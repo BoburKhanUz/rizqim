@@ -49,6 +49,14 @@ class CancelUnpaidOnlineOrdersJob
                     return;
                 }
 
+                // Wave P: a Paylov perform still waiting for its status read may be money taken: never expired as unpaid
+                // (PaylovPayments; the re-check settles or closes it)
+                if (\App\Models\Payment::where('order_id', $locked->id)->where('provider', 'paylov')->where('status', PaymentStatus::PENDING->value)
+                    ->whereNotNull('provider_transaction_id')->get()->contains(fn ($payment) => \App\Services\Payment\Paylov\PaylovPayments::isUnconfirmed($payment)
+                        || (\App\Services\Payment\Paylov\PaylovPayments::state($payment)['state'] ?? null) === \App\Services\Payment\Paylov\PaylovPayments::STATE_MISMATCH)) {
+                    return;
+                }
+
                 // The customer's alert (Telegram and in-app feed) goes out with the OrderCancelled event
                 $orderStatus->transition($locked, OrderStatus::CANCELED, null, [
                     'from' => [OrderStatus::NEW],

@@ -68,6 +68,7 @@ class SeedersRerunTest extends TestCase
         $this->assertFalse((bool) $payme->is_active);
         $this->assertSame('live-merchant', $payme->credentials['merchant_id']);
         $this->assertSame('live-secret', $payme->credentials['secret_key']);
-        $this->assertSame(4, PaymentProvider::count());
+        // Payme, Click, Uzum, Paynet and (wave P) Paylov
+        $this->assertSame(5, PaymentProvider::count());
     }
 }
