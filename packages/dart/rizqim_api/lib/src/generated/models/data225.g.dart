@@ -7,23 +7,21 @@ part of 'data225.dart';
 // **************************************************************************
 
 Data225 _$Data225FromJson(Map<String, dynamic> json) => Data225(
-  persons: (json['persons'] as num).toInt(),
-  personsPerKg: json['persons_per_kg'] as String,
-  oshKg: json['osh_kg'] as String,
-  ingredients: (json['ingredients'] as List<dynamic>)
-      .map((e) => Ingredients4.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  slots: Slots7.fromJson(json['slots'] as Map<String, dynamic>),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls5.fromJson(e as Map<String, dynamic>))
       .toList(),
-  kazans: (json['kazans'] as List<dynamic>)
-      .map((e) => Kazans.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  kazanCapacityKg: json['kazan_capacity_kg'] as String,
 );
 
 Map<String, dynamic> _$Data225ToJson(Data225 instance) => <String, dynamic>{
-  'persons': instance.persons,
-  'persons_per_kg': instance.personsPerKg,
-  'osh_kg': instance.oshKg,
-  'ingredients': instance.ingredients,
-  'kazans': instance.kazans,
-  'kazan_capacity_kg': instance.kazanCapacityKg,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'slots': instance.slots,
+  'halls': instance.halls,
 };

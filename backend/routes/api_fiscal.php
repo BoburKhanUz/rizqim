@@ -7,6 +7,7 @@
 
 use App\Http\Controllers\Api\V1\Fiscal\FiscalReceiptController;
 use App\Http\Controllers\Api\V1\Fiscal\FiscalSettingsController;
+use App\Http\Controllers\Api\V1\Fiscal\UzQrSettingsController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
@@ -22,5 +23,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->gr
         Route::get('/owner/fiscal/settings', [FiscalSettingsController::class, 'show']);
         Route::put('/owner/fiscal/settings', [FiscalSettingsController::class, 'update']);
         Route::post('/owner/fiscal/receipts/{uuid}/retry', [FiscalReceiptController::class, 'retry'])->whereUuid('uuid');
+
+        // Wave P: the UzQR credentials (each till's own API key, write-only; the store's STIR)
+        Route::get('/owner/fiscal/uzqr', [UzQrSettingsController::class, 'index']);
+        Route::put('/owner/fiscal/uzqr/tills/{uuid}', [UzQrSettingsController::class, 'updateTill'])->whereUuid('uuid');
     });
 });

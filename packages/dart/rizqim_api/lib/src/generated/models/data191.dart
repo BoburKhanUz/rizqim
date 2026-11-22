@@ -4,19 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings5.dart';
-
 part 'data191.g.dart';
 
 @JsonSerializable()
 class Data191 {
-  const Data191({required this.channels, required this.settings});
+  const Data191({required this.id});
 
   factory Data191.fromJson(Map<String, Object?> json) =>
       _$Data191FromJson(json);
 
-  final List<dynamic> channels;
-  final List<Settings5> settings;
+  final int id;
 
   Map<String, Object?> toJson() => _$Data191ToJson(this);
 }

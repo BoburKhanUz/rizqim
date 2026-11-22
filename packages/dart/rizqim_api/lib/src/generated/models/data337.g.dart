@@ -6,24 +6,9 @@ part of 'data337.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data337 _$Data337FromJson(Map<String, dynamic> json) => Data337(
-  numbers: json['numbers'] as bool,
-  calling: json['calling'] as bool,
-  businessDate: json['business_date'] as String,
-  blockSize: (json['block_size'] as num).toInt(),
-  lowWater: (json['low_water'] as num).toInt(),
-  blocks: (json['blocks'] as List<dynamic>)
-      .map((e) => Blocks2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  nextNumber: (json['next_number'] as num?)?.toInt(),
-);
+Data337 _$Data337FromJson(Map<String, dynamic> json) =>
+    Data337(qr: Qr6.fromJson(json['qr'] as Map<String, dynamic>));
 
 Map<String, dynamic> _$Data337ToJson(Data337 instance) => <String, dynamic>{
-  'numbers': instance.numbers,
-  'calling': instance.calling,
-  'business_date': instance.businessDate,
-  'block_size': instance.blockSize,
-  'low_water': instance.lowWater,
-  'blocks': instance.blocks,
-  'next_number': instance.nextNumber,
+  'qr': instance.qr,
 };

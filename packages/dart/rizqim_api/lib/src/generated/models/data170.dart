@@ -4,20 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'vouchers.dart';
-import 'meta.dart';
+import 'settings4.dart';
+import 'options7.dart';
 
 part 'data170.g.dart';
 
 @JsonSerializable()
 class Data170 {
-  const Data170({required this.vouchers, required this.meta});
+  const Data170({required this.settings, required this.options});
 
   factory Data170.fromJson(Map<String, Object?> json) =>
       _$Data170FromJson(json);
 
-  final List<Vouchers> vouchers;
-  final Meta meta;
+  final Settings4 settings;
+  final Options7 options;
 
   Map<String, Object?> toJson() => _$Data170ToJson(this);
 }

@@ -28,6 +28,7 @@ class Qr5 {
     required this.paymentUuid,
     required this.refundedAmount,
     required this.simulated,
+    required this.receiptLink,
     required this.createdAt,
   });
 
@@ -59,6 +60,8 @@ class Qr5 {
   @JsonKey(name: 'refunded_amount')
   final String refundedAmount;
   final bool simulated;
+  @JsonKey(name: 'receipt_link')
+  final String? receiptLink;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

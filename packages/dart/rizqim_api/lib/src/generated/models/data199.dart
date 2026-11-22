@@ -4,44 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components2.dart';
+import 'staff6.dart';
 
 part 'data199.g.dart';
 
 @JsonSerializable()
 class Data199 {
-  const Data199({
-    required this.uuid,
-    required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.role,
-    required this.roleLabel,
-    required this.effectiveFrom,
-    required this.components,
-    required this.note,
-    required this.updatedAt,
-  });
+  const Data199({required this.staff, required this.inviteLink});
 
   factory Data199.fromJson(Map<String, Object?> json) =>
       _$Data199FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'user_id')
-  final int? userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  final String? role;
-  @JsonKey(name: 'role_label')
-  final String? roleLabel;
-  @JsonKey(name: 'effective_from')
-  final String effectiveFrom;
-  final List<Components2> components;
-  final String? note;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final Staff6 staff;
+  @JsonKey(name: 'invite_link')
+  final String inviteLink;
 
   Map<String, Object?> toJson() => _$Data199ToJson(this);
 }

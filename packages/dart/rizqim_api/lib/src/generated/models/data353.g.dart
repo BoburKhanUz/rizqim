@@ -7,19 +7,17 @@ part of 'data353.dart';
 // **************************************************************************
 
 Data353 _$Data353FromJson(Map<String, dynamic> json) => Data353(
-  shiftUuid: json['shift_uuid'] as String?,
-  businessDate: json['business_date'] as String,
-  ownOnly: json['own_only'] as bool,
-  summary: Summary13.fromJson(json['summary'] as Map<String, dynamic>),
-  tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips16.fromJson(e as Map<String, dynamic>))
+  serverTime: json['server_time'] as String,
+  device: Device24.fromJson(json['device'] as Map<String, dynamic>),
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors2.fromJson(e as Map<String, dynamic>))
       .toList(),
+  errorsCount: (json['errors_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data353ToJson(Data353 instance) => <String, dynamic>{
-  'shift_uuid': instance.shiftUuid,
-  'business_date': instance.businessDate,
-  'own_only': instance.ownOnly,
-  'summary': instance.summary,
-  'tips': instance.tips,
+  'server_time': instance.serverTime,
+  'device': instance.device,
+  'errors': instance.errors,
+  'errors_count': instance.errorsCount,
 };

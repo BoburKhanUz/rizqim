@@ -11,7 +11,7 @@ GetV1OwnerPosSyncSigningResponse _$GetV1OwnerPosSyncSigningResponseFromJson(
 ) => GetV1OwnerPosSyncSigningResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data159.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data161.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPosSyncSigningResponseToJson(

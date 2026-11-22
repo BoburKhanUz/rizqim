@@ -7,19 +7,29 @@ part of 'data231.dart';
 // **************************************************************************
 
 Data231 _$Data231FromJson(Map<String, dynamic> json) => Data231(
-  contractNo: json['contract_no'] as String?,
-  text: json['text'] as String,
-  lines: (json['lines'] as List<dynamic>).map((e) => e as String).toList(),
-  fields: Map<String, String>.from(json['fields'] as Map),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings13.fromJson(e as Map<String, dynamic>))
+  daysBefore: (json['days_before'] as num).toInt(),
+  rulePercent: json['rule_percent'] as String,
+  paid: json['paid'] as String,
+  computedRetained: json['computed_retained'] as String,
+  retained: json['retained'] as String,
+  refund: json['refund'] as String,
+  overridden: json['overridden'] as bool,
+  cashRefund: json['cash_refund'] as String,
+  transferRefund: json['transfer_refund'] as String,
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data231ToJson(Data231 instance) => <String, dynamic>{
-  'contract_no': instance.contractNo,
-  'text': instance.text,
-  'lines': instance.lines,
-  'fields': instance.fields,
-  'warnings': instance.warnings,
+  'days_before': instance.daysBefore,
+  'rule_percent': instance.rulePercent,
+  'paid': instance.paid,
+  'computed_retained': instance.computedRetained,
+  'retained': instance.retained,
+  'refund': instance.refund,
+  'overridden': instance.overridden,
+  'cash_refund': instance.cashRefund,
+  'transfer_refund': instance.transferRefund,
+  'rows': instance.rows,
 };

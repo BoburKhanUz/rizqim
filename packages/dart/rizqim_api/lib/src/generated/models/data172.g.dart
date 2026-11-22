@@ -7,13 +7,13 @@ part of 'data172.dart';
 // **************************************************************************
 
 Data172 _$Data172FromJson(Map<String, dynamic> json) => Data172(
-  voucher: Voucher.fromJson(json['voucher'] as Map<String, dynamic>),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries.fromJson(e as Map<String, dynamic>))
+  vouchers: (json['vouchers'] as List<dynamic>)
+      .map((e) => Vouchers.fromJson(e as Map<String, dynamic>))
       .toList(),
+  meta: Meta.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data172ToJson(Data172 instance) => <String, dynamic>{
-  'voucher': instance.voucher,
-  'entries': instance.entries,
+  'vouchers': instance.vouchers,
+  'meta': instance.meta,
 };

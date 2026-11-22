@@ -7,19 +7,25 @@ part of 'data107.dart';
 // **************************************************************************
 
 Data107 _$Data107FromJson(Map<String, dynamic> json) => Data107(
-  entryId: (json['entry_id'] as num).toInt(),
+  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  ingredientId: (json['ingredient_id'] as num).toInt(),
-  reason: json['reason'] as String,
-  until: json['until'] as String?,
-  closedProductIds: Map<String, int>.from(json['closed_product_ids'] as Map),
+  name: json['name'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
+      ? null
+      : ServiceFee3.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables4.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data107ToJson(Data107 instance) => <String, dynamic>{
-  'entry_id': instance.entryId,
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'ingredient_id': instance.ingredientId,
-  'reason': instance.reason,
-  'until': instance.until,
-  'closed_product_ids': instance.closedProductIds,
+  'name': instance.name,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

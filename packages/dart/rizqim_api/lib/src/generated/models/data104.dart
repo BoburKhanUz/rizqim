@@ -4,16 +4,37 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'service_fee.dart';
+import 'tables2.dart';
+
 part 'data104.g.dart';
 
 @JsonSerializable()
 class Data104 {
-  const Data104({required this.id});
+  const Data104({
+    required this.id,
+    required this.branchId,
+    required this.name,
+    required this.sortOrder,
+    required this.isActive,
+    required this.serviceFee,
+    required this.tables,
+  });
 
   factory Data104.fromJson(Map<String, Object?> json) =>
       _$Data104FromJson(json);
 
   final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String name;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'service_fee')
+  final ServiceFee? serviceFee;
+  final List<Tables2> tables;
 
   Map<String, Object?> toJson() => _$Data104ToJson(this);
 }

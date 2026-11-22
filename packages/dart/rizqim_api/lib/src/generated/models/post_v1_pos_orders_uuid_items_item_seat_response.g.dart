@@ -11,7 +11,7 @@ _$PostV1PosOrdersUuidItemsItemSeatResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosOrdersUuidItemsItemSeatResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data314.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data316.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidItemsItemSeatResponseToJson(

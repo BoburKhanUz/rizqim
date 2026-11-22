@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items72.dart';
+import 'items70.dart';
 import 'pickup_status.dart';
-import 'assembly4.dart';
-import 'pickup33.dart';
+import 'assembly2.dart';
+import 'pickup31.dart';
 
 part 'data370.g.dart';
 
@@ -64,7 +64,7 @@ class Data370 {
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items72> items;
+  final List<Items70> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'accepted_at')
@@ -81,8 +81,8 @@ class Data370 {
   final int? queueNumber;
   @JsonKey(name: 'pickup_status')
   final PickupStatus? pickupStatus;
-  final Assembly4? assembly;
-  final Pickup33? pickup;
+  final Assembly2? assembly;
+  final Pickup31? pickup;
 
   Map<String, Object?> toJson() => _$Data370ToJson(this);
 }

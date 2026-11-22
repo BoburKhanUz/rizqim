@@ -5,6 +5,7 @@ namespace App\Domain\Pos\QrPayments;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
 use App\Models\Branch;
+use App\Models\Device;
 use App\Models\PosQrSetting;
 use App\Models\Store;
 use App\Models\User;
@@ -64,15 +65,20 @@ final class QrPaymentSettings
 
     /**
      * What the till may offer now: the enabled providers whose merchant account (or gateway) is set up, the default
-     * first when it is one of them.
+     * first when it is one of them. Wave P: UzQR only on a till its gateway is ready for (the real driver: the till's
+     * own key and the store's STIR).
      *
      * @return list<string>
      */
-    public function available(Branch $branch, Store $store): array
+    public function available(Branch $branch, Store $store, ?Device $device = null): array
     {
         $settings = $this->present($branch);
         $configured = array_column(array_filter($this->providers->present($store), fn (array $row) => $row['configured']), 'provider');
         $available = array_values(array_intersect($settings['providers'], $configured));
+        $uzqr = in_array(QrProvider::UZQR->value, $available, true) ? $this->providers->for($store, QrProvider::UZQR) : null;
+        if ($uzqr instanceof Providers\UzQrProvider && $uzqr->readyFor($device, $store) !== null) {
+            $available = array_values(array_diff($available, [QrProvider::UZQR->value]));
+        }
         usort($available, fn (string $a, string $b) => ($b === $settings['default_provider']) <=> ($a === $settings['default_provider']));
 
         return $available;

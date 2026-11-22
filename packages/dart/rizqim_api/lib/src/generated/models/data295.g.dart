@@ -6,26 +6,9 @@ part of 'data295.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data295 _$Data295FromJson(Map<String, dynamic> json) => Data295(
-  branch: Branch19.fromJson(json['branch'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store3.fromJson(json['store'] as Map<String, dynamic>),
-  device: Device12.fromJson(json['device'] as Map<String, dynamic>),
-  tillUuid: json['till_uuid'] as String?,
-  modules: Modules2.fromJson(json['modules'] as Map<String, dynamic>),
-  serverTime: json['server_time'] as String,
-  cart: json['cart'] == null
-      ? null
-      : Cart.fromJson(json['cart'] as Map<String, dynamic>),
-);
+Data295 _$Data295FromJson(Map<String, dynamic> json) =>
+    Data295(stored: json['stored'] as bool);
 
 Map<String, dynamic> _$Data295ToJson(Data295 instance) => <String, dynamic>{
-  'branch': instance.branch,
-  'store': instance.store,
-  'device': instance.device,
-  'till_uuid': instance.tillUuid,
-  'modules': instance.modules,
-  'server_time': instance.serverTime,
-  'cart': instance.cart,
+  'stored': instance.stored,
 };

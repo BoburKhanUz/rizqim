@@ -32,6 +32,9 @@ use Laravel\Sanctum\HasApiTokens;
  * @property bool $smart_kassa P6-16: an Android smart kassa (receipts through the provider's virtual kassa)
  * @property string|null $fiscal_kassa_id P6-16: the provider's id of that kassa
  * @property int|null $display_for_device_id P6-14: a customer display follows this till's cart (null: the branch's latest)
+ * @property string|null $uzqr_api_key Wave P: this till's UzQR API key (encrypted at rest; never returned: UzQrTillKeys)
+ * @property string|null $uzqr_api_key_last4 its last four characters (what the owner sees)
+ * @property \Illuminate\Support\Carbon|null $uzqr_api_key_set_at
  */
 class Device extends Model implements AuthenticatableContract
 {
@@ -65,6 +68,8 @@ class Device extends Model implements AuthenticatableContract
         'sync_key',
         'sync_key_prev',
         'sync_chain',
+        // Wave P: the till's UzQR API key never leaves the server
+        'uzqr_api_key',
     ];
 
     protected function casts(): array
@@ -86,6 +91,9 @@ class Device extends Model implements AuthenticatableContract
             'sync_key_prev' => 'encrypted',
             // P6-16 (App\Domain\Pos\TerminalFlow)
             'smart_kassa' => 'boolean',
+            // Wave P: the till's UzQR API key, encrypted at rest (App\Domain\Pos\QrPayments\UzQr\UzQrTillKeys)
+            'uzqr_api_key' => 'encrypted',
+            'uzqr_api_key_set_at' => 'datetime',
         ];
     }
 

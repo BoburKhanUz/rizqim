@@ -4,31 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order_types.dart';
-import 'rows2.dart';
+import 'settings.dart';
+import 'merchants.dart';
+import 'options4.dart';
 
 part 'data157.g.dart';
 
 @JsonSerializable()
 class Data157 {
   const Data157({
-    required this.branchId,
-    required this.enabled,
-    required this.locked,
-    required this.orderTypes,
-    required this.rows,
+    required this.settings,
+    required this.merchants,
+    required this.options,
   });
 
   factory Data157.fromJson(Map<String, Object?> json) =>
       _$Data157FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final bool enabled;
-  final bool locked;
-  @JsonKey(name: 'order_types')
-  final List<OrderTypes> orderTypes;
-  final List<Rows2> rows;
+  final Settings settings;
+  final List<Merchants> merchants;
+  final Options4 options;
 
   Map<String, Object?> toJson() => _$Data157ToJson(this);
 }

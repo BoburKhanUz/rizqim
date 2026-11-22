@@ -7,11 +7,23 @@ part of 'data132.dart';
 // **************************************************************************
 
 Data132 _$Data132FromJson(Map<String, dynamic> json) => Data132(
-  extras: (json['extras'] as List<dynamic>)
-      .map((e) => Extras.fromJson(e as Map<String, dynamic>))
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles.fromJson(e as String))
       .toList(),
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  matrix: (json['matrix'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
+  defaults: (json['defaults'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
 );
 
 Map<String, dynamic> _$Data132ToJson(Data132 instance) => <String, dynamic>{
-  'extras': instance.extras,
+  'roles': instance.roles,
+  'permissions': instance.permissions,
+  'matrix': instance.matrix,
+  'defaults': instance.defaults,
 };

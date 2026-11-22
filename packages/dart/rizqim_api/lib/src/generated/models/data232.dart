@@ -4,29 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings14.dart';
+import 'event.dart';
+import 'summary5.dart';
+import 'rows5.dart';
+import 'entries4.dart';
+import 'cancellation.dart';
 
 part 'data232.g.dart';
 
 @JsonSerializable()
 class Data232 {
   const Data232({
-    required this.contractNo,
-    required this.text,
-    required this.lines,
-    required this.fields,
-    required this.warnings,
+    required this.event,
+    required this.summary,
+    required this.rows,
+    required this.entries,
+    required this.cancellation,
   });
 
   factory Data232.fromJson(Map<String, Object?> json) =>
       _$Data232FromJson(json);
 
-  @JsonKey(name: 'contract_no')
-  final String? contractNo;
-  final String text;
-  final List<String> lines;
-  final Map<String, String> fields;
-  final List<Warnings14> warnings;
+  final Event event;
+  final Summary5 summary;
+  final List<Rows5> rows;
+  final List<Entries4> entries;
+  final Cancellation? cancellation;
 
   Map<String, Object?> toJson() => _$Data232ToJson(this);
 }

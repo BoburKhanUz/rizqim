@@ -4,24 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'calendar.dart';
+import 'tariffs.dart';
+
 part 'data188.g.dart';
 
 @JsonSerializable()
 class Data188 {
-  const Data188({
-    required this.branchId,
-    required this.weekendDays,
-    required this.holidays,
-  });
+  const Data188({required this.calendar, required this.tariffs});
 
   factory Data188.fromJson(Map<String, Object?> json) =>
       _$Data188FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'weekend_days')
-  final List<int> weekendDays;
-  final List<String> holidays;
+  final Calendar calendar;
+  final List<Tariffs> tariffs;
 
   Map<String, Object?> toJson() => _$Data188ToJson(this);
 }

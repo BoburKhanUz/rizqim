@@ -7,15 +7,21 @@ part of 'data159.dart';
 // **************************************************************************
 
 Data159 _$Data159FromJson(Map<String, dynamic> json) => Data159(
-  enforce: json['enforce'] as bool,
-  signingTills: (json['signing_tills'] as num).toInt(),
-  unsignedTills: (json['unsigned_tills'] as List<dynamic>)
-      .map((e) => UnsignedTills.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  enabled: json['enabled'] as bool,
+  locked: json['locked'] as bool,
+  orderTypes: (json['order_types'] as List<dynamic>)
+      .map((e) => OrderTypes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data159ToJson(Data159 instance) => <String, dynamic>{
-  'enforce': instance.enforce,
-  'signing_tills': instance.signingTills,
-  'unsigned_tills': instance.unsignedTills,
+  'branch_id': instance.branchId,
+  'enabled': instance.enabled,
+  'locked': instance.locked,
+  'order_types': instance.orderTypes,
+  'rows': instance.rows,
 };

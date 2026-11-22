@@ -7,57 +7,41 @@ part of 'data198.dart';
 // **************************************************************************
 
 Data198 _$Data198FromJson(Map<String, dynamic> json) => Data198(
-  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
-  period: json['period'] as String,
-  periodLabel: json['period_label'] as String,
-  periods: (json['periods'] as List<dynamic>)
-      .map((e) => Periods.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  salesAttribution: json['sales_attribution'] as String,
-  salesAttributionLabel: json['sales_attribution_label'] as String,
-  salesAttributions: (json['sales_attributions'] as List<dynamic>)
-      .map((e) => SalesAttributions.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  componentTypes: (json['component_types'] as List<dynamic>)
-      .map((e) => ComponentTypes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  guaranteeModes: (json['guarantee_modes'] as List<dynamic>)
-      .map((e) => GuaranteeModes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  guaranteePer: (json['guarantee_per'] as List<dynamic>)
-      .map((e) => GuaranteePer.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  percentBases: (json['percent_bases'] as List<dynamic>)
-      .map((e) => PercentBases.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  eventTypes: (json['event_types'] as List<dynamic>)
-      .map((e) => EventTypes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  staff: (json['staff'] as List<dynamic>)
-      .map((e) => Staff7.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  rules: (json['rules'] as List<dynamic>)
-      .map((e) => Rules3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: json['role'] as String,
+  roleLabel: json['role_label'] as String,
+  branch: json['branch'] == null
+      ? null
+      : Branch13.fromJson(json['branch'] as Map<String, dynamic>),
+  courierType: json['courier_type'] as String?,
+  phone: json['phone'] as String?,
+  loginPhoneEnabled: json['login_phone_enabled'] as bool,
+  loginPhoneProof: json['login_phone_proof'] == null
+      ? null
+      : LoginPhoneProof.fromJson(json['login_phone_proof'] as String?),
+  hasPin: json['has_pin'] as bool,
+  staffCode: json['staff_code'] as String?,
+  telegramLinked: json['telegram_linked'] as bool,
+  invitePending: json['invite_pending'] as bool,
+  canEdit: json['can_edit'] as bool,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data198ToJson(Data198 instance) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'role_label': instance.roleLabel,
   'branch': instance.branch,
-  'period': instance.period,
-  'period_label': instance.periodLabel,
-  'periods': instance.periods,
-  'sales_attribution': instance.salesAttribution,
-  'sales_attribution_label': instance.salesAttributionLabel,
-  'sales_attributions': instance.salesAttributions,
-  'component_types': instance.componentTypes,
-  'guarantee_modes': instance.guaranteeModes,
-  'guarantee_per': instance.guaranteePer,
-  'percent_bases': instance.percentBases,
-  'event_types': instance.eventTypes,
-  'roles': instance.roles,
-  'staff': instance.staff,
-  'rules': instance.rules,
+  'courier_type': instance.courierType,
+  'phone': instance.phone,
+  'login_phone_enabled': instance.loginPhoneEnabled,
+  'login_phone_proof': instance.loginPhoneProof,
+  'has_pin': instance.hasPin,
+  'staff_code': instance.staffCode,
+  'telegram_linked': instance.telegramLinked,
+  'invite_pending': instance.invitePending,
+  'can_edit': instance.canEdit,
+  'created_at': instance.createdAt,
 };

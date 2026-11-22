@@ -11,7 +11,7 @@ GetV1PosBillPrintRequestsResponse _$GetV1PosBillPrintRequestsResponseFromJson(
 ) => GetV1PosBillPrintRequestsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data249.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data251.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBillPrintRequestsResponseToJson(

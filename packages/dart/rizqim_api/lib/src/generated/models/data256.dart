@@ -4,18 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'qr.dart';
-
 part 'data256.g.dart';
 
 @JsonSerializable()
 class Data256 {
-  const Data256({required this.qr});
+  const Data256({
+    required this.requestId,
+    required this.printerId,
+    required this.targetDevice,
+  });
 
   factory Data256.fromJson(Map<String, Object?> json) =>
       _$Data256FromJson(json);
 
-  final Qr qr;
+  @JsonKey(name: 'request_id')
+  final String requestId;
+  @JsonKey(name: 'printer_id')
+  final int? printerId;
+  @JsonKey(name: 'target_device')
+  final String? targetDevice;
 
   Map<String, Object?> toJson() => _$Data256ToJson(this);
 }

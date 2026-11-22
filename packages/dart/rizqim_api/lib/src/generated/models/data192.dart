@@ -4,49 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_charge_rules2.dart';
-
 part 'data192.g.dart';
 
 @JsonSerializable()
 class Data192 {
   const Data192({
+    required this.id,
     required this.branchId,
+    required this.diningTableId,
+    required this.diningTableName,
     required this.hallId,
-    required this.serviceChargePercent,
-    required this.serviceChargeChannels,
-    required this.placeFeeAmount,
-    required this.placeFeeMode,
-    required this.placeFeeChannels,
-    required this.serviceChargeRules,
-    required this.serviceChargeNotice,
+    required this.tableKind,
+    required this.dayType,
+    required this.price,
+    required this.validFrom,
+    required this.validTo,
   });
 
   factory Data192.fromJson(Map<String, Object?> json) =>
       _$Data192FromJson(json);
 
+  final int id;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-
-  /// P3-12: a hall's own row (null: the branch's or the store's)
+  final int branchId;
+  @JsonKey(name: 'dining_table_id')
+  final int? diningTableId;
+  @JsonKey(name: 'dining_table_name')
+  final String? diningTableName;
   @JsonKey(name: 'hall_id')
   final int? hallId;
-  @JsonKey(name: 'service_charge_percent')
-  final String serviceChargePercent;
-  @JsonKey(name: 'service_charge_channels')
-  final List<String>? serviceChargeChannels;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'place_fee_mode')
-  final String placeFeeMode;
-  @JsonKey(name: 'place_fee_channels')
-  final List<String>? placeFeeChannels;
-
-  /// P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules)
-  @JsonKey(name: 'service_charge_rules')
-  final ServiceChargeRules2 serviceChargeRules;
-  @JsonKey(name: 'service_charge_notice')
-  final String? serviceChargeNotice;
+  @JsonKey(name: 'table_kind')
+  final String? tableKind;
+  @JsonKey(name: 'day_type')
+  final String dayType;
+  final String price;
+  @JsonKey(name: 'valid_from')
+  final String? validFrom;
+  @JsonKey(name: 'valid_to')
+  final String? validTo;
 
   Map<String, Object?> toJson() => _$Data192ToJson(this);
 }

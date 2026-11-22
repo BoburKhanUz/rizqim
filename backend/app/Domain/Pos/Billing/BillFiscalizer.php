@@ -33,7 +33,8 @@ use Throwable;
  *
  *  - a bill whose payments cover it gets a SALE receipt for its full total: its lines (its share of each order line,
  *    after its share of the discount) and its charges (room fee, minimum spend top-up, service charge, place fee);
- *  - the payments map one to one: cash, card (card type and the bank terminal's transaction id), QR as they are;
+ *  - the payments map one to one: cash, card (card type and the bank terminal's transaction id), QR as they are
+ *    (Wave P: a UzQR one as a bank card payment with the operator's RRN, uzqrCard());
  *    the part paid from a booking deposit (PosTender::PREPAYMENT) as `prepayment: true` in the deposit's own form
  *    (the advance receipt was issued when it was taken: bo'nak → sotuv, research §5), and so the part paid with a gift
  *    certificate (PosTender::VOUCHER, P6-43: receipted as an advance when sold); the part closed on credit
@@ -324,7 +325,7 @@ final class BillFiscalizer
             $fiscal[] = match ($tender) {
                 // P6-16: the bank terminal's transaction (RRN) number and, when typed, the card's last four digits
                 PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id'), cardLast4: $payment->getAttribute('card_last4')),
-                PosTender::QR => new FiscalPayment(FiscalPaymentForm::QR, $amount),
+                PosTender::QR => $this->uzqrCard($payment, $amount) ?? new FiscalPayment(FiscalPaymentForm::QR, $amount),
                 PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
                 // P6-43: a gift certificate was receipted as an advance when sold: its part is prepayment, in the sale's form
                 PosTender::VOUCHER => new FiscalPayment($this->voucherForm($payment), $amount, prepayment: true),
@@ -365,6 +366,10 @@ final class BillFiscalizer
      */
     private function refundPayment(OrderBill $bill, Payment $payment, Money $amount): FiscalPayment
     {
+        if ($payment->provider === PosTender::QR->value && ($card = $this->uzqrCard($payment, $amount)) !== null) {
+            return $card;
+        }
+
         return match (PosTender::tryFrom((string) $payment->provider)) {
             PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
             PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, credit: true),
@@ -378,6 +383,31 @@ final class BillFiscalizer
                 cardLast4: $payment->getAttribute('card_last4'),
             ),
         };
+    }
+
+    /**
+     * Wave P: a UzQR payment is a bank card payment on the receipt (SetRetail10's UzQR plugin: "Оплата Единый UzQR
+     * приравнивается к оплате банковской картой"), with the operator's RRN (else its pay_id), the card type and the
+     * card's last four digits as its confirmation recorded them (QrPaymentService::askUzQr). The payment stays a `qr`
+     * tender in the shift (it never went through the bank terminal). Null for any other QR.
+     */
+    private function uzqrCard(Payment $payment, Money $amount): ?FiscalPayment
+    {
+        if ((($payment->payload ?? [])['qr_provider'] ?? null) !== \App\Domain\Pos\QrPayments\QrProvider::UZQR->value) {
+            return null;
+        }
+        $qr = \App\Models\PosQrPayment::where('store_id', $payment->store_id)->where('payment_id', $payment->id)->first();
+        $confirm = (array) (($qr->provider_payload ?? [])['confirm'] ?? []);
+        $text = fn (string $key, int $max) => is_string($confirm[$key] ?? null) && $confirm[$key] !== '' ? mb_substr($confirm[$key], 0, $max) : null;
+        $last4 = $text('card_last4', 4);
+
+        return new FiscalPayment(
+            FiscalPaymentForm::CARD,
+            $amount,
+            cardType: $text('card_type', 32),
+            transactionId: $text('rrn', 128) ?? $text('pay_id', 128),
+            cardLast4: $last4 !== null && preg_match('/^\d{4}$/', $last4) === 1 ? $last4 : null,
+        );
     }
 
     /**

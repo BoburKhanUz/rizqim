@@ -11,7 +11,7 @@ GetV1PosBanquetsUuidResponse _$GetV1PosBanquetsUuidResponseFromJson(
 ) => GetV1PosBanquetsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data227.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data229.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBanquetsUuidResponseToJson(

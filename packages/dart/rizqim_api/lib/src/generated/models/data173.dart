@@ -4,64 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch11.dart';
-import 'sale3.dart';
-import 'buyer3.dart';
-import 'fiscal6.dart';
-import 'blocked4.dart';
-import 'print3.dart';
+import 'sold.dart';
+import 'redeemed.dart';
+import 'refunded.dart';
+import 'outstanding.dart';
+import 'blocked2.dart';
+import 'expired.dart';
 
 part 'data173.g.dart';
 
 @JsonSerializable()
 class Data173 {
   const Data173({
-    required this.uuid,
-    required this.code,
-    required this.kind,
-    required this.faceValue,
-    required this.balance,
-    required this.currency,
-    required this.validFrom,
-    required this.validUntil,
-    required this.status,
-    required this.statusLabel,
-    required this.branch,
-    required this.sale,
-    required this.buyer,
-    required this.note,
-    required this.fiscal,
+    required this.from,
+    required this.to,
+    required this.branchId,
+    required this.sold,
+    required this.redeemed,
+    required this.refunded,
+    required this.netChange,
+    required this.outstanding,
     required this.blocked,
-    required this.print,
-    required this.createdAt,
+    required this.expired,
+    required this.asOf,
   });
 
   factory Data173.fromJson(Map<String, Object?> json) =>
       _$Data173FromJson(json);
 
-  final String uuid;
-  final String code;
-  final String kind;
-  @JsonKey(name: 'face_value')
-  final String faceValue;
-  final String balance;
-  final String currency;
-  @JsonKey(name: 'valid_from')
-  final String validFrom;
-  @JsonKey(name: 'valid_until')
-  final String? validUntil;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final Branch11? branch;
-  final Sale3 sale;
-  final Buyer3 buyer;
-  final String? note;
-  final Fiscal6 fiscal;
-  final Blocked4? blocked;
-  final Print3? print;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String from;
+  final String to;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Sold sold;
+  final Redeemed redeemed;
+  final Refunded refunded;
+  @JsonKey(name: 'net_change')
+  final String netChange;
+  final Outstanding outstanding;
+  final Blocked2 blocked;
+  final Expired expired;
+  @JsonKey(name: 'as_of')
+  final String asOf;
 
   Map<String, Object?> toJson() => _$Data173ToJson(this);
 }

@@ -10,6 +10,7 @@ import { Gate } from '../pos/Gate';
 import { SelectField } from '../pos/fields';
 import { changedKeys, useServerDraft } from '../pos/serverDraft';
 import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverErrors';
+import { UzQrTillsPanel } from './UzQrTillsPanel';
 
 // The QR payments of a branch at the till (P6-41/P6-42; docs/API.md "QR to'lov kassada"): the providers the cashier may offer,
 // the one offered first, how long a QR stays valid, and whether the store's own Click/Payme merchant account (or the UzQR
@@ -38,7 +39,17 @@ export function QrPaymentsPanel({ branchId, enabled }: { branchId: number; enabl
   const { t } = useI18n();
   const settings = useQrPaymentSettings(enabled ? branchId : null);
   if (!enabled) return <p role="note" className="rounded-control bg-info-soft px-3 py-2 text-footnote font-bold text-info-soft-fg">{t('qrp_moduleOff')}</p>;
-  return <Gate query={settings} count={2}>{(data) => <QrForm key={branchId} branchId={branchId} data={data} />}</Gate>;
+  return (
+    <Gate query={settings} count={2}>
+      {(data) => (
+        <div className="flex max-w-4xl flex-col gap-5">
+          <QrForm key={branchId} branchId={branchId} data={data} />
+          {/* Wave P: the real UzQR driver needs each till's own key */}
+          {data.merchants.some((row) => row.driver === 'uzqr:uzqr_operator') && <UzQrTillsPanel branchId={branchId} />}
+        </div>
+      )}
+    </Gate>
+  );
 }
 
 function QrForm({ branchId, data }: { branchId: number; data: QrPaymentSettingsView }) {

@@ -4,18 +4,21 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'qrs.dart';
+import 'bill5.dart';
+import 'order8.dart';
 
 part 'data255.g.dart';
 
 @JsonSerializable()
 class Data255 {
-  const Data255({required this.qrs});
+  const Data255({required this.bill, required this.copy, required this.order});
 
   factory Data255.fromJson(Map<String, Object?> json) =>
       _$Data255FromJson(json);
 
-  final List<Qrs> qrs;
+  final Bill5 bill;
+  final bool copy;
+  final Order8 order;
 
   Map<String, Object?> toJson() => _$Data255ToJson(this);
 }

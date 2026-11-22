@@ -4,44 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'period3.dart';
+import 'products8.dart';
+import 'combo_parts.dart';
+
 part 'data187.g.dart';
 
 @JsonSerializable()
 class Data187 {
   const Data187({
-    required this.id,
+    required this.period,
     required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
+    required this.sort,
+    required this.products,
+    required this.comboParts,
   });
 
   factory Data187.fromJson(Map<String, Object?> json) =>
       _$Data187FromJson(json);
 
-  final int id;
+  final Period3 period;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  final int? branchId;
+  final String sort;
+  final List<Products8> products;
+  @JsonKey(name: 'combo_parts')
+  final List<ComboParts> comboParts;
 
   Map<String, Object?> toJson() => _$Data187ToJson(this);
 }

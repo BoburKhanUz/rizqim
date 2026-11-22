@@ -8,18 +8,12 @@ part of 'data182.dart';
 
 Data182 _$Data182FromJson(Map<String, dynamic> json) => Data182(
   productId: (json['product_id'] as num).toInt(),
-  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
-      ?.map((e) => (e as num).toInt())
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
-  weightMode: json['weight_mode'] == null
-      ? null
-      : WeightBasis.fromJson(json['weight_mode'] as String),
 );
 
 Map<String, dynamic> _$Data182ToJson(Data182 instance) => <String, dynamic>{
   'product_id': instance.productId,
-  'quick_multipliers': instance.quickMultipliers,
-  'wait_minutes': instance.waitMinutes,
-  'weight_mode': instance.weightMode,
+  'prices': instance.prices,
 };

@@ -4,45 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'locks2.dart';
-import 'module_rows2.dart';
-import 'profiles2.dart';
-import 'template2.dart';
+import 'slots5.dart';
 
 part 'data150.g.dart';
 
 @JsonSerializable()
 class Data150 {
   const Data150({
-    required this.branchId,
-    required this.profile,
-    required this.profileLabel,
-    required this.mode,
-    required this.firstScreen,
-    required this.modules,
-    required this.locks,
-    required this.moduleRows,
-    required this.profiles,
-    required this.template,
+    required this.slots,
+    required this.holdHours,
+    required this.guestWarningThresholds,
+    required this.windowStart,
+    required this.windowEnd,
+    required this.advanceMxik,
+    required this.advancePackageCode,
+    required this.cancellationMxik,
+    required this.cancellationPackageCode,
+    required this.quoteCurrency,
+    required this.version,
   });
 
   factory Data150.fromJson(Map<String, Object?> json) =>
       _$Data150FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String profile;
-  @JsonKey(name: 'profile_label')
-  final String profileLabel;
-  final String mode;
-  @JsonKey(name: 'first_screen')
-  final String firstScreen;
-  final List<String> modules;
-  final Locks2 locks;
-  @JsonKey(name: 'module_rows')
-  final List<ModuleRows2> moduleRows;
-  final List<Profiles2> profiles;
-  final Template2 template;
+  final Slots5 slots;
+  @JsonKey(name: 'hold_hours')
+  final int holdHours;
+  @JsonKey(name: 'guest_warning_thresholds')
+  final List<int> guestWarningThresholds;
+  @JsonKey(name: 'window_start')
+  final String windowStart;
+  @JsonKey(name: 'window_end')
+  final String windowEnd;
+  @JsonKey(name: 'advance_mxik')
+  final String? advanceMxik;
+  @JsonKey(name: 'advance_package_code')
+  final String? advancePackageCode;
+  @JsonKey(name: 'cancellation_mxik')
+  final String? cancellationMxik;
+  @JsonKey(name: 'cancellation_package_code')
+  final String? cancellationPackageCode;
+  @JsonKey(name: 'quote_currency')
+  final String? quoteCurrency;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data150ToJson(this);
 }

@@ -76,6 +76,11 @@ final class QrPaymentService
                 ? "UzQR shlyuzi sozlanmagan: egasi fiskal sozlamalarda UzQR drayverini tanlasin."
                 : "{$provider->label()} do'konning o'z merchant hisobiga ulanmagan: egasi to'lov sozlamalarida {$provider->label()} kalitlarini kiritib, \"o'z hisobi\"ni yoqsin.", ['provider' => $provider->value]);
         }
+        // Wave P: the real UzQR driver needs this till's own key and the store's STIR; without them the till offers
+        // the other methods (bootstrap) and a request is refused before anything is sent
+        if ($driver instanceof Providers\UzQrProvider && ($why = $driver->readyFor($device, $store)) !== null) {
+            throw PosActionException::conflict('uzqr_till_not_configured', $why, ['provider' => $provider->value]);
+        }
         $shift = $this->shifts->forAction($user, $shiftUuid, (int) $order->branch_id);
         if ($bill->status->isPayable()) {
             // A line that cannot be receipted refuses the QR before the customer pays (422 mxik_missing)
@@ -107,7 +112,12 @@ final class QrPaymentService
             'device_id' => $device?->id,
             'created_by' => $user->id,
         ]);
-        $checkout = $driver->checkout($qr, $store);
+        try {
+            $checkout = $driver->checkout($qr, $store);
+        } catch (UzQr\UzQrOperatorException) {
+            // Wave P: the operator did not give a QR (down, refused): nothing is kept, the customer pays another way
+            throw PosActionException::conflict('provider_unavailable', "UzQR hozir QR bermadi (aloqa yo'q yoki rad etdi): boshqa to'lov usulini tanlang yoki birozdan so'ng qayta urinib ko'ring.", ['provider' => $provider->value]);
+        }
         $qr->checkout_payload = $checkout->payload;
         $qr->gateway_reference = $checkout->reference;
 
@@ -486,16 +496,16 @@ final class QrPaymentService
         if ($qr->provider !== QrProvider::UZQR || $qr->gateway_reference === null) {
             return false;
         }
-        $driver = $this->providers->of($qr);
-        $gateway = $driver instanceof Providers\UzQrProvider ? $driver->gateway() : null;
-        try {
-            $status = $gateway?->status($qr->gateway_reference, Store::findOrFail($qr->store_id));
-        } catch (\Throwable $e) {
-            Log::warning('UzQR status check failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
-            $status = null;
-        }
+        $status = $this->uzqrStatus($qr);
         if (($status['status'] ?? null) === 'paid') {
-            $this->confirm($qr, (string) ($status['transaction_id'] ?? $qr->gateway_reference), ['uzqr' => 'status'], true);
+            // Wave P: the operator's pay_id, RRN and card (last four) go with the confirmation (the receipt reads them)
+            $this->confirm($qr, (string) ($status['transaction_id'] ?? $qr->gateway_reference), ['uzqr' => 'status'] + (array) ($status['details'] ?? []), true);
+
+            return true;
+        }
+        if (($status['status'] ?? null) === 'mismatch') {
+            // Wave P: paid, but not our amount: never taken, kept for reconciliation
+            $this->unmatched($qr, (string) ($status['transaction_id'] ?? $qr->gateway_reference), 'amount_mismatch');
 
             return true;
         }
@@ -506,6 +516,59 @@ final class QrPaymentService
         }
 
         return false;
+    }
+
+    /**
+     * The UzQR gateway's answer about the request (outside any transaction), or null when it gave none.
+     *
+     * @return array{status: string, transaction_id: string|null, details?: array<string, string>}|null
+     */
+    private function uzqrStatus(PosQrPayment $qr): ?array
+    {
+        $driver = $this->providers->of($qr);
+        $gateway = $driver instanceof Providers\UzQrProvider ? $driver->gateway() : null;
+        try {
+            return $gateway?->status($qr, Store::findOrFail($qr->store_id));
+        } catch (\Throwable $e) {
+            Log::warning('UzQR status check failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Wave P (the minute job): a UzQR the money may still have moved for although it is over here — expired within
+     * the hold window, or cancelled (by the cashier, a newer QR, a bill change) within it while the operator's own
+     * cancel may have raced the customer's bank — is asked once more. Paid: an expired one is taken (C5, as the till's
+     * poll would, also after a till restart nobody polls from); any other is kept for reconciliation (paid_unmatched),
+     * never dropped and never counted twice. Returns how many it settled.
+     */
+    public function recheckLateUzQr(int $limit = 50): int
+    {
+        $settled = 0;
+        PosQrPayment::query()
+            ->where('provider', QrProvider::UZQR->value)
+            ->whereIn('status', [QrPaymentStatus::EXPIRED->value, QrPaymentStatus::CANCELLED->value])
+            ->whereNotNull('gateway_reference')
+            ->whereNull('payment_id')
+            ->where(fn ($query) => $query->whereNull('cancel_reason')->orWhere('cancel_reason', '!=', 'paid_unmatched'))
+            ->where('cancelled_at', '>', now()->subMinutes((int) config('qr_payments.hold_minutes', 10)))
+            ->orderBy('id')->limit($limit)->get()
+            ->each(function (PosQrPayment $qr) use (&$settled) {
+                $status = $this->uzqrStatus($qr);
+                if (!in_array($status['status'] ?? null, ['paid', 'mismatch'], true)) {
+                    return;
+                }
+                $transactionId = (string) ($status['transaction_id'] ?? $qr->gateway_reference);
+                if ($status['status'] === 'paid' && $this->lateUzQr($qr)) {
+                    $this->confirm($qr, $transactionId, ['uzqr' => 'late_check'] + (array) ($status['details'] ?? []), true);
+                } else {
+                    $this->unmatched($qr, $transactionId, $status['status'] === 'mismatch' ? 'amount_mismatch' : 'paid_after_' . ($qr->cancel_reason ?? 'cancel'));
+                }
+                $settled++;
+            });
+
+        return $settled;
     }
 
     /**

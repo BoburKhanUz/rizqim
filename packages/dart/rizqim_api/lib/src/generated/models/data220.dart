@@ -4,28 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'approved_by.dart';
+import 'subscription.dart';
+import 'terminals.dart';
+import 'next_invoice.dart';
 
 part 'data220.g.dart';
 
 @JsonSerializable()
 class Data220 {
   const Data220({
-    required this.token,
-    required this.permission,
-    required this.expiresAt,
-    required this.approvedBy,
+    required this.subscription,
+    required this.commissionRate,
+    required this.terminals,
+    required this.nextInvoice,
   });
 
   factory Data220.fromJson(Map<String, Object?> json) =>
       _$Data220FromJson(json);
 
-  final String token;
-  final String permission;
-  @JsonKey(name: 'expires_at')
-  final String expiresAt;
-  @JsonKey(name: 'approved_by')
-  final ApprovedBy approvedBy;
+  final Subscription? subscription;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final Terminals terminals;
+  @JsonKey(name: 'next_invoice')
+  final NextInvoice? nextInvoice;
 
   Map<String, Object?> toJson() => _$Data220ToJson(this);
 }

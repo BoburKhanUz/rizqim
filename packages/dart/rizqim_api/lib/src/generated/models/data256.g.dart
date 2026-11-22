@@ -6,9 +6,14 @@ part of 'data256.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data256 _$Data256FromJson(Map<String, dynamic> json) =>
-    Data256(qr: Qr.fromJson(json['qr'] as Map<String, dynamic>));
+Data256 _$Data256FromJson(Map<String, dynamic> json) => Data256(
+  requestId: json['request_id'] as String,
+  printerId: (json['printer_id'] as num?)?.toInt(),
+  targetDevice: json['target_device'] as String?,
+);
 
 Map<String, dynamic> _$Data256ToJson(Data256 instance) => <String, dynamic>{
-  'qr': instance.qr,
+  'request_id': instance.requestId,
+  'printer_id': instance.printerId,
+  'target_device': instance.targetDevice,
 };

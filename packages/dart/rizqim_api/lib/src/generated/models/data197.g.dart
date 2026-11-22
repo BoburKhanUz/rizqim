@@ -6,12 +6,10 @@ part of 'data197.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data197 _$Data197FromJson(Map<String, dynamic> json) => Data197(
-  staff: Staff6.fromJson(json['staff'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
-);
+Data197 _$Data197FromJson(Map<String, dynamic> json) =>
+    Data197(path: json['path'] as String, url: json['url'] as String);
 
 Map<String, dynamic> _$Data197ToJson(Data197 instance) => <String, dynamic>{
-  'staff': instance.staff,
-  'invite_link': instance.inviteLink,
+  'path': instance.path,
+  'url': instance.url,
 };

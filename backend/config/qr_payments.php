@@ -44,11 +44,24 @@ return [
     ],
 
     'uzqr' => [
-        // name => class implementing App\Domain\Pos\QrPayments\UzQr\UzQrGateway (the real bank/provider driver comes
-        // with P3-32); a store picks one in stores.fiscal_settings.uzqr.driver. `sandbox` is registered only while
-        // `sandbox` is on or "uzqr" is in `simulate_drivers` (QrProviders::uzqrDrivers)
+        // name => class implementing App\Domain\Pos\QrPayments\UzQr\UzQrGateway; a store picks one in
+        // stores.fiscal_settings.uzqr.driver. `sandbox` is registered only while `sandbox` is on or "uzqr" is in
+        // `simulate_drivers` (QrProviders::uzqrDrivers)
         'drivers' => [
             'sandbox' => App\Domain\Pos\QrPayments\UzQr\SandboxUzQrGateway::class,
+            // Wave P: the UzQR operator's API with each till's own key (docs/PAYMENTS_GO_LIVE.md "UzQR")
+            'uzqr_operator' => App\Domain\Pos\QrPayments\UzQr\UzQrOperatorGateway::class,
+        ],
+        // Wave P: the operator's connection address (SetRetail10: "Адрес подключения", given by UzQR), production and
+        // test contour. `test` uses test_url, and only where test payments are allowed (APP_ENV not production, or
+        // PAYMENTS_ALLOW_TEST_MODE): on production the driver is unconfigured with it on, or with url = test_url.
+        // https only. No defaults: the operator has not published them. Timeouts: SetRetail10's defaults.
+        'operator' => [
+            'url' => env('UZQR_OPERATOR_URL'),
+            'test_url' => env('UZQR_OPERATOR_TEST_URL'),
+            'test' => (bool) env('UZQR_OPERATOR_TEST', false),
+            'connect_timeout' => 3,
+            'timeout' => 20,
         ],
         // The merchant name and city the sandbox puts into its EMV payload
         'sandbox_city' => 'TASHKENT',

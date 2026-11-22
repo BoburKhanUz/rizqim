@@ -7,23 +7,49 @@ part of 'data111.dart';
 // **************************************************************************
 
 Data111 _$Data111FromJson(Map<String, dynamic> json) => Data111(
-  branchId: (json['branch_id'] as num).toInt(),
-  enabled: json['enabled'] as bool,
-  expoScope: json['expo_scope'] as String,
-  limits: Limits.fromJson(json['limits'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations.fromJson(e as Map<String, dynamic>))
+  uuid: json['uuid'] as String,
+  number: json['number'] as String,
+  period: json['period'] as String,
+  periodStart: json['period_start'] as String,
+  periodEnd: json['period_end'] as String,
+  plan: json['plan'] == null
+      ? null
+      : Plan2.fromJson(json['plan'] as Map<String, dynamic>),
+  terminalsCount: (json['terminals_count'] as num).toInt(),
+  includedTerminals: (json['included_terminals'] as num).toInt(),
+  baseFee: json['base_fee'] as num,
+  feePerTerminal: json['fee_per_terminal'] as num,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products4.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  amount: json['amount'] as num,
+  kind: json['kind'] as String,
+  paidAmount: json['paid_amount'] as String,
+  status: json['status'] as String,
+  dueDate: json['due_date'] as String,
+  issuedAt: json['issued_at'] as String,
+  paidAt: json['paid_at'] as String?,
+  voidedAt: json['voided_at'] as String?,
 );
 
 Map<String, dynamic> _$Data111ToJson(Data111 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'enabled': instance.enabled,
-  'expo_scope': instance.expoScope,
-  'limits': instance.limits,
-  'stations': instance.stations,
-  'products': instance.products,
+  'uuid': instance.uuid,
+  'number': instance.number,
+  'period': instance.period,
+  'period_start': instance.periodStart,
+  'period_end': instance.periodEnd,
+  'plan': instance.plan,
+  'terminals_count': instance.terminalsCount,
+  'included_terminals': instance.includedTerminals,
+  'base_fee': instance.baseFee,
+  'fee_per_terminal': instance.feePerTerminal,
+  'lines': instance.lines,
+  'amount': instance.amount,
+  'kind': instance.kind,
+  'paid_amount': instance.paidAmount,
+  'status': instance.status,
+  'due_date': instance.dueDate,
+  'issued_at': instance.issuedAt,
+  'paid_at': instance.paidAt,
+  'voided_at': instance.voidedAt,
 };

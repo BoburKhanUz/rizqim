@@ -11,7 +11,7 @@ PostV1OwnerPosSyncImportResponse _$PostV1OwnerPosSyncImportResponseFromJson(
 ) => PostV1OwnerPosSyncImportResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data161.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data163.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerPosSyncImportResponseToJson(

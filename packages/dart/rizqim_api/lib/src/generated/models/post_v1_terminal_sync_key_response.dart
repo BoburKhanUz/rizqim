@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data378.dart';
+import 'data380.dart';
 
 part 'post_v1_terminal_sync_key_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1TerminalSyncKeyResponse {
 
   final bool success;
   final String message;
-  final Data378 data;
+  final Data380 data;
 
   Map<String, Object?> toJson() => _$PostV1TerminalSyncKeyResponseToJson(this);
 }

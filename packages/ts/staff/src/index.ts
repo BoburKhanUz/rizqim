@@ -155,6 +155,8 @@ export * from './hooks/corporate';
 // P6-41/P6-42: Click, Payme and UzQR QR payments at the till (the branch's settings, the merchant status)
 export * from './api/qrPayments';
 export * from './hooks/qrPayments';
+export * from './api/uzqr';
+export * from './hooks/uzqr';
 export * from './api/shifts';
 export * from './hooks/shifts';
 // P6-16: fiscal terminal flows (card mode, installation checklist, smart kassa tills, bank terminal vs Z)

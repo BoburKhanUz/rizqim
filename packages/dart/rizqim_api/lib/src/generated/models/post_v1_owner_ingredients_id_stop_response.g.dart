@@ -11,7 +11,7 @@ _$PostV1OwnerIngredientsIdStopResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerIngredientsIdStopResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data107.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data109.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerIngredientsIdStopResponseToJson(

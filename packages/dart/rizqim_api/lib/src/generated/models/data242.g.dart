@@ -7,39 +7,23 @@ part of 'data242.dart';
 // **************************************************************************
 
 Data242 _$Data242FromJson(Map<String, dynamic> json) => Data242(
-  event: Event11.fromJson(json['event'] as Map<String, dynamic>),
-  guests: Guests4.fromJson(json['guests'] as Map<String, dynamic>),
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines24.fromJson(e as Map<String, dynamic>))
+  event: Event9.fromJson(json['event'] as Map<String, dynamic>),
+  guests: Guests2.fromJson(json['guests'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
       .toList(),
-  packageTotal: json['package_total'] as String,
-  hallTotal: json['hall_total'] as String,
-  extrasTotal: json['extras_total'] as String,
-  orders: Orders4.fromJson(json['orders'] as Map<String, dynamic>),
-  total: json['total'] as String,
-  advances: Advances3.fromJson(json['advances'] as Map<String, dynamic>),
-  due: json['due'] as String,
-  excess: json['excess'] as String,
-  settlement: json['settlement'] == null
+  osh: json['osh'] == null
       ? null
-      : Settlement5.fromJson(json['settlement'] as Map<String, dynamic>),
+      : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings19.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings17.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data242ToJson(Data242 instance) => <String, dynamic>{
   'event': instance.event,
   'guests': instance.guests,
-  'lines': instance.lines,
-  'package_total': instance.packageTotal,
-  'hall_total': instance.hallTotal,
-  'extras_total': instance.extrasTotal,
-  'orders': instance.orders,
-  'total': instance.total,
-  'advances': instance.advances,
-  'due': instance.due,
-  'excess': instance.excess,
-  'settlement': instance.settlement,
+  'stations': instance.stations,
+  'osh': instance.osh,
   'warnings': instance.warnings,
 };

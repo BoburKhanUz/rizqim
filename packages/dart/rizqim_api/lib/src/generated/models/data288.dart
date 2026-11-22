@@ -4,41 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'account4.dart';
+import 'rows16.dart';
+import 'day_totals.dart';
+
 part 'data288.g.dart';
 
 @JsonSerializable()
 class Data288 {
   const Data288({
-    required this.uuid,
-    required this.name,
-    required this.phone,
-    required this.code,
-    required this.dailyLimit,
-    required this.mealsPerDay,
-    required this.isActive,
-    required this.note,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.account,
+    required this.month,
+    required this.from,
+    required this.to,
+    required this.days,
+    required this.rows,
+    required this.dayTotals,
+    required this.total,
+    required this.meals,
+    required this.repaidTotal,
+    required this.monthlyLimit,
+    required this.balance,
+    required this.branchId,
+    required this.masked,
   });
 
   factory Data288.fromJson(Map<String, Object?> json) =>
       _$Data288FromJson(json);
 
-  final String uuid;
-  final String name;
-  final String? phone;
-  final String code;
-  @JsonKey(name: 'daily_limit')
-  final String? dailyLimit;
-  @JsonKey(name: 'meals_per_day')
-  final int? mealsPerDay;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? note;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final Account4 account;
+  final String month;
+  final String from;
+  final String to;
+  final List<String> days;
+  final List<Rows16> rows;
+  @JsonKey(name: 'day_totals')
+  final List<DayTotals> dayTotals;
+  final String total;
+  final int meals;
+  @JsonKey(name: 'repaid_total')
+  final String repaidTotal;
+  @JsonKey(name: 'monthly_limit')
+  final String? monthlyLimit;
+  final String balance;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final bool masked;
 
   Map<String, Object?> toJson() => _$Data288ToJson(this);
 }

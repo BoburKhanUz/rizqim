@@ -19,7 +19,7 @@ Data143 _$Data143FromJson(Map<String, dynamic> json) => Data143(
   isActive: json['is_active'] as bool,
   sortOrder: (json['sort_order'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items7.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items5.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

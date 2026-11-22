@@ -4,29 +4,43 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings13.dart';
+import 'rows4.dart';
 
 part 'data231.g.dart';
 
 @JsonSerializable()
 class Data231 {
   const Data231({
-    required this.contractNo,
-    required this.text,
-    required this.lines,
-    required this.fields,
-    required this.warnings,
+    required this.daysBefore,
+    required this.rulePercent,
+    required this.paid,
+    required this.computedRetained,
+    required this.retained,
+    required this.refund,
+    required this.overridden,
+    required this.cashRefund,
+    required this.transferRefund,
+    required this.rows,
   });
 
   factory Data231.fromJson(Map<String, Object?> json) =>
       _$Data231FromJson(json);
 
-  @JsonKey(name: 'contract_no')
-  final String? contractNo;
-  final String text;
-  final List<String> lines;
-  final Map<String, String> fields;
-  final List<Warnings13> warnings;
+  @JsonKey(name: 'days_before')
+  final int daysBefore;
+  @JsonKey(name: 'rule_percent')
+  final String rulePercent;
+  final String paid;
+  @JsonKey(name: 'computed_retained')
+  final String computedRetained;
+  final String retained;
+  final String refund;
+  final bool overridden;
+  @JsonKey(name: 'cash_refund')
+  final String cashRefund;
+  @JsonKey(name: 'transfer_refund')
+  final String transferRefund;
+  final List<Rows4> rows;
 
   Map<String, Object?> toJson() => _$Data231ToJson(this);
 }

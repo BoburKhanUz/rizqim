@@ -24,6 +24,7 @@ Qr5 _$Qr5FromJson(Map<String, dynamic> json) => Qr5(
   paymentUuid: json['payment_uuid'] as String?,
   refundedAmount: json['refunded_amount'] as String,
   simulated: json['simulated'] as bool,
+  receiptLink: json['receipt_link'] as String?,
   createdAt: json['created_at'] as String?,
 );
 
@@ -45,5 +46,6 @@ Map<String, dynamic> _$Qr5ToJson(Qr5 instance) => <String, dynamic>{
   'payment_uuid': instance.paymentUuid,
   'refunded_amount': instance.refundedAmount,
   'simulated': instance.simulated,
+  'receipt_link': instance.receiptLink,
   'created_at': instance.createdAt,
 };

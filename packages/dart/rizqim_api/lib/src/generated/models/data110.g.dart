@@ -7,19 +7,11 @@ part of 'data110.dart';
 // **************************************************************************
 
 Data110 _$Data110FromJson(Map<String, dynamic> json) => Data110(
-  currentPage: (json['current_page'] as num).toInt(),
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data109.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  ingredientId: (json['ingredient_id'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data110ToJson(Data110 instance) => <String, dynamic>{
-  'current_page': instance.currentPage,
-  'data': instance.data,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'last_page': instance.lastPage,
+  'branch_id': instance.branchId,
+  'ingredient_id': instance.ingredientId,
 };

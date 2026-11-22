@@ -3,6 +3,7 @@
 namespace App\Domain\Pos\QrPayments\UzQr;
 
 use App\Domain\Pos\QrPayments\QrRefundResult;
+use App\Models\Device;
 use App\Models\PosQrPayment;
 use App\Models\Store;
 use App\Support\Money;
@@ -12,11 +13,16 @@ use App\Support\Money;
  * dynamic; merchant account template 26 with a sandbox GUID and the request's id; currency 860, amount, country UZ,
  * merchant name and city, reference label in 62.05, CRC-16/CCITT-FALSE in 63) that no real bank app can pay.
  * It is confirmed by POST /pos/qr/{uuid}/simulate-paid; status() stays `pending` (the simulation confirms directly);
- * refunds always succeed, in part too.
+ * refunds always succeed, in part too; it needs no till key and sends no receipt link (no-op).
  */
 final class SandboxUzQrGateway implements UzQrGateway
 {
     public const GUID = 'uz.rizqim.sandbox';
+
+    public function readyFor(?Device $device, Store $store): ?string
+    {
+        return null;
+    }
 
     public function createDynamicQr(Money $amount, PosQrPayment $qr, Store $store): UzQrDynamicQr
     {
@@ -25,27 +31,29 @@ final class SandboxUzQrGateway implements UzQrGateway
         return new UzQrDynamicQr($id, self::payload($amount, $id, (string) $store->name, (string) config('qr_payments.uzqr.sandbox_city', 'TASHKENT'), substr(str_replace('-', '', (string) $qr->uuid), 0, 25)));
     }
 
-    public function status(string $id, Store $store): array
+    public function status(PosQrPayment $qr, Store $store): array
     {
         return ['status' => 'pending', 'transaction_id' => null];
     }
 
-    public function cancel(string $id, Store $store): void {}
+    public function cancel(PosQrPayment $qr, Store $store): void {}
 
     public function supportsPartialRefund(): bool
     {
         return true;
     }
 
-    public function refund(string $id, Money $amount, Store $store): QrRefundResult
+    public function refund(PosQrPayment $qr, Money $amount, Store $store, string $refundUuid): QrRefundResult
     {
-        return QrRefundResult::done('sbx-refund-' . substr(sha1($id . $amount->toString() . microtime()), 0, 12));
+        return QrRefundResult::done('sbx-refund-' . substr(sha1((string) $qr->gateway_reference . $amount->toString() . microtime()), 0, 12));
     }
 
-    public function refundStatus(string $id, Money $amount, Store $store): QrRefundResult
+    public function refundStatus(PosQrPayment $qr, Money $amount, Store $store, string $refundUuid): QrRefundResult
     {
-        return QrRefundResult::done('sbx-refund-' . substr(sha1($id . $amount->toString()), 0, 12));
+        return QrRefundResult::done('sbx-refund-' . substr(sha1((string) $qr->gateway_reference . $amount->toString()), 0, 12));
     }
+
+    public function sendReceiptLink(PosQrPayment $qr, string $url, Store $store): void {}
 
     /**
      * The EMV string (tag + two-digit length + value), with its CRC.

@@ -10,16 +10,17 @@ use App\Support\Money;
 /**
  * P6-41: a QR request as the till reads it. `payload`: what the QR encodes (print it on the bill, and send it to the
  * customer display as PosDisplayPayment.qr = `display`); `held`: the provider already started taking the money (do
- * not offer a new QR); `simulated`: a sandbox request the demo can confirm (POST .../simulate-paid).
+ * not offer a new QR); `simulated`: a sandbox request the demo can confirm (POST .../simulate-paid); `receipt_link`
+ * (Wave P, UzQR): whether the fiscal receipt's link reached UzQR — pending | sent | failed, null before the receipt.
  */
 final class QrPaymentPresenter
 {
-    public const VIEW = 'array{uuid: string, bill_uuid: string, order_uuid: string|null, provider: string, provider_label: string, amount: string, status: string, payload: string, display: array{payload: string, label: string, provider: string}, expires_at: string, held: bool, paid_at: string|null, cancelled_at: string|null, cancel_reason: string|null, payment_uuid: string|null, refunded_amount: string, simulated: bool, created_at: string|null}';
+    public const VIEW = 'array{uuid: string, bill_uuid: string, order_uuid: string|null, provider: string, provider_label: string, amount: string, status: string, payload: string, display: array{payload: string, label: string, provider: string}, expires_at: string, held: bool, paid_at: string|null, cancelled_at: string|null, cancel_reason: string|null, payment_uuid: string|null, refunded_amount: string, simulated: bool, receipt_link: string|null, created_at: string|null}';
 
     public function __construct(private readonly QrProviders $providers) {}
 
     /**
-     * @return array{uuid: string, bill_uuid: string, order_uuid: string|null, provider: string, provider_label: string, amount: string, status: string, payload: string, display: array{payload: string, label: string, provider: string}, expires_at: string, held: bool, paid_at: string|null, cancelled_at: string|null, cancel_reason: string|null, payment_uuid: string|null, refunded_amount: string, simulated: bool, created_at: string|null}
+     * @return array{uuid: string, bill_uuid: string, order_uuid: string|null, provider: string, provider_label: string, amount: string, status: string, payload: string, display: array{payload: string, label: string, provider: string}, expires_at: string, held: bool, paid_at: string|null, cancelled_at: string|null, cancel_reason: string|null, payment_uuid: string|null, refunded_amount: string, simulated: bool, receipt_link: string|null, created_at: string|null}
      */
     public function present(PosQrPayment $qr): array
     {
@@ -48,7 +49,15 @@ final class QrPaymentPresenter
             'payment_uuid' => $qr->payment_id !== null ? Payment::whereKey($qr->payment_id)->value('uuid') : null,
             'refunded_amount' => Money::of($qr->refunded_amount)->toString(),
             'simulated' => $simulated,
+            'receipt_link' => self::receiptLink($qr),
             'created_at' => $qr->created_at?->toIso8601String(),
         ];
+    }
+
+    private static function receiptLink(PosQrPayment $qr): ?string
+    {
+        $status = ((array) (($qr->provider_payload ?? [])['receipt_link'] ?? []))['status'] ?? null;
+
+        return in_array($status, ['pending', 'sent', 'failed'], true) ? $status : null;
     }
 }

@@ -2,7 +2,7 @@
 
 Bu hujjat egasi uchun: Click va Payme'ni haqiqiy pul bilan ishga tushirishdan oldin nima qilinadi, qaysi qiymat
 qayerga yoziladi, qanday sinaladi va muammo bo'lsa qanday o'chiriladi. Paylov (uchinchi onlayn to'lov tizimi) —
-alohida, [11-bo'lim](#11-paylov).
+alohida, [11-bo'lim](#11-paylov). Kassadagi dinamik UzQR — [12-bo'lim](#12-uzqr-kassada).
 
 > **Kalitlar haqida qoida.** Maxfiy kalit (Click `secret_key`, Payme kassa kaliti) hech qachon chatga, Telegram'ga,
 > kodga, skrinshotga yoki Git'ga yozilmaydi. Ular faqat serverdagi `backend/.env` ga yoki boshqaruv markazidagi
@@ -369,4 +369,84 @@ qaytarish uchun kerak.
 | 7 | `app:check-production` Paylov bo'yicha toza; scheduler ishlayapti (`payments:paylov-reconcile`) | Jamoa | ☐ |
 | 8 | Birinchi 1 000 so'mlik to'lov, bekor qilish va qaytarish | Ega + jamoa | ☐ |
 | 9 | Fiskal ruxsat va ovqatxona komitent shartnomasi; bitta chek `recorded` | Ega + jamoa | ☐ |
+
+---
+
+## 12. UzQR kassada
+
+UzQR — Markaziy bankning yagona QR'i (01.07.2026 dan yuridik shaxslar uchun majburiy). Dinamik UzQR'ni **kassa**
+yaratadi: Rizqim serveri UzQR operatorining API'siga **shu kassaning o'z API kaliti** bilan so'rov yuboradi. Pul
+restoranning **o'z hisob raqamiga** tushadi (bizning hisobga emas). Fiskal chekni Rizqim chiqaradi (UzQR va bank chek
+chiqarmaydi): chekda UzQR to'lovi **bank kartasi** to'lovi sifatida, RRN bilan yoziladi; chek fiskallashgach uning
+havolasi UzQR'ga yuboriladi. Tadqiqot: `docs/research/reports/UzQR integratsiyasi.md`.
+
+> **Holat (22.11.2026).** Drayver (`uzqr_operator`) yozilgan va sinovlarda ishlaydi, lekin operatorning API hujjati hali
+> yo'q: so'rov va javob shakllari SetRetail10 va operator qo'llanmasidan olingan, qolgani **taxmin** va bitta klassda
+> (`App\Domain\Pos\QrPayments\UzQr\UzQrOperatorProtocol`). Hujjat kelgach shu klass tuzatiladi va sinov konturida
+> tekshiriladi. Ungacha haqiqiy restoranda yoqilmaydi.
+
+### 12.1. Restoran uzqr.uz da nima qiladi (direktor, E-IMZO bilan)
+
+1. Bankida hisob ochadi va bank orqali UzQR'ga ro'yxatdan o'tadi (UzQR bilan alohida shartnoma kerak emas).
+2. **uzqr.uz** ga E-IMZO bilan kiradi → **QR boshqaruvi → Yangi QR** → hisobni, turini **Dinamik QR** tanlaydi, nomini
+   kassaga qarab yozadi (`KASSA_1`, `KASSA_2`...). **Har kassaga alohida dinamik QR.**
+3. **API boshqaruvi → Yangi API** → shu dinamik QR'ni tanlaydi → API kalit chiqadi. **Kalit faqat bir marta
+   ko'rsatiladi**: oyna yopilishidan oldin nusxalaydi. Har kassaga alohida kalit (bitta kalit bitta QR bilan ishlaydi).
+4. Kalitni **o'zi** Rizqim panelida kiritadi (12.2). Kalitni **chatga, Telegram'ga, xatga, skrinshotga yozmaydi va
+   bizga yubormaydi** — jamoa kalitni hech qachon so'ramaydi.
+5. Kalit yo'qolsa yoki kimdir ko'rgan bo'lsa: uzqr.uz da eski API'ni **o'chiradi**, yangisini yaratadi va Rizqim'da
+   almashtiradi.
+6. Dinamik QR bloklansa yangi to'lov QR'lari yaratilmaydi (kassa boshqa usullarni taklif qiladi).
+
+### 12.2. Rizqim'da nima kiritiladi (egasi, panel)
+
+1. **Fiskal sozlamalar**: do'kon **STIR**i (9 raqam) — UzQR'ga ro'yxatdan o'tgan yuridik shaxsniki; **UzQR drayveri** —
+   `uzqr_operator` (`PUT /owner/fiscal/settings {fiscal_settings: {uzqr: {driver: "uzqr_operator"}}}`).
+2. **POS sozlamalari → QR to'lov → UzQR kassalari**: har kassa (POS qurilma) qatoriga o'z API kalitini kiritadi →
+   «Kalitni saqlash». Kalit shifrlangan holda saqlanadi va **qayta ko'rsatilmaydi** (faqat oxirgi 4 belgisi). Kalitsiz
+   kassa UzQR'ni taklif qilmaydi, naqd/karta/Click/Payme ishlayveradi.
+3. Faqat `settings.manage` ruxsati bor (egasi) kiritadi; har o'zgarish auditda (`devices.uzqr_key_changed`, kalitsiz).
+
+### 12.3. Operatordan nima so'raladi (jamoa; tadqiqot 7A savollari)
+
+- API texnik hujjati, xato kodlari ("UzQR Error Reference"), **sinov konturi manzili** va sinov kaliti,
+  **production manzili**. Manzillar `https://` bo'lishi shart.
+- Webhook bormi (hozir faqat so'rab turish), summa birligi (tiyin yoki so'm), QR muddatini o'zimiz belgilay olamizmi,
+  qisman va bir necha marta qaytarish, qaytarish holatini bizning id bilan so'rash, chek havolasi formati.
+
+### 12.4. Server qiymatlari
+
+| Env | Qiymat |
+|---|---|
+| `UZQR_OPERATOR_URL` | operator bergan **production** manzili (`https://...`) |
+| `UZQR_OPERATOR_TEST_URL` | sinov konturi manzili |
+| `UZQR_OPERATOR_TEST` | `true` — sinov konturi. **Production**'da (`APP_ENV=production`, `PAYMENTS_ALLOW_TEST_MODE` yo'q) drayver bunda ishlamaydi; `UZQR_OPERATOR_URL` sinov manziliga teng bo'lsa ham ishlamaydi |
+
+Kalitlar env'ga yozilmaydi: ular har kassada, bazada shifrlangan. Ish: `pos:expire-qr-payments` (har daqiqa) — muddati
+o'tgan va yaqinda tugagan UzQR'larni operatordan qayta so'raydi, javobsiz qaytarishlarni tekshiradi.
+
+### 12.5. Sinov va birinchi to'lov
+
+1. Staging: `UZQR_OPERATOR_TEST=true`, sinov manzili, sinov kaliti bitta kassaga. QR yaratish, holat, bekor qilish,
+   qaytarish va chek havolasini sinang (sinov konturida "QR topilmadi" bo'lishi mumkin — SetRetail10 ogohlantiradi).
+2. Production, pilot restoran, **1 000 so'm**: kassada UzQR → bank ilovasida to'lang → schyot to'landi, chek chiqdi
+   (to'lov shakli — karta, RRN bilan) → QR'da `receipt_link: sent` → uzqr.uz **Operatsiyalar tarixi**da to'lov →
+   kassada 500 so'm qisman qaytarish → qolganini qaytarish → uzqr.uz **Qaytarishlar**ida ikkalasi.
+3. Bankdan **ikki marta chek chiqmasligini** yozma tasdiqlang (tadqiqot, 3-bo'lim).
+
+### 12.6. Orqaga qaytish
+
+Fiskal sozlamalarda UzQR drayverini o'chiring (`driver: null`): kassalar UzQR'ni taklif qilmaydi. Kalitlarni
+o'chirmang: to'langan QR'larni so'rash va qaytarish uchun kerak.
+
+### 12.7. Tekshiruv ro'yxati
+
+| # | Ish | Kim | Tayyor |
+|---|---|---|---|
+| 1 | Operatordan API hujjati, sinov va production manzillari | Ega | ☐ |
+| 2 | `UzQrOperatorProtocol` hujjat bo'yicha tuzatildi, sinovlar yashil | Jamoa | ☐ |
+| 3 | Pilot restoran: har kassaga dinamik QR + API kalit, kalitlarni o'zi kiritdi | Ovqatxona | ☐ |
+| 4 | STIR va `uzqr_operator` drayveri fiskal sozlamalarda | Ega | ☐ |
+| 5 | Birinchi 1 000 so'mlik to'lov, qisman va to'liq qaytarish, chek havolasi `sent` | Ega + jamoa | ☐ |
+| 6 | Bankdan "ikki marta chek yo'q" yozma tasdig'i | Ega | ☐ |
 

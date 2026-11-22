@@ -636,6 +636,9 @@ $owner = [
     'GET api/v1/owner/fiscal/settings' => ['ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/fiscal/settings' => ['body' => fn (array $s) => ['tax_regime' => 'vat'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/fiscal/terminal-flow' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
+    // Wave P: the UzQR credentials (a till's key is write-only; removing it is the body both sides can send alike)
+    'GET api/v1/owner/fiscal/uzqr' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 403, 403)],
+    'PUT api/v1/owner/fiscal/uzqr/tills/{uuid}' => ['params' => fn (array $s) => ['uuid' => $s['till']['device']->uuid], 'body' => fn (array $s) => ['remove_api_key' => true], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/halls' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'POST api/v1/owner/halls' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'name' => 'Ayvon'], 'ok' => $o(201, 201, 403)],
     'PATCH api/v1/owner/halls/{id}' => ['params' => $id('hall'), 'body' => fn (array $s) => ['sort_order' => 3], 'ok' => $o(200, 200, 403)],

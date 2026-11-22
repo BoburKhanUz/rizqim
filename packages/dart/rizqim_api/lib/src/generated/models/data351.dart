@@ -4,29 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device24.dart';
-import 'errors2.dart';
+import 'errors.dart';
+import 'meta3.dart';
 
 part 'data351.g.dart';
 
 @JsonSerializable()
 class Data351 {
-  const Data351({
-    required this.serverTime,
-    required this.device,
-    required this.errors,
-    required this.errorsCount,
-  });
+  const Data351({required this.errors, required this.meta});
 
   factory Data351.fromJson(Map<String, Object?> json) =>
       _$Data351FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Device24 device;
-  final List<Errors2> errors;
-  @JsonKey(name: 'errors_count')
-  final int errorsCount;
+  final List<Errors> errors;
+  final Meta3 meta;
 
   Map<String, Object?> toJson() => _$Data351ToJson(this);
 }

@@ -7,63 +7,25 @@ part of 'data350.dart';
 // **************************************************************************
 
 Data350 _$Data350FromJson(Map<String, dynamic> json) => Data350(
-  opId: json['op_id'] as String,
-  seq: (json['seq'] as num).toInt(),
-  type: json['type'] as String,
-  typeLabel: json['type_label'] as String,
-  status: json['status'] as String,
-  reason: json['reason'] as String?,
-  message: json['message'] as String?,
-  sigStatus: json['sig_status'] as String?,
-  staffContinued: json['staff_continued'] as bool,
-  staff: json['staff'] == null
-      ? null
-      : Staff28.fromJson(json['staff'] as Map<String, dynamic>),
-  device: json['device'] == null
-      ? null
-      : Device23.fromJson(json['device'] as Map<String, dynamic>),
-  originDevice: json['origin_device'] == null
-      ? null
-      : OriginDevice2.fromJson(json['origin_device'] as Map<String, dynamic>),
-  occurredAt: json['occurred_at'] as String?,
-  receivedAt: json['received_at'] as String?,
-  appliedAt: json['applied_at'] as String?,
+  serverTime: json['server_time'] as String,
   clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
-  order: json['order'] == null
-      ? null
-      : Order14.fromJson(json['order'] as Map<String, dynamic>),
-  payload: json['payload'] as Map<String, dynamic>,
-  refs: json['refs'] as Map<String, dynamic>,
-  resolvedAt: json['resolved_at'] as String?,
-  resolvedBy: json['resolved_by'] == null
-      ? null
-      : ResolvedBy2.fromJson(json['resolved_by'] as Map<String, dynamic>),
-  resolution: json['resolution'] as String?,
-  resolutionNote: json['resolution_note'] as String?,
+  clockWarning: json['clock_warning'] as bool,
+  stoppedAt: (json['stopped_at'] as num?)?.toInt(),
+  results: (json['results'] as List<dynamic>)
+      .map((e) => Results2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unreadable: (json['unreadable'] as List<dynamic>)
+      .map((e) => Unreadable.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  device: Device21.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data350ToJson(Data350 instance) => <String, dynamic>{
-  'op_id': instance.opId,
-  'seq': instance.seq,
-  'type': instance.type,
-  'type_label': instance.typeLabel,
-  'status': instance.status,
-  'reason': instance.reason,
-  'message': instance.message,
-  'sig_status': instance.sigStatus,
-  'staff_continued': instance.staffContinued,
-  'staff': instance.staff,
-  'device': instance.device,
-  'origin_device': instance.originDevice,
-  'occurred_at': instance.occurredAt,
-  'received_at': instance.receivedAt,
-  'applied_at': instance.appliedAt,
+  'server_time': instance.serverTime,
   'clock_skew_seconds': instance.clockSkewSeconds,
-  'order': instance.order,
-  'payload': instance.payload,
-  'refs': instance.refs,
-  'resolved_at': instance.resolvedAt,
-  'resolved_by': instance.resolvedBy,
-  'resolution': instance.resolution,
-  'resolution_note': instance.resolutionNote,
+  'clock_warning': instance.clockWarning,
+  'stopped_at': instance.stoppedAt,
+  'results': instance.results,
+  'unreadable': instance.unreadable,
+  'device': instance.device,
 };

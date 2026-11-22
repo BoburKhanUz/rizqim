@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data277.dart';
+import 'data279.dart';
 
 part 'post_v1_pos_clock_in_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1PosClockInResponse {
 
   final bool success;
   final String message;
-  final Data277 data;
+  final Data279 data;
 
   Map<String, Object?> toJson() => _$PostV1PosClockInResponseToJson(this);
 }

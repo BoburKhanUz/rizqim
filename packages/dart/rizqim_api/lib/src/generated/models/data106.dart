@@ -8,14 +8,12 @@ part 'data106.g.dart';
 
 @JsonSerializable()
 class Data106 {
-  const Data106({required this.branchId, required this.ingredients});
+  const Data106({required this.id});
 
   factory Data106.fromJson(Map<String, Object?> json) =>
       _$Data106FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final List<String> ingredients;
+  final int id;
 
   Map<String, Object?> toJson() => _$Data106ToJson(this);
 }

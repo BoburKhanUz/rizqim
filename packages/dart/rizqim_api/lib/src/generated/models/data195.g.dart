@@ -7,9 +7,8 @@ part of 'data195.dart';
 // **************************************************************************
 
 Data195 _$Data195FromJson(Map<String, dynamic> json) =>
-    Data195(path: json['path'] as String, url: json['url'] as String);
+    Data195(hallId: (json['hall_id'] as num).toInt());
 
 Map<String, dynamic> _$Data195ToJson(Data195 instance) => <String, dynamic>{
-  'path': instance.path,
-  'url': instance.url,
+  'hall_id': instance.hallId,
 };
