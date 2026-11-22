@@ -104,6 +104,8 @@ class ApiDocsSpecTest extends TestCase
     {
         $this->assertSame([], $this->doc['paths']['/v1/payments/click/webhook']['post']['security']);
         $this->assertSame([], $this->doc['paths']['/v1/payments/payme/webhook']['post']['security']);
+        $this->assertSame([], $this->doc['paths']['/v1/payments/paylov/webhook']['post']['security']);
+        $this->assertSame(['Webhooks'], $this->doc['paths']['/v1/payments/paylov/webhook']['post']['tags']);
         $this->assertSame([], $this->doc['paths']['/v1/telegram/webhook']['post']['security']);
         $this->assertSame([], $this->doc['paths']['/v1/health']['get']['security']);
         $this->assertSame(['Webhooks'], $this->doc['paths']['/v1/payments/click/webhook']['post']['tags']);

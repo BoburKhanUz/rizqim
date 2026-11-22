@@ -1,7 +1,8 @@
-# Click va Payme'ni jonli rejimga ulash
+# Click, Payme va Paylov'ni jonli rejimga ulash
 
 Bu hujjat egasi uchun: Click va Payme'ni haqiqiy pul bilan ishga tushirishdan oldin nima qilinadi, qaysi qiymat
-qayerga yoziladi, qanday sinaladi va muammo bo'lsa qanday o'chiriladi.
+qayerga yoziladi, qanday sinaladi va muammo bo'lsa qanday o'chiriladi. Paylov (uchinchi onlayn to'lov tizimi) —
+alohida, [11-bo'lim](#11-paylov).
 
 > **Kalitlar haqida qoida.** Maxfiy kalit (Click `secret_key`, Payme kassa kaliti) hech qachon chatga, Telegram'ga,
 > kodga, skrinshotga yoki Git'ga yozilmaydi. Ular faqat serverdagi `backend/.env` ga yoki boshqaruv markazidagi
@@ -70,6 +71,7 @@ qiymatni nomi bilan ogohlantiradi (bazadagi qiymat ham hisoblanadi, qiymatning o
 | `CLICK_MERCHANT_USER_ID` | Click kabineti → Merchant API foydalanuvchisi (chek uchun) | yo'q (lekin kalit bilan ishlaydi) |
 | `PAYME_MERCHANT_ID` | Payme Business → Kassa → Dasturchi parametrlari | yo'q |
 | `PAYME_SECRET_KEY` | Payme Business → Kassa → Kalit (ishchi kalit, TEST_KEY emas) | **ha** |
+| `PAYLOV_*` | Paylov — [11-bo'lim](#11-paylov) | ko'pi **ha** |
 | `PAYMENTS_ALLOW_TEST_MODE` | `false` (productionda doim) | — |
 | `QR_PAYMENTS_SANDBOX`, `QR_PAYMENTS_SIMULATE`, `QR_PAYMENTS_SIMULATE_DRIVERS` | productionda bo'sh yoki `false` | — |
 | `LOG_LEVEL` | `warning` (webhook so'rovlari `info` darajasida to'liq yoziladi) | — |
@@ -88,6 +90,7 @@ ham **ishchi** rejimda ishlaydi (mijoz Payme sinov sahifasiga tushmaydi), kassad
 | Click | Prepare URL | `https://api.rizqim.uz/api/v1/payments/click/webhook` |
 | Click | Complete URL | `https://api.rizqim.uz/api/v1/payments/click/webhook` (o'sha manzil) |
 | Payme | Endpoint URL (Merchant API) | `https://api.rizqim.uz/api/v1/payments/payme/webhook` |
+| Paylov | Callback URL va cancel webhook URL | `https://api.rizqim.uz/api/v1/payments/paylov/webhook` (ikkalasi bitta manzil, [11-bo'lim](#11-paylov)) |
 
 Payme kassasida **hisob (account) maydoni**: nomi aynan `order_id`, turi — matn (satr), uzunligi kamida 50 belgi
 (buyurtma raqami UUID, balans uchun `topup_<uuid>`, kassa QR uchun `pos_qr_<uuid>`).
@@ -221,3 +224,128 @@ Muammo bo'lsa:
 | 11 | Chek (fiskal) bitta buyurtmada `recorded` | Jamoa | ☐ |
 | 12 | O'z hisobli birinchi ovqatxona: kalitlarni o'zi kiritdi, bitta to'lov o'z hisobiga tushdi | Ovqatxona + jamoa | ☐ |
 | 13 | Orqaga qaytish (tizimni o'chirish) bir marta sinab ko'rildi | Jamoa | ☐ |
+| 14 | Paylov: 11-bo'limdagi ro'yxat | Ega + jamoa | ☐ |
+
+---
+
+## 11. Paylov
+
+Paylov (AJ «OCTAGRAM», Markaziy bank litsenziyasi №40) — Mini App'dagi **onlayn** to'lov uchun uchinchi tizim, Click va
+Payme yonida. Faqat onlayn buyurtma: kassadagi QR, kartani saqlash, split (sub-merchant), kartaga pul chiqarish (A2C)
+va P2P ulanmagan. **Zaldagi naqd savdoga Paylov orqali chek chiqarilmaydi** (egasi qarori; "Paylov tekshiruvi"
+hisobotiga qarang). Rasmiy hujjat: https://developer.paylov.uz (2026-yil 22-noyabrda tekshirildi).
+
+### 11.1. Qanday ishlaydi
+
+1. Mijoz Paylov'ni tanlaydi → server havola yasaydi: `https://my.paylov.uz/checkout/create/<base64>`, ichida
+   `merchant_id`, summa **tiyinda** (`amount_in_tiyin=True`), `currency_id=860`, `return_url` (Mini App) va
+   `account.order_id` = buyurtma UUID. Havola imzolanmagan, shuning uchun summani server o'zi tekshiradi.
+2. Paylov serverga `transaction.check` yuboradi: buyurtma, summa (aniq tiyin, kasr rad etiladi) va holat tekshiriladi.
+3. Mijoz to'laydi → Paylov `transaction.perform` yuboradi. Server to'lovni **«tasdiqlanmagan»** (`unconfirmed`) deb
+   yozadi va darhol javob beradi. Paylov webhook'lari imzolanmagan (faqat login/parol), shuning uchun keyin server
+   Paylov API'sidan (`getTransactions`) tranzaksiya holatini o'qiydi: `payed` va summa bir xil bo'lsa — buyurtma
+   **bir marta** «to'langan» bo'ladi, aks holda to'lov tegilmaydi.
+4. API javob bermasa yoki holat hali `pending` bo'lsa, to'lov «tasdiqlanmagan» bo'lib qoladi va har 5 daqiqada
+   (`php artisan payments:paylov-reconcile`, scheduler) qayta tekshiriladi. Bunday buyurtma 30 daqiqalik «to'lanmagan»
+   muddat bilan **bekor qilinmaydi**. Bir soatdan oshsa logda `critical` ogohlantirish chiqadi — Paylov biznes panelida
+   tekshiring. Paylov boshqa summani ko'rsatsa — `mismatch`: to'lov hech qachon avtomatik hisoblanmaydi, logda
+   `critical`, qo'lda ko'rib chiqiladi.
+5. Paylov pulni to'langan yoki bekor qilingan buyurtma uchun olgan bo'lsa (javobimiz `+1` bo'lsa ham), to'lov yoziladi
+   va `payment/cancel` orqali **to'liq qaytariladi** — buyurtmaga hisoblanmaydi.
+6. Chek: ovqatxonada fiskal rejim yoqilgan bo'lsa, to'lov **tasdiqlangandan keyin** `fiscalization/register`
+   yuboriladi (taomlar, MXIK, qadoq kodi, QQS, ovqatxona STIR/JShShIR; yetkazish alohida qator). Natija hamkor paneli →
+   To'lovlar'da (`recorded`, `blocked`, `failed`).
+7. Qaytarish: **faqat to'liq** (Paylov `payment/cancel` summa olmaydi). To'langan buyurtma bekor qilinsa yoki
+   boshqaruv markazida to'liq qaytarish tasdiqlansa, server o'zi `payment/cancel` chaqiradi; Paylov rad etsa — to'lov
+   «qo'lda qaytarish» deb belgilanadi (Paylov biznes panelidan qaytariladi). **Qisman qaytarish so'rovi rad etiladi**
+   («Paylov faqat to'liq qaytarishni qo'llaydi...»). Paylov panelidan yoki xodimidan bekor qilinsa, `transaction.cancel`
+   webhook'i keladi (3 martagacha takrorlanadi) — bir marta yoziladi: yetkazilgan buyurtma «qaytarilgan» bo'ladi
+   (komissiya va hisob-kitob qaytariladi). Qaytarish cheki Paylov'da avtomatik bekor qilinadi; bo'lmasa server
+   `fiscalization/refund` bilan so'raydi.
+
+### 11.2. Paylov'dan nima olish kerak (egasi)
+
+Paylov ochiq ro'yxatdan o'tish bermaydi: shartnoma va hisobni Paylov xodimi ochadi.
+
+| # | Nima | Izoh |
+|---|---|---|
+| 1 | Shartnoma (RIZQIM nomidan) va **bir martalik onboarding token** | token bilan `username`/`password` o'rnatiladi, javobda `consumer_key` va `consumer_secret` keladi (**secret faqat bir marta ko'rsatiladi**) |
+| 2 | Hisobni **faollashtirish** | faollashtirilmaguncha token so'rovi `this account not activated` qaytaradi |
+| 3 | `merchant_id` (UUID) | to'lov havolasi uchun |
+| 4 | **BASE_URL** (API manzili) | hujjatda faqat misolda `gw2.paylov.uz`; Paylov aniq manzilni yozma aytsin |
+| 5 | Bizning server IP'sini Paylov'ning IP oq ro'yxatiga qo'shish | aks holda `IP address not in whitelist` |
+| 6 | Fiskal chek ruxsati va har bir ovqatxona STIR'ining OFD katalogida komitent sifatida faol shartnomasi | aks holda `ofd_commitent_or_subcommission_not_active`, chek `failed` |
+| 7 | Paylov webhook yuboradigan IP manzillar (yozma) | ixtiyoriy nginx cheklovi uchun |
+| 8 | Narx (komissiya), pul tushish muddati | e'lon qilinmagan |
+
+### 11.3. Paylov'ga nima berish kerak
+
+| Nima | Qiymat |
+|---|---|
+| Callback URL (Checkout: `transaction.check`, `transaction.perform`) | `https://api.rizqim.uz/api/v1/payments/paylov/webhook` |
+| Cancel webhook URL (`transaction.cancel`) | `https://api.rizqim.uz/api/v1/payments/paylov/webhook` (o'sha manzil) |
+| Callback login va parol (Basic Auth) | o'zingiz yarating: uzun tasodifiy qiymat (masalan `openssl rand -base64 32`); serverga `PAYLOV_CALLBACK_LOGIN` / `PAYLOV_CALLBACK_PASSWORD` sifatida yozing va Paylov'ga **xavfsiz kanal** orqali bering. Hujjatda bu "Merchant's API login/password" deb atalgan — Paylov API login/paroli bilan bir xil bo'lishi kerakmi, so'rang; bir xil bo'lsa, ikkala juftga bir xil qiymat yozing |
+| Account maydoni | `order_id` (matn, UUID, 36 belgi) |
+| `return_url` | Mini App manzili (`TELEGRAM_WEBAPP_URL`), server o'zi qo'yadi |
+
+### 11.4. Server qiymatlari
+
+| Env nomi | Qayerdan | Maxfiymi |
+|---|---|---|
+| `PAYLOV_MERCHANT_ID` | Paylov (merchant UUID) | yo'q |
+| `PAYLOV_CONSUMER_KEY` | onboarding javobi | **ha** |
+| `PAYLOV_CONSUMER_SECRET` | onboarding javobi (bir marta ko'rsatiladi) | **ha** |
+| `PAYLOV_USERNAME` | onboarding'da o'zingiz o'rnatgan login | **ha** |
+| `PAYLOV_PASSWORD` | onboarding'da o'rnatgan parol (8+ belgi, katta-kichik harf, raqam, belgi) | **ha** |
+| `PAYLOV_CALLBACK_LOGIN` | o'zingiz yaratasiz (11.3) | **ha** |
+| `PAYLOV_CALLBACK_PASSWORD` | o'zingiz yaratasiz (11.3) | **ha** |
+| `PAYLOV_BASE_URL` | Paylov aytgan API manzili (standart `https://gw2.paylov.uz`) | yo'q |
+| `PAYLOV_CHECKOUT_URL` | standart `https://my.paylov.uz/checkout/create/` | yo'q |
+
+Kalitlarni Tizim → To'lov tizimlari → Paylov'ga ham yozish mumkin (bazada shifrlangan). **Yetti kalitning hammasi**
+bo'lmasa, Mini App Paylov'ni ko'rsatmaydi va buyurtma 422 `payment_provider_unconfigured` bilan rad etiladi (Click/Payme
+dan farqi: kalitsiz to'lovni tasdiqlab bo'lmaydi). `php artisan app:check-production` har bir yetishmagan qiymatni
+nomi bilan aytadi. Mavjud serverda Paylov qatori bo'lmasa: `php artisan db:seed --class=PaymentProviderSeeder` (mavjud
+kalitlar va sozlamalar o'zgarmaydi).
+
+O'z hisobli ovqatxona (`own_account`) hamkor panelida `payment_settings.paylov` ga yetti qiymatni o'zi kiritadi; hech
+biri qaytarib ko'rsatilmaydi (`has_consumer_secret` kabi belgilar). Bittasi yetishmasa, buyurtma RIZQIM hisobiga
+to'lanadi (Click/Payme kabi). Ovqatxona o'z Paylov hisobida ham callback URL'ni 11.3'dagidek yozadi.
+
+### 11.5. Sinov (sandbox yo'q)
+
+Paylov'da ochiq sinov muhiti **yo'q** (hujjatda faqat production manzillar). Shuning uchun:
+
+1. **Staging** (`APP_ENV` production emas): Tizim → To'lov tizimlari → Paylov → rejim **Sinov**. Bu holatda server
+   Paylov API'siga umuman so'rov yubormaydi: soxta drayver yozilgan to'lovni o'z summasi bilan `payed` deb javob beradi,
+   qaytarish va chek ham soxta. Webhook'larni curl bilan yuborib sinang (Basic Auth bilan):
+   `transaction.check` → `{"status":"0"}`, noto'g'ri summa → `5`, noma'lum buyurtma → `303`, noto'g'ri parol → HTTP 401;
+   `transaction.perform` → buyurtma «to'langan»; ikkinchi marta → o'sha javob, ikki marta hisoblanmaydi;
+   `transaction.cancel` → to'lov qaytarilgan.
+2. **Productionda Sinov rejimi yoqilmaydi** (`PAYMENTS_ALLOW_TEST_MODE=true` bo'lsa ham): server rad etadi, bazada
+   qolgan «Sinov» ham productionda haqiqiy Paylov bilan ishlaydi.
+3. Birinchi haqiqiy to'lov — productionda, o'z kartangiz bilan, **1 000 so'm**: to'lang → buyurtma «to'langan»
+   (bir necha soniyada; «tasdiqlanmagan» qolsa logni ko'ring) → Paylov biznes panelida tranzaksiya va summa → boshqaruv
+   markazida buyurtmani bekor qiling → pul kartaga qaytdi, to'lov «qaytarilgan». Keyin Paylov panelidan bekor qilishni
+   ham bir marta sinang (webhook keladi).
+
+### 11.6. Orqaga qaytish
+
+9-bo'limdagidek: Tizim → To'lov tizimlari → Paylov → **o'chiring**. Yangi buyurtmalar qabul qilinmaydi, boshlangan
+to'lovlar tasdiqlanadi yoki qaytariladi. Kalitlarni o'chirmang: «tasdiqlanmagan» to'lovlarni tekshirish va
+qaytarish uchun kerak.
+
+### 11.7. Tekshiruv ro'yxati
+
+| # | Ish | Kim | Tayyor |
+|---|---|---|---|
+| 1 | Shartnoma, onboarding token, hisob faollashtirildi | Ega | ☐ |
+| 2 | `merchant_id`, `consumer_key`, `consumer_secret`, `username`, `password` serverda | Jamoa | ☐ |
+| 3 | Callback login/parol yaratildi, serverda va Paylov'da | Ega + jamoa | ☐ |
+| 4 | Callback va cancel webhook URL Paylov'ga berildi (11.3) | Ega | ☐ |
+| 5 | Server IP Paylov oq ro'yxatida; `PAYLOV_BASE_URL` yozma tasdiqlangan | Ega | ☐ |
+| 6 | Staging'da Sinov rejimida webhook ssenariylari yashil | Jamoa | ☐ |
+| 7 | `app:check-production` Paylov bo'yicha toza; scheduler ishlayapti (`payments:paylov-reconcile`) | Jamoa | ☐ |
+| 8 | Birinchi 1 000 so'mlik to'lov, bekor qilish va qaytarish | Ega + jamoa | ☐ |
+| 9 | Fiskal ruxsat va ovqatxona komitent shartnomasi; bitta chek `recorded` | Ega + jamoa | ☐ |
+

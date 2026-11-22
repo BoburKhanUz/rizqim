@@ -16,7 +16,7 @@ return [
     'unpaid_online_ttl_minutes' => (int) env('ORDERS_UNPAID_ONLINE_TTL_MINUTES', 30),
 
     // Paid before the store sees the order (cash is paid on handover, keshbek at checkout).
-    'online_payment_methods' => ['click', 'payme', 'uzum', 'paynet'],
+    'online_payment_methods' => ['click', 'payme', 'uzum', 'paynet', 'paylov'],
 
     // Online methods with no payment webhook yet, so nothing could ever mark such an order paid: refused at checkout
     // and shown as {enabled: false, available: false}; stores' saved settings for them are kept. They stay in the list

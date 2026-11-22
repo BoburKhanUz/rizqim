@@ -31,7 +31,10 @@ abstract class OwnerSettingsApi {
   /// Update store settings.
   ///
   /// `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per.
-  /// provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+  /// provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`. Wave P: with an own.
+  /// merchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and.
+  /// callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back.
+  /// (has_consumer_secret...).
   ///
   /// P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as.
   /// PUT /owner/fiscal/settings takes them; left out = kept.

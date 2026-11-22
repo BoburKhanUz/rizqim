@@ -51,7 +51,7 @@ class StoreController extends Controller
         }
 
         $query = Store::query()
-            ->select('id', 'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'debt_balance', 'subscription_debt', 'credit_limit', 'open_time', 'close_time', 'min_order_amount') // P4-21: subscription_debt, so is_order_locked counts only the commission debt
+            ->select('id', 'uuid', 'name', 'phone', 'address', 'logo', 'banner', 'description', 'is_open', 'is_premium', 'review_count', 'payment_settings', 'status', 'debt_balance', 'subscription_debt', 'credit_limit', 'open_time', 'close_time', 'min_order_amount', 'payment_account_type') // P4-21: subscription_debt, so is_order_locked counts only the commission debt; wave P: payment_account_type (Store::paylovConfigured), never in the JSON (Store::INTERNAL_ATTRIBUTES)
             ->where('is_active', true)
             ->where('status', '!=', \App\Enums\StoreStatus::PAYMENT_REQUIRED->value)
             ->with(['branches' => function ($q) {

@@ -112,7 +112,9 @@ class Store extends Model
      */
     public static function isSecretKey($key): bool
     {
-        return is_string($key) && preg_match('/secret|password|passwd|token|private|(^|_)key$/i', $key) === 1;
+        // Wave P: Paylov's API login (`username`) and webhook login (`callback_login`) are credentials too
+        // (developer.paylov.uz/subscribe/authorization: "Keep all four credentials strictly confidential")
+        return is_string($key) && preg_match('/secret|password|passwd|token|private|(^|_)key$|(^|_)(username|login)$/i', $key) === 1;
     }
 
     /**
@@ -134,7 +136,7 @@ class Store extends Model
     /**
      * Payment providers: each has a section in payment_settings ({enabled, merchant credentials...}).
      */
-    public const PAYMENT_PROVIDERS = ['cash', 'click', 'payme', 'uzum', 'paynet'];
+    public const PAYMENT_PROVIDERS = ['cash', 'click', 'payme', 'uzum', 'paynet', 'paylov'];
 
     /**
      * Older rows (the first creation wizard) hold a provider as a bare boolean (`cash: true`), which every reader takes
@@ -242,10 +244,30 @@ class Store extends Model
                 $settings[$method] = ['enabled' => false, 'available' => false];
             }
 
+            // Wave P: Paylov is offered only once its payments can be confirmed (every key of the account it would be
+            // paid into), never shown and then refused like an unconfigured Click / Payme
+            if (isset($settings['paylov']) && ($settings['paylov']['available'] ?? true) !== false && !$this->paylovConfigured()) {
+                $settings['paylov'] = ['enabled' => false, 'available' => false];
+            }
+
             $array['payment_settings'] = $settings;
         }
 
         return $array;
+    }
+
+    /**
+     * Wave P: whether a Paylov order of this store can be paid and confirmed: its own account complete (and "o'z hisobi"),
+     * or every platform key set (PaymentLinkService::LINK_CREDENTIALS, the control centre or .env).
+     */
+    public function paylovConfigured(): bool
+    {
+        // A store read without the column (the marketplace's card select) cannot collect into its own account
+        if (array_key_exists('payment_account_type', $this->attributes) && $this->collectsOwnPayments('paylov')) {
+            return true;
+        }
+
+        return \App\Services\Order\PaymentLinkService::missingPlatformIds('paylov') === [];
     }
 
     /**
@@ -257,6 +279,8 @@ class Store extends Model
         'payme' => ['merchant_id', 'secret_key'],
         'uzum' => ['merchant_id', 'secret_key'],
         'paynet' => ['merchant_id', 'secret_key'],
+        // Wave P: the link's merchant id, the API keys that confirm and refund each payment, the webhook's Basic Auth
+        'paylov' => \App\Services\Payment\Paylov\PaylovAccount::KEYS,
     ];
 
     /**
@@ -521,7 +545,8 @@ class Store extends Model
                     $isEnabled = (bool) $settings[$provider];
                 }
             }
-            if ($isEnabled) {
+            // Wave P: Paylov only once it can be confirmed (paylovConfigured)
+            if ($isEnabled && ($provider !== 'paylov' || $this->paylovConfigured())) {
                 $active[] = $provider;
             }
         }

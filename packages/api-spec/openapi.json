@@ -41839,7 +41839,7 @@
             },
             "post": {
                 "operationId": "order.store",
-                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.\n\nP6-31 (docs/MENU.md \"Kombo\"): a combo line sends its picks in `items.*.combo`; 422 with `code` / `data.reason`\n`combo_option_unavailable` (a stale pick: refresh the menu), `combo_slot_required`, `combo_slot_limit` or\n`combo_option_invalid`.\n\nP4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and\n`data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already\nshow it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.\nThe same 422 shape with `payment_provider_unconfigured` when the order would be paid to the platform's merchant\naccount and its ids are not set (no order is created).",
+                "description": "Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online\npayment methods (Click, Payme, Paylov): open it to pay; the order is cancelled when it stays unpaid (a Paylov payment\nstill being confirmed with Paylov is never cancelled as unpaid). 400 with the reason\nwhen the order cannot be placed (store closed, item unavailable, minimum not reached...).\n\nP1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least\n`min_quantity`, in `quantity_step` steps); `items.*.modifiers` lists the chosen modifiers as uuids or\n`{id: uuid, quantity}`; prices always come from the server. 422 when a modifier rule is broken, the item is on\nthe branch's stop-list, its batch is sold out (\"tugadi\") or it is hidden on the channel. The channel is decided by\nthe server from the sign-in (P1-34): `mobile` for a token of a customer mobile app device, else `telegram`; a\n`channel` in the body is accepted for older apps but ignored. `type=dine_in` is refused with 422 (hall orders\nare taken by staff on the POS). An `Idempotency-Key` header makes retries safe: the same key with the same body\nwithin 24 hours returns the first response (header `Idempotent-Replayed: true`), with another body 409.\n\nP1-32 (docs/ZONES.md): when the store has delivery zones, a `delivery` order is routed and priced by the zone\nthat covers `latitude`/`longitude`, exactly as `GET /delivery/quote` prices it: the zone's fee (free past its\nthreshold) and minimum order replace the store-wide ones, any fee the client sends is ignored. Without\n`branch_id` the branch is picked automatically (the zone's branch, else the nearest open one); with it, that\nbranch must serve a zone covering the point. 422 with `data.reason`: `outside_zone`, `branch_outside_zone`,\n`branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without\nzones keep the branch radius rule and the store's delivery fee.\n\nP6-31 (docs/MENU.md \"Kombo\"): a combo line sends its picks in `items.*.combo`; 422 with `code` / `data.reason`\n`combo_option_unavailable` (a stale pick: refresh the menu), `combo_slot_required`, `combo_slot_limit` or\n`combo_option_invalid`.\n\nP4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and\n`data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already\nshow it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.\nThe same 422 shape with `payment_provider_unconfigured` when the order would be paid to the platform's merchant\naccount and its ids are not set (no order is created).",
                 "summary": "Place an order (checkout)",
                 "tags": [
                     "Orders"
@@ -41963,6 +41963,7 @@
                                             "payme",
                                             "uzum",
                                             "paynet",
+                                            "paylov",
                                             "keshbek"
                                         ]
                                     },
@@ -77657,6 +77658,55 @@
                                                                 }
                                                             ]
                                                         },
+                                                        "paylov": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "boolean"
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "enabled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "merchant_id": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "available": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "unavailable_reason": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "not_integrated",
+                                                                                "switched_off"
+                                                                            ]
+                                                                        },
+                                                                        "has_consumer_key": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_consumer_secret": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_username": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_password": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_callback_login": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "has_callback_password": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
                                                         "delivery_fee": {
                                                             "type": [
                                                                 "number",
@@ -77902,7 +77952,7 @@
             },
             "post": {
                 "operationId": "ownerSettings.update",
-                "description": "`payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per\nprovider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.\n\nP3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as\nPUT /owner/fiscal/settings takes them; left out = kept.",
+                "description": "`payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per\nprovider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`. Wave P: with an own\nmerchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and\ncallback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back\n(has_consumer_secret...).\n\nP3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as\nPUT /owner/fiscal/settings takes them; left out = kept.",
                 "summary": "Update store settings",
                 "tags": [
                     "Owner: settings"
@@ -78235,6 +78285,56 @@
                                                         ]
                                                     },
                                                     "secret_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "paylov": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "merchant_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "consumer_key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "consumer_secret": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "username": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "password": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "callback_login": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "callback_password": {
                                                         "type": [
                                                             "string",
                                                             "null"
@@ -84739,6 +84839,166 @@
                             "application/json": {
                                 "schema": {
                                     "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/payments/paylov/webhook": {
+            "post": {
+                "operationId": "paylovWebhook.handle",
+                "description": "`transaction.check` and `transaction.perform` (developer.paylov.uz/merchants/paylov-payment-gateway) and the\n`transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and\npassword of the account the order is paid into (the platform's, or the store's own). Answers\n`{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is\nsettled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is any\n2xx, and a failure to record it a 500 so that Paylov retries it.",
+                "summary": "Paylov: Checkout callbacks and the cancel webhook (JSON-RPC 2.0)",
+                "tags": [
+                    "Webhooks"
+                ],
+                "responses": {
+                    "500": {
+                        "description": "transaction.cancel yozilmadi: Paylov qayta yuboradi",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "jsonrpc": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": [
+                                                "integer",
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "result": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "0",
+                                                        "3",
+                                                        "5",
+                                                        "303",
+                                                        "+1"
+                                                    ]
+                                                },
+                                                "statusText": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "statusText"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "jsonrpc",
+                                        "id",
+                                        "result"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "jsonrpc": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": [
+                                                "integer",
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "result": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "0",
+                                                        "3",
+                                                        "5",
+                                                        "303",
+                                                        "+1"
+                                                    ]
+                                                },
+                                                "statusText": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "statusText"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "jsonrpc",
+                                        "id",
+                                        "result"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Callback login yoki paroli noto'g'ri yoki sozlanmagan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "jsonrpc": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": [
+                                                "integer",
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "result": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "0",
+                                                        "3",
+                                                        "5",
+                                                        "303",
+                                                        "+1"
+                                                    ]
+                                                },
+                                                "statusText": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "statusText"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "jsonrpc",
+                                        "id",
+                                        "result"
+                                    ]
                                 }
                             }
                         }

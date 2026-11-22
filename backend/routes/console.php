@@ -15,6 +15,14 @@ Artisan::command('inspire', function () {
 // Unpaid online orders give back stock and promo use after config('orders.unpaid_online_ttl_minutes')
 Schedule::job(new CancelUnpaidOnlineOrdersJob)->everyMinute()->withoutOverlapping(10);
 
+// Wave P: Paylov payments still unconfirmed (getTransactions did not say `payed` yet) are checked again, and full
+// refunds Paylov did not answer are asked again (App\Services\Payment\Paylov\PaylovReconciler)
+Artisan::command('payments:paylov-reconcile', function (\App\Services\Payment\Paylov\PaylovReconciler $reconciler) {
+    $done = $reconciler->run();
+    $this->info("{$done['checked']} unconfirmed Paylov payment(s) checked, {$done['refunds']} refund(s) asked again");
+})->purpose('Re-check unconfirmed Paylov payments and retry pending Paylov refunds');
+Schedule::command('payments:paylov-reconcile')->everyFiveMinutes()->withoutOverlapping(10);
+
 // Delivered orders whose ledger booking failed are booked again until config('orders.settlement_retry_max_attempts')
 Schedule::job(new RetryFailedSettlementsJob)->everyTenMinutes()->withoutOverlapping(30);
 

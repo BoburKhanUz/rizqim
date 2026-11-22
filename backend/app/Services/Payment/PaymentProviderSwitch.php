@@ -97,6 +97,38 @@ final class PaymentProviderSwitch
     }
 
     /**
+     * Wave P: the Paylov checkout link (developer.paylov.uz/merchants/creating-payment-link and the example of
+     * merchants/paylov-payment-gateway "STEP 2"): https://my.paylov.uz/checkout/create/{base64(query)}, the query
+     * merchant_id, amount, currency_id (860 UZS), return_url, amount_in_tiyin=True and account.order_id, urlencoded as
+     * the page's Python sample does. The amount is exact integer tiyin (amount_in_tiyin), never a float; `account.order_id`
+     * is the order's uuid, which transaction.check / perform send back. The link is not signed (base64 only), so the
+     * webhook checks the amount itself. The host is the same whatever the mode (there is no sandbox checkout).
+     */
+    public function paylovUrl(?string $merchantId, int $tiyin, string $orderId, string $returnUrl): string
+    {
+        $query = http_build_query([
+            'merchant_id' => (string) $merchantId,
+            'amount' => $tiyin,
+            'currency_id' => 860,
+            'return_url' => $returnUrl,
+            'amount_in_tiyin' => 'True',
+            'account.order_id' => $orderId,
+        ], '', '&', PHP_QUERY_RFC1738);
+
+        return rtrim((string) config('services.paylov.checkout_url'), '/') . '/' . base64_encode($query);
+    }
+
+    /**
+     * Wave P: Paylov has no public sandbox. The platform provider in `test` on a server that is not APP_ENV=production
+     * talks to an in-process fake (PaylovApi); production never does, not even with PAYMENTS_ALLOW_TEST_MODE (which
+     * only opens Payme's real sandbox there), so a live payment is always confirmed by the real Paylov.
+     */
+    public function paylovFake(): bool
+    {
+        return config('app.env') !== 'production' && $this->mode('paylov') === 'test';
+    }
+
+    /**
      * Where the customer lands after paying an order: the Mini App (the old store panel /admin is gone), else the site.
      */
     public static function orderReturnUrl(): string

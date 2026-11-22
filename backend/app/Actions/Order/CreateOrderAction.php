@@ -63,7 +63,7 @@ class CreateOrderAction
         if (!\App\Models\Store::isPaymentMethodAvailable($method)) {
             throw \App\Services\Payment\PaymentProviderSwitch::refusal($method);
         }
-        // Go-live review M2: a Click/Payme order the platform would collect needs the platform's merchant ids, else
+        // Go-live review M2: a Click/Payme/Paylov order the platform would collect needs the platform's merchant ids, else
         // its checkout link opens nothing: 422 payment_provider_unconfigured before any row
         $checkoutStore = isset($payload['store_id']) ? \App\Models\Store::find($payload['store_id']) : null;
         if ($checkoutStore !== null) {
@@ -109,6 +109,7 @@ class CreateOrderAction
             $acceptPayme = (bool) ($settings['payme']['enabled'] ?? ($settings['payme'] ?? false));
             $acceptUzum = (bool) ($settings['uzum']['enabled'] ?? ($settings['uzum'] ?? false));
             $acceptPaynet = (bool) ($settings['paynet']['enabled'] ?? ($settings['paynet'] ?? false));
+            $acceptPaylov = (bool) ($settings['paylov']['enabled'] ?? ($settings['paylov'] ?? false));
 
             // Validate Order Type (Delivery / Pickup)
             $orderType = $payload['type'] ?? 'delivery';
@@ -143,6 +144,9 @@ class CreateOrderAction
             }
             if ($paymentMethod === 'paynet' && !$acceptPaynet) {
                 throw new Exception("Restoran Paynet orqali to'lov qabul qilmaydi.");
+            }
+            if ($paymentMethod === 'paylov' && !$acceptPaylov) {
+                throw new Exception("Restoran Paylov orqali to'lov qabul qilmaydi.");
             }
 
             // 2. Branch Routing Engine

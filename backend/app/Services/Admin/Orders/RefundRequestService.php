@@ -28,9 +28,12 @@ use Illuminate\Support\Facades\DB;
  *    flagged for a manual refund) is spread over the payments still paid, oldest first: a keshbek payment's share goes
  *    back to the customer's balance at once (as OrderStatusService::refundKeshbek does it; once a keshbek payment is
  *    given back in full it is `refunded`), any other share is a manual refund the approver makes in the provider's
- *    cabinet or in cash — mode `balance` when all of it went to the balance, `manual` otherwise. No provider refund API
- *    is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and Uzum have
+ *    cabinet or in cash — mode `balance` when all of it went to the balance, `manual` otherwise. No Click/Payme refund
+ *    API is called: the code base has none (Payme's refunds arrive as its CancelTransaction webhook, Click and Uzum have
  *    no refund call here), see docs/API.md "Buyurtmalar".
+ * Wave P: Paylov refunds only a whole transaction (payment/cancel has no amount): a request for a Paylov order must be
+ * for everything still refundable (`paylov_partial_refund_not_supported` otherwise), none while one is under way
+ * (`paylov_refund_in_progress`); its share is kind `provider`, given back by RefundPaylovPayment after the commit.
  * P4-23: a part of a delivered order also reverses the same share of the store's ledger booking (commission,
  * settlement, debt payoff; LedgerService::reverseDeliveredOrderShare), recorded as `execution.ledger_reversal`. While
  * delivery's booking has failed (settlement_failed_at) there is nothing to take back yet: the part is marked
@@ -52,6 +55,9 @@ class RefundRequestService
 
     /** A share the approver returns by hand (provider's cabinet or cash). */
     public const KIND_MANUAL = 'manual';
+
+    /** Wave P: a share the provider gives back by itself (Paylov's payment/cancel, a full refund of the payment). */
+    public const KIND_PROVIDER = 'provider';
 
     public function __construct(
         private readonly OrderStatusService $orders,
@@ -192,6 +198,7 @@ class RefundRequestService
 
             $money = Money::of($amount);
             $refundable = $this->balance($order)['refundable'];
+            $this->assertPaylovRefundable($order, $money, $refundable);
             if (!$money->isPositive() || $money->isGreaterThan($refundable)) {
                 throw new AdminOrderException(
                     $refundable->isPositive()
@@ -239,6 +246,7 @@ class RefundRequestService
                     ['refundable' => $balance['refundable']->toString()],
                 );
             }
+            $this->assertPaylovRefundable($order, $amount, $balance['refundable']);
 
             $statusBefore = $order->status;
             $now = now();
@@ -260,7 +268,12 @@ class RefundRequestService
                     $shares[] = [
                         'payment' => $payment,
                         'amount' => Money::of($payment->amount),
-                        'kind' => $payment->status === PaymentStatus::REFUNDED ? self::KIND_BALANCE : self::KIND_MANUAL,
+                        'kind' => match (true) {
+                            $payment->status === PaymentStatus::REFUNDED => self::KIND_BALANCE,
+                            // Wave P: OrderStatusService::refund queued Paylov's payment/cancel for it
+                            self::paylovRefundRequested($payment) => self::KIND_PROVIDER,
+                            default => self::KIND_MANUAL,
+                        },
                     ];
                 }
             } else {
@@ -275,7 +288,7 @@ class RefundRequestService
                 }
             }
 
-            $automatic = Money::sum(...array_map(fn (array $share) => $share['amount'], array_filter($shares, fn (array $share) => $share['kind'] === self::KIND_BALANCE)));
+            $automatic = Money::sum(...array_map(fn (array $share) => $share['amount'], array_filter($shares, fn (array $share) => in_array($share['kind'], [self::KIND_BALANCE, self::KIND_PROVIDER], true))));
             $manual = $amount->minus($automatic);
 
             // Only the payments this approval touched carry it (never one refunded before it)
@@ -307,8 +320,13 @@ class RefundRequestService
                     'payment_method' => $order->payment_method,
                     'automatic_amount' => $automatic->toString(),
                     'manual_amount' => $manual->toString(),
-                    // Provider refunds are not automated in this code base: the money is returned by hand
-                    'provider_refund' => $manual->isPositive() ? 'manual' : 'none',
+                    // Provider refunds are not automated for Click/Payme: the money is returned by hand; wave P: Paylov's
+                    // are (payment/cancel, the whole payment)
+                    'provider_refund' => match (true) {
+                        $manual->isPositive() => 'manual',
+                        collect($shares)->contains(fn (array $share) => $share['kind'] === self::KIND_PROVIDER) => 'paylov',
+                        default => 'none',
+                    },
                     // P4-23: what this part took back from the store (null: the order's own refund path did it all)
                     'ledger_reversal' => $ledgerReversal ?? null,
                     // Review W2: delivery's booking had failed, nothing was on the ledger to take back yet; the retry
@@ -359,6 +377,20 @@ class RefundRequestService
             $left = $left->minus($share);
 
             $toBalance = $payment->provider === 'keshbek';
+            // Wave P: a Paylov payment goes back whole through Paylov (assertPaylovRefundable refused any part of it)
+            if ($payment->provider === 'paylov' && $payment->provider_transaction_id !== null && $share->equals(Money::of($payment->amount))) {
+                $payload = $payment->payload ?? [];
+                $payload['paylov']['refund'] = [
+                    'status' => \App\Services\Payment\Paylov\PaylovPayments::REFUND_REQUESTED,
+                    'reason' => "refund_request_{$refund->id}",
+                    'requested_at' => $now->toIso8601String(),
+                ];
+                $payment->update(['payload' => $payload]);
+                \App\Jobs\RefundPaylovPayment::dispatch((int) $payment->id);
+                $shares[] = ['payment' => $payment, 'amount' => $share, 'kind' => self::KIND_PROVIDER];
+
+                continue;
+            }
             if ($toBalance) {
                 // A numeric string keeps the amount exact; Laravel accepts it although the stub says float|int
                 User::whereKey($order->user_id)->increment('balance', $share->toString()); // @phpstan-ignore argument.type
@@ -394,6 +426,47 @@ class RefundRequestService
         }
 
         return $shares;
+    }
+
+    /**
+     * Wave P: Paylov only refunds a whole transaction (developer.paylov.uz/subscribe/cancel-payment takes no amount), so
+     * a refund request for a Paylov order is for everything still refundable, and none while a refund through Paylov is
+     * still under way (it would be given back twice).
+     *
+     * @throws AdminOrderException
+     */
+    private function assertPaylovRefundable(Order $order, Money $amount, Money $refundable): void
+    {
+        $paylov = Payment::where('order_id', $order->id)->where('provider', 'paylov')->whereNotNull('provider_transaction_id')
+            ->where('status', PaymentStatus::PAID->value)->get();
+        if ($order->payment_method !== 'paylov' && $paylov->isEmpty()) {
+            return;
+        }
+
+        if ($paylov->contains(fn (Payment $payment) => self::paylovRefundRequested($payment))) {
+            throw new AdminOrderException(
+                "Bu buyurtma puli Paylov orqali mijozga qaytarilmoqda: natijasini kuting, so'ng kerak bo'lsa yangi so'rov yarating.",
+                'paylov_refund_in_progress',
+                422,
+            );
+        }
+
+        if (!$amount->equals($refundable)) {
+            throw new AdminOrderException(
+                "Paylov faqat to'liq qaytarishni qo'llaydi: bu buyurtma bo'yicha faqat butun summani (" . self::uzs($refundable) . ") qaytarish mumkin. Qisman qaytarish kerak bo'lsa, pulni Paylov biznes panelidan yoki boshqa yo'l bilan qo'lda qaytaring.",
+                'paylov_partial_refund_not_supported',
+                422,
+                ['refundable' => $refundable->toString()],
+            );
+        }
+    }
+
+    private static function paylovRefundRequested(Payment $payment): bool
+    {
+        $refund = $payment->payload['paylov']['refund'] ?? null;
+
+        return $payment->provider === 'paylov' && is_array($refund)
+            && in_array($refund['status'] ?? null, [\App\Services\Payment\Paylov\PaylovPayments::REFUND_REQUESTED, \App\Services\Payment\Paylov\PaylovPayments::REFUND_RETRYING], true);
     }
 
     /**

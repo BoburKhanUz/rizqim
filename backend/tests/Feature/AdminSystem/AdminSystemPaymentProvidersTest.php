@@ -45,7 +45,7 @@ class AdminSystemPaymentProvidersTest extends TestCase
         $response = $this->adminJson('GET', '/system/payment-providers', $this->signIn($this->makeMember(PlatformRole::SUPERADMIN)))->assertOk();
         $providers = array_column($response->json('data'), null, 'slug');
 
-        $this->assertSame(['payme', 'click', 'uzum', 'paynet'], array_keys($providers));
+        $this->assertSame(['payme', 'click', 'uzum', 'paynet', 'paylov'], array_keys($providers));
         $this->assertSame([true, true, false], [$providers['payme']['wired'], $providers['click']['wired'], $providers['uzum']['wired']]);
 
         $payme = $this->keys($providers['payme']);
@@ -86,7 +86,7 @@ class AdminSystemPaymentProvidersTest extends TestCase
         $migration->up();
 
         $this->assertSame(
-            ['payme' => ['production', true], 'click' => ['production', true], 'uzum' => ['production', true], 'paynet' => ['production', true]],
+            ['payme' => ['production', true], 'click' => ['production', true], 'uzum' => ['production', true], 'paynet' => ['production', true], 'paylov' => ['production', true]],
             DB::table('payment_providers')->orderBy('id')->get(['slug', 'mode', 'is_active'])->mapWithKeys(fn ($row) => [$row->slug => [$row->mode, (bool) $row->is_active]])->all(),
         );
         Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context = []) => str_contains($message, 'test_mode') && ($context['providers'] ?? null) === ['payme'])->once();

@@ -399,7 +399,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | POS: bron va nasiya (P3-17) | `/pos/bookings` (+ `calendar`, `{uuid}/confirm`, `/cancel`, `/no-show`, `/arrive`, `/items`, `/deposits`, `.../refund`, `.../retain`), `/pos/customer-accounts` (+ `debtors`, `{uuid}/statement`, `/repayments`, `/adjustments`) | bron taqvimi va to'qnashuv, oldindan buyurtma, avans (bo'nak cheki), "Keldi", nasiya hisoblari va qarz to'lovi (kredit cheki) ("Bron, avans va nasiya (P3-17)" bo'limi) |
 | POS: schyot, to'lov va smena (P3-18) | `/pos/orders/{uuid}/bills`, `/pos/bills/{uuid}/print`, `/pos/bills/{uuid}/payments`, `/pos/bills/{uuid}/fiscal-retry`, `POST /pos/orders/{uuid}/close`, `POST /pos/refunds`, `/pos/shifts` (+ `current`, `{uuid}`, `/x-report`, `/cash-movements`, `/close`), `POST /pos/approvals` | schyot va bo'lish, aralash to'lov, sotuv cheki, smena ichida qaytarish, smena, X va Z, menejer PIN tasdig'i ("Schyot, to'lov va smena (P3-18)" bo'limi) |
 | Feature flag'lar | `GET /features` | do'kon bo'yicha yoqilgan imkoniyatlar |
-| Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan. Payme xatosida `message` — `{uz, ru, en}` obyekti (SetFiscalData xatolari bundan mustasno), tizim xatosi `-32400`, JSON emas `-32700`, noma'lum metod `-32601` (`data` = metod nomi); Click'da majburiy maydon yo'q bo'lsa `-8`. Ishga tushirish: [PAYMENTS_GO_LIVE.md](PAYMENTS_GO_LIVE.md) |
+| Webhooklar | `POST /payments/click/webhook`, `/payments/payme/webhook`, `/payments/paylov/webhook`, `/telegram/webhook` | serverdan serverga, imzo bilan (Paylov: faqat Basic Auth, "Paylov webhook'i" bo'limi). Payme xatosida `message` — `{uz, ru, en}` obyekti (SetFiscalData xatolari bundan mustasno), tizim xatosi `-32400`, JSON emas `-32700`, noma'lum metod `-32601` (`data` = metod nomi); Click'da majburiy maydon yo'q bo'lsa `-8`. Ishga tushirish: [PAYMENTS_GO_LIVE.md](PAYMENTS_GO_LIVE.md) |
 | Xizmat | `GET /health` (va `/api/v1/health`), `POST /api/broadcasting/auth` | monitoring, real-time obuna |
 
 ### 9.1. Xodim buyurtmalari va oshxona ekrani (P2-11)
@@ -662,8 +662,12 @@ bildirishnomalar keladigan Telegram guruhini ulash havolasi (`https://t.me/<bot>
 bo'lsa `null`) va guruh ulanganmi (chat ID'ning o'zi qaytmaydi). Taklif qilinmaydigan to'lov tizimi
 `{enabled: false, available: false, unavailable_reason}`: `not_integrated` (Uzum, Paynet) yoki `switched_off` (RIZQIM
 vaqtincha o'chirgan); `POST` uni yoqishga urinsa 422. `own_account` ovqatxona Click (`service_id`, `merchant_id`,
-`secret_key`) va Payme (`merchant_id`, `secret_key`) kalitlarini `payment_settings.<tizim>` ichida yuboradi; maxfiy kalit
-hech qachon qaytmaydi (`has_secret_key`), bo'sh yoki yulduzchali qiymat saqlanganini qoldiradi. Hamkor panelida: «Sozlamalar»
+`secret_key`), Payme (`merchant_id`, `secret_key`) va Paylov (`merchant_id`, `consumer_key`, `consumer_secret`, `username`,
+`password`, `callback_login`, `callback_password` — yettalasi ham kerak) kalitlarini `payment_settings.<tizim>` ichida
+yuboradi; maxfiy kalit hech qachon qaytmaydi (`has_secret_key`, Paylov'da `has_consumer_key`, `has_consumer_secret`,
+`has_username`, `has_password`, `has_callback_login`, `has_callback_password`), bo'sh yoki yulduzchali qiymat saqlanganini
+qoldiradi. Paylov mijozga (do'kon ro'yxati, `payment_settings.paylov`) faqat RIZQIM yoqqan **va** to'lov tushadigan hisobning
+(do'konning o'zi yoki platforma) yetti kaliti to'liq bo'lsa ko'rsatiladi, aks holda `{enabled: false, available: false}`. Hamkor panelida: «Sozlamalar»
 (Telegram guruhi, o'z kassa kalitlari), «Harakatlar jurnali» (`/audit`, `GET /owner/audit-logs`), «Xodimlar» → «Mening PIN
 kodim» (`PUT /owner/staff/{o'z id}/pin`).
 
@@ -857,6 +861,49 @@ o'zgarmagan (boshqa qiymatlar avvalgidek `telegram` ga tushadi).
 ruxsat, boshqa do'kon va filial izolyatsiyasi, yo'naltirish ustuvorligi, sozlamalar validatsiyasi, terminal va oddiy
 kirish uchun bootstrap shakli, POS kanal narxi va ko'rinishi, mijoz katalogi o'zgarmagani.
 
+## Paylov webhook'i (wave P)
+
+`POST /payments/paylov/webhook` (`throttle:payment-webhooks`) — Paylov Checkout API callback'lari va bekor qilish webhook'i,
+JSON-RPC 2.0. Rasmiy hujjat: [paylov-payment-gateway](https://developer.paylov.uz/merchants/paylov-payment-gateway),
+[transaction-check](https://developer.paylov.uz/merchants/transaction-check),
+[transaction-perform](https://developer.paylov.uz/merchants/transaction-perform),
+[statuses](https://developer.paylov.uz/merchants/statuses),
+[cancel-webhook](https://developer.paylov.uz/subscribe/payment/cancel-webhook). Ishga tushirish:
+[PAYMENTS_GO_LIVE.md, 11-bo'lim](PAYMENTS_GO_LIVE.md#11-paylov).
+
+- **Havola** (`POST /orders` javobidagi `payment_url`): `https://my.paylov.uz/checkout/create/<base64(merchant_id=…&amount=<tiyin>&currency_id=860&return_url=…&amount_in_tiyin=True&account.order_id=<buyurtma uuid>)>`.
+  Summa aniq tiyin (float emas). Kalitlardan biri yo'q bo'lsa buyurtma 422 `payment_provider_unconfigured` (hech narsa
+  yaratilmaydi).
+- **Kirish**: `Authorization: Basic base64(callback_login:callback_password)` — buyurtma to'lanadigan hisobniki
+  (`payment_owner`: platforma yoki do'konning o'z `payment_settings.paylov`), ikkalasi ham doimiy vaqtda solishtiriladi.
+  Noto'g'ri yoki sozlanmagan — **HTTP 401**, body `{"result": {"status": "+1", "statusText": "unauthorized"}}` (hujjatda
+  bu javob yozilmagan).
+- **Javob**: `{"jsonrpc": "2.0", "id": <so'rov id>, "result": {"status": "<kod>", "statusText": "<matn>"}}`. Kodlar
+  hujjatdagidek satr: `0` OK, `3` `Maintenance is in process` (bizda tizim xatosi, hech narsa yozilmagan), `5` `Invalid
+  amount`, `303` `Order not found`, `+1` — `statusText` da sabab: `order_already_paid`, `order_not_payable` (bekor qilingan,
+  rad etilgan, qaytarilgan), `unsupported_currency` (`currency ≠ 860`), `transaction_id_required`, `invalid_transaction_id`
+  (UUID emas), `transaction_belongs_to_another_order`, `transaction_cancelled`, `method_not_found`, `parse_error`.
+- `transaction.check {account.order_id, amount, amount_tiyin, currency}` — buyurtma Paylov usulida, `amount_tiyin` aniq
+  butun son va buyurtma summasiga teng (kasr, yo'q yoki faqat so'mdagi `amount` — `5`), buyurtma to'lanishi mumkin.
+- `transaction.perform {transaction_id, ...}` — xuddi shu tekshiruvlar, buyurtma qatori qulfi ostida to'lov `pending`,
+  `payload.paylov.state = unconfirmed` bilan yoziladi va darhol `0` qaytadi. Webhook imzolanmagani uchun to'lov faqat
+  `GET BASE_URL/merchant/getTransactions/?id=` (Bearer token, [transaction-status](https://developer.paylov.uz/subscribe/payment/transaction-status))
+  `status = payed` va `amount_in_tiyin` teng deganda **bir marta** `paid` bo'ladi (buyurtma `paid`, `PaymentPaid`,
+  chek). `failed`/`cancel`/`refunded` — to'lov yopiladi (`rejected`); javob yo'q, xato, bo'sh ro'yxat yoki
+  `created`/`transfer`/`pending`/`waiting` — `unconfirmed` qoladi va `payments:paylov-reconcile` (har 5 daqiqa) qayta
+  tekshiradi; bunday buyurtma to'lanmagan deb bekor qilinmaydi, 1 soatdan keyin `critical` log. Boshqa summa —
+  `mismatch`, hech qachon hisoblanmaydi. Takroriy perform o'sha javobni oladi (to'langan bo'lsa `PaymentPaid` qayta
+  yuboriladi, ikki marta hisoblanmaydi). To'langan yoki bekor qilingan buyurtmaga perform `+1` oladi, lekin to'lov baribir
+  yoziladi: Paylov `payed` desa pul `payment/cancel` bilan to'liq qaytariladi, buyurtmaga hisoblanmaydi.
+- `transaction.cancel {transaction_id, status, account, amount, amount_in_tiyin, cancel_time}` (id'siz notification,
+  3 martagacha takrorlanadi) — har doim 2xx; bir marta yoziladi: `unconfirmed` to'lov `cancelled`, to'langan — `refunded`;
+  yetkazilgan buyurtma `refunded` (komissiya va hisob-kitob qaytadi, "qo'lda qaytarish" yo'q), bekor qilingan/qaytarilgan
+  buyurtmaning `payment_status` — `refunded`, jarayondagi buyurtma yana `pending` (Payme `CancelTransaction` kabi).
+  Noma'lum tranzaksiya — 2xx, hech narsa yozilmaydi. Yozib bo'lmasa — HTTP 500 (Paylov qayta yuboradi).
+- Rejim: Tizim → To'lov tizimlari → Paylov `test` faqat `APP_ENV` production bo'lmagan serverda — soxta drayver (Paylov
+  API'siga so'rov ketmaydi); productionda `test` ga o'tkazib bo'lmaydi (422 `test_mode_not_allowed`), bazada qolgan `test`
+  ham haqiqiy Paylov bilan ishlaydi.
+
 ## Onlayn to'lov fiskal cheki (P3-14)
 
 Mini App buyurtmasi Payme yoki Click orqali to'langanda fiskal chekni **to'lov tizimining o'zi** ro'yxatdan o'tkazadi,
@@ -911,8 +958,24 @@ OFD rad etdi, urinishlar tugadi), `recorded` (chek `fiscal_receipts` da); fiskal
 `null`. Filtr: `GET /owner/payments?fiscal_status=blocked|pending|failed|recorded` (`finance.view`). Muammo kodlari:
 `mxik_missing`, `package_code_missing`, `store_tin_missing`, `charge_mxik_missing` (xizmat haqi yoki joy narxi),
 `delivery_mxik_missing`, `items_missing`, `sum_mismatch`, `fiscal_unavailable`, `payme_platform_cashbox`,
-`payme_ofd_rejected`, `click_credentials_missing`, `click_submit_failed`, `click_qr_missing`. Xom provayder
-ma'lumoti hech qachon qaytarilmaydi.
+`payme_ofd_rejected`, `click_credentials_missing`, `click_submit_failed`, `click_qr_missing`, Paylov'da
+`paylov_credentials_missing`, `paylov_vat_not_whole` va `paylov_<Paylov xato kodi>` (masalan
+`paylov_ofd_commitent_or_subcommission_not_active`, `paylov_invalid_amount`). Qaytarish cheki holati Paylov'da alohida:
+`refund_status` (`recorded` | `failed`), `refund_problems`. Xom provayder ma'lumoti hech qachon qaytarilmaydi.
+
+**Paylov** (wave P; [fiscalization/register](https://developer.paylov.uz/subscribe/ofd/register),
+[status](https://developer.paylov.uz/subscribe/ofd/get-receipt), [refund](https://developer.paylov.uz/subscribe/ofd/refund-receipt)):
+- To'lov **tasdiqlangandan keyin** (getTransactions `payed`, perform'ning o'zi emas) navbatga `RegisterPaylovFiscalReceipt`:
+  `POST BASE_URL/merchant/fiscalization/register/ {transactionId, items[]}`, `items[]`: `title`, `price` (birlik narxi,
+  tiyin), `discount`, `count`, `code` (MXIK), `vat_percent` (butun son), `package_code`, `tin` (9 raqam) yoki `pinfl` (14
+  raqam, ikkalasi emas). Payme `detail` qoidasi bilan: `Σ(price × count − discount)` = tranzaksiya summasi, butun bo'lmagan
+  miqdor `count: 1`. Paylov'da `shipping` yo'q: yetkazish — `delivery` MXIK'i bilan alohida qator (Click kabi).
+  Javob `ofd {receiptUrl, terminalId, receiptId, fiscalSign}` `fiscal_receipts` ga yoziladi. `ofd_check_already_generated`
+  bo'lsa chek `fiscalization/status?refunded=false&transactionId=` dan o'qiladi. Uzilish va o'tkinchi xatolar qayta
+  uriniladi (Click jadvali bilan), qolgan rad javoblari — `failed`.
+- To'liq qaytarishda (`payment/cancel` chekni ham bekor qiladi) qaytarish cheki avval
+  `fiscalization/status?refunded=true` dan o'qiladi, bo'lmasa `POST fiscalization/refund {receiptId}` bilan so'raladi;
+  sotuv chekiga bog'lanib yoziladi.
 
 Testlar: `tests/Feature/OnlineFiscal/*` — hujjatdagi so'rov va javob namunalari, summalar va yaxlitlash, SetFiscalData
 idempotentligi va auth, Click ishining muvaffaqiyati, xatosi va qayta urinishi, MXIK va STIR yo'qligi, haqiqiy fiskal
@@ -3073,7 +3136,9 @@ Qator maydonlari va: `customer {id, name, phone, has_telegram}`, `courier {id, n
 `delivery_address`, `notes`, `items[]`, `totals` (subtotal, discount, delivery_price, service_charge, place_fee, total,
 commission, payment_owner), `cancel {reason, reason_label, note}`, `payments[]` (provider, amount, status, paid_at,
 `manual_refund_required` — belgilangan, to'langan va hali hammasi qo'lda qaytarishga tasdiqlanmagan,
-`manual_refund_approved[]` — shu to'lovga tushgan tasdiqlar va summalari), `refunds {paid, refunded, refundable,
+`manual_refund_approved[]` — shu to'lovga tushgan tasdiqlar va summalari; wave P, faqat Paylov'da, boshqalarda `null`:
+`confirmation` — `unconfirmed` | `confirmed` | `rejected` | `mismatch` | `cancelled`, `provider_refund` — Paylov orqali
+to'liq qaytarish: `requested` | `retrying` | `done` | `failed`), `refunds {paid, refunded, refundable,
 requests[]}`, `history[]`
 (holat, vaqt, `actor {id, name, role, team}` — `team: true` RIZQIM jamoasi a'zosi, null — tizim, `notes`),
 `sla_timeline[]` (bosqich, boshlanishi, tugashi, necha daqiqa, kechikdimi), `sla_events[]`, `fiscal_receipts[]`,
@@ -3120,12 +3185,22 @@ o'z nomidan ishlaydi: `OrderPolicy` `platform` rolidagi a'zoga `orders.intervene
 | Yetkazilgan buyurtma, summa = to'langan hammasi va **oldin hech narsa qaytarilmagan** | `order_refunded` | `OrderStatusService::refund`: buyurtma `refunded`, ovqatxona komissiyasi va o'tkazilgan pul qaytariladi (`LedgerService::reverseDeliveredOrder`), keshbek mijoz balansiga qaytadi, Click/Payme yoki naqd to'lovga "qo'lda qaytarish" belgisi |
 | Qolgan hamma holat: yetkazilgan buyurtmaning bir qismi (oldingi qismdan keyingi qoldiq ham), bekor qilingan / rad etilgan / qaytarilgan buyurtma | `balance` yoki `manual` | buyurtma holati o'zgarmaydi. Summa hali to'langan to'lovlarga, eng eskisidan boshlab, har biriga hali tasdiqlanmagan qismigacha bo'linadi (`allocations`). **Keshbek** to'lovning ulushi darhol mijoz balansiga aynan shu summada qaytadi (`OrderStatusService::refundKeshbek` kabi; to'lov `payload.refunded_to_balance_parts`; hammasi qaytgach to'lov `refunded`, boshqa to'langan to'lov qolmasa buyurtmaning `payment_status` ham `refunded` — keyingi qaytarish yo'li uni yana qaytarmaydi). Boshqa to'lovlarning ulushi — qo'lda qaytarish, to'lovga `manual_refund_approved` (o'z ulushi bilan) yoziladi. Hammasi balansga ketgan bo'lsa `balance`, aks holda `manual` |
 
-`automatic_amount` — o'zi qaytgan qism (keshbek balansga), `manual_amount` — tasdiqlovchi to'lov tizimi kabinetida
-(Payme, Click) yoki naqd qaytaradigan qism (`provider_refund: "manual"`, 0 bo'lsa `"none"`), `allocations[]` —
-`{payment_id, provider, amount, kind: "balance"|"manual"}`. Faqat tasdiq tegishli to'lovlar `payload.refund_request_ids`
-oladi; tasdiqdan oldin qaytarilgan to'lov hech qachon belgilanmaydi. **To'lov tizimi orqali avtomatik qaytarish yo'q**:
-kodda Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i sifatida keladi (kabinetdan qilinganda), Click
-qaytarish API (`payment/reversal`) va Uzum ulanmagan.
+`automatic_amount` — o'zi qaytgan qism (keshbek balansga, Paylov orqali), `manual_amount` — tasdiqlovchi to'lov tizimi
+kabinetida (Payme, Click) yoki naqd qaytaradigan qism (`provider_refund: "manual"`, Paylov o'zi qaytarsa `"paylov"`, 0
+bo'lsa `"none"`), `allocations[]` — `{payment_id, provider, amount, kind: "balance"|"manual"|"provider"}`. Faqat tasdiq
+tegishli to'lovlar `payload.refund_request_ids` oladi; tasdiqdan oldin qaytarilgan to'lov hech qachon belgilanmaydi.
+**Click/Payme orqali avtomatik qaytarish yo'q**: kodda Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i
+sifatida keladi (kabinetdan qilinganda), Click qaytarish API (`payment/reversal`) va Uzum ulanmagan.
+
+**Paylov (wave P) — faqat to'liq qaytarish.** Paylov `payment/cancel` faqat `transactionId` oladi, summa yo'q. Shuning
+uchun Paylov buyurtmasiga so'rov faqat **butun qaytariladigan summaga**: qismi — 422 `paylov_partial_refund_not_supported`
+(«Paylov faqat to'liq qaytarishni qo'llaydi: ...», `data.refundable`); Paylov orqali qaytarish hali tugamagan bo'lsa — 422
+`paylov_refund_in_progress`. Tasdiqlangan to'liq qaytarish (va to'langan Paylov buyurtmasini bekor qilish yoki
+`OrderStatusService::refund`) "qo'lda qaytarish" belgisi o'rniga commit'dan keyin `RefundPaylovPayment` ni navbatga
+qo'yadi: `POST BASE_URL/merchant/payment/cancel/ {transactionId}` → `result.status = cancelled` bo'lsa to'lov `refunded`.
+Paylov javob bermasa — qayta uriniladi (navbat, keyin har 5 daqiqada `payments:paylov-reconcile`, 12 marta); butunlay
+rad etsa (`transaction_not_available_for_cancel` va tranzaksiya Paylov'da bekor qilinmagan, `permission_denied`...) —
+to'lovga `manual_refund_required` (`manual_refund_reason: paylov_cancel_failed`), Paylov biznes panelidan qaytariladi.
 
 **Qaytariladigan summa** (`RefundRequestService::balanceOf`): to'langan = `paid`/`refunded` to'lovlar yig'indisi;
 qaytarilgan = har bir `refunded` to'lovning **to'liq** summasi (bekor qilishda keshbek, Payme bekor qilishi — oldin uning

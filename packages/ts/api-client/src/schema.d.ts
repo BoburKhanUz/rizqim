@@ -4623,7 +4623,8 @@ export interface paths {
         /**
          * Place an order (checkout)
          * @description Prices, stock, the promo code and the delivery fee are checked on the server. `payment_url` is set for online
-         *     payment methods (Click, Payme): open it to pay; the order is cancelled when it stays unpaid. 400 with the reason
+         *     payment methods (Click, Payme, Paylov): open it to pay; the order is cancelled when it stays unpaid (a Paylov payment
+         *     still being confirmed with Paylov is never cancelled as unpaid). 400 with the reason
          *     when the order cannot be placed (store closed, item unavailable, minimum not reached...).
          *
          *     P1-21 (docs/MENU.md): `items.*.quantity` may be a fraction for items sold by weight (kg/l, at least
@@ -8093,7 +8094,10 @@ export interface paths {
         /**
          * Update store settings
          * @description `payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per
-         *     provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`.
+         *     provider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`. Wave P: with an own
+         *     merchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and
+         *     callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back
+         *     (has_consumer_secret...).
          *
          *     P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
          *     PUT /owner/fiscal/settings takes them; left out = kept.
@@ -8617,6 +8621,31 @@ export interface paths {
          *     the signature is checked against the provider's secret key. Answers in Click's format (`error`, `error_note`).
          */
         post: operations["clickWebhook.handle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payments/paylov/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paylov: Checkout callbacks and the cancel webhook (JSON-RPC 2.0)
+         * @description `transaction.check` and `transaction.perform` (developer.paylov.uz/merchants/paylov-payment-gateway) and the
+         *     `transaction.cancel` notification (subscribe/payment/cancel-webhook), with HTTP Basic Auth of the callback login and
+         *     password of the account the order is paid into (the platform's, or the store's own). Answers
+         *     `{jsonrpc, id, result: {status, statusText}}`; a request without the right credentials is HTTP 401. A perform is
+         *     settled only after Paylov's getTransactions says `payed` (until then the payment is `unconfirmed`); a cancel is any
+         *     2xx, and a failure to record it a 500 so that Paylov retries it.
+         */
+        post: operations["paylovWebhook.handle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -28083,7 +28112,7 @@ export interface operations {
                     /** @enum {string} */
                     type: "delivery" | "pickup" | "dine_in";
                     /** @enum {string} */
-                    payment_method: "cash" | "click" | "payme" | "uzum" | "paynet" | "keshbek";
+                    payment_method: "cash" | "click" | "payme" | "uzum" | "paynet" | "paylov" | "keshbek";
                     branch_id?: number | null;
                     address?: string | null;
                     latitude?: number | null;
@@ -39296,6 +39325,19 @@ export interface operations {
                                     unavailable_reason?: "not_integrated" | "switched_off";
                                     has_secret_key?: boolean;
                                 };
+                                paylov?: boolean | {
+                                    enabled?: boolean;
+                                    merchant_id?: string | null;
+                                    available?: boolean;
+                                    /** @enum {string} */
+                                    unavailable_reason?: "not_integrated" | "switched_off";
+                                    has_consumer_key?: boolean;
+                                    has_consumer_secret?: boolean;
+                                    has_username?: boolean;
+                                    has_password?: boolean;
+                                    has_callback_login?: boolean;
+                                    has_callback_password?: boolean;
+                                };
                                 delivery_fee?: number | string;
                                 delivery_enabled?: boolean;
                                 pickup_enabled?: boolean;
@@ -39448,6 +39490,16 @@ export interface operations {
                             merchant_id?: string | null;
                             service_id?: string | null;
                             secret_key?: string | null;
+                        };
+                        paylov?: {
+                            enabled?: boolean;
+                            merchant_id?: string | null;
+                            consumer_key?: string | null;
+                            consumer_secret?: string | null;
+                            username?: string | null;
+                            password?: string | null;
+                            callback_login?: string | null;
+                            callback_password?: string | null;
                         };
                     };
                 };
@@ -41386,6 +41438,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    "paylovWebhook.handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        jsonrpc: string;
+                        id: number | string | null;
+                        result: {
+                            /** @enum {string} */
+                            status: "0" | "3" | "5" | "303" | "+1";
+                            statusText: string;
+                        };
+                    };
+                };
+            };
+            /** @description Callback login yoki paroli noto'g'ri yoki sozlanmagan */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        jsonrpc: string;
+                        id: number | string | null;
+                        result: {
+                            /** @enum {string} */
+                            status: "0" | "3" | "5" | "303" | "+1";
+                            statusText: string;
+                        };
+                    };
+                };
+            };
+            /** @description transaction.cancel yozilmadi: Paylov qayta yuboradi */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        jsonrpc: string;
+                        id: number | string | null;
+                        result: {
+                            /** @enum {string} */
+                            status: "0" | "3" | "5" | "303" | "+1";
+                            statusText: string;
+                        };
+                    };
                 };
             };
         };

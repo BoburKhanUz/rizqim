@@ -225,6 +225,11 @@ class AdminOrderPresenter
                     'amount' => (string) ($row['amount'] ?? '0.00'),
                     'approved_at' => $row['approved_at'] ?? null,
                 ], (array) ($payment->payload['manual_refund_approved'] ?? []))),
+                // Wave P: a Paylov payment is settled only once Paylov confirms it (PaylovPayments): unconfirmed, confirmed,
+                // rejected, mismatch or cancelled; and its full refund through Paylov: requested, retrying, done or failed.
+                // Null for every other provider
+                'confirmation' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['state'] ?? null) ? $payment->payload['paylov']['state'] : null,
+                'provider_refund' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['refund']['status'] ?? null) ? $payment->payload['paylov']['refund']['status'] : null,
                 'created_at' => $payment->created_at?->toIso8601String(),
             ])->all(),
             'refunds' => [

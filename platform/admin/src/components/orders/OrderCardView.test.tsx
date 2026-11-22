@@ -151,6 +151,18 @@ describe('OrderCardView', () => {
     expect(within(dialog).getByText(/darhol mijozning keshbek balansiga qaytadi/)).toBeInTheDocument();
   });
 
+  it('marks a Paylov payment Paylov has not confirmed yet, and its refund through Paylov', async () => {
+    const paylov = card({
+      payments: [
+        { uuid: 'p1', provider: 'paylov', amount: '50000.00', status: 'pending', paid_at: null, manual_refund_required: false, manual_refund_approved: [], confirmation: 'unconfirmed', provider_refund: null, created_at: null },
+        { uuid: 'p2', provider: 'paylov', amount: '50000.00', status: 'paid', paid_at: null, manual_refund_required: false, manual_refund_approved: [], confirmation: 'confirmed', provider_refund: 'retrying', created_at: null },
+      ],
+    });
+    setup({ [`GET /orders/${UUID}`]: () => ok(paylov) });
+    expect(await screen.findByText('Paylov tasdiqlamagan')).toBeInTheDocument();
+    expect(screen.getByText('Paylov orqali qaytarilmoqda')).toBeInTheDocument();
+  });
+
   it('is calm about an order that is not there and about a view-only member', async () => {
     setup({ [`GET /orders/${UUID}`]: () => refusal(404, 'Buyurtma topilmadi.', { reason: 'not_found' }, { code: 'not_found' }) });
     expect(await screen.findByText('Buyurtma topilmadi')).toBeInTheDocument();
