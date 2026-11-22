@@ -480,7 +480,9 @@ class Store extends Model
     protected function casts(): array
     {
         return [
-            'payment_settings' => 'array',
+            // Go-live review: a restaurant's own Click / Payme keys are encrypted at rest (APP_KEY), as the platform's
+            // (payment_providers.credentials); migration 2026_12_01_100000. Not queryable as JSON in SQL any more.
+            'payment_settings' => 'encrypted:array',
             'status' => \App\Enums\StoreStatus::class,
             'debt_balance' => 'decimal:2',
             'wallet_balance' => 'decimal:2',
@@ -544,7 +546,7 @@ class Store extends Model
             $currentSettings[$provider]['enabled'] = in_array($provider, $methods);
         }
         
-        $this->attributes['payment_settings'] = json_encode($currentSettings);
+        $this->payment_settings = $currentSettings; // through the encrypted cast
     }
     
     /**

@@ -116,7 +116,8 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             // P4-32: a payment provider switched off by the team keeps this shape with its own reason
-            if ($e instanceof \App\Services\Payment\PaymentProviderInactiveException) {
+            // Go-live review M2: a platform provider without its merchant ids (payment_provider_unconfigured), the same
+            if ($e instanceof \App\Services\Payment\PaymentProviderInactiveException || $e instanceof \App\Services\Payment\PaymentProviderUnconfiguredException) {
                 return response()->json([
                     'success' => false,
                     'message' => $e->getMessage(),

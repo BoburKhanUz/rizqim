@@ -27,7 +27,8 @@ abstract class OwnerFinanceApi {
   /// Initiate a store balance top-up payment.
   ///
   /// P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov.
-  /// tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page.
+  /// tizimlari), `payment_provider_unconfigured` when the platform's merchant ids for it are not set (nothing is.
+  /// created). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page.
   /// (PARTNER_WEB_URL).
   @POST('/v1/owner/finance/top-up')
   Future<PostV1OwnerFinanceTopUpResponse> ownerFinanceInitiateTopup({

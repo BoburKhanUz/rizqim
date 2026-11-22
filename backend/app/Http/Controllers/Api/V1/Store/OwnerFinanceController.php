@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 use App\Models\PaymentProvider;
+use App\Services\Order\PaymentLinkService;
 use App\Services\Payment\PaymentProviderSwitch;
 use App\Models\StoreTransaction;
 use App\Models\StoreWalletTransaction;
@@ -120,7 +121,8 @@ class OwnerFinanceController extends Controller
      * Initiate a store balance top-up payment.
      *
      * P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov
-     * tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
+     * tizimlari), `payment_provider_unconfigured` when the platform's merchant ids for it are not set (nothing is
+     * created). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page
      * (PARTNER_WEB_URL).
      */
     public function initiateTopup(Request $request): JsonResponse
@@ -158,6 +160,9 @@ class OwnerFinanceController extends Controller
                 'data' => ['reason' => PaymentProviderSwitch::INACTIVE_CODE, 'payment_method' => $provider, 'errors' => ['provider' => [$message]]],
             ], 422);
         }
+
+        // Go-live review M2: a top-up is paid to the platform's merchant account; without its ids the link opens nothing
+        PaymentLinkService::assertPlatformConfigured($provider, 'provider', ['store_id' => $store->id, 'flow' => 'topup']);
 
         // Create a pending top-up request
         $topupRequest = \App\Models\StoreTopupRequest::create([

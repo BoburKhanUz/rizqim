@@ -52,6 +52,10 @@ class AppServiceProvider extends ServiceProvider
         // Generous: staff dashboards poll several endpoints every 8-15s
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(300)->by($byUser($request)));
 
+        // Click / Payme callbacks (server-to-server, a few provider IPs): generous, per endpoint and IP, so a provider's
+        // retry burst or a busy evening never hits it; it only stops a flood of unsigned requests from one address
+        RateLimiter::for('payment-webhooks', fn (Request $request) => Limit::perMinute(1200)->by('payment-webhook:' . $request->path() . ':' . $request->ip()));
+
         RateLimiter::for('telegram-auth', function (Request $request) {
             // Generous per IP: behind an outer proxy / carrier NAT many users share one address
             $limits = [Limit::perMinute(300)->by('ip:' . $request->ip())];

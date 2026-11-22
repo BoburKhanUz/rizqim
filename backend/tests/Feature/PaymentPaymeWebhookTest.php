@@ -166,7 +166,9 @@ class PaymentPaymeWebhookTest extends TestCase
             ->assertJsonPath('result.create_time', 1760000000000)
             ->assertJsonPath('result.perform_time', $performed->json('result.perform_time'));
 
-        Event::assertDispatchedTimes(PaymentPaid::class, 1);
+        // Go-live review M1: the repeated Perform re-fires PaymentPaid (the listener books it once, see
+        // PaymentGoLiveFollowUpTest); CheckTransaction never does
+        Event::assertDispatchedTimes(PaymentPaid::class, 2);
         $this->assertSame(PaymentStatus::PAID, $this->order->fresh()->payment_status);
     }
 

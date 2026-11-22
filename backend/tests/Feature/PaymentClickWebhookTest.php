@@ -185,7 +185,9 @@ class PaymentClickWebhookTest extends TestCase
         $second = $this->click(1, $this->order->uuid, '50000.00')->assertJson(['error' => 0, 'error_note' => 'Already confirmed']);
 
         $this->assertSame($first->json('merchant_confirm_id'), $second->json('merchant_confirm_id'));
-        Event::assertDispatchedTimes(PaymentPaid::class, 1);
+        // Go-live review M1: the repeated Complete re-fires PaymentPaid (the listener books it once, see
+        // PaymentGoLiveFollowUpTest), so a failed settlement or auto-accept catches up; one payment only
+        Event::assertDispatchedTimes(PaymentPaid::class, 2);
         $this->assertSame(1, Payment::where('provider', 'click')->where('status', PaymentStatus::PAID->value)->count());
         $this->assertSame(PaymentStatus::PAID, $this->order->fresh()->payment_status);
     }

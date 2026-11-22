@@ -68,12 +68,13 @@ class PaymeWebhookController extends Controller
 
         // GetStatement names no account: the key says which cashbox asks (the platform's, or a restaurant's own)
         if ($method === 'GetStatement') {
-            $cashbox = $this->statementCashbox($request);
-            if ($cashbox === false) {
-                return $this->rpcError($id, -32504, 'Insufficient privileges');
-            }
-
             try {
+                // Inside the try: a database error looking the key up is a -32400 too, never an HTTP 500
+                $cashbox = $this->statementCashbox($request);
+                if ($cashbox === false) {
+                    return $this->rpcError($id, -32504, 'Insufficient privileges');
+                }
+
                 return $this->getStatement($params, $id, $cashbox);
             } catch (\Throwable $e) {
                 Log::error('Payme Webhook Exception: ' . $e->getMessage());
@@ -106,7 +107,9 @@ class PaymeWebhookController extends Controller
                     return $this->rpcError($id, -32601, 'Method not found', is_scalar($method) ? (string) $method : null);
             }
         } catch (\Throwable $e) {
-            // -32400: a system failure (database, undefined behaviour). The transaction rolled back: nothing was recorded
+            // -32400: a system failure (database, undefined behaviour) inside a method's transaction, which rolled back:
+            // nothing was recorded, so Payme may retry. What runs after a commit (PerformTransaction's PaymentPaid) never
+            // gets here: a performed transaction is always answered as performed.
             Log::error("Payme Webhook Exception: " . $e->getMessage());
 
             return $this->rpcError($id, -32400, 'System error');
@@ -157,10 +160,13 @@ class PaymeWebhookController extends Controller
     }
 
     /**
-     * Which cashbox a GetStatement comes from: null for the platform's key, the store whose own Payme key it is, or
-     * false for no known key. The platform key wins; a store key is looked up among stores that saved one.
+     * Which cashbox a GetStatement comes from: null for the platform's key, the ids of the stores whose own Payme key
+     * it is (one cashbox may serve several stores of a chain, each saving the same key), or false for no known key.
+     * The platform key wins. payment_settings is encrypted at rest, so the stores are read and compared one by one.
+     *
+     * @return list<int>|false|null
      */
-    protected function statementCashbox(Request $request): Store|false|null
+    protected function statementCashbox(Request $request): array|false|null
     {
         $presented = $this->presentedKey($request);
         if ($presented === null) {
@@ -172,15 +178,15 @@ class PaymeWebhookController extends Controller
             return null;
         }
 
-        $stores = Store::query()->whereNotNull('payment_settings->payme->secret_key')->get();
-        foreach ($stores as $store) {
+        $storeIds = [];
+        foreach (Store::query()->whereNotNull('payment_settings')->select(['id', 'payment_settings'])->lazyById(200) as $store) {
             $key = StoreMerchant::credential($store, 'payme', 'secret_key');
             if ($key !== null && hash_equals($key, $presented)) {
-                return $store;
+                $storeIds[] = (int) $store->id;
             }
         }
 
-        return false;
+        return $storeIds !== [] ? $storeIds : false;
     }
 
     /**
@@ -361,27 +367,27 @@ class PaymeWebhookController extends Controller
 
         [$order, $topupRequest] = $this->targetOf($payment);
 
-        [$response, $paidPayment] = DB::transaction(function () use ($params, $id, $payment, $order, $topupRequest) {
+        [$response, $paidPayment, $replayed] = DB::transaction(function () use ($params, $id, $payment, $order, $topupRequest) {
             [$order, $topupRequest] = $this->lockTarget($order, $topupRequest);
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
             if ($payment->status === PaymentStatus::PAID) {
-                // Repeated PerformTransaction with the same id returns the same result.
-                return [$this->performResult($id, $payment), null];
+                // Repeated PerformTransaction with the same id returns the same result (and re-fires PaymentPaid below).
+                return [$this->performResult($id, $payment), null, $payment];
             }
 
             if ($payment->status !== PaymentStatus::PENDING) {
-                return [$this->rpcError($id, -31008, 'Invalid transaction state'), null];
+                return [$this->rpcError($id, -31008, 'Invalid transaction state'), null, null];
             }
 
             if ($this->isExpired($payment)) {
                 $this->cancelPayment($payment, 4);
-                return [$this->rpcError($id, -31008, 'Transaction timed out'), null];
+                return [$this->rpcError($id, -31008, 'Transaction timed out'), null, null];
             }
 
             // Re-check under lock: the account may have been paid, cancelled or changed since CreateTransaction.
             if ($this->accountError($order, $topupRequest, Money::of($payment->amount)->toTiyin())) {
-                return [$this->rpcError($id, -31008, 'Unable to perform operation'), null];
+                return [$this->rpcError($id, -31008, 'Unable to perform operation'), null, null];
             }
 
             // Mark payment as paid
@@ -401,20 +407,49 @@ class PaymeWebhookController extends Controller
 
                 app(LedgerService::class)->creditTopup($topupRequest, 'Payme');
 
-                return [$this->performResult($id, $payment), null];
+                return [$this->performResult($id, $payment), null, null];
             }
 
             $order->update(['payment_status' => PaymentStatus::PAID->value]);
 
-            return [$this->performResult($id, $payment), $payment];
+            return [$this->performResult($id, $payment), $payment, null];
         });
 
         if ($paidPayment) {
-            // Dispatch decoupled event only on the real transition, after commit
-            event(new PaymentPaid($paidPayment));
+            // Go-live review M1: the payment is committed PAID, so the answer is the success whatever a listener does.
+            // A replay of the performed transaction fires the event again (the listener books everything once), which
+            // is how a failed settlement or auto-accept catches up.
+            $this->firePaid($paidPayment);
+        } elseif ($replayed) {
+            $this->firePaid($replayed, true);
         }
 
         return $response;
+    }
+
+    /**
+     * PaymentPaid after the commit; a listener failure is logged (with the ids, never a key) and never changes the
+     * answer to Payme. A replay re-fires it only for an order still paid (never revives a refunded or reverted one).
+     */
+    protected function firePaid(Payment $payment, bool $replay = false): void
+    {
+        if (!$payment->order_id) {
+            return;
+        }
+
+        try {
+            if ($replay && Order::whereKey($payment->order_id)->first(['id', 'payment_status'])?->payment_status !== PaymentStatus::PAID) {
+                return;
+            }
+
+            event(new PaymentPaid($payment));
+        } catch (\Throwable $e) {
+            Log::error('Payme PaymentPaid listener failed after the payment was committed: ' . $e->getMessage(), [
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id,
+                'replay' => $replay,
+            ]);
+        }
     }
 
     /**
@@ -502,7 +537,10 @@ class PaymeWebhookController extends Controller
     /**
      * Transactions Payme created within [from, to] (ms), for reconciliation.
      */
-    protected function getStatement(array $params, $id, ?Store $cashbox = null): JsonResponse
+    /**
+     * @param  list<int>|null  $cashbox  the stores of a restaurant's own cashbox, null for the platform's
+     */
+    protected function getStatement(array $params, $id, ?array $cashbox = null): JsonResponse
     {
         $from = $params['from'] ?? null;
         $to = $params['to'] ?? null;
@@ -518,7 +556,7 @@ class PaymeWebhookController extends Controller
                 "(CASE WHEN payload->>'time' ~ '^[0-9]+$' THEN CAST(payload->>'time' AS BIGINT) END) BETWEEN ? AND ?",
                 [(int) $from, (int) $to]
             )
-            ->when($cashbox !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->where('store_id', $cashbox->id)))
+            ->when($cashbox !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->whereIn('store_id', $cashbox)))
             ->get()
             // The platform cashbox: the platform-collected orders and top-ups; a store's: its STORE-owned orders
             ->filter(fn (Payment $payment) => $cashbox === null ? !OrderMerchantAccount::isStore($payment->order) : OrderMerchantAccount::isStore($payment->order))
@@ -541,7 +579,7 @@ class PaymeWebhookController extends Controller
         if ($cashbox !== null) {
             $qrWebhook = app(PaymePosQrWebhook::class);
             $transactions = $transactions->concat(PosQrPayment::query()
-                ->where('store_id', $cashbox->id)
+                ->whereIn('store_id', $cashbox)
                 ->where('provider', \App\Domain\Pos\QrPayments\QrProvider::PAYME->value)
                 ->where('driver', 'payme')
                 ->whereNotNull('provider_transaction_id')

@@ -207,6 +207,8 @@ class OrderController extends Controller
      * P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and
      * `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already
      * show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
+     * The same 422 shape with `payment_provider_unconfigured` when the order would be paid to the platform's merchant
+     * account and its ids are not set (no order is created).
      */
     #[ApiDocResponse(422, type: 'array{success: false, message: string, data: array{reason: string, min_order_amount?: string, subtotal?: string}}', description: "Yetkazib berish hududi: manzilga yetkazib bo'lmaydi yoki buyurtma hududning eng kam summasidan kam")]
     #[HeaderParameter('Idempotency-Key', description: 'Optional, 1-255 visible characters (e.g. a UUID made per checkout attempt). Same key + same body within 24 hours: the first response is returned again; another body: 409.', type: 'string')]

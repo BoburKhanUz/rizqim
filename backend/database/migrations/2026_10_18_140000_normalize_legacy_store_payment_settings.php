@@ -14,7 +14,14 @@ return new class extends Migration
     {
         DB::table('stores')->whereNotNull('payment_settings')->orderBy('id')->chunkById(200, function ($stores) {
             foreach ($stores as $store) {
-                $settings = json_decode($store->payment_settings, true);
+                // Encrypted at rest since 2026_12_01_100000 (the migration re-runs in tests and on a rollback)
+                $encrypted = true;
+                try {
+                    $json = \Illuminate\Support\Facades\Crypt::decryptString($store->payment_settings);
+                } catch (\Illuminate\Contracts\Encryption\DecryptException) {
+                    [$json, $encrypted] = [$store->payment_settings, false];
+                }
+                $settings = json_decode($json, true);
                 if (!is_array($settings)) {
                     continue;
                 }
@@ -28,7 +35,8 @@ return new class extends Migration
                 }
 
                 if ($changed) {
-                    DB::table('stores')->where('id', $store->id)->update(['payment_settings' => json_encode($settings)]);
+                    $json = json_encode($settings);
+                    DB::table('stores')->where('id', $store->id)->update(['payment_settings' => $encrypted ? \Illuminate\Support\Facades\Crypt::encryptString($json) : $json]);
                 }
             }
         });

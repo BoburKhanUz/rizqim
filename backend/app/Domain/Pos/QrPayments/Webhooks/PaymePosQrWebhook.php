@@ -12,6 +12,7 @@ use App\Models\PosQrPayment;
 use App\Models\Store;
 use App\Services\Payment\PaymeRpcMessage;
 use App\Support\Money;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -199,7 +200,8 @@ final class PaymePosQrWebhook
         if ($qr === null || $qr->provider !== QrProvider::PAYME) {
             return [-31050, 'Order not found', 'order_id'];
         }
-        if (!is_numeric($amount) || !Money::fromTiyin($amount)->equals($qr->amount)) {
+        // Payme sends whole tiyin (UZS * 100): a fraction would be rounded into a match (as for orders)
+        if (!is_numeric($amount) || BigDecimal::of((string) $amount)->hasNonZeroFractionalPart() || !Money::fromTiyin($amount)->equals($qr->amount)) {
             return [-31001, 'Incorrect amount'];
         }
         if ($qr->status === QrPaymentStatus::PAID || $qr->status === QrPaymentStatus::REFUNDED) {

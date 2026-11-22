@@ -16,7 +16,10 @@ class CheckProductionStagingTest extends TestCase
     private function safeConfig(string $env): void
     {
         config(['app.env' => $env, 'app.debug' => false, 'telegram.allow_mock_auth' => false, 'services.telegram.webhook_secret' => 'valid_secret-1',
-            'services.telegram.webapp_url' => 'https://staging.rizqim.example/', 'app.key' => 'base64:' . base64_encode(str_repeat('k', 32))]);
+            'services.telegram.webapp_url' => 'https://staging.rizqim.example/', 'app.key' => 'base64:' . base64_encode(str_repeat('k', 32)),
+            // Go-live review M2: the platform's Click / Payme accounts complete (else a warning names each missing one)
+            'services.payme.merchant_id' => 'cashbox', 'services.payme.secret_key' => 'payme-key',
+            'services.click.service_id' => 'service', 'services.click.merchant_id' => 'merchant', 'services.click.secret_key' => 'click-key']);
     }
 
     public function test_staging_environment_passes_the_check(): void

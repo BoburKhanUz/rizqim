@@ -43,15 +43,24 @@ sozlamalariga o'zi kiritadi (RIZQIM xodimi kalitni qo'lida ushlamaydi):
 | Payme | `merchant_id` (kassa ID), `secret_key` (kassa kaliti) | — |
 
 Ovqatxona o'z kabinetida ham webhook manzillarini **xuddi RIZQIM'nikidek** yozadi (3-bo'lim): hamma kassalar bitta
-manzilga keladi, server qaysi kassa ekanini buyurtma va kalit bo'yicha o'zi aniqlaydi.
+manzilga keladi, server qaysi kassa ekanini buyurtma va kalit bo'yicha o'zi aniqlaydi. Bir nechta filial (do'kon) bitta
+Payme kassasini ishlatsa, kassa ko'chirmasi (`GetStatement`) hammasining tranzaksiyalarini beradi.
+
+Ovqatxona kiritgan kalitlar (`stores.payment_settings`) bazada `APP_KEY` bilan **shifrlangan** holda saqlanadi
+(platformaning kalitlari kabi); hamkor paneli kalitni hech qachon qaytarmaydi, faqat «kalit kiritilgan» belgisini
+ko'rsatadi. Shuning uchun `APP_KEY` ni almashtirmang: almashtirilsa eski kalitni `APP_PREVIOUS_KEYS` ga yozing, aks
+holda ovqatxonalar sozlamalari o'qilmay qoladi.
 
 ---
 
 ## 2. Server qiymatlari (env nomlari)
 
 Quyidagilar serverdagi `backend/.env` ga yoziladi (yoki kalitlar boshqaruv markazidagi **Tizim → To'lov
-tizimlari**ga; u yerdagi qiymat `.env` dagidan ustun). Standart qiymat yo'q: bo'sh qolsa to'lov havolasi ishlamaydi
-va webhook rad etadi, pul boshqa hisobga ketib qolmaydi.
+tizimlari**ga; u yerdagi qiymat `.env` dagidan ustun). Standart qiymat yo'q: `merchant_id` (Click uchun `service_id`
+ham) bo'sh qolsa platforma hisobiga buyurtma va balans to'ldirish **rad etiladi** (422 `payment_provider_unconfigured`,
+«... orqali to'lov hozircha sozlanmagan», hech narsa yaratilmaydi, logda xato), `secret_key` bo'sh bo'lsa webhook rad
+etadi — pul boshqa hisobga ketib qolmaydi. `php artisan app:check-production` faol Click/Payme uchun yetishmagan har bir
+qiymatni nomi bilan ogohlantiradi (bazadagi qiymat ham hisoblanadi, qiymatning o'zi chiqmaydi).
 
 | Env nomi | Qayerdan olinadi | Maxfiymi |
 |---|---|---|

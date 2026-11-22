@@ -17,6 +17,7 @@ use App\Jobs\SubmitClickFiscalData;
 use App\Services\Finance\LedgerService;
 use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Support\Money;
+use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -129,9 +130,10 @@ class ClickWebhookController extends Controller
             ]);
         }
 
-        // 4. Verify Billing Amount matches exactly
+        // 4. Verify Billing Amount matches exactly: so'm with at most whole tiyin ("50000", "50000.00"); a sub-tiyin
+        // digit ("50000.001") is refused, never rounded into a match
         $expectedAmount = $isTopup ? $topupRequest->amount : $order->total_price;
-        if (!is_numeric($amount) || !Money::of($amount)->equals($expectedAmount)) {
+        if (!is_numeric($amount) || $this->hasSubTiyin($amount) || !Money::of($amount)->equals($expectedAmount)) {
             return response()->json([
                 'error' => -2,
                 'error_note' => 'Incorrect amount'
@@ -257,7 +259,8 @@ class ClickWebhookController extends Controller
             }
 
             if ($payment?->status === PaymentStatus::PAID) {
-                return ['already_confirmed', $payment];
+                // Re-fires PaymentPaid below for an order still paid (the listener books everything once)
+                return ['already_confirmed', $lockedOrder->payment_status === PaymentStatus::PAID ? $payment : null];
             }
 
             if ($lockedOrder->payment_status === PaymentStatus::PAID) {
@@ -288,13 +291,44 @@ class ClickWebhookController extends Controller
         });
 
         if ($outcome === 'paid') {
-            // Dispatch decoupled paid event (listener handles order states!) only on the real transition.
-            event(new PaymentPaid($payment));
+            $this->firePaid($payment);
 
             $this->queueFiscalData($order, $payment);
+        } elseif ($outcome === 'already_confirmed' && $payment !== null) {
+            // Go-live review M1: a repeated Complete is how a failed settlement or auto-accept catches up
+            $this->firePaid($payment, true);
         }
 
         return $outcome;
+    }
+
+    /**
+     * PaymentPaid after the commit (the listener settles a late payment and auto-accepts a new order). The money is
+     * taken and the payment committed, so a listener failure is logged and never turns into an HTTP 500 to Click.
+     */
+    protected function firePaid(Payment $payment, bool $replay = false): void
+    {
+        try {
+            event(new PaymentPaid($payment));
+        } catch (\Throwable $e) {
+            Log::error('Click PaymentPaid listener failed after the payment was committed: ' . $e->getMessage(), [
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id,
+                'replay' => $replay,
+            ]);
+        }
+    }
+
+    /**
+     * Whether a numeric amount has a non-zero digit past the second decimal (a fraction of a tiyin).
+     */
+    protected function hasSubTiyin(string $amount): bool
+    {
+        try {
+            return BigDecimal::of(trim($amount))->multipliedBy(100)->hasNonZeroFractionalPart();
+        } catch (\Throwable) {
+            return true;
+        }
     }
 
     /**

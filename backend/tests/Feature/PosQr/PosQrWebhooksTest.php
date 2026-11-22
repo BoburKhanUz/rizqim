@@ -205,6 +205,17 @@ class PosQrWebhooksTest extends TestCase
         $this->assertSame('expired', $qr->refresh()->status->value);
     }
 
+    public function test_payme_refuses_a_fractional_tiyin_amount_as_orders_do(): void
+    {
+        // Go-live review (LOW): Money::fromTiyin rounded "<tiyin>.4" into a match; Payme sends whole tiyin
+        $qr = $this->paymeQr();
+        $tiyin = Money::of($qr->amount)->toTiyin();
+
+        $this->payme('CheckPerformTransaction', ['amount' => $tiyin + 0.4, 'account' => $this->paymeAccount($qr)])->assertJsonPath('error.code', -31001);
+        $this->payme('CreateTransaction', ['id' => 'qr-frac-1', 'time' => 1760000000000, 'amount' => "{$tiyin}.4", 'account' => $this->paymeAccount($qr)])->assertJsonPath('error.code', -31001);
+        $this->payme('CheckPerformTransaction', ['amount' => "{$tiyin}.00", 'account' => $this->paymeAccount($qr)])->assertJsonPath('result.allow', true);
+    }
+
     public function test_payme_perform_after_the_cashier_cancelled_is_refused_and_cancel_states(): void
     {
         $qr = $this->paymeQr();
