@@ -6,10 +6,24 @@ part of 'data378.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data378 _$Data378FromJson(Map<String, dynamic> json) =>
-    Data378(key: json['key'] as String, kid: (json['kid'] as num).toInt());
+Data378 _$Data378FromJson(Map<String, dynamic> json) => Data378(
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+);
 
 Map<String, dynamic> _$Data378ToJson(Data378 instance) => <String, dynamic>{
-  'key': instance.key,
-  'kid': instance.kid,
+  'id': instance.id,
+  'name': instance.name,
+  'polygon': instance.polygon,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
 };

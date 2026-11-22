@@ -16,17 +16,17 @@ Data302 _$Data302FromJson(Map<String, dynamic> json) => Data302(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall7.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall4.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table5.fromJson(json['table'] as Map<String, dynamic>),
+      : Table2.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   tableLabel: json['table_label'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
-      : Waiter8.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter5.fromJson(json['waiter'] as Map<String, dynamic>),
   itemsCount: (json['items_count'] as num).toInt(),
   subtotal: json['subtotal'] as String,
   totalPrice: json['total_price'] as String,
@@ -38,16 +38,16 @@ Data302 _$Data302FromJson(Map<String, dynamic> json) => Data302(
   businessDate: json['business_date'] as String?,
   queue: json['queue'] == null
       ? null
-      : Queue6.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue3.fromJson(json['queue'] as Map<String, dynamic>),
   pickup: json['pickup'] == null
       ? null
-      : Pickup6.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup3.fromJson(json['pickup'] as Map<String, dynamic>),
   openedAt: json['opened_at'] as String?,
   closedAt: json['closed_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   online: json['online'] == null
       ? null
-      : Online2.fromJson(json['online'] as Map<String, dynamic>),
+      : Online.fromJson(json['online'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data302ToJson(Data302 instance) => <String, dynamic>{

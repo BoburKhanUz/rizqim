@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data158.dart';
+import 'data161.dart';
 
 part 'put_v1_owner_pos_service_charge_rules_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerPosServiceChargeRulesResponse {
 
   final bool success;
   final String message;
-  final Data158 data;
+  final Data161 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerPosServiceChargeRulesResponseToJson(this);

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'weight_basis.dart';
+import 'prices.dart';
 
 part 'data182.g.dart';
 
@@ -12,9 +12,8 @@ part 'data182.g.dart';
 class Data182 {
   const Data182({
     required this.productId,
-    required this.quickMultipliers,
-    required this.waitMinutes,
-    required this.weightMode,
+    required this.channels,
+    required this.prices,
   });
 
   factory Data182.fromJson(Map<String, Object?> json) =>
@@ -22,12 +21,8 @@ class Data182 {
 
   @JsonKey(name: 'product_id')
   final int productId;
-  @JsonKey(name: 'quick_multipliers')
-  final List<int>? quickMultipliers;
-  @JsonKey(name: 'wait_minutes')
-  final int? waitMinutes;
-  @JsonKey(name: 'weight_mode')
-  final WeightBasis? weightMode;
+  final List<dynamic> channels;
+  final List<Prices> prices;
 
   Map<String, Object?> toJson() => _$Data182ToJson(this);
 }

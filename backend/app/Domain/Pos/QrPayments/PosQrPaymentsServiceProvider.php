@@ -3,7 +3,13 @@
 namespace App\Domain\Pos\QrPayments;
 
 use App\Domain\Pos\Setup\PosBootstrap;
+use App\Domain\Fiscal\FiscalReceiptStatus;
+use App\Domain\Fiscal\FiscalReceiptType;
+use App\Domain\Pos\QrPayments\UzQr\SendUzQrReceiptLink;
 use App\Events\Broadcast\BillChangedBroadcast;
+use App\Events\Broadcast\FiscalReceiptUpdatedBroadcast;
+use App\Models\FiscalReceipt;
+use App\Models\OrderBill;
 use App\Events\Broadcast\OrderItemsChangedBroadcast;
 use App\Models\PosQrPayment;
 use App\Models\Order;
@@ -14,6 +20,8 @@ use Illuminate\Support\ServiceProvider;
 /**
  * P6-41/P6-42 "QR to'lov kassada": the bootstrap's `qr_payments` section, the cancel of a QR whose bill changed
  * (order.bill_changed, order.items_changed; after commit) and the minute job that expires QRs (pos:expire-qr-payments).
+ * Wave P: a bill's sale receipt fiscalised (fiscal.receipt_updated, issued, with its link) sends the link to UzQR for
+ * each UzQR request that paid it (SendUzQrReceiptLink, queued: the sale never waits for it).
  */
 class PosQrPaymentsServiceProvider extends ServiceProvider
 {
@@ -33,6 +41,28 @@ class PosQrPaymentsServiceProvider extends ServiceProvider
             $order = Order::where('uuid', $event->uuid)->first();
             if ($order !== null) {
                 app(QrPaymentService::class)->cancelStale($order);
+            }
+        });
+
+        Event::listen(FiscalReceiptUpdatedBroadcast::class, function (FiscalReceiptUpdatedBroadcast $event) {
+            if ($event->status !== FiscalReceiptStatus::ISSUED->value || $event->type !== FiscalReceiptType::SALE->value
+                || $event->subjectType !== OrderBill::FISCAL_SUBJECT || $event->subjectId === null) {
+                return;
+            }
+            try {
+                // Tenancy: the receipt and the requests of the event's own store
+                $receipt = FiscalReceipt::where('store_id', $event->storeId)->where('uuid', $event->uuid)->first();
+                if ($receipt === null || $receipt->non_fiscal || blank($receipt->qr_url)) {
+                    return;
+                }
+                PosQrPayment::where('store_id', $event->storeId)->where('bill_id', $event->subjectId)
+                    ->where('provider', QrProvider::UZQR->value)
+                    ->whereIn('status', [QrPaymentStatus::PAID->value, QrPaymentStatus::REFUNDED->value])
+                    ->whereNotNull('payment_id')
+                    ->pluck('id')
+                    ->each(fn (int $id) => SendUzQrReceiptLink::send($id, (int) $receipt->id));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('UzQR receipt link not queued: ' . $e->getMessage(), ['receipt' => $event->uuid]);
             }
         });
 

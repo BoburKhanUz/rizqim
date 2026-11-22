@@ -7,11 +7,17 @@ part of 'data339.dart';
 // **************************************************************************
 
 Data339 _$Data339FromJson(Map<String, dynamic> json) => Data339(
-  releases: (json['releases'] as List<dynamic>)
-      .map((e) => Releases.fromJson(e as Map<String, dynamic>))
+  businessDate: json['business_date'] as String,
+  preparing: (json['preparing'] as List<dynamic>)
+      .map((e) => Preparing2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  ready: (json['ready'] as List<dynamic>)
+      .map((e) => Ready2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data339ToJson(Data339 instance) => <String, dynamic>{
-  'releases': instance.releases,
+  'business_date': instance.businessDate,
+  'preparing': instance.preparing,
+  'ready': instance.ready,
 };

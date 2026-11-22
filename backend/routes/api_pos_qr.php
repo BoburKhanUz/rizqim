@@ -17,6 +17,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->gr
     Route::middleware('not-staff-session')->group(function () {
         Route::get('/owner/pos/qr-payments', [QrPaymentSettingsController::class, 'show'])->middleware('permission:settings.manage');
         Route::put('/owner/pos/qr-payments', [QrPaymentSettingsController::class, 'update'])->middleware(['permission:settings.manage', 'pos.module:qr_payments']);
+        // Review 11 M4: QR money the provider took that no bill took (paid_unmatched)
+        Route::get('/owner/pos/qr-payments/unmatched', [QrPaymentSettingsController::class, 'unmatched'])->middleware('permission:finance.view');
     });
 
     Route::prefix('pos')->group(function () {

@@ -272,8 +272,12 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
     turi va terminal tranzaksiya raqami **majburiy** (chek rekvizitlari talabi);
   - **QR** (`qr`) — P6-41/P6-42 (modul `qr_payments`, har tarifda): **dinamik QR** schyot qarziga (yoki aralash
     to'lovning QR qismiga) — Click (do'konning o'z Click hisobi, SHOP API Prepare/Complete), Payme (do'konning o'z
-    kassasi, Merchant API) yoki **UzQR** (`UzQrGateway` drayveri: hozircha `sandbox`, haqiqiy bank drayveri P3-32 ga
-    bog'liq; `fiscal_settings.uzqr.driver`). Kassir QR'ni schyotga chop etadi va mijoz ekraniga yuboradi; mijoz
+    kassasi, Merchant API) yoki **UzQR** (`UzQrGateway` drayveri, `fiscal_settings.uzqr.driver`: Wave P `uzqr_operator`
+    — UzQR operatori API'si, **har kassaning o'z API kaliti** bilan (restoran uzqr.uz da har kassaga dinamik QR va kalit
+    yaratadi, egasi panelda kiritadi) va do'kon STIRi; kalitsiz kassa UzQR'ni taklif qilmaydi va so'rasa oddiy xabar
+    oladi, boshqa usullar ishlayveradi; operator javob bermasa ham shunday; sinov stendida `sandbox`). UzQR to'lovi
+    chekda **bank kartasi** to'lovi (RRN bilan), sotuv cheki fiskallashgach uning havolasi UzQR'ga yuboriladi (navbatda,
+    sotuvni kutdirmaydi). Kassir QR'ni schyotga chop etadi va mijoz ekraniga yuboradi; mijoz
     to'lagach provayder o'zi tasdiqlaydi (kassir hech narsa bosmaydi): schyot `qr` to'lovini oladi (`reference` —
     provayder tranzaksiyasi), bir marta (takroriy callback — hech narsa), QR yaratilgan smenaga (yopilgan bo'lsa —
     kassaning ochiq smenasiga, yo'q bo'lsa rad). Summa tiyinigacha mos bo'lishi shart. Schyotga bitta kutilayotgan QR:
@@ -282,8 +286,14 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
     (Payme tranzaksiyasi yaratilgan bo'lsa — Payme'ning o'z kutish oynasi, 12 soat: kech tasdiq qabul qilinadi, kassada
     "Mijoz to'lamoqda"; Click Complete xato bilan kelsa ushlanish bo'shaydi; UzQR muddat tugashidan oldin shlyuzdan
     so'raladi, kech "to'langan" qabul qilinadi yoki schyot ololmasa solishtirish uchun belgilanadi — `paid_unmatched`;
-    review P6W4 C5, C9, C10). UzQR `sandbox` shlyuzi faqat sinov stendida (`QR_PAYMENTS_SANDBOX` yoki
-    `QR_PAYMENTS_SIMULATE_DRIVERS=uzqr`) tanlanadi (S3).
+    review P6W4 C5, C9, C10). Wave P review 11: bizda yopilgan UzQR (muddati o'tgan, kassir bekor qilgan, yangi QR bilan
+    almashgan) operator uni hal qilmaguncha — bekor qilishni tasdiqlab, muddati o'tib — server tomonidan so'rab
+    turiladi (operator javob bermasa ham, kamayib boruvchi tezlikda, to'xtamay); "to'langan" kelsa muddati o'tgani
+    vaqt chegarasisiz schyotga yoziladi, bekor qilingani `paid_unmatched` bo'ladi va egasiga xabar boradi (kassa uchun
+    o'zgarish yo'q: kassa yopilgan QR uchun hech narsa qilmaydi, to'lov kelsa schyot realtime/so'rovda yangilanadi).
+    Kassa kaliti almashtirilsa yoki o'chirilsa, avval yaratilgan QR o'z kaliti bilan tugaydi. UzQR to'lovi smart-kassa
+    bank terminali solishtiruvida bank terminali puli hisoblanmaydi. UzQR `sandbox` shlyuzi faqat sinov stendida
+    (`QR_PAYMENTS_SANDBOX` yoki `QR_PAYMENTS_SIMULATE_DRIVERS=uzqr`) tanlanadi (S3).
     Bekor qilingan, eskirgan yoki schyot qabul qila olmaydigan QR uchun callback provayder xato kodi bilan rad etiladi —
     pul olinmaydi (Click Complete xatosida to'lovni qaytaradi, Payme tranzaksiyani o'z vaqti tugagach bekor qiladi).
     **Fiskal chekni Rizqim chiqaradi**: Click fiskal ma'lumoti (`SubmitClickFiscalData`) yuborilmaydi, Payme

@@ -6244,6 +6244,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/fiscal/uzqr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * UzQR credentials
+         * @description The store's UzQR driver (`fiscal_settings.uzqr.driver`; null: UzQR not offered), its STIR (`tin`, set in the
+         *     fiscal settings) and its POS tills (`branch_id` narrows to one; a branch-bound caller: theirs) with whether each
+         *     has its UzQR API key (`has_api_key`, `api_key_last4`, `api_key_set_at`) and whether it can make a UzQR now
+         *     (`ready`; else `message` says why). The key itself is never returned. settings.manage.
+         */
+        get: operations["uzQrSettings.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/uzqr/tills/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a till's UzQR API key
+         * @description `api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512
+         *     printable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is
+         *     kept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe
+         *     its key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it
+         *     after a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.
+         *     settings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.
+         */
+        put: operations["uzQrSettings.updateTill"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/halls": {
         parameters: {
             query?: never;
@@ -7172,6 +7220,30 @@ export interface paths {
          *     changes nothing (403 subscription_locked). Audited (settings.qr_payments_changed).
          */
         put: operations["qrPaymentSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/qr-payments/unmatched": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * QR money no bill took
+         * @description Wave P (review 11): the QR payments the provider took that no bill took (`paid_unmatched`: paid after the cashier
+         *     cancelled it or after a newer QR, of another amount, after the bill was paid another way or the shift closed),
+         *     newest first, at most 200, and their `total`. The owner is also told of each one when it happens (Telegram /
+         *     push). Give the money back from the provider's own cabinet (uzqr.uz, Click, Payme) or count it in the
+         *     reconciliation. `branch_id` narrows to one branch (a branch-bound caller: theirs). finance.view.
+         */
+        get: operations["qrPaymentSettings.unmatched"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -33342,6 +33414,99 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "uzQrSettings.index": {
+        parameters: {
+            query?: {
+                /** @description Filial. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            driver: string | null;
+                            tin: string | null;
+                            tin_set: boolean;
+                            tills: {
+                                uuid: string;
+                                name: string | null;
+                                branch_id: number | null;
+                                has_api_key: boolean;
+                                api_key_last4: string | null;
+                                api_key_set_at: string | null;
+                                ready: boolean;
+                                message: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "uzQrSettings.updateTill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Kassaning UzQR API kaliti (yashirin; maskalangan qiymat saqlanganini o'zgartirmaydi). */
+                    api_key?: string | null;
+                    remove_api_key?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string | null;
+                            branch_id: number | null;
+                            has_api_key: boolean;
+                            api_key_last4: string | null;
+                            api_key_set_at: string | null;
+                            ready: boolean;
+                            message: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "hall.index": {
         parameters: {
             query?: {
@@ -36516,6 +36681,50 @@ export interface operations {
                                 expiry_min: number;
                                 expiry_max: number;
                             };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "qrPaymentSettings.unmatched": {
+        parameters: {
+            query?: {
+                /** @description Filial. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            items: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                branch_id: number;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                transaction_id: string | null;
+                                reason: string | null;
+                                status: string;
+                                created_at: string | null;
+                                unmatched_at: string | null;
+                            }[];
+                            total: string;
                         };
                     };
                 };
@@ -45889,6 +46098,7 @@ export interface operations {
                                 payment_uuid: string | null;
                                 refunded_amount: string;
                                 simulated: boolean;
+                                receipt_link: string | null;
                                 created_at: string | null;
                             }[];
                         };
@@ -45952,6 +46162,7 @@ export interface operations {
                                 payment_uuid: string | null;
                                 refunded_amount: string;
                                 simulated: boolean;
+                                receipt_link: string | null;
                                 created_at: string | null;
                             };
                         };
@@ -57146,6 +57357,7 @@ export interface operations {
                                 payment_uuid: string | null;
                                 refunded_amount: string;
                                 simulated: boolean;
+                                receipt_link: string | null;
                                 created_at: string | null;
                             };
                         };
@@ -57203,6 +57415,7 @@ export interface operations {
                                 payment_uuid: string | null;
                                 refunded_amount: string;
                                 simulated: boolean;
+                                receipt_link: string | null;
                                 created_at: string | null;
                             };
                         };
@@ -57258,6 +57471,7 @@ export interface operations {
                                 payment_uuid: string | null;
                                 refunded_amount: string;
                                 simulated: boolean;
+                                receipt_link: string | null;
                                 created_at: string | null;
                             };
                         };

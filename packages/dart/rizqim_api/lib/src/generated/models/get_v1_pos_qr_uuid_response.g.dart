@@ -11,7 +11,7 @@ GetV1PosQrUuidResponse _$GetV1PosQrUuidResponseFromJson(
 ) => GetV1PosQrUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data333.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data336.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosQrUuidResponseToJson(

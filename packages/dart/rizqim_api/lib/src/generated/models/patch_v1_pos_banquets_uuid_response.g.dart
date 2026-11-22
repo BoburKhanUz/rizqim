@@ -11,7 +11,7 @@ PatchV1PosBanquetsUuidResponse _$PatchV1PosBanquetsUuidResponseFromJson(
 ) => PatchV1PosBanquetsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data228.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data231.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1PosBanquetsUuidResponseToJson(

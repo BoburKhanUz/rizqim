@@ -4,8 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hub.dart';
-import 'candidates.dart';
+import 'locks2.dart';
+import 'module_rows2.dart';
+import 'profiles2.dart';
+import 'template2.dart';
 
 part 'data152.g.dart';
 
@@ -13,11 +15,15 @@ part 'data152.g.dart';
 class Data152 {
   const Data152({
     required this.branchId,
-    required this.keyId,
-    required this.rotatedAt,
-    required this.port,
-    required this.hub,
-    required this.candidates,
+    required this.profile,
+    required this.profileLabel,
+    required this.mode,
+    required this.firstScreen,
+    required this.modules,
+    required this.locks,
+    required this.moduleRows,
+    required this.profiles,
+    required this.template,
   });
 
   factory Data152.fromJson(Map<String, Object?> json) =>
@@ -25,13 +31,18 @@ class Data152 {
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'key_id')
-  final int keyId;
-  @JsonKey(name: 'rotated_at')
-  final String? rotatedAt;
-  final int port;
-  final Hub? hub;
-  final List<Candidates> candidates;
+  final String profile;
+  @JsonKey(name: 'profile_label')
+  final String profileLabel;
+  final String mode;
+  @JsonKey(name: 'first_screen')
+  final String firstScreen;
+  final List<String> modules;
+  final Locks2 locks;
+  @JsonKey(name: 'module_rows')
+  final List<ModuleRows2> moduleRows;
+  final List<Profiles2> profiles;
+  final Template2 template;
 
   Map<String, Object?> toJson() => _$Data152ToJson(this);
 }

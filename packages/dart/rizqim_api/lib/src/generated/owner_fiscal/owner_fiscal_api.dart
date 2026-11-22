@@ -11,18 +11,21 @@ import '../models/get_v1_owner_fiscal_receipts_response.dart';
 import '../models/get_v1_owner_fiscal_receipts_uuid_response.dart';
 import '../models/get_v1_owner_fiscal_settings_response.dart';
 import '../models/get_v1_owner_fiscal_terminal_flow_response.dart';
+import '../models/get_v1_owner_fiscal_uzqr_response.dart';
 import '../models/payment_form.dart';
 import '../models/post_v1_owner_fiscal_receipts_uuid_retry_response.dart';
 import '../models/put_v1_owner_branches_branch_terminal_flow_response.dart';
 import '../models/put_v1_owner_fiscal_bank_reports_uuid_response.dart';
 import '../models/put_v1_owner_fiscal_devices_uuid_response.dart';
 import '../models/put_v1_owner_fiscal_settings_response.dart';
+import '../models/put_v1_owner_fiscal_uzqr_tills_uuid_response.dart';
 import '../models/status5.dart';
 import '../models/type6.dart';
 import '../models/v1_owner_branches_branch_terminal_flow_request_body.dart';
 import '../models/v1_owner_fiscal_bank_reports_uuid_request_body.dart';
 import '../models/v1_owner_fiscal_devices_uuid_request_body.dart';
 import '../models/v1_owner_fiscal_settings_request_body.dart';
+import '../models/v1_owner_fiscal_uzqr_tills_uuid_request_body.dart';
 
 part 'owner_fiscal_api.g.dart';
 
@@ -195,5 +198,32 @@ abstract class OwnerFiscalApi {
   @GET('/v1/owner/fiscal/terminal-flow')
   Future<GetV1OwnerFiscalTerminalFlowResponse> terminalFlowIndex({
     @Query('branch_id') int? branchId,
+  });
+
+  /// UzQR credentials.
+  ///
+  /// The store's UzQR driver (`fiscal_settings.uzqr.driver`; null: UzQR not offered), its STIR (`tin`, set in the.
+  /// fiscal settings) and its POS tills (`branch_id` narrows to one; a branch-bound caller: theirs) with whether each.
+  /// has its UzQR API key (`has_api_key`, `api_key_last4`, `api_key_set_at`) and whether it can make a UzQR now.
+  /// (`ready`; else `message` says why). The key itself is never returned. settings.manage.
+  ///
+  /// [branchId] - Filial.
+  @GET('/v1/owner/fiscal/uzqr')
+  Future<GetV1OwnerFiscalUzqrResponse> uzQrSettingsIndex({
+    @Query('branch_id') int? branchId,
+  });
+
+  /// Set a till's UzQR API key.
+  ///
+  /// `api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512.
+  /// printable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is.
+  /// kept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe.
+  /// its key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it.
+  /// after a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.
+  /// settings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.
+  @PUT('/v1/owner/fiscal/uzqr/tills/{uuid}')
+  Future<PutV1OwnerFiscalUzqrTillsUuidResponse> uzQrSettingsUpdateTill({
+    @Path('uuid') required String uuid,
+    @Body() V1OwnerFiscalUzqrTillsUuidRequestBody? body,
   });
 }

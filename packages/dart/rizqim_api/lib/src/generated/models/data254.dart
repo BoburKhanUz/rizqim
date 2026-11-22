@@ -4,25 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bill3.dart';
+import 'order6.dart';
+
 part 'data254.g.dart';
 
 @JsonSerializable()
 class Data254 {
-  const Data254({
-    required this.requestId,
-    required this.printerId,
-    required this.targetDevice,
-  });
+  const Data254({required this.bill, required this.order});
 
   factory Data254.fromJson(Map<String, Object?> json) =>
       _$Data254FromJson(json);
 
-  @JsonKey(name: 'request_id')
-  final String requestId;
-  @JsonKey(name: 'printer_id')
-  final int? printerId;
-  @JsonKey(name: 'target_device')
-  final String? targetDevice;
+  final Bill3 bill;
+  final Order6 order;
 
   Map<String, Object?> toJson() => _$Data254ToJson(this);
 }

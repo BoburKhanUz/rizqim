@@ -12,7 +12,7 @@ _$PostV1PosBanquetsUuidCancellationResponseFromJson(
 ) => PostV1PosBanquetsUuidCancellationResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data230.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data233.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBanquetsUuidCancellationResponseToJson(

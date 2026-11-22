@@ -218,7 +218,8 @@ class PosQrTillTest extends TestCase
 
         $this->pos('POST', "/qr/{$uzqr['uuid']}/simulate-paid")->assertOk()->assertJsonPath('data.qr.status', 'paid');
         $this->assertSame('paid', $order->refresh()->payment_status->value);
-        $this->assertSame(\App\Domain\Fiscal\FiscalPaymentForm::QR, $this->fiscal->document("pos-bill:{$bill}:sale")->payments[0]->form);
+        // Wave P: a UzQR payment is a bank card payment on the receipt (SetRetail10's UzQR plugin)
+        $this->assertSame(\App\Domain\Fiscal\FiscalPaymentForm::CARD, $this->fiscal->document("pos-bill:{$bill}:sale")->payments[0]->form);
 
         config(['qr_payments.simulate' => false]);
         $this->pos('POST', "/qr/{$click['uuid']}/simulate-paid")->assertNotFound();

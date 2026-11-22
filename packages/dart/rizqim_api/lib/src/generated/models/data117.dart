@@ -11,13 +11,11 @@ class Data117 {
   const Data117({
     required this.id,
     required this.branchId,
-    required this.name,
-    required this.kind,
-    required this.kindLabel,
-    required this.sortOrder,
-    required this.isActive,
-    required this.showOnKds,
-    required this.targetSeconds,
+    required this.stationId,
+    required this.categoryId,
+    required this.categoryName,
+    required this.productId,
+    required this.productName,
   });
 
   factory Data117.fromJson(Map<String, Object?> json) =>
@@ -26,18 +24,16 @@ class Data117 {
   final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String name;
-  final String kind;
-  @JsonKey(name: 'kind_label')
-  final String kindLabel;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'show_on_kds')
-  final bool showOnKds;
-  @JsonKey(name: 'target_seconds')
-  final int? targetSeconds;
+  @JsonKey(name: 'station_id')
+  final int stationId;
+  @JsonKey(name: 'category_id')
+  final int? categoryId;
+  @JsonKey(name: 'category_name')
+  final String? categoryName;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  @JsonKey(name: 'product_name')
+  final String? productName;
 
   Map<String, Object?> toJson() => _$Data117ToJson(this);
 }

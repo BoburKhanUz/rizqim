@@ -6,6 +6,7 @@ use App\Domain\Pos\QrPayments\QrRefundResult;
 use App\Domain\Pos\QrPayments\UzQr\UzQrDynamicQr;
 use App\Domain\Pos\QrPayments\UzQr\UzQrGateway;
 use App\Events\Broadcast\QrPaymentBroadcast;
+use App\Models\Device;
 use App\Models\Payment;
 use App\Models\PosQrPayment;
 use App\Models\Store;
@@ -171,30 +172,37 @@ final class LateUzQrGateway implements UzQrGateway
 {
     public static string $status = 'pending';
 
+    public function readyFor(?Device $device, Store $store): ?string
+    {
+        return null;
+    }
+
     public function createDynamicQr(Money $amount, PosQrPayment $qr, Store $store): UzQrDynamicQr
     {
         return new UzQrDynamicQr('late-' . $qr->uuid, '000201late' . $qr->uuid);
     }
 
-    public function status(string $id, Store $store): array
+    public function status(PosQrPayment $qr, Store $store): array
     {
         return ['status' => self::$status, 'transaction_id' => self::$status === 'paid' ? 'late-tx-1' : null];
     }
 
-    public function cancel(string $id, Store $store): void {}
+    public function cancel(PosQrPayment $qr, Store $store): void {}
 
     public function supportsPartialRefund(): bool
     {
         return true;
     }
 
-    public function refund(string $id, Money $amount, Store $store): QrRefundResult
+    public function refund(PosQrPayment $qr, Money $amount, Store $store, string $refundUuid): QrRefundResult
     {
         return QrRefundResult::done('late-refund');
     }
 
-    public function refundStatus(string $id, Money $amount, Store $store): QrRefundResult
+    public function refundStatus(PosQrPayment $qr, Money $amount, Store $store, string $refundUuid): QrRefundResult
     {
         return QrRefundResult::done('late-refund');
     }
+
+    public function sendReceiptLink(PosQrPayment $qr, string $url, Store $store): void {}
 }

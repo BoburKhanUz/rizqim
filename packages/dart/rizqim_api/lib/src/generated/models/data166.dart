@@ -4,19 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tips.dart';
+import 'distributions2.dart';
 
 part 'data166.g.dart';
 
 @JsonSerializable()
 class Data166 {
-  const Data166({required this.tips, required this.truncated});
+  const Data166({required this.poolPeriod, required this.distributions});
 
   factory Data166.fromJson(Map<String, Object?> json) =>
       _$Data166FromJson(json);
 
-  final List<Tips> tips;
-  final bool truncated;
+  @JsonKey(name: 'pool_period')
+  final String poolPeriod;
+  final List<Distributions2> distributions;
 
   Map<String, Object?> toJson() => _$Data166ToJson(this);
 }

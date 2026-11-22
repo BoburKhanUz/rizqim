@@ -7,23 +7,23 @@ part of 'data240.dart';
 // **************************************************************************
 
 Data240 _$Data240FromJson(Map<String, dynamic> json) => Data240(
-  event: Event9.fromJson(json['event'] as Map<String, dynamic>),
-  guests: Guests2.fromJson(json['guests'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
+  event: Event6.fromJson(json['event'] as Map<String, dynamic>),
+  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows10.fromJson(e as Map<String, dynamic>))
       .toList(),
-  osh: json['osh'] == null
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries7.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  cancellation: json['cancellation'] == null
       ? null
-      : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings17.fromJson(e as Map<String, dynamic>))
-      .toList(),
+      : Cancellation4.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data240ToJson(Data240 instance) => <String, dynamic>{
   'event': instance.event,
-  'guests': instance.guests,
-  'stations': instance.stations,
-  'osh': instance.osh,
-  'warnings': instance.warnings,
+  'summary': instance.summary,
+  'rows': instance.rows,
+  'entries': instance.entries,
+  'cancellation': instance.cancellation,
 };

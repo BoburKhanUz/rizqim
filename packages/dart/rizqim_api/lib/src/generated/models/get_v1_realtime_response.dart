@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data364.dart';
+import 'data367.dart';
 
 part 'get_v1_realtime_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1RealtimeResponse {
 
   final bool success;
   final String message;
-  final Data364 data;
+  final Data367 data;
 
   Map<String, Object?> toJson() => _$GetV1RealtimeResponseToJson(this);
 }

@@ -4,18 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls.dart';
-
 part 'data136.g.dart';
 
 @JsonSerializable()
 class Data136 {
-  const Data136({required this.halls});
+  const Data136({required this.deleted});
 
   factory Data136.fromJson(Map<String, Object?> json) =>
       _$Data136FromJson(json);
 
-  final List<Halls> halls;
+  final bool deleted;
 
   Map<String, Object?> toJson() => _$Data136ToJson(this);
 }

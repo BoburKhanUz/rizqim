@@ -7,13 +7,19 @@ part of 'data356.dart';
 // **************************************************************************
 
 Data356 _$Data356FromJson(Map<String, dynamic> json) => Data356(
-  voucher: Voucher2.fromJson(json['voucher'] as Map<String, dynamic>),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries12.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String?,
+  businessDate: json['business_date'] as String,
+  ownOnly: json['own_only'] as bool,
+  summary: Summary13.fromJson(json['summary'] as Map<String, dynamic>),
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips16.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data356ToJson(Data356 instance) => <String, dynamic>{
-  'voucher': instance.voucher,
-  'entries': instance.entries,
+  'shift_uuid': instance.shiftUuid,
+  'business_date': instance.businessDate,
+  'own_only': instance.ownOnly,
+  'summary': instance.summary,
+  'tips': instance.tips,
 };

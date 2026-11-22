@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data161.dart';
+import 'data164.dart';
 
 part 'post_v1_owner_pos_sync_import_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1OwnerPosSyncImportResponse {
 
   final bool success;
   final String message;
-  final Data161 data;
+  final Data164 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1OwnerPosSyncImportResponseToJson(this);

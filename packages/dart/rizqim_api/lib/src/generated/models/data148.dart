@@ -4,49 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'slots5.dart';
+import 'by_status.dart';
+import 'overdue.dart';
+import 'rows.dart';
 
 part 'data148.g.dart';
 
 @JsonSerializable()
 class Data148 {
   const Data148({
-    required this.slots,
-    required this.holdHours,
-    required this.guestWarningThresholds,
-    required this.windowStart,
-    required this.windowEnd,
-    required this.advanceMxik,
-    required this.advancePackageCode,
-    required this.cancellationMxik,
-    required this.cancellationPackageCode,
-    required this.quoteCurrency,
-    required this.version,
+    required this.from,
+    required this.to,
+    required this.branchId,
+    required this.events,
+    required this.cancelled,
+    required this.byStatus,
+    required this.guests,
+    required this.total,
+    required this.received,
+    required this.paid,
+    required this.outstanding,
+    required this.overdue,
+    required this.retained,
+    required this.refunded,
+    required this.transferPending,
+    required this.rows,
   });
 
   factory Data148.fromJson(Map<String, Object?> json) =>
       _$Data148FromJson(json);
 
-  final Slots5 slots;
-  @JsonKey(name: 'hold_hours')
-  final int holdHours;
-  @JsonKey(name: 'guest_warning_thresholds')
-  final List<int> guestWarningThresholds;
-  @JsonKey(name: 'window_start')
-  final String windowStart;
-  @JsonKey(name: 'window_end')
-  final String windowEnd;
-  @JsonKey(name: 'advance_mxik')
-  final String? advanceMxik;
-  @JsonKey(name: 'advance_package_code')
-  final String? advancePackageCode;
-  @JsonKey(name: 'cancellation_mxik')
-  final String? cancellationMxik;
-  @JsonKey(name: 'cancellation_package_code')
-  final String? cancellationPackageCode;
-  @JsonKey(name: 'quote_currency')
-  final String? quoteCurrency;
-  final int version;
+  final String from;
+  final String to;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final int events;
+  final int cancelled;
+  @JsonKey(name: 'by_status')
+  final List<ByStatus> byStatus;
+  final int guests;
+  final String total;
+  final String received;
+  final String paid;
+  final String outstanding;
+  final Overdue overdue;
+  final String retained;
+  final String refunded;
+  @JsonKey(name: 'transfer_pending')
+  final String transferPending;
+  final List<Rows> rows;
 
   Map<String, Object?> toJson() => _$Data148ToJson(this);
 }

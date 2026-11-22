@@ -7,15 +7,13 @@ part of 'data352.dart';
 // **************************************************************************
 
 Data352 _$Data352FromJson(Map<String, dynamic> json) => Data352(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  serviceState: json['service_state'] as String?,
-  serviceStateAt: json['service_state_at'] as String?,
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  meta: Meta3.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data352ToJson(Data352 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'service_state': instance.serviceState,
-  'service_state_at': instance.serviceStateAt,
+  'errors': instance.errors,
+  'meta': instance.meta,
 };

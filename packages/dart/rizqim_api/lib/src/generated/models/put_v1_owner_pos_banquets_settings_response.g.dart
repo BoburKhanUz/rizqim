@@ -11,7 +11,7 @@ _$PutV1OwnerPosBanquetsSettingsResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerPosBanquetsSettingsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data148.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data150.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerPosBanquetsSettingsResponseToJson(

@@ -12,6 +12,7 @@ use App\Services\Payment\Paylov\PaylovPayments;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Tests\Feature\OrderLifecycleFixtures;
@@ -215,5 +216,27 @@ class PaylovSecurityTest extends TestCase
             'payment_settings' => ['paylov' => ['enabled' => true, 'callback_password' => '********']],
         ])->assertOk();
         $this->assertSame($own['callback_password'], $this->store->fresh()->payment_settings['paylov']['callback_password']);
+    }
+
+    /**
+     * Review 12 of the UzQR wave (MEDIUM, the same exposure): the token request carries the API login's password in
+     * its body (and Basic auth), the calls a bearer token; a redirect (307 re-sends the body, to http too) is never
+     * followed: a 3xx is a refusal.
+     */
+    public function test_no_paylov_request_follows_a_redirect(): void
+    {
+        $elsewhere = 'http://attacker.example.test/steal';
+        foreach (['/merchant/oauth2/token/', '/merchant/getTransactions/'] as $path) {
+            $this->paylovRoutes = [$path => fn () => Http::response('', 307, ['Location' => $elsewhere])];
+            \Illuminate\Support\Facades\Cache::flush();
+            if ($path !== '/merchant/oauth2/token/') {
+                $this->paylovRoutes['/merchant/oauth2/token/'] = fn () => Http::response(['access_token' => $this->accessToken, 'expires_in' => 3600]);
+            }
+
+            $result = app(PaylovApi::class)->transaction(PaylovAccount::platform(), (string) Str::uuid());
+
+            $this->assertFalse($result->ok, $path);
+        }
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $request) => str_starts_with($request->url(), 'http://attacker.'));
     }
 }

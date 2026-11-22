@@ -7,11 +7,19 @@ part of 'data221.dart';
 // **************************************************************************
 
 Data221 _$Data221FromJson(Map<String, dynamic> json) => Data221(
-  events: (json['events'] as List<dynamic>)
-      .map((e) => Events.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  subscription: json['subscription'] == null
+      ? null
+      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
+  commissionRate: json['commission_rate'] as num,
+  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
+  nextInvoice: json['next_invoice'] == null
+      ? null
+      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data221ToJson(Data221 instance) => <String, dynamic>{
-  'events': instance.events,
+  'subscription': instance.subscription,
+  'commission_rate': instance.commissionRate,
+  'terminals': instance.terminals,
+  'next_invoice': instance.nextInvoice,
 };

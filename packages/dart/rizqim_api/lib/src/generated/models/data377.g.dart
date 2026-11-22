@@ -7,17 +7,17 @@ part of 'data377.dart';
 // **************************************************************************
 
 Data377 _$Data377FromJson(Map<String, dynamic> json) => Data377(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: json['role'] as String,
-  staffCode: json['staff_code'] as String?,
-  photoUrl: json['photo_url'] as String?,
+  enabled: json['enabled'] as bool,
+  minLeadMinutes: (json['min_lead_minutes'] as num).toInt(),
+  slotMinutes: (json['slot_minutes'] as num).toInt(),
+  slots: (json['slots'] as List<dynamic>)
+      .map((e) => Slots11.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data377ToJson(Data377 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'staff_code': instance.staffCode,
-  'photo_url': instance.photoUrl,
+  'enabled': instance.enabled,
+  'min_lead_minutes': instance.minLeadMinutes,
+  'slot_minutes': instance.slotMinutes,
+  'slots': instance.slots,
 };

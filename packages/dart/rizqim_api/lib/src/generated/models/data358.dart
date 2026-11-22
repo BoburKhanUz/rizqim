@@ -4,31 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'branch20.dart';
+import 'sale5.dart';
+import 'buyer5.dart';
+import 'fiscal40.dart';
+import 'blocked6.dart';
+import 'print5.dart';
+
 part 'data358.g.dart';
 
 @JsonSerializable()
 class Data358 {
   const Data358({
     required this.uuid,
-    required this.branchId,
-    required this.businessDate,
-    required this.guestName,
-    required this.guestPhone,
-    required this.guestPhoneMasked,
-    required this.partySize,
-    required this.quotedWaitMinutes,
-    required this.note,
+    required this.code,
+    required this.kind,
+    required this.faceValue,
+    required this.balance,
+    required this.currency,
+    required this.validFrom,
+    required this.validUntil,
     required this.status,
     required this.statusLabel,
-    required this.position,
-    required this.waitedMinutes,
-    required this.diningTableId,
-    required this.tableName,
-    required this.orderUuid,
-    required this.notifiedAt,
-    required this.seatedAt,
-    required this.closedAt,
-    required this.version,
+    required this.branch,
+    required this.sale,
+    required this.buyer,
+    required this.note,
+    required this.fiscal,
+    required this.blocked,
+    required this.print,
     required this.createdAt,
   });
 
@@ -36,40 +40,26 @@ class Data358 {
       _$Data358FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'guest_name')
-  final String guestName;
-  @JsonKey(name: 'guest_phone')
-  final String? guestPhone;
-  @JsonKey(name: 'guest_phone_masked')
-  final String? guestPhoneMasked;
-  @JsonKey(name: 'party_size')
-  final int partySize;
-  @JsonKey(name: 'quoted_wait_minutes')
-  final int? quotedWaitMinutes;
-  final String? note;
+  final String code;
+  final String kind;
+  @JsonKey(name: 'face_value')
+  final String faceValue;
+  final String balance;
+  final String currency;
+  @JsonKey(name: 'valid_from')
+  final String validFrom;
+  @JsonKey(name: 'valid_until')
+  final String? validUntil;
   final String status;
   @JsonKey(name: 'status_label')
   final String statusLabel;
-  final int? position;
-  @JsonKey(name: 'waited_minutes')
-  final int waitedMinutes;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_name')
-  final String? tableName;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'notified_at')
-  final String? notifiedAt;
-  @JsonKey(name: 'seated_at')
-  final String? seatedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
+  final Branch20? branch;
+  final Sale5 sale;
+  final Buyer5 buyer;
+  final String? note;
+  final Fiscal40 fiscal;
+  final Blocked6? blocked;
+  final Print5? print;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

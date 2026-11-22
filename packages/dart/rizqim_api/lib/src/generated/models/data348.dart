@@ -4,38 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'results2.dart';
-import 'unreadable.dart';
-import 'device21.dart';
+import 'movement.dart';
+import 'shift4.dart';
 
 part 'data348.g.dart';
 
 @JsonSerializable()
 class Data348 {
-  const Data348({
-    required this.serverTime,
-    required this.clockSkewSeconds,
-    required this.clockWarning,
-    required this.stoppedAt,
-    required this.results,
-    required this.unreadable,
-    required this.device,
-  });
+  const Data348({required this.movement, required this.shift});
 
   factory Data348.fromJson(Map<String, Object?> json) =>
       _$Data348FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  @JsonKey(name: 'clock_warning')
-  final bool clockWarning;
-  @JsonKey(name: 'stopped_at')
-  final int? stoppedAt;
-  final List<Results2> results;
-  final List<Unreadable> unreadable;
-  final Device21 device;
+  final Movement movement;
+  final Shift4 shift;
 
   Map<String, Object?> toJson() => _$Data348ToJson(this);
 }

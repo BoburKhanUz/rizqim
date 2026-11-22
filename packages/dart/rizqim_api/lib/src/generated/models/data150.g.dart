@@ -7,31 +7,31 @@ part of 'data150.dart';
 // **************************************************************************
 
 Data150 _$Data150FromJson(Map<String, dynamic> json) => Data150(
-  branchId: (json['branch_id'] as num).toInt(),
-  profile: json['profile'] as String,
-  profileLabel: json['profile_label'] as String,
-  mode: json['mode'] as String,
-  firstScreen: json['first_screen'] as String,
-  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
-  locks: Locks2.fromJson(json['locks'] as Map<String, dynamic>),
-  moduleRows: (json['module_rows'] as List<dynamic>)
-      .map((e) => ModuleRows2.fromJson(e as Map<String, dynamic>))
+  slots: Slots5.fromJson(json['slots'] as Map<String, dynamic>),
+  holdHours: (json['hold_hours'] as num).toInt(),
+  guestWarningThresholds: (json['guest_warning_thresholds'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
       .toList(),
-  profiles: (json['profiles'] as List<dynamic>)
-      .map((e) => Profiles2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  template: Template2.fromJson(json['template'] as Map<String, dynamic>),
+  windowStart: json['window_start'] as String,
+  windowEnd: json['window_end'] as String,
+  advanceMxik: json['advance_mxik'] as String?,
+  advancePackageCode: json['advance_package_code'] as String?,
+  cancellationMxik: json['cancellation_mxik'] as String?,
+  cancellationPackageCode: json['cancellation_package_code'] as String?,
+  quoteCurrency: json['quote_currency'] as String?,
+  version: (json['version'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data150ToJson(Data150 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'profile': instance.profile,
-  'profile_label': instance.profileLabel,
-  'mode': instance.mode,
-  'first_screen': instance.firstScreen,
-  'modules': instance.modules,
-  'locks': instance.locks,
-  'module_rows': instance.moduleRows,
-  'profiles': instance.profiles,
-  'template': instance.template,
+  'slots': instance.slots,
+  'hold_hours': instance.holdHours,
+  'guest_warning_thresholds': instance.guestWarningThresholds,
+  'window_start': instance.windowStart,
+  'window_end': instance.windowEnd,
+  'advance_mxik': instance.advanceMxik,
+  'advance_package_code': instance.advancePackageCode,
+  'cancellation_mxik': instance.cancellationMxik,
+  'cancellation_package_code': instance.cancellationPackageCode,
+  'quote_currency': instance.quoteCurrency,
+  'version': instance.version,
 };

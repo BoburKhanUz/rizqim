@@ -12,7 +12,7 @@ _$PostV1StaffOrdersUuidItemsItemReadyResponseFromJson(
 ) => PostV1StaffOrdersUuidItemsItemReadyResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data369.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data372.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1StaffOrdersUuidItemsItemReadyResponseToJson(

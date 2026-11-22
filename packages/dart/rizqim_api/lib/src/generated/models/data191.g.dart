@@ -7,13 +7,17 @@ part of 'data191.dart';
 // **************************************************************************
 
 Data191 _$Data191FromJson(Map<String, dynamic> json) => Data191(
-  channels: json['channels'] as List<dynamic>,
-  settings: (json['settings'] as List<dynamic>)
-      .map((e) => Settings5.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  weekendDays: (json['weekend_days'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  holidays: (json['holidays'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
 );
 
 Map<String, dynamic> _$Data191ToJson(Data191 instance) => <String, dynamic>{
-  'channels': instance.channels,
-  'settings': instance.settings,
+  'branch_id': instance.branchId,
+  'weekend_days': instance.weekendDays,
+  'holidays': instance.holidays,
 };

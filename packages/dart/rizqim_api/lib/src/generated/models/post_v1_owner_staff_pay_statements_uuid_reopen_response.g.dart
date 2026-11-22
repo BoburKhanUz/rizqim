@@ -12,7 +12,7 @@ _$PostV1OwnerStaffPayStatementsUuidReopenResponseFromJson(
 ) => PostV1OwnerStaffPayStatementsUuidReopenResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data209.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data212.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerStaffPayStatementsUuidReopenResponseToJson(

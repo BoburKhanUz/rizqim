@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_owner_pos_qr_payments_response.dart';
+import '../models/get_v1_owner_pos_qr_payments_unmatched_response.dart';
 import '../models/put_v1_owner_pos_qr_payments_response.dart';
 import '../models/v1_owner_pos_qr_payments_request_body.dart';
 
@@ -36,5 +37,19 @@ abstract class OwnerQrPaymentsApi {
   @PUT('/v1/owner/pos/qr-payments')
   Future<PutV1OwnerPosQrPaymentsResponse> qrPaymentSettingsUpdate({
     @Body() V1OwnerPosQrPaymentsRequestBody? body,
+  });
+
+  /// QR money no bill took.
+  ///
+  /// Wave P (review 11): the QR payments the provider took that no bill took (`paid_unmatched`: paid after the cashier.
+  /// cancelled it or after a newer QR, of another amount, after the bill was paid another way or the shift closed),.
+  /// newest first, at most 200, and their `total`. The owner is also told of each one when it happens (Telegram /.
+  /// push). Give the money back from the provider's own cabinet (uzqr.uz, Click, Payme) or count it in the.
+  /// reconciliation. `branch_id` narrows to one branch (a branch-bound caller: theirs). finance.view.
+  ///
+  /// [branchId] - Filial.
+  @GET('/v1/owner/pos/qr-payments/unmatched')
+  Future<GetV1OwnerPosQrPaymentsUnmatchedResponse> qrPaymentSettingsUnmatched({
+    @Query('branch_id') int? branchId,
   });
 }

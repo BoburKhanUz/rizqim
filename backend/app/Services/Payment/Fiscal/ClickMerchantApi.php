@@ -79,6 +79,8 @@ class ClickMerchantApi
             ->timeout(20)
             ->acceptJson()
             ->asJson()
+            // Review 12: the Auth header (not Authorization: Guzzle re-sends it to any host) never follows a redirect
+            ->withOptions(['allow_redirects' => false])
             ->withHeaders(['Auth' => $this->authHeader($credentials, now()->getTimestamp())]);
     }
 

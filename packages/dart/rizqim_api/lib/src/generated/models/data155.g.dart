@@ -7,15 +7,23 @@ part of 'data155.dart';
 // **************************************************************************
 
 Data155 _$Data155FromJson(Map<String, dynamic> json) => Data155(
-  settings: Settings.fromJson(json['settings'] as Map<String, dynamic>),
-  merchants: (json['merchants'] as List<dynamic>)
-      .map((e) => Merchants.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  keyId: (json['key_id'] as num).toInt(),
+  rotatedAt: json['rotated_at'] as String?,
+  port: (json['port'] as num).toInt(),
+  hub: json['hub'] == null
+      ? null
+      : Hub2.fromJson(json['hub'] as Map<String, dynamic>),
+  candidates: (json['candidates'] as List<dynamic>)
+      .map((e) => Candidates2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  options: Options4.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data155ToJson(Data155 instance) => <String, dynamic>{
-  'settings': instance.settings,
-  'merchants': instance.merchants,
-  'options': instance.options,
+  'branch_id': instance.branchId,
+  'key_id': instance.keyId,
+  'rotated_at': instance.rotatedAt,
+  'port': instance.port,
+  'hub': instance.hub,
+  'candidates': instance.candidates,
 };

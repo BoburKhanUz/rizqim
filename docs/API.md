@@ -5012,16 +5012,18 @@ faqat QR yaratish va sozlamani o'zgartirishni to'sadi: o'qish, bekor qilish, pro
 so'ramaydi. POS QR doim **do'konniki** (STORE): pul do'konning o'z Click/Payme merchant hisobiga tushadi
 (`payment_settings.click` — `service_id`, `merchant_id`, `merchant_user_id`, `secret_key`; `payment_settings.payme` —
 `merchant_id`, `secret_key`; `payment_account_type = own_account`), webhook do'kon kaliti bilan tekshiriladi, platforma
-kaliti hech qachon. UzQR — `UzQrGateway` drayveri (`fiscal_settings.uzqr.driver`, hozircha faqat `sandbox`; haqiqiy bank
-drayveri P3-32 ga bog'liq). Pul — o'nlik satr. Ichki tuzilma: `App\Domain\Pos\QrPayments`.
+kaliti hech qachon. UzQR — `UzQrGateway` drayveri (`fiscal_settings.uzqr.driver`: `uzqr_operator` — UzQR operatori API'si
+har kassaning o'z kaliti bilan, quyida "UzQR kassada"; `sandbox` — sinov stendida). Pul — o'nlik satr. Ichki tuzilma:
+`App\Domain\Pos\QrPayments`.
 
 | Yo'l | Ruxsat | Qisqacha |
 |---|---|---|
-| `POST /pos/bills/{uuid}/qr {provider?: click\|payme\|uzqr, amount?, shift_uuid?}` | `pos.take_payment` + modul | `Idempotency-Key` majburiy. Schyot qarziga (yoki `amount` — aralash to'lovning QR qismi) QR; `provider` bo'lmasa — filialning asosiysi. Bitta schyotga bitta `pending`: yangisi eskisini bekor qiladi (`replaced`). 201 `{qr}`: `payload` (Click/Payme to'lov havolasi `pos_qr_<uuid>` hisobi bilan yoki UzQR EMV qatori) — schyotga chop etiladi, `display {payload, label, provider}` — mijoz ekraniga (`PosDisplayPayment.qr`). 422 `qr_provider_disabled`, `overpayment` (`data.due`), `mxik_missing`; 409 `provider_not_configured` (`data.provider`), `shift_not_open`, `bill_paid`, `bill_void`, `bill_awaiting_fiscal`, `order_changed`, `bill_changed`. Audit `pos.qr_created` |
+| `POST /pos/bills/{uuid}/qr {provider?: click\|payme\|uzqr, amount?, shift_uuid?}` | `pos.take_payment` + modul | `Idempotency-Key` majburiy. Schyot qarziga (yoki `amount` — aralash to'lovning QR qismi) QR; `provider` bo'lmasa — filialning asosiysi. Bitta schyotga bitta `pending`: yangisi eskisini bekor qiladi (`replaced`). 201 `{qr}`: `payload` (Click/Payme to'lov havolasi `pos_qr_<uuid>` hisobi bilan yoki UzQR EMV qatori) — schyotga chop etiladi, `display {payload, label, provider}` — mijoz ekraniga (`PosDisplayPayment.qr`). 422 `qr_provider_disabled`, `overpayment` (`data.due`), `mxik_missing`; 409 `provider_not_configured` (`data.provider`), `uzqr_till_not_configured` (Wave P: bu kassada UzQR kaliti yo'q, do'kon STIRi yo'q yoki operator manzili sozlanmagan — oddiy o'zbekcha xabar; kassa boshqa usulni taklif qiladi), `provider_unavailable` (UzQR operatori QR bermadi: hech narsa saqlanmaydi), `shift_not_open`, `bill_paid`, `bill_void`, `bill_awaiting_fiscal`, `order_changed`, `bill_changed`. Audit `pos.qr_created` |
 | `GET /pos/bills/{uuid}/qr` | `orders.view` | `{qrs[]}` (yangisi birinchi, 20 tagacha) |
-| `GET /pos/qr/{uuid}` | `orders.view` | `{qr}` — realtime yo'q kassa uchun so'rab turish; vaqti o'tgan QR shu yerda ham `expired` bo'ladi; kutilayotgan UzQR **avval** shlyuzdan so'raladi (review P6W4 C5: muddat tugashi oldidan to'langani — va `expired` bo'lganidan keyin `hold_minutes` ichida shlyuz "to'langan" degani — qabul qilinadi; schyot endi ololmasa `cancel_reason` `paid_unmatched`, audit `pos.qr_paid_unmatched`, menejer pulni shlyuz kabinetidan qaytaradi) |
+| `GET /pos/qr/{uuid}` | `orders.view` | `{qr}` — realtime yo'q kassa uchun so'rab turish; vaqti o'tgan QR shu yerda ham `expired` bo'ladi; kutilayotgan UzQR **avval** shlyuzdan so'raladi (review P6W4 C5: muddat tugashi oldidan to'langani qabul qilinadi), yopilgan, lekin operator hal qilmagan UzQR ham har o'qishda so'raladi (review 11: `expired` va shlyuz "to'langan" desa — vaqt chegarasisiz qabul qilinadi; schyot endi ololmasa yoki QR bekor qilingan bo'lsa `cancel_reason` `paid_unmatched`, audit `pos.qr_paid_unmatched`, egasiga xabar, menejer pulni shlyuz kabinetidan qaytaradi) |
 | `DELETE /pos/qr/{uuid}?reason=` | `pos.take_payment` | kassir QR'ni qaytarib oladi (`cancelled`, `cashier`); keyingi callback rad etiladi. Tugagan — o'zicha; to'langan — 409 `qr_already_paid` (qaytarish qiling). Audit `pos.qr_cancelled` |
 | `POST /pos/qr/{uuid}/simulate-paid` | `pos.take_payment` | faqat sinov drayveri QR'i (`simulated: true`; demo va e2e): webhook bilan bir xil tasdiq. Haqiqiy provayder (yoki sinovi ruxsat etilmagan provayder) — 409 `qr_not_simulated`; `QR_PAYMENTS_SIMULATE` o'chiq yoki `QR_PAYMENTS_SANDBOX` ham, `QR_PAYMENTS_SIMULATE_DRIVERS` ham yo'q — 404 (review P6W4 S3: `APP_ENV` ning o'zi yoqmaydi) |
+| `GET /owner/pos/qr-payments/unmatched?branch_id` | `finance.view` (PIN sessiyasidan emas) | Review 11 M4: provayder olgan, lekin hech bir schyot olmagan QR pullari (`paid_unmatched`), yangisi birinchi, ko'pi 200: `{items[{uuid, bill_uuid, order_uuid, branch_id, provider, provider_label, amount, transaction_id, reason, status, created_at, unmatched_at}], total}`. Har biri paydo bo'lganda egasiga xabar (`PosOwnerAlerts`) ham boradi. Pul provayder kabinetidan qaytariladi |
 | `GET /owner/pos/qr-payments?branch_id` | `settings.manage` (PIN sessiyasidan emas) | `{settings{branch_id, enabled, providers[], default_provider, expiry_minutes, updated_at}, merchants[{provider, label, configured, driver}], options}` — kalitlar ko'rsatilmaydi |
 | `PUT /owner/pos/qr-payments {branch_id?, providers?, default_provider?, expiry_minutes?}` | `settings.manage` + modul | faqat o'zgargani; `default_provider` yoqilganlar orasida (422); `expiry_minutes` 1–30 (standart 5). Audit `settings.qr_payments_changed` |
 
@@ -5033,7 +5035,8 @@ schyot o'zgarsa yoki kassir bekor qilsa QR baribir bekor, keyingi `PerformTransa
 — `state -1`), `paid_at, cancelled_at, cancel_reason` (`cashier`, `replaced`,
 `bill_changed`, `shift_closed`, `payment_refused:<kod>`, `provider_cancelled`, `payme_cancel:<n>`, `expired`,
 `paid_unmatched`),
-`payment_uuid, refunded_amount, simulated, created_at`.
+`payment_uuid, refunded_amount, simulated, receipt_link` (Wave P, UzQR: chek havolasi UzQR'ga — `pending` \| `sent` \|
+`failed`; chekdan oldin `null`), `created_at`.
 
 **Tasdiq (webhooklar).** Mavjud `POST /payments/click/webhook` va `/payments/payme/webhook` hisob `pos_qr_<uuid>` bo'lsa
 (Click `merchant_trans_id`, Payme `account.order_id`; Payme'da — shunday QR'ning tranzaksiya `id` si ham) so'rovni
@@ -5059,7 +5062,7 @@ buyurtma mantig'idan oldin POS QR'ga beradi:
 `DELETE {CLICK_MERCHANT_API_URL}/payment/reversal/{service_id}/{payment_id}` (`Auth: merchant_user_id:sha1(timestamp +
 secret_key):timestamp`), Payme Subscribe API `receipts.cancel {id: <Merchant API tranzaksiya id>}` (`X-Auth:
 merchant_id:key`; taxmin: Merchant API tranzaksiya id si — Payme chek id si, birinchi do'kon ulanganda Payme bilan
-tasdiqlanadi), UzQR — shlyuz `refund`. Click va Payme — faqat to'liq (422 `qr_partial_refund_unsupported`, `data.left`).
+tasdiqlanadi), UzQR — shlyuz `refund` (qisman ham; urinish uuid si operatorga `external_id`). Click va Payme — faqat to'liq (422 `qr_partial_refund_unsupported`, `data.left`).
 Review P6W4 C2 — ikki bosqich, provayder so'ralayotganda smena qulfi **ushlanmaydi**: (1) qisqa tranzaksiya tekshiradi va
 urinishni yozadi (`pos_qr_refund_attempts`, `requested`); (2) provayder har qanday tranzaksiyadan tashqarida so'raladi;
 (3) qisqa tranzaksiya qaytarishni yozadi (`PosRefund.uuid` = urinish uuid si, chek, smena) — yoki rad: 409
@@ -5082,6 +5085,50 @@ status}, changed_at}` (faqat id va holat); `order.bill_changed` ham avvalgidek.
 **Bootstrap, X/Z.** `GET /pos/bootstrap` → `qr_payments {enabled, providers[] (yoqilgan va ulangan, asosiysi birinchi),
 default_provider, expiry_minutes}`. X/Z: `qr_providers [{provider: click|payme|uzqr|manual, count, amount}]` (`manual` —
 qo'lda tasdiqlangan statik QR; komissiya hisoblanmaydi). `fiscal_settings.uzqr {driver}` — `PUT /owner/fiscal/settings`.
+`qr_payments.providers` da UzQR faqat shu kassa uchun tayyor bo'lsa (Wave P: o'z kaliti va do'kon STIRi).
+
+**UzQR kassada (Wave P, `uzqr_operator`).** Rizqim serveri UzQR operatorining API'sini **QR'ni yaratgan kassaning o'z
+API kaliti** (`devices.uzqr_api_key`, shifrlangan; review 11 M2: QR yaratilganda kalit QR'ning o'ziga ham shifrlangan
+holda yoziladi — `pos_qr_payments.uzqr_api_key`, hech qachon qaytmaydi — va shu QR'ning keyingi barcha so'rovlari
+kassaning kaliti o'chirilgan yoki almashtirilgan bo'lsa ham shu kalit bilan boradi) va do'kon STIRi (`stores.tin`) bilan
+chaqiradi: QR yaratish (summa
+tiyinda, bizning `external_id` = QR uuid, muddat), holat (kassaning `GET /pos/qr/{uuid}` so'rovi va har daqiqalik ish;
+`paid` — `pay_id`, RRN, karta turi va oxirgi 4 raqami `provider_payload.confirm` ga; boshqa summa — olinmaydi,
+`paid_unmatched` `amount_mismatch`), bekor qilish, to'liq va qisman qaytarish (to'langanidan oldingi qaytarishlar
+ayirmasidan ko'p emas; operator "bajarilmoqda" desa — 409 `qr_refund_unknown`, har daqiqalik ish holatini so'rab,
+bajarilgach yozadi), chek havolasi. Shakllar — `UzQrOperatorProtocol` (operator hujjati kelguncha taxmin: yo'llar,
+`X-Api-Key` sarlavhasi, javob konverti, holat so'zlari; SetRetail10 va operator qo'llanmasidagi maydonlar: `invoice_id`,
+`pay_id`, `external_id`, `card_type`, `card_no`, INN). Manzil: `UZQR_OPERATOR_URL` (production) yoki
+`UZQR_OPERATOR_TEST_URL` + `UZQR_OPERATOR_TEST=true` (faqat sinov to'lovlari ruxsat etilgan joyda; productionda sinov
+manzili bilan drayver sozlanmagan hisoblanadi), faqat `https`; redirect'ga ergashilmaydi (review 12: 3xx — rad,
+`provider_unavailable`). Holat, bekor qilish va qaytarish holati so'rovlari qisqa kutadi (2 s / 5 s), yaratish va
+qaytarish — 3 s / 20 s. Kalit javoblarda, loglarda, auditda va `Device` ko'rinishlarida (oxirgi 4 belgisi ham) hech
+qachon yo'q.
+- **Chekda** UzQR to'lovi — bank **kartasi** (`FiscalPaymentForm::CARD`, tranzaksiya raqami — RRN, aks holda `pay_id`;
+  karta turi, oxirgi 4 raqam); qaytarish cheki ham. Smenada u `qr` tender bo'lib qoladi (bank terminalidan o'tmagan).
+  Review 11 M3: saqlangan chek qatorida ichki belgi `channel: uzqr` (provayderga yuborilmaydi, API'da ko'rsatilmaydi);
+  smart-kassa bank terminali solishtiruvi (`source: provider`) shu qismlarni provayder summasi, soni va
+  tranzaksiyalaridan ayiradi — ikki tomon faqat bank terminali pulini solishtiradi.
+- **Chek havolasi**: schyotning sotuv cheki `issued` bo'lib `qr_url` i bilan e'lon qilinganda (`fiscal.receipt_updated`)
+  shu schyotni to'lagan har UzQR uchun navbatdagi ish (`SendUzQrReceiptLink`, commitdan keyin, qayta urinishlar bilan)
+  havolani yuboradi; yuborilgani qayta yuborilmaydi; xato — log va `receipt_link: failed` (sotuvni to'xtatmaydi).
+  Review 12: faqat `https` va `qr_payments.uzqr.receipt_hosts` (`UZQR_RECEIPT_HOSTS`, standart `ofd.soliq.uz`) xostidagi
+  havola, login/parolsiz va portsiz; boshqasi so'rovsiz `failed`. Sinxron navbatda so'rov ichida ish javobdan keyin
+  bajariladi (kassir operatorni kutmaydi).
+- **To'lov yo'qolmaydi** (review 11): bizda yopilgan (`expired`, `cancelled`: kassir, yangi QR, schyot o'zgardi, yaratilib
+  saqlanmay qolgan — `bill_changed`) UzQR operator hal qilmaguncha so'raladi (`pos_qr_payments.next_check_at`,
+  eng kechikkani birinchi): operator bekor qilishni tasdiqlamaguncha (har so'rovda qayta yuboriladi,
+  `operator_cancelled_at`) va QR muddati + `grace_minutes` o'tmaguncha har daqiqa; javob bo'lmasa 1, 1, 1, 2, 4, 8, 16,
+  so'ng har 30 daqiqa, hech qachon to'xtamaydi; 60 daqiqadan keyin ham hal bo'lmasa egasiga bir marta xabar. "To'langan":
+  faqat vaqti o'tgani (`expired`, sabab `expired`) schyotga yoziladi — vaqt chegarasisiz; bekor qilingani, schyot
+  ololmagani, smena yopilgani — `paid_unmatched` (audit `pos.qr_paid_unmatched`, egasiga xabar, `GET
+  /owner/pos/qr-payments/unmatched`); hech qachon ikki marta hisoblanmaydi va jimgina tashlanmaydi. Bir yurish: ko'pi 50
+  QR va 40 soniya (`qr_payments.uzqr.recheck`). To'lanmay hal bo'lgan QR'ning kalit nusxasi o'chiriladi.
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `GET /owner/fiscal/uzqr?branch_id` | `settings.manage` (PIN sessiyasidan emas) | `{driver, tin, tin_set, tills[{uuid, name, branch_id, has_api_key, api_key_last4, api_key_set_at, ready, message}]}` — faol POS kassalar; `ready: false` bo'lsa `message` nima uchunligini aytadi. Kalit hech qachon qaytmaydi |
+| `PUT /owner/fiscal/uzqr/tills/{uuid} {api_key?, remove_api_key?}` | `settings.manage` (kassa filialida) | `api_key` 8–512 bo'sh joysiz belgi; yo'q, `null`, bo'sh yoki maskalangan (`••••1234`, `****`) — saqlangani qoladi; `remove_api_key: true` — o'chiradi (birga — 422), bekor qilingan (revoked) kassada ham; ochiq QR'lar o'z kalit nusxasi bilan tugaydi. Boshqa do'kon kassasi yoki bekor qilingan kassaga kalit yozish — 404. Javob — kassa ko'rinishi (kalitsiz). Audit `devices.uzqr_key_changed` (`has_api_key`, `api_key_last4`) |
 
 **Internetsiz.** Dinamik QR server bilan: kassa oddiy xabar ko'rsatadi va statik QR'ni qo'lda tasdiqlashni taklif qiladi.
 
@@ -5089,9 +5136,14 @@ qo'lda tasdiqlangan statik QR; komissiya hisoblanmaydi). `fiscal_settings.uzqr {
 kerak emas), `QR_PAYMENTS_SIMULATE_DRIVERS` (sandbox o'chiq stend uchun sinovi ruxsat etilgan provayderlar, vergul bilan;
 e2e: `uzqr` — UzQR sandbox shlyuzi faqat `QR_PAYMENTS_SANDBOX` yoki shu ro'yxatda `uzqr` bo'lsa tanlanadi va taklif
 qilinadi, aks holda `fiscal_settings.uzqr.driver: sandbox` — 422; review P6W4 S3), `QR_PAYMENTS_SIMULATE` (production'da
-o'chiq), `QR_PAYMENTS_RETURN_URL`, `CLICK_MERCHANT_API_URL`, `PAYME_API_URL`. Ish: `pos:expire-qr-payments` (har daqiqa:
-muddati o'tgan QR — UzQR avval shlyuzdan so'raladi —, javobsiz QR qaytarishlari). Migratsiyalar `2026_11_19_100100`
-(`pos_qr_payments`), `2026_11_19_100200` (`pos_qr_settings`), `2026_11_20_100100` (`pos_qr_refund_attempts`).
+o'chiq), `QR_PAYMENTS_RETURN_URL`, `CLICK_MERCHANT_API_URL`, `PAYME_API_URL`, `UZQR_OPERATOR_URL`,
+`UZQR_OPERATOR_TEST_URL`, `UZQR_OPERATOR_TEST`, `UZQR_RECEIPT_HOSTS`. Ish: `pos:expire-qr-payments` (har daqiqa,
+`withoutOverlapping(5)`, bir yurish `uzqr.recheck.run_seconds` bilan chegaralangan: muddati o'tgan QR — UzQR avval
+shlyuzdan so'raladi —, javobsiz QR qaytarishlari, operator hal qilmagan yopilgan UzQR'larni qayta so'rash). Migratsiyalar
+`2026_11_19_100100` (`pos_qr_payments`), `2026_11_19_100200` (`pos_qr_settings`), `2026_11_20_100100`
+(`pos_qr_refund_attempts`), `2026_12_02_100000` (`devices.uzqr_api_key`, `uzqr_api_key_last4`, `uzqr_api_key_set_at`),
+`2026_12_03_100000` (`pos_qr_payments.uzqr_api_key`, `next_check_at`, `last_checked_at`, `check_failures`,
+`operator_cancelled_at`, `alerted_at`; mavjud UzQR'larga kassaning joriy kaliti ko'chiriladi).
 
 ## Tadbirlar: taqvim, tadbir, paket va narx (P6-51, P6-52)
 

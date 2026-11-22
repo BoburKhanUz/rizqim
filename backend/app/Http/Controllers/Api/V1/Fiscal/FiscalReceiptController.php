@@ -166,10 +166,7 @@ class FiscalReceiptController extends ManagementController
             'original_receipt_uuid' => $receipt->originalReceipt?->uuid,
             'lines' => $receipt->lines ?? [],
             // Through the snapshot, so a receipt stored before a flag existed answers in today's shape (credit: false)
-            'payments' => \App\Domain\Fiscal\FiscalSnapshot::payments(array_map(
-                fn (array $row) => \App\Domain\Fiscal\FiscalSnapshot::payment($row),
-                array_values(array_filter((array) ($receipt->payments ?? []), 'is_array')),
-            )),
+            'payments' => \App\Domain\Fiscal\FiscalSnapshot::paymentsView($receipt->payments),
         ];
     }
 

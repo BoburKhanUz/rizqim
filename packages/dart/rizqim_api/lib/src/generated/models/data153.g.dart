@@ -7,23 +7,29 @@ part of 'data153.dart';
 // **************************************************************************
 
 Data153 _$Data153FromJson(Map<String, dynamic> json) => Data153(
-  branchId: (json['branch_id'] as num).toInt(),
-  keyId: (json['key_id'] as num).toInt(),
-  rotatedAt: json['rotated_at'] as String?,
-  port: (json['port'] as num).toInt(),
-  hub: json['hub'] == null
-      ? null
-      : Hub2.fromJson(json['hub'] as Map<String, dynamic>),
-  candidates: (json['candidates'] as List<dynamic>)
-      .map((e) => Candidates2.fromJson(e as Map<String, dynamic>))
+  stationsCreated: (json['stations_created'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
+  stationsSkipped: (json['stations_skipped'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  categoriesCreated: (json['categories_created'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  dishesCreated: (json['dishes_created'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  dishesSkipped: (json['dishes_skipped'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  format: Format.fromJson(json['format'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data153ToJson(Data153 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'key_id': instance.keyId,
-  'rotated_at': instance.rotatedAt,
-  'port': instance.port,
-  'hub': instance.hub,
-  'candidates': instance.candidates,
+  'stations_created': instance.stationsCreated,
+  'stations_skipped': instance.stationsSkipped,
+  'categories_created': instance.categoriesCreated,
+  'dishes_created': instance.dishesCreated,
+  'dishes_skipped': instance.dishesSkipped,
+  'format': instance.format,
 };

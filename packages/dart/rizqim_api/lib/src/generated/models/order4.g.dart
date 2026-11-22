@@ -46,7 +46,7 @@ Order4 _$Order4FromJson(Map<String, dynamic> json) => Order4(
   discountValue: json['discount_value'] as String?,
   discountReason: json['discount_reason'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items11.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items12.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountPromo: json['discount_promo'] as bool,
   promoNote: json['promo_note'] as String?,

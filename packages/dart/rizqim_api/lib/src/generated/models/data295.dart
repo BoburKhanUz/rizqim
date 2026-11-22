@@ -4,38 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch19.dart';
-import 'store3.dart';
-import 'device12.dart';
-import 'modules2.dart';
-import 'cart.dart';
+import 'account6.dart';
+import 'entries11.dart';
 
 part 'data295.g.dart';
 
 @JsonSerializable()
 class Data295 {
   const Data295({
-    required this.branch,
-    required this.store,
-    required this.device,
-    required this.tillUuid,
-    required this.modules,
-    required this.serverTime,
-    required this.cart,
+    required this.account,
+    required this.from,
+    required this.to,
+    required this.openingBalance,
+    required this.closingBalance,
+    required this.chargesTotal,
+    required this.repaymentsTotal,
+    required this.adjustmentsTotal,
+    required this.entries,
   });
 
   factory Data295.fromJson(Map<String, Object?> json) =>
       _$Data295FromJson(json);
 
-  final Branch19 branch;
-  final Store3? store;
-  final Device12 device;
-  @JsonKey(name: 'till_uuid')
-  final String? tillUuid;
-  final Modules2 modules;
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Cart? cart;
+  final Account6 account;
+  final String from;
+  final String to;
+  @JsonKey(name: 'opening_balance')
+  final String openingBalance;
+  @JsonKey(name: 'closing_balance')
+  final String closingBalance;
+  @JsonKey(name: 'charges_total')
+  final String chargesTotal;
+  @JsonKey(name: 'repayments_total')
+  final String repaymentsTotal;
+  @JsonKey(name: 'adjustments_total')
+  final String adjustmentsTotal;
+  final List<Entries11> entries;
 
   Map<String, Object?> toJson() => _$Data295ToJson(this);
 }

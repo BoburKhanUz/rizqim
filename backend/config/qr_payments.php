@@ -44,12 +44,48 @@ return [
     ],
 
     'uzqr' => [
-        // name => class implementing App\Domain\Pos\QrPayments\UzQr\UzQrGateway (the real bank/provider driver comes
-        // with P3-32); a store picks one in stores.fiscal_settings.uzqr.driver. `sandbox` is registered only while
-        // `sandbox` is on or "uzqr" is in `simulate_drivers` (QrProviders::uzqrDrivers)
+        // name => class implementing App\Domain\Pos\QrPayments\UzQr\UzQrGateway; a store picks one in
+        // stores.fiscal_settings.uzqr.driver. `sandbox` is registered only while `sandbox` is on or "uzqr" is in
+        // `simulate_drivers` (QrProviders::uzqrDrivers)
         'drivers' => [
             'sandbox' => App\Domain\Pos\QrPayments\UzQr\SandboxUzQrGateway::class,
+            // Wave P: the UzQR operator's API with each till's own key (docs/PAYMENTS_GO_LIVE.md "UzQR")
+            'uzqr_operator' => App\Domain\Pos\QrPayments\UzQr\UzQrOperatorGateway::class,
         ],
+        // Wave P: the operator's connection address (SetRetail10: "Адрес подключения", given by UzQR), production and
+        // test contour. `test` uses test_url, and only where test payments are allowed (APP_ENV not production, or
+        // PAYMENTS_ALLOW_TEST_MODE): on production the driver is unconfigured with it on, or with url = test_url.
+        // https only. No defaults: the operator has not published them. Timeouts: SetRetail10's defaults for create,
+        // refund and the receipt link; the asks repeated anyway (status, cancel, refund status) wait less, so the
+        // minute job is never held by a slow operator (review 11 H2). Redirects are never followed (review 12).
+        'operator' => [
+            'url' => env('UZQR_OPERATOR_URL'),
+            'test_url' => env('UZQR_OPERATOR_TEST_URL'),
+            'test' => (bool) env('UZQR_OPERATOR_TEST', false),
+            'connect_timeout' => 3,
+            'timeout' => 20,
+            'poll_connect_timeout' => 2,
+            'poll_timeout' => 5,
+        ],
+        // Review 11 H2/H3/M1: a UzQR that ended here (expired, cancelled) while the operator may still take its money
+        // is asked again (pos_qr_payments.next_check_at) until the operator settles it: paid (taken, or kept as
+        // paid_unmatched), or not paid and no longer payable there (cancel acknowledged and its lifetime plus
+        // `grace_minutes` over). The minute job asks at most `per_run` of them, the most overdue first, and starts no
+        // new ask after `run_seconds`. No answer: asked again after 1, 1, 1, 2, 4, 8, 16, then every
+        // `max_backoff_minutes`; never given up. Still unsettled `alert_after_minutes` after it ended: the owner is told
+        // once (PosOwnerAlerts). An operator that keeps answering "pending" past the lifetime without acknowledging
+        // the cancel is asked every `unacknowledged_minutes`.
+        'recheck' => [
+            'per_run' => 50,
+            'run_seconds' => 40,
+            'grace_minutes' => 10,
+            'max_backoff_minutes' => 30,
+            'unacknowledged_minutes' => 15,
+            'alert_after_minutes' => 60,
+        ],
+        // Review 12: the only receipt links sent to the operator: https on the tax committee's receipt host(s)
+        // (fiscal_receipts.qr_url, ofd.soliq.uz/check?... or /epi?...). Comma-separated in UZQR_RECEIPT_HOSTS.
+        'receipt_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env('UZQR_RECEIPT_HOSTS', 'ofd.soliq.uz'))))),
         // The merchant name and city the sandbox puts into its EMV payload
         'sandbox_city' => 'TASHKENT',
     ],

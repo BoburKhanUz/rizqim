@@ -11,8 +11,8 @@ use App\Models\User;
 /**
  * P6-41: the `qr_payments` section of GET /pos/bootstrap: whether the payment screen offers a dynamic QR (the
  * branch's `qr_payments` module), the providers it may offer now (enabled by the owner AND the store's merchant
- * account or UzQR gateway set up; the default first) and how long a QR stays valid. Offline the till offers the
- * static QR confirmed by hand instead (a dynamic QR needs the server).
+ * account or UzQR gateway set up — Wave P: UzQR only on a till with its own UzQR key; the default first) and how long
+ * a QR stays valid. Offline the till offers the static QR confirmed by hand instead (a dynamic QR needs the server).
  */
 final class QrPaymentsBootstrapSection implements PosBootstrapContributor
 {
@@ -26,7 +26,7 @@ final class QrPaymentsBootstrapSection implements PosBootstrapContributor
     public function contribute(User $user, Branch $branch, ?Device $device): array
     {
         $view = $this->settings->present($branch);
-        $available = $view['enabled'] ? $this->settings->available($branch, Store::findOrFail((int) $branch->store_id)) : [];
+        $available = $view['enabled'] ? $this->settings->available($branch, Store::findOrFail((int) $branch->store_id), $device) : [];
 
         return ['qr_payments' => [
             'enabled' => $view['enabled'] && $available !== [],

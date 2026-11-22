@@ -4,20 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'distributions2.dart';
+import 'unsigned_tills2.dart';
 
 part 'data163.g.dart';
 
 @JsonSerializable()
 class Data163 {
-  const Data163({required this.poolPeriod, required this.distributions});
+  const Data163({
+    required this.enforce,
+    required this.signingTills,
+    required this.unsignedTills,
+  });
 
   factory Data163.fromJson(Map<String, Object?> json) =>
       _$Data163FromJson(json);
 
-  @JsonKey(name: 'pool_period')
-  final String poolPeriod;
-  final List<Distributions2> distributions;
+  final bool enforce;
+  @JsonKey(name: 'signing_tills')
+  final int signingTills;
+  @JsonKey(name: 'unsigned_tills')
+  final List<UnsignedTills2> unsignedTills;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

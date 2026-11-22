@@ -4,12 +4,12 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall7.dart';
-import 'table5.dart';
-import 'waiter8.dart';
-import 'queue6.dart';
-import 'pickup6.dart';
-import 'online2.dart';
+import 'hall4.dart';
+import 'table2.dart';
+import 'waiter5.dart';
+import 'queue3.dart';
+import 'pickup3.dart';
+import 'online.dart';
 
 part 'data302.g.dart';
 
@@ -59,8 +59,8 @@ class Data302 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   final int version;
-  final Hall7? hall;
-  final Table5? table;
+  final Hall4? hall;
+  final Table2? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -69,7 +69,7 @@ class Data302 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter8? waiter;
+  final Waiter5? waiter;
   @JsonKey(name: 'items_count')
   final int itemsCount;
   final String subtotal;
@@ -87,15 +87,15 @@ class Data302 {
   final int? bookingId;
   @JsonKey(name: 'business_date')
   final String? businessDate;
-  final Queue6? queue;
-  final Pickup6? pickup;
+  final Queue3? queue;
+  final Pickup3? pickup;
   @JsonKey(name: 'opened_at')
   final String? openedAt;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final Online2? online;
+  final Online? online;
 
   Map<String, Object?> toJson() => _$Data302ToJson(this);
 }

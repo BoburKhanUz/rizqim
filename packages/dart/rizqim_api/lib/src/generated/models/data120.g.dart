@@ -8,22 +8,24 @@ part of 'data120.dart';
 
 Data120 _$Data120FromJson(Map<String, dynamic> json) => Data120(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  productId: (json['product_id'] as num).toInt(),
-  productName: json['product_name'] as String,
-  prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  kindLabel: json['kind_label'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
-  parts: (json['parts'] as List<dynamic>)
-      .map((e) => Parts3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  showOnKds: json['show_on_kds'] as bool,
+  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data120ToJson(Data120 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
-  'product_id': instance.productId,
-  'product_name': instance.productName,
-  'prices': instance.prices,
+  'branch_id': instance.branchId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'kind_label': instance.kindLabel,
+  'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
-  'parts': instance.parts,
+  'show_on_kds': instance.showOnKds,
+  'target_seconds': instance.targetSeconds,
 };

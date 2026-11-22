@@ -11,7 +11,7 @@ _$DeleteV1OwnerIngredientsIdStopResponseFromJson(Map<String, dynamic> json) =>
     DeleteV1OwnerIngredientsIdStopResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data108.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data110.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$DeleteV1OwnerIngredientsIdStopResponseToJson(

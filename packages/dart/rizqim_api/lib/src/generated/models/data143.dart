@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items7.dart';
+import 'items5.dart';
 
 part 'data143.g.dart';
 
@@ -39,7 +39,7 @@ class Data143 {
   final bool isActive;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
-  final List<Items7> items;
+  final List<Items5> items;
 
   Map<String, Object?> toJson() => _$Data143ToJson(this);
 }

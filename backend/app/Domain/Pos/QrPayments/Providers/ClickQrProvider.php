@@ -74,6 +74,8 @@ final class ClickQrProvider implements QrPaymentProvider
 
         try {
             $response = Http::connectTimeout(5)->timeout(20)->acceptJson()
+                // Review 12: the Auth digest never follows a redirect: a 3xx is a refusal
+                ->withOptions(['allow_redirects' => false])
                 ->withHeaders(['Auth' => app(ClickMerchantApi::class)->authHeader($credentials, now()->getTimestamp())])
                 ->delete(rtrim((string) config('qr_payments.click.api_url'), '/') . "/payment/reversal/{$credentials['service_id']}/{$qr->provider_transaction_id}");
         } catch (\Throwable $e) {
@@ -108,6 +110,8 @@ final class ClickQrProvider implements QrPaymentProvider
 
         try {
             $response = Http::connectTimeout(5)->timeout(20)->acceptJson()
+                // Review 12: the Auth digest never follows a redirect: a 3xx is a refusal
+                ->withOptions(['allow_redirects' => false])
                 ->withHeaders(['Auth' => app(ClickMerchantApi::class)->authHeader($credentials, now()->getTimestamp())])
                 ->get(rtrim((string) config('qr_payments.click.api_url'), '/') . "/payment/status/{$credentials['service_id']}/{$qr->provider_transaction_id}");
         } catch (\Throwable $e) {

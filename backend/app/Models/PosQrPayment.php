@@ -36,6 +36,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property int|null $shift_id
  * @property int|null $device_id
  * @property int|null $created_by
+ * @property string|null $uzqr_api_key Wave P review: the till's UzQR key that created it (encrypted at rest; never returned)
+ * @property \Illuminate\Support\Carbon|null $next_check_at when the operator is asked again about an ended UzQR (null: settled)
+ * @property \Illuminate\Support\Carbon|null $last_checked_at
+ * @property int $check_failures asks in a row the operator did not answer
+ * @property \Illuminate\Support\Carbon|null $operator_cancelled_at the operator acknowledged the cancel
+ * @property \Illuminate\Support\Carbon|null $alerted_at the owner was told it is still unsettled
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  */
@@ -54,7 +60,11 @@ class PosQrPayment extends Model
         'checkout_payload', 'gateway_reference', 'provider_transaction_id', 'provider_payload', 'expires_at',
         'held_at', 'paid_at', 'cancelled_at', 'cancel_reason', 'refunded_amount', 'refunded_at', 'payment_id',
         'shift_id', 'device_id', 'created_by', 'created_at', 'updated_at',
+        'uzqr_api_key', 'next_check_at', 'last_checked_at', 'check_failures', 'operator_cancelled_at', 'alerted_at',
     ];
+
+    /** Wave P review: the UzQR key it was made with never leaves the server. */
+    protected $hidden = ['uzqr_api_key'];
 
     protected function casts(): array
     {
@@ -73,6 +83,12 @@ class PosQrPayment extends Model
             'shift_id' => 'integer',
             'device_id' => 'integer',
             'created_by' => 'integer',
+            'uzqr_api_key' => 'encrypted',
+            'next_check_at' => 'datetime',
+            'last_checked_at' => 'datetime',
+            'check_failures' => 'integer',
+            'operator_cancelled_at' => 'datetime',
+            'alerted_at' => 'datetime',
         ];
     }
 

@@ -7,13 +7,15 @@ part of 'data279.dart';
 // **************************************************************************
 
 Data279 _$Data279FromJson(Map<String, dynamic> json) => Data279(
-  accounts: (json['accounts'] as List<dynamic>)
-      .map((e) => Accounts.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  meta: Meta2.fromJson(json['meta'] as Map<String, dynamic>),
+  session: json['session'] == null
+      ? null
+      : Session2.fromJson(json['session'] as Map<String, dynamic>),
+  todayMinutes: (json['today_minutes'] as num).toInt(),
+  businessDate: json['business_date'] as String,
 );
 
 Map<String, dynamic> _$Data279ToJson(Data279 instance) => <String, dynamic>{
-  'accounts': instance.accounts,
-  'meta': instance.meta,
+  'session': instance.session,
+  'today_minutes': instance.todayMinutes,
+  'business_date': instance.businessDate,
 };

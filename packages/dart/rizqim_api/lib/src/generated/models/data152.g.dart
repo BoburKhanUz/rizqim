@@ -8,22 +8,30 @@ part of 'data152.dart';
 
 Data152 _$Data152FromJson(Map<String, dynamic> json) => Data152(
   branchId: (json['branch_id'] as num).toInt(),
-  keyId: (json['key_id'] as num).toInt(),
-  rotatedAt: json['rotated_at'] as String?,
-  port: (json['port'] as num).toInt(),
-  hub: json['hub'] == null
-      ? null
-      : Hub.fromJson(json['hub'] as Map<String, dynamic>),
-  candidates: (json['candidates'] as List<dynamic>)
-      .map((e) => Candidates.fromJson(e as Map<String, dynamic>))
+  profile: json['profile'] as String,
+  profileLabel: json['profile_label'] as String,
+  mode: json['mode'] as String,
+  firstScreen: json['first_screen'] as String,
+  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
+  locks: Locks2.fromJson(json['locks'] as Map<String, dynamic>),
+  moduleRows: (json['module_rows'] as List<dynamic>)
+      .map((e) => ModuleRows2.fromJson(e as Map<String, dynamic>))
       .toList(),
+  profiles: (json['profiles'] as List<dynamic>)
+      .map((e) => Profiles2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  template: Template2.fromJson(json['template'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data152ToJson(Data152 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'key_id': instance.keyId,
-  'rotated_at': instance.rotatedAt,
-  'port': instance.port,
-  'hub': instance.hub,
-  'candidates': instance.candidates,
+  'profile': instance.profile,
+  'profile_label': instance.profileLabel,
+  'mode': instance.mode,
+  'first_screen': instance.firstScreen,
+  'modules': instance.modules,
+  'locks': instance.locks,
+  'module_rows': instance.moduleRows,
+  'profiles': instance.profiles,
+  'template': instance.template,
 };

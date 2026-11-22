@@ -7,7 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'packaging_lines6.dart';
 import 'banquet_lines5.dart';
 import 'fiscal28.dart';
-import 'items15.dart';
+import 'items16.dart';
 import 'payments20.dart';
 import 'tips6.dart';
 import 'ticket8.dart';
@@ -96,7 +96,7 @@ class Bill5 {
   @JsonKey(name: 'paid_at')
   final String? paidAt;
   final Fiscal28 fiscal;
-  final List<Items15> items;
+  final List<Items16> items;
   final List<Payments20> payments;
   @JsonKey(name: 'tips_amount')
   final String tipsAmount;

@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event9.dart';
-import 'guests2.dart';
-import 'stations9.dart';
-import 'osh5.dart';
-import 'warnings17.dart';
+import 'event6.dart';
+import 'summary8.dart';
+import 'rows10.dart';
+import 'entries7.dart';
+import 'cancellation4.dart';
 
 part 'data240.g.dart';
 
@@ -16,20 +16,20 @@ part 'data240.g.dart';
 class Data240 {
   const Data240({
     required this.event,
-    required this.guests,
-    required this.stations,
-    required this.osh,
-    required this.warnings,
+    required this.summary,
+    required this.rows,
+    required this.entries,
+    required this.cancellation,
   });
 
   factory Data240.fromJson(Map<String, Object?> json) =>
       _$Data240FromJson(json);
 
-  final Event9 event;
-  final Guests2 guests;
-  final List<Stations9> stations;
-  final Osh5? osh;
-  final List<Warnings17> warnings;
+  final Event6 event;
+  final Summary8 summary;
+  final List<Rows10> rows;
+  final List<Entries7> entries;
+  final Cancellation4? cancellation;
 
   Map<String, Object?> toJson() => _$Data240ToJson(this);
 }

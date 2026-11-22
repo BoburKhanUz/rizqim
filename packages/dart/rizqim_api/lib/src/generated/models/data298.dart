@@ -4,50 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'lan_role.dart';
-import 'hub5.dart';
-import 'devices4.dart';
+import 'branch19.dart';
+import 'store3.dart';
+import 'device12.dart';
+import 'modules2.dart';
+import 'cart.dart';
 
 part 'data298.g.dart';
 
 @JsonSerializable()
 class Data298 {
   const Data298({
-    required this.v,
-    required this.branchId,
-    required this.keyId,
-    required this.role,
+    required this.branch,
+    required this.store,
     required this.device,
-    required this.deviceKey,
-    required this.beaconKey,
-    required this.hub,
-    required this.hubSecret,
-    required this.devices,
-    required this.grant,
-    required this.clockWindowSeconds,
+    required this.tillUuid,
+    required this.modules,
+    required this.serverTime,
+    required this.cart,
   });
 
   factory Data298.fromJson(Map<String, Object?> json) =>
       _$Data298FromJson(json);
 
-  final int v;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'key_id')
-  final int keyId;
-  final LanRole role;
-  final String device;
-  @JsonKey(name: 'device_key')
-  final String deviceKey;
-  @JsonKey(name: 'beacon_key')
-  final String beaconKey;
-  final Hub5 hub;
-  @JsonKey(name: 'hub_secret')
-  final String? hubSecret;
-  final List<Devices4>? devices;
-  final String? grant;
-  @JsonKey(name: 'clock_window_seconds')
-  final int clockWindowSeconds;
+  final Branch19 branch;
+  final Store3? store;
+  final Device12 device;
+  @JsonKey(name: 'till_uuid')
+  final String? tillUuid;
+  final Modules2 modules;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  final Cart? cart;
 
   Map<String, Object?> toJson() => _$Data298ToJson(this);
 }

@@ -4,33 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'schedule_template2.dart';
-import 'cancellation_rules2.dart';
+import 'items7.dart';
 
 part 'data145.g.dart';
 
 @JsonSerializable()
 class Data145 {
   const Data145({
-    required this.scheduleTemplate,
-    required this.cancellationRules,
-    required this.reminderDays,
-    required this.overdueReminders,
-    required this.version,
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.perPersonPrice,
+    required this.minimumGuests,
+    required this.included,
+    required this.description,
+    required this.isActive,
+    required this.sortOrder,
+    required this.items,
   });
 
   factory Data145.fromJson(Map<String, Object?> json) =>
       _$Data145FromJson(json);
 
-  @JsonKey(name: 'schedule_template')
-  final List<ScheduleTemplate2> scheduleTemplate;
-  @JsonKey(name: 'cancellation_rules')
-  final List<CancellationRules2> cancellationRules;
-  @JsonKey(name: 'reminder_days')
-  final List<int> reminderDays;
-  @JsonKey(name: 'overdue_reminders')
-  final bool overdueReminders;
-  final int version;
+  final int id;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'per_person_price')
+  final String perPersonPrice;
+  @JsonKey(name: 'minimum_guests')
+  final int minimumGuests;
+  final List<String> included;
+  final String? description;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  final List<Items7> items;
 
   Map<String, Object?> toJson() => _$Data145ToJson(this);
 }

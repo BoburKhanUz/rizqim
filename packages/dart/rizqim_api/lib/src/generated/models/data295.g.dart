@@ -7,25 +7,27 @@ part of 'data295.dart';
 // **************************************************************************
 
 Data295 _$Data295FromJson(Map<String, dynamic> json) => Data295(
-  branch: Branch19.fromJson(json['branch'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store3.fromJson(json['store'] as Map<String, dynamic>),
-  device: Device12.fromJson(json['device'] as Map<String, dynamic>),
-  tillUuid: json['till_uuid'] as String?,
-  modules: Modules2.fromJson(json['modules'] as Map<String, dynamic>),
-  serverTime: json['server_time'] as String,
-  cart: json['cart'] == null
-      ? null
-      : Cart.fromJson(json['cart'] as Map<String, dynamic>),
+  account: Account6.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries11.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data295ToJson(Data295 instance) => <String, dynamic>{
-  'branch': instance.branch,
-  'store': instance.store,
-  'device': instance.device,
-  'till_uuid': instance.tillUuid,
-  'modules': instance.modules,
-  'server_time': instance.serverTime,
-  'cart': instance.cart,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

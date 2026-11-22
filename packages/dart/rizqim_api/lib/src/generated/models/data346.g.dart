@@ -12,17 +12,17 @@ Data346 _$Data346FromJson(Map<String, dynamic> json) => Data346(
   branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device19.fromJson(json['device'] as Map<String, dynamic>),
+      : Device17.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
   openedAt: json['opened_at'] as String,
   openedBy: json['opened_by'] == null
       ? null
-      : OpenedBy7.fromJson(json['opened_by'] as Map<String, dynamic>),
+      : OpenedBy5.fromJson(json['opened_by'] as Map<String, dynamic>),
   openingCash: json['opening_cash'] as String,
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy10.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy8.fromJson(json['closed_by'] as Map<String, dynamic>),
   expectedCash: json['expected_cash'] as String?,
   countedCash: json['counted_cash'] as String?,
   countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
@@ -34,10 +34,10 @@ Data346 _$Data346FromJson(Map<String, dynamic> json) => Data346(
   closeNote: json['close_note'] as String?,
   summary: json['summary'] == null
       ? null
-      : Summary12.fromJson(json['summary'] as Map<String, dynamic>),
+      : Summary11.fromJson(json['summary'] as Map<String, dynamic>),
   bankTerminal: json['bank_terminal'] == null
       ? null
-      : BankTerminal2.fromJson(json['bank_terminal'] as Map<String, dynamic>),
+      : BankTerminal.fromJson(json['bank_terminal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data346ToJson(Data346 instance) => <String, dynamic>{

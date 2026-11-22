@@ -4,32 +4,80 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'summary13.dart';
-import 'tips16.dart';
+import 'staff28.dart';
+import 'device23.dart';
+import 'origin_device2.dart';
+import 'order14.dart';
+import 'resolved_by2.dart';
 
 part 'data353.g.dart';
 
 @JsonSerializable()
 class Data353 {
   const Data353({
-    required this.shiftUuid,
-    required this.businessDate,
-    required this.ownOnly,
-    required this.summary,
-    required this.tips,
+    required this.opId,
+    required this.seq,
+    required this.type,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.sigStatus,
+    required this.staffContinued,
+    required this.staff,
+    required this.device,
+    required this.originDevice,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data353.fromJson(Map<String, Object?> json) =>
       _$Data353FromJson(json);
 
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'own_only')
-  final bool ownOnly;
-  final Summary13 summary;
-  final List<Tips16> tips;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  @JsonKey(name: 'sig_status')
+  final String? sigStatus;
+  @JsonKey(name: 'staff_continued')
+  final bool staffContinued;
+  final Staff28? staff;
+  final Device23? device;
+  @JsonKey(name: 'origin_device')
+  final OriginDevice2? originDevice;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order14? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data353ToJson(this);
 }

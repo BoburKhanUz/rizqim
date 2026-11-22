@@ -6,9 +6,14 @@ part of 'data256.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data256 _$Data256FromJson(Map<String, dynamic> json) =>
-    Data256(qr: Qr.fromJson(json['qr'] as Map<String, dynamic>));
+Data256 _$Data256FromJson(Map<String, dynamic> json) => Data256(
+  bill: Bill5.fromJson(json['bill'] as Map<String, dynamic>),
+  copy: json['copy'] as bool,
+  order: Order8.fromJson(json['order'] as Map<String, dynamic>),
+);
 
 Map<String, dynamic> _$Data256ToJson(Data256 instance) => <String, dynamic>{
-  'qr': instance.qr,
+  'bill': instance.bill,
+  'copy': instance.copy,
+  'order': instance.order,
 };

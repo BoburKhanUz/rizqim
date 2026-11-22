@@ -4,48 +4,64 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'branch11.dart';
+import 'sale3.dart';
+import 'buyer3.dart';
+import 'fiscal6.dart';
+import 'blocked4.dart';
+import 'print3.dart';
+
 part 'data176.g.dart';
 
 @JsonSerializable()
 class Data176 {
   const Data176({
-    required this.id,
-    required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
+    required this.uuid,
+    required this.code,
+    required this.kind,
+    required this.faceValue,
+    required this.balance,
+    required this.currency,
+    required this.validFrom,
+    required this.validUntil,
+    required this.status,
+    required this.statusLabel,
+    required this.branch,
+    required this.sale,
+    required this.buyer,
+    required this.note,
+    required this.fiscal,
+    required this.blocked,
+    required this.print,
+    required this.createdAt,
   });
 
   factory Data176.fromJson(Map<String, Object?> json) =>
       _$Data176FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  final String uuid;
+  final String code;
+  final String kind;
+  @JsonKey(name: 'face_value')
+  final String faceValue;
+  final String balance;
+  final String currency;
+  @JsonKey(name: 'valid_from')
+  final String validFrom;
+  @JsonKey(name: 'valid_until')
+  final String? validUntil;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final Branch11? branch;
+  final Sale3 sale;
+  final Buyer3 buyer;
+  final String? note;
+  final Fiscal6 fiscal;
+  final Blocked4? blocked;
+  final Print3? print;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data176ToJson(this);
 }

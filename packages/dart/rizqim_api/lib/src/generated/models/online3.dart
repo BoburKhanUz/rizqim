@@ -7,7 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'customer3.dart';
 import 'delivery6.dart';
 import 'courier3.dart';
-import 'items55.dart';
+import 'items56.dart';
 
 part 'online3.g.dart';
 
@@ -101,7 +101,7 @@ class Online3 {
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items55> items;
+  final List<Items56> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')

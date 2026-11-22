@@ -4,27 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'roles.dart';
-import 'permissions.dart';
+import 'data129.dart';
 
 part 'data130.g.dart';
 
 @JsonSerializable()
 class Data130 {
   const Data130({
-    required this.roles,
-    required this.permissions,
-    required this.matrix,
-    required this.defaults,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
   });
 
   factory Data130.fromJson(Map<String, Object?> json) =>
       _$Data130FromJson(json);
 
-  final List<Roles> roles;
-  final List<Permissions> permissions;
-  final Map<String, Map<String, bool>> matrix;
-  final Map<String, Map<String, bool>> defaults;
+  final List<Data129> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data130ToJson(this);
 }

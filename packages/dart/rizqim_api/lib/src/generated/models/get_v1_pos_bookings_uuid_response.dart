@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data260.dart';
+import 'data263.dart';
 
 part 'get_v1_pos_bookings_uuid_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosBookingsUuidResponse {
 
   final bool success;
   final String message;
-  final Data260 data;
+  final Data263 data;
 
   Map<String, Object?> toJson() => _$GetV1PosBookingsUuidResponseToJson(this);
 }

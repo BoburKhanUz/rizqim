@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device19.dart';
-import 'opened_by7.dart';
-import 'closed_by10.dart';
-import 'summary12.dart';
-import 'bank_terminal2.dart';
+import 'device17.dart';
+import 'opened_by5.dart';
+import 'closed_by8.dart';
+import 'summary11.dart';
+import 'bank_terminal.dart';
 
 part 'data346.g.dart';
 
@@ -43,19 +43,19 @@ class Data346 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device19? device;
+  final Device17? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy7? openedBy;
+  final OpenedBy5? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy10? closedBy;
+  final ClosedBy8? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')
@@ -69,9 +69,9 @@ class Data346 {
   final bool forceClosed;
   @JsonKey(name: 'close_note')
   final String? closeNote;
-  final Summary12? summary;
+  final Summary11? summary;
   @JsonKey(name: 'bank_terminal')
-  final BankTerminal2? bankTerminal;
+  final BankTerminal? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data346ToJson(this);
 }

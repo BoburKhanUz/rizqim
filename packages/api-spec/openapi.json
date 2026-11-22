@@ -58776,6 +58776,273 @@
                 }
             }
         },
+        "/v1/owner/fiscal/uzqr": {
+            "get": {
+                "operationId": "uzQrSettings.index",
+                "description": "The store's UzQR driver (`fiscal_settings.uzqr.driver`; null: UzQR not offered), its STIR (`tin`, set in the\nfiscal settings) and its POS tills (`branch_id` narrows to one; a branch-bound caller: theirs) with whether each\nhas its UzQR API key (`has_api_key`, `api_key_last4`, `api_key_set_at`) and whether it can make a UzQR now\n(`ready`; else `message` says why). The key itself is never returned. settings.manage.",
+                "summary": "UzQR credentials",
+                "tags": [
+                    "Owner: fiscal"
+                ],
+                "parameters": [
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "description": "Filial.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "driver": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "tin": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "tin_set": {
+                                                    "type": "boolean"
+                                                },
+                                                "tills": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "branch_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "has_api_key": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "api_key_last4": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "api_key_set_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "ready": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "message": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "branch_id",
+                                                            "has_api_key",
+                                                            "api_key_last4",
+                                                            "api_key_set_at",
+                                                            "ready",
+                                                            "message"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "driver",
+                                                "tin",
+                                                "tin_set",
+                                                "tills"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/fiscal/uzqr/tills/{uuid}": {
+            "put": {
+                "operationId": "uzQrSettings.updateTill",
+                "description": "`api_key`: the key the restaurant created for this till's dynamic QR in uzqr.uz (shown there once): 8–512\nprintable characters without spaces. Left out, null, empty or masked (`••••1234`, `****`): the stored key is\nkept. `remove_api_key: true` clears it (the till then offers the other methods; also on a revoked till, to wipe\nits key). A QR made with the key keeps its own copy: its status, cancel, refunds and receipt link go on with it\nafter a removal or a new key. Never returned: the answer has `has_api_key` and `api_key_last4`. Audited.\nsettings.manage on the till's branch; a till of another store, or setting a key on a revoked one: 404.",
+                "summary": "Set a till's UzQR API key",
+                "tags": [
+                    "Owner: fiscal"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "api_key": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Kassaning UzQR API kaliti (yashirin; maskalangan qiymat saqlanganini o'zgartirmaydi)."
+                                    },
+                                    "remove_api_key": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uuid": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "branch_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "has_api_key": {
+                                                    "type": "boolean"
+                                                },
+                                                "api_key_last4": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "api_key_set_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "ready": {
+                                                    "type": "boolean"
+                                                },
+                                                "message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "uuid",
+                                                "name",
+                                                "branch_id",
+                                                "has_api_key",
+                                                "api_key_last4",
+                                                "api_key_set_at",
+                                                "ready",
+                                                "message"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/owner/halls": {
             "get": {
                 "operationId": "hall.index",
@@ -68438,6 +68705,142 @@
                                                 "settings",
                                                 "merchants",
                                                 "options"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/pos/qr-payments/unmatched": {
+            "get": {
+                "operationId": "qrPaymentSettings.unmatched",
+                "description": "Wave P (review 11): the QR payments the provider took that no bill took (`paid_unmatched`: paid after the cashier\ncancelled it or after a newer QR, of another amount, after the bill was paid another way or the shift closed),\nnewest first, at most 200, and their `total`. The owner is also told of each one when it happens (Telegram /\npush). Give the money back from the provider's own cabinet (uzqr.uz, Click, Payme) or count it in the\nreconciliation. `branch_id` narrows to one branch (a branch-bound caller: theirs). finance.view.",
+                "summary": "QR money no bill took",
+                "tags": [
+                    "Owner: QR payments"
+                ],
+                "parameters": [
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "description": "Filial.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "bill_uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "order_uuid": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "branch_id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "transaction_id": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "unmatched_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "bill_uuid",
+                                                            "order_uuid",
+                                                            "branch_id",
+                                                            "provider",
+                                                            "provider_label",
+                                                            "amount",
+                                                            "transaction_id",
+                                                            "reason",
+                                                            "status",
+                                                            "created_at",
+                                                            "unmatched_at"
+                                                        ]
+                                                    }
+                                                },
+                                                "total": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "items",
+                                                "total"
                                             ]
                                         }
                                     },
@@ -103357,6 +103760,12 @@
                                                             "simulated": {
                                                                 "type": "boolean"
                                                             },
+                                                            "receipt_link": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "created_at": {
                                                                 "type": [
                                                                     "string",
@@ -103382,6 +103791,7 @@
                                                             "payment_uuid",
                                                             "refunded_amount",
                                                             "simulated",
+                                                            "receipt_link",
                                                             "created_at"
                                                         ]
                                                     }
@@ -103570,6 +103980,12 @@
                                                         "simulated": {
                                                             "type": "boolean"
                                                         },
+                                                        "receipt_link": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -103595,6 +104011,7 @@
                                                         "payment_uuid",
                                                         "refunded_amount",
                                                         "simulated",
+                                                        "receipt_link",
                                                         "created_at"
                                                     ]
                                                 }
@@ -153717,6 +154134,12 @@
                                                         "simulated": {
                                                             "type": "boolean"
                                                         },
+                                                        "receipt_link": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -153742,6 +154165,7 @@
                                                         "payment_uuid",
                                                         "refunded_amount",
                                                         "simulated",
+                                                        "receipt_link",
                                                         "created_at"
                                                     ]
                                                 }
@@ -153901,6 +154325,12 @@
                                                         "simulated": {
                                                             "type": "boolean"
                                                         },
+                                                        "receipt_link": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -153926,6 +154356,7 @@
                                                         "payment_uuid",
                                                         "refunded_amount",
                                                         "simulated",
+                                                        "receipt_link",
                                                         "created_at"
                                                     ]
                                                 }
@@ -154082,6 +154513,12 @@
                                                         "simulated": {
                                                             "type": "boolean"
                                                         },
+                                                        "receipt_link": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "created_at": {
                                                             "type": [
                                                                 "string",
@@ -154107,6 +154544,7 @@
                                                         "payment_uuid",
                                                         "refunded_amount",
                                                         "simulated",
+                                                        "receipt_link",
                                                         "created_at"
                                                     ]
                                                 }

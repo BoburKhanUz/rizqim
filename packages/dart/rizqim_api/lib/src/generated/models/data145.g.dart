@@ -7,23 +7,31 @@ part of 'data145.dart';
 // **************************************************************************
 
 Data145 _$Data145FromJson(Map<String, dynamic> json) => Data145(
-  scheduleTemplate: (json['schedule_template'] as List<dynamic>)
-      .map((e) => ScheduleTemplate2.fromJson(e as Map<String, dynamic>))
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  perPersonPrice: json['per_person_price'] as String,
+  minimumGuests: (json['minimum_guests'] as num).toInt(),
+  included: (json['included'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
-  cancellationRules: (json['cancellation_rules'] as List<dynamic>)
-      .map((e) => CancellationRules2.fromJson(e as Map<String, dynamic>))
+  description: json['description'] as String?,
+  isActive: json['is_active'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items7.fromJson(e as Map<String, dynamic>))
       .toList(),
-  reminderDays: (json['reminder_days'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  overdueReminders: json['overdue_reminders'] as bool,
-  version: (json['version'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data145ToJson(Data145 instance) => <String, dynamic>{
-  'schedule_template': instance.scheduleTemplate,
-  'cancellation_rules': instance.cancellationRules,
-  'reminder_days': instance.reminderDays,
-  'overdue_reminders': instance.overdueReminders,
-  'version': instance.version,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'per_person_price': instance.perPersonPrice,
+  'minimum_guests': instance.minimumGuests,
+  'included': instance.included,
+  'description': instance.description,
+  'is_active': instance.isActive,
+  'sort_order': instance.sortOrder,
+  'items': instance.items,
 };

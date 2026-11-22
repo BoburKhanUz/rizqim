@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data143.dart';
+import 'data145.dart';
 
 part 'patch_v1_owner_pos_banquets_packages_package_response.g.dart';
 
@@ -22,7 +22,7 @@ class PatchV1OwnerPosBanquetsPackagesPackageResponse {
 
   final bool success;
   final String message;
-  final Data143 data;
+  final Data145 data;
 
   Map<String, Object?> toJson() =>
       _$PatchV1OwnerPosBanquetsPackagesPackageResponseToJson(this);

@@ -4,43 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'rows4.dart';
+import 'events3.dart';
+import 'dishes4.dart';
+import 'osh4.dart';
 
 part 'data229.g.dart';
 
 @JsonSerializable()
 class Data229 {
   const Data229({
-    required this.daysBefore,
-    required this.rulePercent,
-    required this.paid,
-    required this.computedRetained,
-    required this.retained,
-    required this.refund,
-    required this.overridden,
-    required this.cashRefund,
-    required this.transferRefund,
-    required this.rows,
+    required this.branchId,
+    required this.from,
+    required this.to,
+    required this.events,
+    required this.dishes,
+    required this.osh,
   });
 
   factory Data229.fromJson(Map<String, Object?> json) =>
       _$Data229FromJson(json);
 
-  @JsonKey(name: 'days_before')
-  final int daysBefore;
-  @JsonKey(name: 'rule_percent')
-  final String rulePercent;
-  final String paid;
-  @JsonKey(name: 'computed_retained')
-  final String computedRetained;
-  final String retained;
-  final String refund;
-  final bool overridden;
-  @JsonKey(name: 'cash_refund')
-  final String cashRefund;
-  @JsonKey(name: 'transfer_refund')
-  final String transferRefund;
-  final List<Rows4> rows;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String from;
+  final String to;
+  final List<Events3> events;
+  final List<Dishes4> dishes;
+  final Osh4 osh;
 
   Map<String, Object?> toJson() => _$Data229ToJson(this);
 }
