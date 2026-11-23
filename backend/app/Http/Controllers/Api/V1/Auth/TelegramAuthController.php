@@ -81,14 +81,21 @@ class TelegramAuthController extends Controller
         if (!$store) {
             $existingUser = \App\Models\User::where('telegram_id', $telegramUser['id'])->first();
             if ($existingUser && $existingUser->store_id) {
+                // Staff of a deactivated store stay refused (404), on either bot (unchanged)
                 $store = Store::where('id', $existingUser->store_id)->where('is_active', true)->first();
-            } else {
-                // If no user or user has no store, fallback to first active store (useful for single-tenant mode via global bot)
+                if (!$store) {
+                    return $this->error('Store not found or bot not configured.', [], 404);
+                }
+            } elseif (!$isGlobalBot) {
+                // Store bots keep their legacy single-tenant fallback; the global marketplace bot needs no store: a
+                // customer is global (users.store_id stays null) and the Mini App lists the stores itself
                 $store = Store::where('is_active', true)->first();
             }
         }
 
-        if (!$store) {
+        // A store bot (or an unknown bot username) without an active store; an inactive or unknown `store_<uuid>` on
+        // the global bot just signs in without a store, so the answer does not tell whether that store exists
+        if (!$store && !$isGlobalBot) {
             return $this->error('Store not found or bot not configured.', [], 404);
         }
 
@@ -111,7 +118,8 @@ class TelegramAuthController extends Controller
         $token = $deviceTokens !== null ? $deviceTokens->accessToken : $this->generateTokenAction->execute($user);
 
         // 5. Resolve Actual Store (if user is attached to a different store e.g. via invite link)
-        $resolvedStore = $user->store_id ? Store::with('branches')->find($user->store_id) : $store->load('branches');
+        // A customer on the global bot without an active `store_<uuid>` link gets `store: null`
+        $resolvedStore = $user->store_id ? Store::with('branches')->find($user->store_id) : $store?->load('branches');
 
         // 6. Return Response
         return $this->success(array_merge([

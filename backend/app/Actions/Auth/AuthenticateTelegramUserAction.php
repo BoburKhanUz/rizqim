@@ -15,6 +15,9 @@ class AuthenticateTelegramUserAction
     ) {}
 
     /**
+     * $store: the store the sign-in came through (a store bot, an active `store_<uuid>` link or the person's own
+     * store); null on the global marketplace bot without one. It never attaches the customer to a store.
+     *
      * $botStore: the store whose OWN bot token signed the initData. Its owner holds that token and can sign any
      * Telegram id, so such logins are limited to customers and that store's staff (null = refused).
      *
@@ -24,7 +27,7 @@ class AuthenticateTelegramUserAction
      * @throws PlatformAccountSignInException
      * @throws \App\Services\Auth\AccountBlockedException an invite claimed by someone blocked in that store
      */
-    public function execute(array $telegramUser, Store $store, ?string $startParam = null, ?Store $botStore = null): ?User
+    public function execute(array $telegramUser, ?Store $store, ?string $startParam = null, ?Store $botStore = null): ?User
     {
         $telegramId = (string) $telegramUser['id'];
 

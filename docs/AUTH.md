@@ -17,7 +17,9 @@ yozilishini tushuntiradi (P1-12). Barcha endpointlar `/api/v1` ostida.
 ## 1. Telegram va SMS kod bilan kirish
 
 **Telegram.** `POST /auth/telegram` `{initData, bot_username, start_param?}`. Javob o'zgarmagan:
-`{token, user, store, sms_verification_required}`. Mini App hech narsa o'zgartirmaydi.
+`{token, user, store, sms_verification_required}`. Mini App hech narsa o'zgartirmaydi. Asosiy bot orqali mijoz do'konsiz
+ham kiradi (`store: null`: faol do'kon yo'q yoki `store_<uuid>` faol emas/noma'lum); do'kon botlari faol do'konini talab
+qiladi (404). Batafsil: [API.md](API.md) 2-bo'lim.
 
 **Superadmin va RIZQIM jamoasi Telegram yoki SMS bilan kirmaydi (P4-25).** Superadmin (`users.role = super_admin`) va
 jamoa a'zolari (`platform`, `users.platform_role` belgilangan) faqat Boshqaruv markazi orqali kiradi (`/admin/auth/*`,

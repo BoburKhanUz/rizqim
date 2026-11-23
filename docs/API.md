@@ -52,6 +52,13 @@ Muhim qoidalar:
 - **Xodim sessiyasi cheklangan.** U buyurtma va kassa ishi uchun: moliya, sozlamalar, xodimlar, ruxsatlar, PIN va
   rollar, qurilmalar, harakatlar jurnali, profil va telefon endpointlari uni 403 bilan rad etadi
   (`data.reason = staff_session_not_allowed`).
+- **Asosiy bot do'konsiz ham kiradi (Wave P).** `POST /auth/telegram` asosiy marketplace boti (`bot_username` =
+  `TELEGRAM_BOT_USERNAME`) orqali mijozni do'kon bo'lmasa ham kiritadi: faol do'kon umuman yo'q, `start_param` yo'q yoki
+  `store_<uuid>` faol bo'lmagan / noma'lum do'konga tegishli — javob 200, `store: null` (do'kon bor-yo'qligi
+  aytilmaydi). Mijoz hech qachon do'konga biriktirilmaydi (`users.store_id` bo'sh qoladi). Avvalgi "birinchi faol
+  do'kon" o'rniga ham endi `store: null` keladi; faol `store_<uuid>` havolasida o'sha do'kon, xodimga o'z do'koni
+  qaytadi. O'zgarmagan: do'kon botlari faol do'konisiz 404, faol bo'lmagan do'kon xodimi 404, taklif havolalari,
+  `platform_account`/`account_blocked` 403.
 - **Chiqish:** `POST /auth/logout` (joriy sessiya), `POST /auth/logout-all` (hamma qurilmalar).
 - **Xodimlar (P1-36):** `POST /auth/phone/verify` da `account=staff` faqat tasdiqlangan login telefoni bor xodim
   hisoblarini topadi; bir odam bir nechta do'konda bo'lsa `POST /auth/phone/select-account` bilan tanlaydi.
