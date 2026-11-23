@@ -68,7 +68,8 @@ class OnlinegroupSmsTest extends TestCase
     {
         Http::fake([self::URL => $this->queued()]);
 
-        $this->assertTrue(app(SmsServiceInterface::class)->send('+998901234567', 'RIZQIM tasdiqlash kodi: 482913'));
+        // A code passes its own lifetime as the queue ttl (PhoneOtpService)
+        $this->assertTrue(app(SmsServiceInterface::class)->send('+998901234567', 'RIZQIM tasdiqlash kodi: 482913', \App\Services\Auth\PhoneOtpService::CODE_TTL_SECONDS));
 
         Http::assertSentCount(1);
         Http::assertSent(function (Request $request) {

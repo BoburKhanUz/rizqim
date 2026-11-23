@@ -3,6 +3,7 @@
 namespace App\Services\Admin\System;
 
 use App\Models\Setting;
+use App\Support\SettingSecrets;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\Cache;
  *
  * A secret (the Eskiz password, the Onlinegroup API key, the bot token...) is never answered: only whether it is set and its last 4 characters
  * (SecretMask). It is not changed with the other settings either, but replaced on its own (replaceSecret) and the
- * audit entry never holds its value.
+ * audit entry never holds its value. Review 17 M1: a secret is stored encrypted with APP_KEY (SettingSecrets): write()
+ * encrypts it, resolve() and the setting() helper decrypt it, and the cache only holds the ciphertext.
  *
  * The value a setting has follows setting(): a row in `settings` with a non-null value wins (an empty string too: it
  * means "nothing"), then config/settings.php (.env), then the code's own default.
@@ -228,7 +230,7 @@ final class SystemSettings
     private function write(string $key, ?string $value): void
     {
         $row = Setting::query()->firstOrNew(['key' => $key]);
-        $row->value = $value;
+        $row->value = $value !== null && self::isSecret($key) ? SettingSecrets::encrypt($value) : $value;
         $row->save();
         // The model's own `saved` hook forgets the cache too; this covers a row that did not change
         Cache::forget("setting_{$key}");
@@ -257,7 +259,8 @@ final class SystemSettings
     private function resolve(string $key, ?Setting $row): array
     {
         if ($row !== null && $row->value !== null) {
-            return [(string) $row->value, 'settings'];
+            // A secret's ciphertext is decrypted (a plain value from before the encryption migration as it is)
+            return [self::isSecret($key) ? SettingSecrets::decrypt((string) $row->value) : (string) $row->value, 'settings'];
         }
         $config = config("settings.{$key}");
         if ($config !== null && $config !== '') {

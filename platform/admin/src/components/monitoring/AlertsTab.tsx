@@ -20,6 +20,8 @@ const KINDS = [
   'redis_memory', 'queue_worker_stale', 'realtime_down', 'table_bloat', 'partitions', 'tls_expiry',
   // M5 S3-d: the signed offline queue
   'pos_sync_signature',
+  // Review 17: SMS (sign-in codes) that did not go out
+  'sms_failures',
 ] as const;
 
 // Ogohlantirishlar: open ones first (critical before the rest), each with who took it; "Faol" is open + acknowledged together,

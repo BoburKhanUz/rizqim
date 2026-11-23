@@ -121,8 +121,11 @@ return [
         'base_url' => env('ONLINEGROUP_SMS_BASE_URL', 'https://sms.onlinegroup.uz'),
         'timeout' => 10,
         'connect_timeout' => 5,
-        // A code lives 5 minutes (PhoneOtpService): a message the gateway could not hand to a SIM by then expires unsent
+        // A code lives 5 minutes (PhoneOtpService passes its own lifetime): a code the gateway could not hand to a SIM
+        // by then expires unsent. Every other message (a booking confirmation, a Telegram link) waits up to
+        // message_ttl_seconds in the gateway's queue.
         'ttl_seconds' => 300,
+        'message_ttl_seconds' => (int) env('ONLINEGROUP_SMS_MESSAGE_TTL', 3600),
     ],
 
 ];

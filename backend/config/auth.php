@@ -154,6 +154,9 @@ return [
         'max_attempts' => 5,
         // Guesses per phone in 24 hours, over all codes
         'max_attempts_per_day' => 30,
+        // Review 17 M3: codes sent by the whole platform (every IP and phone together), per minute and per day
+        'global_per_minute' => (int) env('SMS_OTP_GLOBAL_PER_MINUTE', 40),
+        'global_per_day' => (int) env('SMS_OTP_GLOBAL_PER_DAY', 1000),
     ],
 
     /*

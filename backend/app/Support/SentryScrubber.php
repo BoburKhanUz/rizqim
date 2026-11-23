@@ -171,8 +171,12 @@ final class SentryScrubber
             $value,
         );
 
-        // A one-time code written out in text: "code 123456", "otp: 4821", "kod=1234"
-        $value = (string) preg_replace('/\b(code|kod|otp|sms)(\s*[:=#]?\s*)\d{4,8}\b/i', '$1$2'.self::MASK, $value);
+        // A one-time code written out in text: "code 123456", "otp: 4821", "kod=1234", "code is 4821", and the
+        // Uzbek forms of our own SMS (review 17): "kodi: 482913", "kodingiz 4821", "kodni 4821", "parol: 4821"
+        $value = (string) preg_replace('/\b(code(?:\s+is)?|kod(?:i|ingiz|ni|ini|ingizni)?|otp|sms|parol(?:i|ingiz)?)(\s*[:=#\-]?\s*)\d{4,8}\b/iu', '$1$2'.self::MASK, $value);
+
+        // Onlinegroup SMS gateway keys (sk_ and random characters)
+        $value = (string) preg_replace('/\bsk_[A-Za-z0-9]{16,}/', self::MASK, $value);
 
         // Phone numbers: +998 90 123-45-67, 998901234567, any +country-code number
         $value = (string) preg_replace('/(?<![\w.])\+?998[\s\-()]*(?:\d[\s\-()]*){9}(?!\w)/', self::MASK, $value);

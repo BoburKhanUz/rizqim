@@ -110,6 +110,8 @@ final class AuditRedactor
         // JWTs, provider keys (sk_live_..., pk_test_...), Telegram bot tokens (id:secret, also inside Bot API URLs)
         $value = (string) preg_replace('/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/', self::REDACTED, $value);
         $value = (string) preg_replace('/\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}/', self::REDACTED, $value);
+        // Review 17 L6: an Onlinegroup SMS gateway key (sk_ and 16+ random characters)
+        $value = (string) preg_replace('/\bsk_[A-Za-z0-9]{16,}/', self::REDACTED, $value);
         $value = (string) preg_replace('/(?<!\d)\d{6,12}:[A-Za-z0-9_-]{30,}/', self::REDACTED, $value);
         // token=..., access_token=..., signature=... in a URL's query string or a pasted `key=value` list
         $value = (string) preg_replace(

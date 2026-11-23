@@ -3451,6 +3451,7 @@ Yetti ichki qoida (`kind`), har biri `alert_rules` jadvalida bitta qator (yo'q b
 | `backup_stale` | Oxirgi zaxira `threshold` soatdan eski (yoki hech qachon yozilmagan) | 26 soat | kritik |
 | `scheduler_stale` | Scheduler yurak urishi yo'q yoki `threshold` soniyadan eski | 180 soniya | kritik |
 | `pos_sync_signature` (M5 S3) | Kassa `window_minutes` ichida `threshold` va undan ko'p imzosi noto'g'ri (`bad`) yoki navbatdan yo'qolgan amaldan keyingi (`chain_gap`) oflayn amal yubordi; yoki shu oynada kaliti bittadan ko'p almashtirildi; yoki imzolab turgan kassa imzosiz amal yubordi (har kassa alohida; "Imzolangan navbat") | 1 ta, 1440 daqiqa | diqqat |
+| `sms_failures` (review 17) | `window_minutes` ichida SMS yuborilmadi: `config` (API kalit yo'q yoki rad etilgan 401/403, https bo'lmagan manzil, noma'lum `sms_driver`; 1 tadan, kritik), `disabled` (production'da `sms_driver = log`; 1 tadan, kritik), `delivery` (gateway 429/422/5xx/javobsiz, jami `threshold` dan; diqqat). Faqat sonlar (OPERATIONS.md §28) | 3 ta, 15 daqiqa | kritik |
 
 **"Hozir ochiq" — bitta qoida** (`App\Services\Admin\Monitoring\TerminalBusinessHours`), uni `pos_device_offline` ham,
 "Bugun → Ish vaqtida oflayn kassalar" ham ishlatadi, shuning uchun ikkalasi hech qachon ixtilof qilmaydi: ovqatxona faol va

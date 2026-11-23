@@ -12,7 +12,7 @@ class FakeSmsService implements SmsServiceInterface
     /** @var list<array{phone: string, text: string}> */
     public array $sent = [];
 
-    public function send(string $phone, string $message): bool
+    public function send(string $phone, string $message, ?int $ttlSeconds = null): bool
     {
         $this->sent[] = ['phone' => $phone, 'text' => $message];
 

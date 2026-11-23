@@ -17453,6 +17453,7 @@
                                 "partitions",
                                 "tls_expiry",
                                 "pos_sync_signature",
+                                "sms_failures",
                                 null
                             ]
                         }
@@ -19618,7 +19619,7 @@
         "/v1/admin/monitoring/rules": {
             "get": {
                 "operationId": "admin.monitoring.rules",
-                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
+                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry; M5: pos_sync_signature; review 17: sms_failures). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
                 "summary": "Alert rules",
                 "tags": [
                     "Admin"
@@ -38078,6 +38079,25 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
                                 }
                             }
                         }
@@ -85841,6 +85861,25 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
                                 }
                             }
                         }

@@ -462,7 +462,7 @@ docker compose exec -u www-data backend php artisan db:seed --class=LocationSeed
 
 **`app:check-production` staging'da.** Buyruq `APP_ENV=production` **yoki** `staging` ni qabul qiladi. Qolgan hamma shartlar staging'da ham o'zgarishsiz tekshiriladi (debug o'chiq, `APP_KEY`, Telegram secret va HTTPS manzil, Reverb kalitlari, standart super admin paroli yo'q): staging internetda turadi, shuning uchun "staging deb" zaiflashtirilmaydi. Production-only shart bitta: `APP_ENV` qiymatining o'zi (`local`/`testing` va boshqalar ikkalasida ham rad etiladi). Muvaffaqiyatli bo'lsa chiqadi: "Staging sozlamalari tekshiruvdan o'tdi".
 
-**Production ma'lumotlarini staging'ga ko'chirmang.** Zarur bo'lsa faqat anonimlashtirilgan dump yuklang va keyin: boshqaruv markazida Tizim → Tizim sozlamalari → Sozlamalar da SMS usulini «Log» qiling (`sms_driver=log`; bazadagi qiymat env'dan ustun, aks holda haqiqiy mijozlarga SMS ketadi), do'konlarning Telegram bot tokenlari va to'lov kalitlarini test qiymatlarga almashtiring.
+**Production ma'lumotlarini staging'ga ko'chirmang.** Zarur bo'lsa faqat anonimlashtirilgan dump yuklang va keyin: boshqaruv markazida Tizim → Tizim sozlamalari → Sozlamalar da SMS usulini «Log» qiling (`sms_driver=log`; bazadagi qiymat env'dan ustun, aks holda haqiqiy mijozlarga SMS ketadi; SMS kalitlari `APP_KEY` bilan shifrlangan — staging'ning boshqa `APP_KEY` i ularni o'qiy olmaydi, kerak bo'lsa test kalitini qayta kiriting), do'konlarning Telegram bot tokenlari va to'lov kalitlarini test qiymatlarga almashtiring.
 
 ### Staging'da tekshiruv ro'yxati
 
