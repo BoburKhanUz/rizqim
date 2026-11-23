@@ -179,7 +179,7 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     await expect(stepUp).toBeVisible()
     await stepUp.getByLabel('6 xonali kod').fill(await phone.next())
     await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
-    await expect(page.getByText(`${OPERATOR_NAME} endi «Yordam».`)).toBeVisible()
+    await expect(page.getByText(`${OPERATOR_NAME} rollari: Yordam.`)).toBeVisible()
     await expect(row.getByText('Yordam', { exact: true }).first()).toBeVisible()
   })
 
