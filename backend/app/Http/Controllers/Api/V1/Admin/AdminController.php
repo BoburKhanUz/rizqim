@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\AdminPermission;
+use App\Enums\PlatformRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Admin\AdminPermissionService;
@@ -45,7 +46,7 @@ abstract class AdminController extends Controller
     /**
      * The signed-in member as the admin app needs them (GET /admin/me, the session answers).
      *
-     * @return array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}
+     * @return array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}
      */
     protected function memberPayload(User $user): array
     {
@@ -53,6 +54,9 @@ abstract class AdminController extends Controller
             'id' => (int) $user->id,
             'name' => (string) $user->name,
             'email' => $user->email,
+            // Wave P: every role the member holds; platform_role is the primary one, for old clients
+            'platform_roles' => array_map(fn (PlatformRole $role) => $role->value, $user->platformRoles()),
+            'platform_role_labels' => array_map(fn (PlatformRole $role) => $role->label(), $user->platformRoles()),
             'platform_role' => $user->platform_role?->value,
             'platform_role_label' => $user->platform_role?->label(),
             'permissions' => array_map(fn (AdminPermission $permission) => $permission->value, app(AdminPermissionService::class)->permissionsFor($user)),

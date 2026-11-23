@@ -234,6 +234,7 @@ Eski tokenlarni scheduler `auth:prune-tokens` buyrug'i bilan o'zi tozalaydi (u P
 cd backend
 php artisan rizqim:admin:create boss@rizqim.uz "Bosh admin"            # superadmin
 php artisan rizqim:admin:create op@rizqim.uz "Navbatchi" --role=operator
+php artisan rizqim:admin:create ali@rizqim.uz "Ali" --role=operator,sales   # bir nechta rol: ruxsatlari qo'shiladi
 ```
 
 Buyruq bir martalik taklif havolasini chiqaradi (`{ADMIN_APP_URL}/invite/...`, 72 soat). Uni egasiga xavfsiz
@@ -286,6 +287,22 @@ portni firewall bilan yoping.
 
 Jurnal (`audit_logs`) o'zgarmaydi: PostgreSQL trigger yozuvni yangilash va o'chirishni rad etadi. Zaxiradan
 tiklash (`pg_restore`) bunga ta'sir qilmaydi.
+
+**Bir nechta rol: migratsiya va orqaga qaytarish (Wave P).** `2026_12_05_100000_add_platform_roles_to_users_table`
+migratsiyasi har bir a'zoning rolini bitta rolli to'plamga (`users.platform_roles`) ko'chiradi. Undan oldin
+`users.role` va `platform_role` bir-biriga mos kelmagan qatorlarni tuzatadi va har birini logga yozadi
+(`platform_roles migration: role and platform role brought into line`, `user_id`, oldin/keyin): jamoa hisobida
+`users.role` ni platforma roli belgilaydi; do'kon darajasidagi hisob (`owner`, `cashier`...) do'kon rolini saqlab,
+platforma rolini yo'qotadi; platforma rolisiz `super_admin` — superadmin. Deploydan keyin logni ko'zdan kechiring.
+
+Migratsiyani orqaga qaytarish (`php artisan migrate:rollback`) har bir a'zoga **faqat asosiy rolini** qoldiradi
+(`platform_role`, to'plamning birinchisi): qolgan rollar **yo'qoladi**, ularning ruxsatlari bilan. Yo'qolgan rollar
+logga yoziladi (`platform_roles rollback: secondary roles dropped`, `user_id`, `kept`, `dropped`) va konsolga
+chiqariladi; kerak bo'lsa ularni shu logdan qo'lda qaytaring. Orqaga qaytarishdan oldin ro'yxatni saqlab qo'ying:
+
+```bash
+psql -c "SELECT id, email, platform_roles FROM users WHERE jsonb_array_length(platform_roles) > 1"
+```
 
 ## 11. Boshqaruv markazi: monitoring va ogohlantirishlar (P4-15)
 

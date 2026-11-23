@@ -61,7 +61,7 @@ final class CachedChannelAuth
      * or a terminal's heartbeat does not); the others drop the grants on any update but the listed quiet columns.
      */
     public const AUTH_COLUMNS = [
-        'users' => ['role', 'store_id', 'branch_id', 'blocked_at', 'deleted_at', 'platform_role', 'platform_disabled_at'],
+        'users' => ['role', 'store_id', 'branch_id', 'blocked_at', 'deleted_at', 'platform_role', 'platform_roles', 'platform_disabled_at'],
         'devices' => ['revoked_at', 'store_id', 'branch_id', 'user_id', 'type'],
         'branches' => ['store_id'],
     ];

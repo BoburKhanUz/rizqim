@@ -79,10 +79,10 @@ class InvitePlatformMemberCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->table(['ID', 'Email', 'Rol', 'Holat'], $members->map(fn (User $member) => [
+        $this->table(['ID', 'Email', 'Rollar', 'Holat'], $members->map(fn (User $member) => [
             $member->id,
             $member->email,
-            $member->platform_role?->value,
+            implode(', ', array_map(fn (\App\Enums\PlatformRole $role) => $role->value, $member->platformRoles())),
             PlatformTeamService::status($member),
         ])->all());
         $this->line('Har biri uchun: php artisan rizqim:admin:invite <email> (yoki Tizim → Jamoa → "2FA ni tiklash").');

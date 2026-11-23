@@ -26,6 +26,12 @@ export type PlatformRole = 'superadmin' | 'operator' | 'support' | 'finance' | '
 
 export const ROLE_LABELS: Record<PlatformRole, string> = { superadmin: 'Superadmin', operator: 'Operator', support: 'Yordam', finance: 'Moliya', sales: 'Savdo / ulash', viewer: "Faqat ko'rish" }
 const ROLES = Object.keys(ROLE_LABELS) as PlatformRole[]
+// A set of roles in ROLES order (the backend's), or null when it is not a non-empty list of distinct known roles
+const roleSet = (value: unknown): PlatformRole[] | null =>
+  Array.isArray(value) && value.length > 0 && new Set(value).size === value.length && value.every((role) => ROLES.includes(role as PlatformRole))
+    ? ROLES.filter((role) => value.includes(role))
+    : null
+const rolesOf = (roles: PlatformRole[]) => ({ platform_roles: roles, platform_role: roles[0]! })
 
 export const PERMISSIONS: Array<{ key: string; label: string; group: string }> = [
   { key: 'admin.today.view', label: "Bugun sahifasini ko'rish", group: 'Kundalik ish' },
@@ -73,7 +79,10 @@ export interface Member {
   name: string
   email: string
   password: string | null
+  /** The primary role (the first of platform_roles), as the backend's legacy field */
   platform_role: PlatformRole
+  /** Every role the member holds, in ROLES order: their permissions add up */
+  platform_roles: PlatformRole[]
   disabled: boolean
   inviteToken: string | null
   inviteExpiresAt: number | null
@@ -181,13 +190,13 @@ export class FakeBackend {
 
   // --- Fixtures ----------------------------------------------------------------------------------------------------------
 
-  addMember(input: { name: string; email: string; platform_role: PlatformRole; twoFactor?: boolean; password?: string | null; disabled?: boolean; invite?: boolean }): Member {
+  addMember(input: { name: string; email: string; platform_role?: PlatformRole; platform_roles?: PlatformRole[]; twoFactor?: boolean; password?: string | null; disabled?: boolean; invite?: boolean }): Member {
     const member: Member = {
       id: this.nextMemberId++,
       name: input.name,
       email: input.email,
       password: input.invite ? null : (input.password ?? PASSWORD),
-      platform_role: input.platform_role,
+      ...rolesOf(input.platform_roles ?? [input.platform_role ?? 'viewer']),
       disabled: input.disabled ?? false,
       inviteToken: null,
       inviteExpiresAt: null,
@@ -245,7 +254,8 @@ export class FakeBackend {
   // --- Plumbing ------------------------------------------------------------------------------------------------------------
 
   private permissionsOf(member: Member): string[] {
-    return member.platform_role === 'superadmin' ? ALL : (this.grants[member.platform_role] ?? [])
+    if (member.platform_roles.includes('superadmin')) return ALL
+    return ALL.filter((permission) => member.platform_roles.some((role) => (this.grants[role] ?? []).includes(permission)))
   }
 
   private openSession(member: Member, ip: string, userAgent: string, confirmed = true): Session {
@@ -282,6 +292,7 @@ export class FakeBackend {
       id: member.id,
       name: member.name,
       email: member.email,
+      platform_roles: member.platform_roles,
       platform_role: member.platform_role,
       disabled: member.disabled,
       status: member.inviteToken !== null ? 'invited' : member.disabled ? 'disabled' : 'active',
@@ -333,7 +344,7 @@ export class FakeBackend {
     return ok({
       token: session.token,
       expires_at: new Date(session.createdAt + 12 * 3_600_000).toISOString(),
-      member: { id: member.id, name: member.name, email: member.email, platform_role: member.platform_role },
+      member: { id: member.id, name: member.name, email: member.email, platform_role: member.platform_role, platform_roles: member.platform_roles },
       ...extra,
     })
   }
@@ -373,8 +384,9 @@ export class FakeBackend {
 
     if (req.method === 'GET' && path === '/auth/me') {
       return ok({
-        member: { id: member.id, name: member.name, email: member.email, platform_role: member.platform_role },
+        member: { id: member.id, name: member.name, email: member.email, platform_role: member.platform_role, platform_roles: member.platform_roles },
         platform_role: member.platform_role,
+        platform_roles: member.platform_roles,
         permissions: this.permissionsOf(member),
         two_factor_enabled: member.twoFactor,
         recovery_codes_left: member.recoveryCodes.length,
@@ -558,17 +570,18 @@ export class FakeBackend {
     if (req.method === 'POST' && path === '/team') {
       const email = String(body.email ?? '')
       if (this.members.some((m) => m.email === email)) return validation('email', 'Bu email allaqachon jamoada.')
-      if (!ROLES.includes(body.platform_role as PlatformRole)) return validation('platform_role', 'Rol noto\'g\'ri.')
-      const member = this.addMember({ name: String(body.name ?? ''), email, platform_role: body.platform_role as PlatformRole, invite: true, disabled: true })
+      const roles = roleSet(body.platform_roles)
+      if (!roles) return validation('platform_roles', 'Kamida bitta rolni tanlang.')
+      const member = this.addMember({ name: String(body.name ?? ''), email, platform_roles: roles, invite: true, disabled: true })
       const invite = this.issueInvite(member)
-      this.entry(me, 'admin.team.invited', 'platform_member', String(member.id), null, { email, platform_role: member.platform_role }, null)
+      this.entry(me, 'admin.team.invited', 'platform_member', String(member.id), null, { email, platform_roles: member.platform_roles }, null)
       return ok({ member: this.teamRow(member), ...invite })
     }
 
     const one = /^\/team\/(\d+)(\/.*)?$/.exec(path)
     const target = one ? this.members.find((m) => m.id === Number(one[1])) : undefined
     if (!one || !target) return fail(404, 'Xodim topilmadi.')
-    const superadmins = this.members.filter((m) => m.platform_role === 'superadmin' && !m.disabled)
+    const superadmins = this.members.filter((m) => m.platform_roles.includes('superadmin') && !m.disabled)
 
     if (req.method === 'POST' && one[2] === '/invite') {
       if (target.inviteToken === null) return fail(422, 'Taklif allaqachon qabul qilingan.')
@@ -584,15 +597,16 @@ export class FakeBackend {
     }
     if (req.method === 'PATCH' && !one[2]) {
       if (target.id === me.id) return fail(422, "O'zingizni o'zgartira olmaysiz.")
-      const lastSuper = target.platform_role === 'superadmin' && superadmins.length === 1 && superadmins[0]!.id === target.id
+      const lastSuper = target.platform_roles.includes('superadmin') && superadmins.length === 1 && superadmins[0]!.id === target.id
       const before: Record<string, unknown> = {}
       const after: Record<string, unknown> = {}
-      if (typeof body.platform_role === 'string') {
-        if (!ROLES.includes(body.platform_role as PlatformRole)) return validation('platform_role', "Rol noto'g'ri.")
-        if (lastSuper && body.platform_role !== 'superadmin') return fail(422, "Oxirgi superadministratorni o'zgartirib bo'lmaydi.", { reason: 'last_superadmin' })
-        before.platform_role = target.platform_role
-        after.platform_role = body.platform_role
-        target.platform_role = body.platform_role as PlatformRole
+      if (body.platform_roles !== undefined) {
+        const roles = roleSet(body.platform_roles)
+        if (!roles) return validation('platform_roles', 'Kamida bitta rolni tanlang.')
+        if (lastSuper && !roles.includes('superadmin')) return fail(422, "Oxirgi superadministratorni o'zgartirib bo'lmaydi.", { reason: 'last_superadmin' })
+        before.platform_roles = target.platform_roles
+        after.platform_roles = roles
+        Object.assign(target, rolesOf(roles))
       }
       if (typeof body.disabled === 'boolean') {
         if (body.disabled && lastSuper) return fail(422, "Oxirgi superadministratorni o'chirib bo'lmaydi.", { reason: 'last_superadmin' })
@@ -646,7 +660,7 @@ export class FakeBackend {
     }
     if (can('admin.team.manage')) {
       for (const m of this.members.filter((m) => `${m.name} ${m.email}`.toLowerCase().includes(needle)).slice(0, 5)) {
-        results.push({ type: 'member', id: String(m.id), title: m.name, subtitle: ROLE_LABELS[m.platform_role], href: `/team/${m.id}` })
+        results.push({ type: 'member', id: String(m.id), title: m.name, subtitle: m.platform_roles.map((role) => ROLE_LABELS[role]).join(', '), href: `/team/${m.id}` })
       }
     }
     return ok(results)

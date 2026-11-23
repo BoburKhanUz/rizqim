@@ -99,7 +99,8 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     const form = page.getByRole('dialog', { name: 'Yangi xodim taklif qilish' })
     await form.getByLabel('Ism').fill(OPERATOR_NAME)
     await form.getByLabel('Email').fill(OPERATOR_EMAIL)
-    await form.getByLabel('Roli').selectOption('operator')
+    // Roles are checkboxes now (a member may hold several); an invite starts with Operator ticked
+    await expect(form.getByRole('checkbox', { name: 'Operator' })).toBeChecked()
     await form.getByRole('button', { name: 'Taklif havolasini yaratish' }).click()
 
     // The backend: reauth_required. The page: the step-up dialog. The code of the 2FA set-up was used a moment ago.
@@ -168,16 +169,17 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     const row = page.getByRole('heading', { name: new RegExp(`^${OPERATOR_NAME}`) }).locator('xpath=ancestor::li[1]')
     await expect(row.getByText('2FA yoqilgan')).toBeVisible()
     await expect(row.getByText('Faol', { exact: true })).toBeVisible()
-    await row.getByRole('button', { name: `Rolni o'zgartirish: ${OPERATOR_NAME}` }).click()
-    const dialog = page.getByRole('dialog', { name: "Rolni o'zgartirish" })
-    await dialog.getByLabel('Roli').selectOption('support')
+    await row.getByRole('button', { name: `Rollarni o'zgartirish: ${OPERATOR_NAME}` }).click()
+    const dialog = page.getByRole('dialog', { name: "Rollarni o'zgartirish" })
+    await dialog.getByRole('checkbox', { name: 'Yordam' }).check()
+    await dialog.getByRole('checkbox', { name: 'Operator' }).uncheck()
     await dialog.getByRole('button', { name: 'Saqlash' }).click()
 
     const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
     await expect(stepUp).toBeVisible()
     await stepUp.getByLabel('6 xonali kod').fill(await phone.next())
     await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
-    await expect(page.getByText(`${OPERATOR_NAME} endi «Yordam».`)).toBeVisible()
+    await expect(page.getByText(`${OPERATOR_NAME} rollari: Yordam.`)).toBeVisible()
     await expect(row.getByText('Yordam', { exact: true }).first()).toBeVisible()
   })
 

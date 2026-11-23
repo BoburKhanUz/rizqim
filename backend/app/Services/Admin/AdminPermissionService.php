@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * P4-11: what a team member may do in the admin API: their platform role's defaults (PlatformRolePermissions) with the
- * superadmin's overrides (platform_role_permissions) applied. A disabled member, or a user outside the team, has
- * nothing. The `admin.can:` middleware and GET /admin/me use it.
+ * superadmin's overrides (platform_role_permissions) applied. Wave P: a member holds a set of roles and may do what
+ * any of them may (the union of each role's permissions after its overrides; superadmin among them is everything). A
+ * disabled member, or a user outside the team, has nothing. The `admin.can:` middleware and GET /admin/me use it.
  */
 class AdminPermissionService
 {
@@ -40,11 +41,29 @@ class AdminPermissionService
      */
     public function permissionsFor(User $user): array
     {
-        if (!$user->isActivePlatformStaff() || $user->platform_role === null) {
+        if (!$user->isActivePlatformStaff()) {
             return [];
         }
 
-        return $this->forRole($user->platform_role);
+        return $this->forRoles($user->platformRoles());
+    }
+
+    /**
+     * Wave P: the union of the roles' permissions (each with its overrides).
+     *
+     * @param  list<PlatformRole>  $roles
+     * @return list<AdminPermission> in AdminPermission::cases() order
+     */
+    public function forRoles(array $roles): array
+    {
+        $granted = [];
+        foreach ($roles as $role) {
+            foreach ($this->forRole($role) as $permission) {
+                $granted[$permission->value] = true;
+            }
+        }
+
+        return array_values(array_filter(AdminPermission::cases(), fn (AdminPermission $permission) => isset($granted[$permission->value])));
     }
 
     /**
@@ -67,13 +86,14 @@ class AdminPermissionService
     }
 
     /**
-     * The PRIVILEGED permissions the role holds now (with the overrides).
+     * Wave P: the PRIVILEGED permissions any of the roles holds now (with the overrides).
      *
+     * @param  list<PlatformRole>  $roles
      * @return list<AdminPermission>
      */
-    public function privilegedOf(PlatformRole $role): array
+    public function privilegedOfRoles(array $roles): array
     {
-        return array_values(array_filter($this->forRole($role), fn (AdminPermission $permission) => in_array($permission, self::PRIVILEGED, true)));
+        return array_values(array_filter($this->forRoles($roles), fn (AdminPermission $permission) => in_array($permission, self::PRIVILEGED, true)));
     }
 
     public function has(User $user, AdminPermission $permission): bool

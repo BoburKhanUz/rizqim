@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, Search, X } from 'lucide-react';
 import { Button, IconButton, InlineError } from '@rizqim/ui';
+import { memberRoles } from '@/lib/api/types';
 import { canOpen, homePath, sectionOf, visibleNav, type NavItem } from '@/lib/nav';
 import { useAuth } from './AuthProvider';
 import { CommandPalette } from './CommandPalette';
@@ -72,7 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ShellFrame
         nav={nav}
         userName={state.me.member.name}
-        role={state.me.platform_role}
+        roles={memberRoles(state.me.member)}
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen((open) => !open)}
         onSearch={() => setSearchOpen(true)}
@@ -89,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 interface ShellFrameProps {
   nav: NavItem[];
   userName: string;
-  role: string | null;
+  roles: readonly string[];
   menuOpen: boolean;
   onToggleMenu: () => void;
   onSearch: () => void;
@@ -97,7 +98,7 @@ interface ShellFrameProps {
   children: ReactNode;
 }
 
-function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onSearch, onLogout, children }: ShellFrameProps) {
+function ShellFrame({ nav, userName, roles, menuOpen, onToggleMenu, onSearch, onLogout, children }: ShellFrameProps) {
   const t = useT();
   return (
     <div className="min-h-screen md:flex">
@@ -110,7 +111,7 @@ function ShellFrame({ nav, userName, role, menuOpen, onToggleMenu, onSearch, onL
         <span className="min-w-0 flex-1 truncate text-headline font-bold text-fg">{t('appShortName')}</span>
         <IconButton icon={Search} label={t('search_button')} onClick={onSearch} />
       </header>
-      <Sidebar items={nav} userName={userName} role={role} open={menuOpen} onLogout={onLogout} />
+      <Sidebar items={nav} userName={userName} roles={roles} open={menuOpen} onLogout={onLogout} />
       <main id="content" className="min-w-0 flex-1 p-4 md:p-6 lg:p-8 print:p-0">
         {nav.every((item) => item.anyOf.length === 0) && <NoAccessBanner onLogout={onLogout} />}
         <div className="mb-4 hidden items-center justify-end border-b border-line pb-3 md:flex md:mb-6 print:hidden">

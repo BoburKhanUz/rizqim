@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { KeyRound, Link2, Pause, Play, ShieldAlert, UserPlus, UserCog, Users } from 'lucide-react';
 import { Button, Card, CardSkeletons, ConfirmDialog, EmptyState, InlineError, Notice, PageHeader, Pill } from '@rizqim/ui';
 import { useInviteMember, useReissueInvite, useResetTwoFactor, useTeam, useUpdateMember } from '@/lib/api/hooks';
-import { isInvited, type InviteLink, type PlatformRole, type TeamMember } from '@/lib/api/types';
+import { isInvited, memberRoles, type InviteLink, type PlatformRole, type TeamMember } from '@/lib/api/types';
 import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
-import { roleLabel } from '@/lib/labels';
+import { roleLabel, rolesLabel } from '@/lib/labels';
 import { useCan, useMe } from '../AuthProvider';
 import { useT } from '../I18nProvider';
 import { InviteDialog } from './InviteDialog';
@@ -23,7 +23,7 @@ type Dialog =
   | { kind: 'reissue'; member: TeamMember }
   | { kind: 'link'; name: string; link: InviteLink };
 
-// Tizim → Jamoa (team.manage): who works for RIZQIM, their role, whether 2FA is on, the last sign-in. Every change is one call the
+// Tizim → Jamoa (team.manage): who works for RIZQIM, their roles (one or more: the permissions add up), whether 2FA is on, the last sign-in. Every change is one call the
 // backend audits and asks a fresh 2FA code for (the step-up dialog opens by itself).
 export function TeamView({ focusId = null }: { focusId?: number | null }) {
   const t = useT();
@@ -120,8 +120,8 @@ export function TeamView({ focusId = null }: { focusId?: number | null }) {
           busy={update.isPending}
           error={update.error ? errorText(update.error, t) : null}
           onClose={close}
-          onSubmit={(role: PlatformRole) =>
-            update.mutate({ id: dialog.member.id, change: { platform_role: role } }, { onSuccess: () => done(t('team_roleSaved', { name: dialog.member.name, role: roleLabel(role) })) })
+          onSubmit={(roles: PlatformRole[]) =>
+            update.mutate({ id: dialog.member.id, change: { platform_roles: roles } }, { onSuccess: () => done(t('team_roleSaved', { name: dialog.member.name, roles: rolesLabel(roles) })) })
           }
         />
       )}
@@ -218,7 +218,13 @@ function MemberCard({ member, isSelf, focused, onAction }: { member: TeamMember;
             <p className="break-all text-footnote text-fg-muted">{member.email}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Pill tone="neutral">{roleLabel(member.platform_role)}</Pill>
+            <ul aria-label={t('team_inviteRole')} className="flex flex-wrap items-center gap-1.5">
+              {memberRoles(member).map((role) => (
+                <li key={role} className="list-none">
+                  <Pill tone="neutral">{roleLabel(role)}</Pill>
+                </li>
+              ))}
+            </ul>
             {isInvited(member) ? <Pill tone="warning">{t('team_invitePending')}</Pill> : member.disabled ? <Pill tone="danger">{t('team_disabledPill')}</Pill> : <Pill tone="success">{t('team_active')}</Pill>}
             <Pill tone={member.two_factor_enabled ? 'success' : 'warning'}>{member.two_factor_enabled ? t('team_twoFactorOn') : t('team_twoFactorOff')}</Pill>
           </div>

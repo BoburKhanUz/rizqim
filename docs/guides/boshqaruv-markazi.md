@@ -67,7 +67,7 @@ eski ma'lumotlarni ko'chirish kerak emas: toza boshlaysiz. Server o'zi ([DEPLOY.
 3. **Havolani oching**, parol o'ylab toping (kamida 12 belgi), telefondagi ilovani ulang va **10 ta tiklash kodini** xavfsiz
    joyga saqlang ([2FA va tiklash kodlari](#2fa-va-tiklash-kodlari)). 2FA'ni 24 soat ichida yoqish kerak; o'tib ketsa, 2-bandning
    `invite` buyrug'i yangi havola beradi.
-4. **Jamoani taklif qiling.** **Tizim → Jamoa → Xodim taklif qilish**: har bir odam uchun ism, email va rol. Markaz bir martalik
+4. **Jamoani taklif qiling.** **Tizim → Jamoa → Xodim taklif qilish**: har bir odam uchun ism, email va bir yoki bir nechta rol. Markaz bir martalik
    havola ko'rsatadi — uni xodimga xavfsiz yo'l bilan yuboring ([Jamoa](#jamoa)). Kamida **ikkita** moliya vakolatli odam bo'lsin
    (masalan Moliya roli va superadmin): 1 000 000 so'mdan katta payout va tuzatishni ikki kishi tasdiqlaydi
    ([Moliya](#moliya)). Ikkinchi superadmin ham tavsiya etiladi: yagona superadmin telefonini yo'qotsa, uni faqat serverdagi
@@ -812,19 +812,24 @@ yozilmaydi. «O'chirish» shu yerda saqlangan qiymatni o'chiradi va serverdagi q
 
 ## Jamoa
 
-**Tizim → Jamoa** (faqat jamoani boshqarish huquqi borlarga). Har bir xodim kartasida: roli, 2FA yoqilganmi, holati (Faol,
+**Tizim → Jamoa** (faqat jamoani boshqarish huquqi borlarga). Har bir xodim kartasida: barcha rollari, 2FA yoqilganmi, holati (Faol,
 O'chirilgan, Taklif kutilmoqda), oxirgi kirishi va faol seanslari soni.
 
-- **Xodim taklif qilish.** Ism, email va rolni yozing. Markaz **taklif havolasini** ko'rsatadi: "Havoladan nusxa olish"ni bosing va
+- **Xodim taklif qilish.** Ism va emailni yozing, rollarni belgilang (bir nechtasini ham: masalan Operator va Savdo / ulash —
+  xodim ikkalasining ruxsatlariga ega bo'ladi). Markaz **taklif havolasini** ko'rsatadi: "Havoladan nusxa olish"ni bosing va
   xodimga yuboring. **Havola faqat shu oynada, bir marta ko'rsatiladi**; oynani yopsangiz, u yo'qoladi. Yo'qotsangiz,
   "Taklifni qayta yuborish" yangisini yaratadi (eskisi ishlamaydi).
-- **Rolni o'zgartirish.** Yangi rolni tanlang va "Saqlash"ni bosing. Ruxsatlar darhol o'zgaradi.
+- **Rollarni o'zgartirish.** Kerakli rollarni belgilang (kamida bittasi), keraksizini olib tashlang va "Saqlash"ni bosing.
+  Ruxsatlar darhol o'zgaradi.
 - **Hisobni o'chirish / yoqish.** O'chirilgan xodim kira olmaydi va uning barcha seanslari tugaydi. Hech narsa yo'qolmaydi: keyin
   qayta yoqish mumkin.
 - **2FA ni tiklash.** Xodim telefonini yo'qotganda. Eski telefon va tiklash kodlari ishlamay qoladi, xodim keyingi kirishda 2FA'ni
   qaytadan o'rnatadi. Avval shaxsini tekshiring (qo'ng'iroq qiling).
 - **Cheklovlar.** O'zingizni o'zgartira olmaysiz (o'zingizning kartangizda tugma yo'q). Oxirgi superadministratorni
-  o'chirib yoki roldan tushirib bo'lmaydi: avval boshqa superadministrator tayinlang.
+  o'chirib yoki undan Superadmin rolini olib bo'lmaydi: avval boshqa superadministrator tayinlang. Superadmin rolini, pul
+  tasdiqlash, jamoa, tizim yoki shaxsiy ma'lumot ruxsati bor rolni faqat superadmin beradi yoki oladi — boshqa rollar
+  yonida bo'lsa ham; bunday roli bor xodimni ham faqat superadmin o'zgartiradi. To'rt ko'z qoidasi odamlarga qaraydi:
+  ham so'rovchi, ham tasdiqlovchi roli bor bitta xodim o'z so'rovini tasdiqlay olmaydi.
 
 Har bir amal oldidan markaz oddiy savol beradi ("... hisobini o'chirasizmi?") va 6 xonali kod so'raydi ([2FA](#2fa-va-tiklash-kodlari)).
 
@@ -836,7 +841,9 @@ ruxsatlar (bo'limlar bo'yicha guruhlangan), ustunlar — rollar. Katakni (uyanin
 
 - **Superadmin** ustuni qulflangan: u hamma narsani qila oladi va buni o'zgartirib bo'lmaydi.
 - Pul yoki keng huquq beradigan ruxsatni (masalan, payoutni tasdiqlash) berayotganda markaz yana bir marta so'raydi.
-- Bir rolning ruxsatlarini o'zgartirsangiz, shu roldagi barcha xodimlarga ta'sir qiladi (ular sahifani yangilaganda yangi menyuni ko'radi).
+- Bir rolning ruxsatlarini o'zgartirsangiz, shu rol bor barcha xodimlarga ta'sir qiladi (ular sahifani yangilaganda yangi menyuni ko'radi).
+- Bir nechta roli bor xodim har bir rolining barcha ruxsatlariga ega: biror ruxsatni bir roldan olsangiz, u boshqa rolida
+  bo'lsa, xodimda qoladi.
 
 **Standart ruxsatlar** (boshlang'ich holat; Rollar sahifasida o'zgartiriladi):
 

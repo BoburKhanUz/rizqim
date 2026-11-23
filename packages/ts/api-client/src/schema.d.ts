@@ -3823,7 +3823,7 @@ export interface paths {
         };
         /**
          * The team
-         * @description Every team member: role, `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
+         * @description Every team member: roles (`platform_roles`), `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
          *     sign-in and live sessions.
          */
         get: operations["admin.team"];
@@ -3831,8 +3831,9 @@ export interface paths {
         /**
          * Invite a team member
          * @description Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
-         *     `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds
-         *     team.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting
+         *     `invite_url` is shown only in this answer. `platform_roles`: one or more roles (or the legacy `platform_role`).
+         *     Only a superadmin may invite a superadmin, or with any role that holds team.manage, pii.view, system.manage,
+         *     stores.impersonate, orders.refund_approve or payouts.approve among the roles (403 `superadmin_only`). Accepting
          *     opens a 24 hour window for the 2FA set-up. Needs step-up.
          */
         post: operations["admin.team.invited"];
@@ -3857,12 +3858,14 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change a member's role or disable / enable them
-         * @description `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
-         *     disables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA
-         *     on) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role
-         *     (team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).
-         *     Needs step-up.
+         * Change a member's roles or disable / enable them
+         * @description `platform_roles` (the new set as a whole, at least one role; or the legacy single `platform_role`, which
+         *     replaces the set with that one role) and/or `disabled`. Disabling ends all of the member's sessions. Nobody
+         *     changes their own roles or disables themselves (`cannot_change_self`), the last superadmin somebody can sign in
+         *     as (active, password, 2FA on) keeps superadmin and stays enabled (`last_superadmin`), and only a superadmin
+         *     changes a member holding superadmin or a privileged role (team.manage, pii.view, system.manage,
+         *     stores.impersonate, refund or payout approval) among their roles, or gives a set holding one
+         *     (`superadmin_only`). Needs step-up.
          */
         patch: operations["admin.team.updated"];
         trace?: never;
@@ -3879,7 +3882,7 @@ export interface paths {
         /**
          * Re-issue the invite
          * @description A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
-         *     working. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.
+         *     working. A member holding superadmin or a privileged role among their roles: superadmin only (403 `superadmin_only`). Needs step-up.
          */
         post: operations["admin.team.invite_reissued"];
         delete?: never;
@@ -3901,7 +3904,7 @@ export interface paths {
          * Reset a member's 2FA
          * @description For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
          *     again at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for
-         *     yourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.
+         *     yourself; a member holding superadmin or a privileged role among their roles: superadmin only. Needs step-up.
          */
         post: operations["admin.team.2fa_reset"];
         delete?: never;
@@ -13844,7 +13847,7 @@ export interface components {
         PickupStatus: "preparing" | "ready" | "handed";
         /**
          * PlatformRole
-         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin); the other roles are users.role = platform, which holds no store-level permission at all.
+         * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). Wave P: a team member holds one or more of them (users.platform_roles, in cases() order; users.platform_role is the first, the primary role) and may do what any of them may. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. A member holding `superadmin` is also users.role = super_admin (the old store-level super admin); the others are users.role = platform, which holds no store-level permission at all (App\Models\User keeps them in step).
          * @enum {string}
          */
         PlatformRole: "superadmin" | "operator" | "support" | "finance" | "sales" | "viewer";
@@ -14661,6 +14664,7 @@ export interface operations {
                                     name: string;
                                     role: string;
                                     platform_role: string | null;
+                                    platform_roles: string[];
                                 } | null;
                                 store: {
                                     id: number;
@@ -14730,6 +14734,8 @@ export interface operations {
                                 id: number;
                                 name: string;
                                 email: string | null;
+                                platform_roles: string[];
+                                platform_role_labels: string[];
                                 platform_role: string | null;
                                 platform_role_label: string | null;
                                 permissions: string[];
@@ -14889,6 +14895,8 @@ export interface operations {
                                 id: number;
                                 name: string;
                                 email: string | null;
+                                platform_roles: string[];
+                                platform_role_labels: string[];
                                 platform_role: string | null;
                                 platform_role_label: string | null;
                                 permissions: string[];
@@ -15132,6 +15140,8 @@ export interface operations {
                                 id: number;
                                 name: string;
                                 email: string | null;
+                                platform_roles: string[];
+                                platform_role_labels: string[];
                                 platform_role: string | null;
                                 platform_role_label: string | null;
                                 permissions: string[];
@@ -15139,6 +15149,7 @@ export interface operations {
                                 recovery_codes_left: number;
                                 last_login_at: string | null;
                             };
+                            platform_roles: string[];
                             platform_role: string | null;
                             permissions: string[];
                             two_factor_enabled: boolean;
@@ -19552,6 +19563,8 @@ export interface operations {
                                 id: number;
                                 name: string;
                                 email: string | null;
+                                platform_roles: string[];
+                                platform_role_labels: string[];
                                 platform_role: string | null;
                                 platform_role_label: string | null;
                                 permissions: string[];
@@ -19559,6 +19572,7 @@ export interface operations {
                                 recovery_codes_left: number;
                                 last_login_at: string | null;
                             };
+                            platform_roles: string[];
                             platform_role: string | null;
                             permissions: string[];
                             two_factor_enabled: boolean;
@@ -25885,6 +25899,8 @@ export interface operations {
                             id: number;
                             name: string;
                             email: string | null;
+                            platform_roles: string[];
+                            platform_role_labels: string[];
                             platform_role: string | null;
                             platform_role_label: string | null;
                             status: string;
@@ -25914,7 +25930,9 @@ export interface operations {
                     name: string;
                     /** Format: email */
                     email: string;
-                    platform_role: components["schemas"]["PlatformRole"];
+                    /** @description Wave P: one or more distinct roles; the legacy single `platform_role` instead (never both) */
+                    platform_roles?: components["schemas"]["PlatformRole"][];
+                    platform_role?: components["schemas"]["PlatformRole"];
                 };
             };
         };
@@ -25932,6 +25950,8 @@ export interface operations {
                                 id: number;
                                 name: string;
                                 email: string | null;
+                                platform_roles: string[];
+                                platform_role_labels: string[];
                                 platform_role: string | null;
                                 platform_role_label: string | null;
                                 status: string;
@@ -25993,6 +26013,8 @@ export interface operations {
                             id: number;
                             name: string;
                             email: string | null;
+                            platform_roles: string[];
+                            platform_role_labels: string[];
                             platform_role: string | null;
                             platform_role_label: string | null;
                             status: string;
@@ -26030,6 +26052,8 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
+                    /** @description Wave P: the new set as a whole; the legacy single `platform_role` instead (never both) */
+                    platform_roles?: components["schemas"]["PlatformRole"][];
                     platform_role?: components["schemas"]["PlatformRole"];
                     disabled?: boolean;
                 };
@@ -26048,6 +26072,8 @@ export interface operations {
                             id: number;
                             name: string;
                             email: string | null;
+                            platform_roles: string[];
+                            platform_role_labels: string[];
                             platform_role: string | null;
                             platform_role_label: string | null;
                             status: string;
@@ -26169,6 +26195,8 @@ export interface operations {
                             id: number;
                             name: string;
                             email: string | null;
+                            platform_roles: string[];
+                            platform_role_labels: string[];
                             platform_role: string | null;
                             platform_role_label: string | null;
                             status: string;

@@ -139,6 +139,25 @@ class FinancePayoutTest extends TestCase
         $this->assertSame(['100000.00', '0.00'], [$store->fresh()->wallet_balance, $store->fresh()->debt_balance]);
     }
 
+    public function test_four_eyes_compares_people_not_roles(): void
+    {
+        // Wave P: one member holding finance and another role is still one pair of eyes; two members holding the very
+        // same set of roles are two
+        $store = $this->withWallet($this->v2Store('Ikki rol'), '3000000.00');
+        $big = $this->payout($store, '1000000.00');
+        $first = $this->makeMember(PlatformRole::FINANCE, attributes: ['platform_roles' => ['finance', 'operator']]);
+        $firstToken = $this->confirmedSession($first);
+
+        $this->financeJson('POST', "/finance/payouts/{$big->id}/approve", $firstToken, ['reason' => 'Birinchi tasdiq'])
+            ->assertOk()->assertJsonPath('data.status', 'awaiting_second');
+        $this->financeJson('POST', "/finance/payouts/{$big->id}/approve", $firstToken, ['reason' => 'Yana men'])
+            ->assertForbidden()->assertJsonPath('code', 'four_eyes');
+
+        $twin = $this->makeMember(PlatformRole::FINANCE, attributes: ['platform_roles' => ['operator', 'finance']]);
+        $this->financeJson('POST', "/finance/payouts/{$big->id}/approve", $this->confirmedSession($twin), ['reason' => 'Ikkinchi tasdiq'])
+            ->assertOk()->assertJsonPath('data.status', 'completed');
+    }
+
     public function test_a_million_or_more_needs_a_second_member(): void
     {
         $store = $this->withWallet($this->v2Store('Katta'), '3000000.00');

@@ -109,6 +109,26 @@ class PaymentStoreRefundReviewFollowUpTest extends TestCase
         $this->assertNull($order->fresh()->store_refund_review_at);
     }
 
+    public function test_four_eyes_on_a_store_raised_review_compares_people_not_roles(): void
+    {
+        // Wave P: a member holding finance and support is one member; another with the same two roles is a second one
+        $order = $this->deliveredOrder();
+        $this->payme('CancelTransaction', ['id' => 'own-1', 'reason' => 5])->assertJsonPath('result.state', -2);
+        $first = $this->makeMember(PlatformRole::FINANCE, attributes: ['platform_roles' => ['finance', 'support']]);
+        $firstToken = $this->confirmedSession($first);
+
+        $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $firstToken, ['reason' => 'Taklif'])
+            ->assertOk()->assertJsonPath('data.store_refund_review.proposed_by', $first->id);
+        $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $firstToken, ['reason' => 'Yana men'])
+            ->assertStatus(403)->assertJsonPath('code', 'four_eyes');
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
+
+        $twin = $this->makeMember(PlatformRole::FINANCE, attributes: ['platform_roles' => ['support', 'finance']]);
+        $this->adminJson('POST', "/orders/{$order->uuid}/store-refund-review/approve", $this->confirmedSession($twin), ['reason' => 'Ikkinchi tasdiq'])
+            ->assertOk()->assertJsonPath('data.store_refund_review.decided_by', $twin->id);
+        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
+    }
+
     public function test_dismissing_stays_one_member_and_drops_a_proposal(): void
     {
         $order = $this->deliveredOrder();

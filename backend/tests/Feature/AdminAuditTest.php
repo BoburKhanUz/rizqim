@@ -53,8 +53,9 @@ class AdminAuditTest extends TestCase
         $this->assertSame($superadmin->id, $entry->user_id);
         $this->assertSame(User::class, $entry->model_type);
         $this->assertSame($operator->id, (int) $entry->model_id);
-        $this->assertSame(['platform_role' => 'operator'], $entry->before);
-        $this->assertSame(['platform_role' => 'support'], $entry->after);
+        // Wave P: the whole set of roles before and after
+        $this->assertSame(['platform_roles' => ['operator']], $entry->before);
+        $this->assertSame(['platform_roles' => ['support']], $entry->after);
         $this->assertSame("Yordam bo'limiga o'tdi", $entry->payload_json['reason']);
         $this->assertSame('127.0.0.1', $entry->ip);
         $this->assertSame('RizqimAdmin/1.0 (test)', $entry->user_agent);

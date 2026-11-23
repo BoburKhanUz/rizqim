@@ -60,7 +60,7 @@ class AuditLogController extends Controller
 
         $logs = AuditLog::query()
             ->where('store_id', $user->store_id)
-            ->with(['user:id,name,role,platform_role', 'device:id,uuid,name,type'])
+            ->with(['user:id,name,role,platform_role,platform_roles', 'device:id,uuid,name,type'])
             ->when($request->filled('action'), fn ($query) => str_ends_with((string) $request->input('action'), '.*')
                 ? $query->where('action', 'like', str_replace(['%', '_'], ['\%', '\_'], substr((string) $request->input('action'), 0, -1)) . '%')
                 : $query->where('action', $request->input('action')))

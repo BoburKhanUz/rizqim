@@ -179,12 +179,12 @@ class AdminSearchController extends AdminController
             ->where(fn (Builder $query) => $query->whereRaw('lower(name) like ?', [$like])->orWhereRaw('lower(email) like ?', [$like]))
             ->orderBy('name')
             ->limit(self::LIMIT)
-            ->get(['id', 'name', 'email', 'platform_role', 'role'])
+            ->get(['id', 'name', 'email', 'platform_role', 'platform_roles', 'role'])
             ->map(fn (User $user) => [
                 'type' => 'member',
                 'id' => (int) $user->id,
                 'title' => (string) $user->name,
-                'subtitle' => $this->join([$user->email, $user->platform_role?->label()]),
+                'subtitle' => $this->join([$user->email, implode(', ', array_map(fn (\App\Enums\PlatformRole $role) => $role->label(), $user->platformRoles()))]),
                 'href' => '/team/' . $user->id,
             ])
             ->all();

@@ -5,13 +5,14 @@ import { expect, openSignedIn, test, VALID_CODE } from './fixtures'
 
 test('a change made in the app is in the log with before and after, and the log filters by action', async ({ page, api, signIn }) => {
   await openSignedIn(page, signIn, '/team')
-  await page.getByRole('heading', { name: /^Sardor Operator/ }).locator('xpath=ancestor::li[1]').getByRole('button', { name: /Rolni o'zgartirish/ }).click()
-  await page.getByRole('dialog').getByLabel('Roli').selectOption('support')
+  await page.getByRole('heading', { name: /^Sardor Operator/ }).locator('xpath=ancestor::li[1]').getByRole('button', { name: /Rollarni o'zgartirish/ }).click()
+  await page.getByRole('dialog').getByRole('checkbox', { name: 'Yordam' }).check()
+  await page.getByRole('dialog').getByRole('checkbox', { name: 'Operator' }).uncheck()
   await page.getByRole('dialog').getByRole('button', { name: 'Saqlash' }).click()
   const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
   await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
   await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
-  await expect(page.getByText('Sardor Operator endi «Yordam».')).toBeVisible()
+  await expect(page.getByText('Sardor Operator rollari: Yordam.')).toBeVisible()
 
   await page.getByRole('link', { name: 'Harakatlar jurnali' }).click()
   await expect(page.getByRole('heading', { name: 'Harakatlar jurnali', level: 1 })).toBeVisible()
@@ -25,12 +26,12 @@ test('a change made in the app is in the log with before and after, and the log 
   await expect(list.getByRole('listitem')).toHaveCount(1)
   expect(api.callsTo('GET', '/audit-logs').at(-1)?.query.action).toBe('admin.team')
 
-  // The detail: who, from where, and the field that changed
+  // The detail: who, from where, and the field that changed (the whole set of roles)
   await list.getByRole('button', { name: 'admin.team.updated: batafsil' }).click()
   const detail = page.getByRole('dialog', { name: 'Yozuv tafsiloti' })
   await expect(detail).toContainText('Aziza Karimova')
   await expect(detail).toContainText('127.0.0.1')
-  const row = detail.getByRole('row').filter({ hasText: 'platform_role' })
+  const row = detail.getByRole('row').filter({ hasText: 'platform_roles' })
   await expect(row).toContainText('operator')
   await expect(row).toContainText('support')
   await page.keyboard.press('Escape')

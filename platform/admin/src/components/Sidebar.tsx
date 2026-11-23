@@ -4,14 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { Button, cx } from '@rizqim/ui';
-import { roleLabel } from '@/lib/labels';
+import { rolesLabel } from '@/lib/labels';
 import { sectionOf, SYSTEM_KEYS, type NavItem } from '@/lib/nav';
 import { useT } from './I18nProvider';
 
 interface SidebarProps {
   items: NavItem[];
   userName: string;
-  role: string | null;
+  // Every role the member holds
+  roles: readonly string[];
   // Narrow windows: the sidebar is a drawer, open or closed
   open: boolean;
   onLogout: () => void;
@@ -19,7 +20,7 @@ interface SidebarProps {
 
 // The sections in the order of docs/PHASE4_PLAN.md section 4, then "Tizim" with its four pages. Items the member may not open
 // are not in `items` at all.
-export function Sidebar({ items, userName, role, open, onLogout }: SidebarProps) {
+export function Sidebar({ items, userName, roles, open, onLogout }: SidebarProps) {
   const t = useT();
   const pathname = usePathname();
   const active = sectionOf(pathname)?.key;
@@ -78,7 +79,7 @@ export function Sidebar({ items, userName, role, open, onLogout }: SidebarProps)
       <div className="flex flex-col gap-3 border-t border-line pt-3">
         <div className="px-3">
           <p className="truncate text-body font-bold text-fg">{userName || t('signedInAs')}</p>
-          <p className="text-caption text-fg-muted">{roleLabel(role)}</p>
+          <p className="text-caption text-fg-muted">{rolesLabel(roles)}</p>
         </div>
         <Button variant="secondary" icon={LogOut} onClick={onLogout}>
           {t('logout')}

@@ -17,6 +17,11 @@ use Illuminate\Validation\Rule;
 /**
  * P4-11: Tizim → Jamoa (admin.team.manage): the RIZQIM team, invites, roles, disabling, 2FA resets. Every change
  * needs a step-up confirmation (`admin.recent`) and is recorded in the audit log.
+ *
+ * Wave P: a member holds a set of roles. Requests send `platform_roles` (a list, at least one role, no repeats); the
+ * legacy single `platform_role` is still accepted and means a one-role set (never both at once). Answers carry
+ * `platform_roles` and `platform_role_labels` (PlatformRole::cases() order) and, for old clients, the primary role in
+ * `platform_role` / `platform_role_label` (the first of the set).
  */
 #[Group('Admin')]
 class AdminTeamController extends AdminController
@@ -29,10 +34,10 @@ class AdminTeamController extends AdminController
     /**
      * The team
      *
-     * Every team member: role, `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
+     * Every team member: roles (`platform_roles`), `status` (`invited`: has not accepted the invite yet, `active`, `disabled`), 2FA, last
      * sign-in and live sessions.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}>}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}>}')]
     public function index(Request $request): JsonResponse
     {
         $members = User::query()->whereNotNull('platform_role')->orderBy('name')->orderBy('id')->get();
@@ -43,7 +48,7 @@ class AdminTeamController extends AdminController
     /**
      * One team member
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
     #[ApiDocResponse(404, 'Not a team member', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function show(int $id): JsonResponse
     {
@@ -56,11 +61,12 @@ class AdminTeamController extends AdminController
      * Invite a team member
      *
      * Creates the member (they cannot sign in until they accept) and a one-time invite link valid 72 hours:
-     * `invite_url` is shown only in this answer. Only a superadmin may invite a superadmin, or into a role that holds
-     * team.manage, pii.view, system.manage, orders.refund_approve or payouts.approve (403 `superadmin_only`). Accepting
+     * `invite_url` is shown only in this answer. `platform_roles`: one or more roles (or the legacy `platform_role`).
+     * Only a superadmin may invite a superadmin, or with any role that holds team.manage, pii.view, system.manage,
+     * stores.impersonate, orders.refund_approve or payouts.approve among the roles (403 `superadmin_only`). Accepting
      * opens a 24 hour window for the 2FA set-up. Needs step-up.
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}, invite_url: string, invite_token: string, invite_expires_at: string}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}, invite_url: string, invite_token: string, invite_expires_at: string}}')]
     #[ApiDocResponse(422, 'Email taken (email_taken) or invalid input', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function store(Request $request): JsonResponse
@@ -68,16 +74,19 @@ class AdminTeamController extends AdminController
         $data = $request->validate([
             'name' => 'required|string|min:2|max:255',
             'email' => 'required|string|email|max:255',
-            'platform_role' => ['required', Rule::enum(PlatformRole::class)],
+            // Wave P: one or more distinct roles; the legacy single `platform_role` instead (never both)
+            'platform_roles' => ['required_without:platform_role', 'prohibits:platform_role', 'array', 'min:1', 'max:' . count(PlatformRole::cases())],
+            'platform_roles.*' => ['required', 'string', 'distinct', Rule::enum(PlatformRole::class)],
+            'platform_role' => ['required_without:platform_roles', Rule::enum(PlatformRole::class)],
         ], UzValidation::messages());
 
-        $result = $this->team->invite($data['name'], $data['email'], PlatformRole::from($data['platform_role']), $this->member($request));
+        $result = $this->team->invite($data['name'], $data['email'], self::roles($data) ?? [], $this->member($request));
         $member = $result['member'];
 
         AdminAudit::for($request)->subject($member)->changes([], [
             'name' => $member->name,
             'email' => $member->email,
-            'platform_role' => $member->platform_role?->value,
+            'platform_roles' => array_map(fn (PlatformRole $role) => $role->value, $member->platformRoles()),
         ]);
 
         return $this->success([
@@ -92,7 +101,7 @@ class AdminTeamController extends AdminController
      * Re-issue the invite
      *
      * A new link for a member who has not accepted yet (409 `invite_already_accepted` otherwise); the older links stop
-     * working. A member in a superadmin or privileged role: superadmin only (403 `superadmin_only`). Needs step-up.
+     * working. A member holding superadmin or a privileged role among their roles: superadmin only (403 `superadmin_only`). Needs step-up.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{invite_url: string, invite_token: string, invite_expires_at: string}}')]
     #[ApiDocResponse(409, 'Already accepted (invite_already_accepted)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
@@ -115,20 +124,25 @@ class AdminTeamController extends AdminController
     }
 
     /**
-     * Change a member's role or disable / enable them
+     * Change a member's roles or disable / enable them
      *
-     * `platform_role` and/or `disabled`. Disabling ends all of the member's sessions. Nobody changes their own role or
-     * disables themselves (`cannot_change_self`), the last superadmin somebody can sign in as (active, password, 2FA
-     * on) stays (`last_superadmin`), and only a superadmin changes a superadmin or a member in a privileged role
-     * (team.manage, pii.view, system.manage, refund or payout approval), or gives such a role (`superadmin_only`).
-     * Needs step-up.
+     * `platform_roles` (the new set as a whole, at least one role; or the legacy single `platform_role`, which
+     * replaces the set with that one role) and/or `disabled`. Disabling ends all of the member's sessions. Nobody
+     * changes their own roles or disables themselves (`cannot_change_self`), the last superadmin somebody can sign in
+     * as (active, password, 2FA on) keeps superadmin and stays enabled (`last_superadmin`), and only a superadmin
+     * changes a member holding superadmin or a privileged role (team.manage, pii.view, system.manage,
+     * stores.impersonate, refund or payout approval) among their roles, or gives a set holding one
+     * (`superadmin_only`). Needs step-up.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
     #[ApiDocResponse(422, 'cannot_change_self, last_superadmin or invalid input', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function update(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
+            // Wave P: the new set as a whole; the legacy single `platform_role` instead (never both)
+            'platform_roles' => ['sometimes', 'required', 'prohibits:platform_role', 'array', 'min:1', 'max:' . count(PlatformRole::cases())],
+            'platform_roles.*' => ['required', 'string', 'distinct', Rule::enum(PlatformRole::class)],
             'platform_role' => ['sometimes', 'required', Rule::enum(PlatformRole::class)],
             'disabled' => 'sometimes|required|boolean',
         ], UzValidation::messages());
@@ -140,7 +154,7 @@ class AdminTeamController extends AdminController
 
         $change = $this->team->update(
             $member,
-            isset($data['platform_role']) ? PlatformRole::from($data['platform_role']) : null,
+            self::roles($data),
             array_key_exists('disabled', $data) ? (bool) $data['disabled'] : null,
             $this->member($request),
         );
@@ -158,9 +172,9 @@ class AdminTeamController extends AdminController
      *
      * For a lost phone: 2FA and the recovery codes are removed and every session of the member ends; they set 2FA up
      * again at a sign-in within 24 hours (after that the set-up is refused, `setup_not_allowed`: reset again). Not for
-     * yourself; a superadmin or a member in a privileged role: superadmin only. Needs step-up.
+     * yourself; a member holding superadmin or a privileged role among their roles: superadmin only. Needs step-up.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}}')]
     #[ApiDocResponse(403, 'Step-up needed (reauth_required) or superadmin only (superadmin_only)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     public function resetTwoFactor(Request $request, int $id): JsonResponse
     {
@@ -177,6 +191,19 @@ class AdminTeamController extends AdminController
         return $this->success($this->present($member->refresh()), "2FA o'chirildi. A'zo keyingi kirishda uni qayta o'rnatadi.");
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<PlatformRole>|null  null: no role change asked
+     */
+    private static function roles(array $data): ?array
+    {
+        if (isset($data['platform_roles'])) {
+            return User::normalizePlatformRoles($data['platform_roles']);
+        }
+
+        return isset($data['platform_role']) ? [PlatformRole::from($data['platform_role'])] : null;
+    }
+
     private function find(int $id): ?User
     {
         return User::query()->whereNotNull('platform_role')->find($id);
@@ -188,7 +215,7 @@ class AdminTeamController extends AdminController
     }
 
     /**
-     * @return array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}
+     * @return array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, status: string, disabled: bool, two_factor_enabled: bool, last_login_at: string|null, active_sessions: int, invite_expires_at: string|null, created_at: string|null}
      */
     private function present(User $member): array
     {
@@ -198,6 +225,8 @@ class AdminTeamController extends AdminController
             'id' => (int) $member->id,
             'name' => (string) $member->name,
             'email' => $member->email,
+            'platform_roles' => array_map(fn (PlatformRole $role) => $role->value, $member->platformRoles()),
+            'platform_role_labels' => array_map(fn (PlatformRole $role) => $role->label(), $member->platformRoles()),
             'platform_role' => $member->platform_role?->value,
             'platform_role_label' => $member->platform_role?->label(),
             'status' => $status,

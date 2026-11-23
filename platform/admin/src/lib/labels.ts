@@ -11,3 +11,6 @@ export const ROLE_LABELS: Record<PlatformRole, string> = {
 };
 
 export const roleLabel = (role: string | null | undefined): string => (role && isPlatformRole(role) ? ROLE_LABELS[role] : (role ?? ''));
+
+// A member's roles as one line: "Operator, Savdo / ulash"
+export const rolesLabel = (roles: readonly string[]): string => roles.map(roleLabel).join(', ');
