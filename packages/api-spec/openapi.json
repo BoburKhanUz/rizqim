@@ -38622,8 +38622,8 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "Superadmin yoki RIZQIM jamoasi hisobi: Telegram orqali kirish yopiq (`reason: platform_account`), yoki bu bot orqali kirib bo'lmaydi",
+                    "404": {
+                        "description": "",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -38632,8 +38632,8 @@
                             }
                         }
                     },
-                    "404": {
-                        "description": "",
+                    "403": {
+                        "description": "Superadmin yoki RIZQIM jamoasi hisobi: Telegram orqali kirish yopiq (`reason: platform_account`), yoki bu bot orqali kirib bo'lmaydi",
                         "content": {
                             "application/json": {
                                 "schema": {

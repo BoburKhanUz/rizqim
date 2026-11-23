@@ -3,7 +3,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
-import { MapPin, Search } from 'lucide-react';
+import { MapPin, Search, Store } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { Link, useNavigate } from 'react-router-dom';
 import ProductSheet from '../components/ProductSheet';
@@ -65,6 +65,10 @@ export default function Home() {
   const parentCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
   const searchedProducts = useMemo(() => searchCards(cards, searchQuery), [cards, searchQuery]);
   const shownStores = searching ? searchStores(stores, query) : stores;
+  // Wave P: a marketplace without any store yet (a fresh production; the customer signed in with `store: null`)
+  const marketplaceEmpty = !searching && stores.length === 0 && cards.length === 0;
+  // Both lists are narrowed to the selected address: with one set, an empty answer means no store serves it
+  const nothingAtAddress = marketplaceEmpty && Object.keys(location).length > 0;
 
   // A later store page that failed (a search loading the rest) keeps what is there
   const error = feed.error ?? (storePages.data ? null : storePages.error);
@@ -210,8 +214,29 @@ export default function Home() {
         </Section>
       )}
 
+      {nothingAtAddress && (
+        <EmptyState
+          icon={MapPin}
+          title="Bu manzilga hozircha yetkazib beradigan oshxona yo'q"
+          text="Boshqa manzilni tanlab ko'ring yoki keyinroq qayta kiring."
+          action={
+            <Button variant="secondary" onClick={() => navigate('/profile')}>
+              Manzilni o'zgartirish
+            </Button>
+          }
+        />
+      )}
+
+      {marketplaceEmpty && !nothingAtAddress && (
+        <EmptyState
+          icon={Store}
+          title="Hozircha oshxonalar yo'q"
+          text="Tez orada bu yerda oshxonalar va taomlar paydo bo'ladi. Keyinroq qayta kiring."
+        />
+      )}
+
       {/* Dishes of all restaurants */}
-      <Section
+      {!marketplaceEmpty && <Section
         title={searching ? 'Taomlar' : 'Siz uchun tavsiyalar'}
         action={searching ? <span className="text-footnote text-fg-muted">{searchedProducts.length} ta natija</span> : undefined}
       >
@@ -240,7 +265,7 @@ export default function Home() {
             })}
           </div>
         )}
-      </Section>
+      </Section>}
 
       <ReplaceCartDialog pending={cart.pending} onClose={cart.clearPending} />
 
