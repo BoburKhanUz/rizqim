@@ -99,7 +99,8 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     const form = page.getByRole('dialog', { name: 'Yangi xodim taklif qilish' })
     await form.getByLabel('Ism').fill(OPERATOR_NAME)
     await form.getByLabel('Email').fill(OPERATOR_EMAIL)
-    await form.getByLabel('Roli').selectOption('operator')
+    // Roles are checkboxes now (a member may hold several); an invite starts with Operator ticked
+    await expect(form.getByRole('checkbox', { name: 'Operator' })).toBeChecked()
     await form.getByRole('button', { name: 'Taklif havolasini yaratish' }).click()
 
     // The backend: reauth_required. The page: the step-up dialog. The code of the 2FA set-up was used a moment ago.
@@ -170,7 +171,8 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
     await expect(row.getByText('Faol', { exact: true })).toBeVisible()
     await row.getByRole('button', { name: `Rolni o'zgartirish: ${OPERATOR_NAME}` }).click()
     const dialog = page.getByRole('dialog', { name: "Rolni o'zgartirish" })
-    await dialog.getByLabel('Roli').selectOption('support')
+    await dialog.getByRole('checkbox', { name: 'Yordam' }).check()
+    await dialog.getByRole('checkbox', { name: 'Operator' }).uncheck()
     await dialog.getByRole('button', { name: 'Saqlash' }).click()
 
     const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
