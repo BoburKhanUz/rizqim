@@ -21,7 +21,7 @@ Route::prefix('v1')->group(function () {
                 'data' => [
                     'user' => $user,
                     'store' => $store,
-                    'sms_verification_required' => setting('sms_driver', 'log') === 'eskiz',
+                    'sms_verification_required' => \App\Services\Sms\SmsDriver::verificationRequired(),
                 ]
             ]);
         });
@@ -45,7 +45,7 @@ Route::prefix('v1')->group(function () {
 
             // With SMS verification on, a new phone may only be set via /phone/send-code + /phone/verify-code
             if (array_key_exists('phone', $data)
-                && setting('sms_driver', 'log') === 'eskiz'
+                && \App\Services\Sms\SmsDriver::verificationRequired()
                 && (string) $data['phone'] !== (string) $user->phone) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'phone' => "Telefon raqamini o'zgartirish uchun uni SMS kod orqali tasdiqlang.",

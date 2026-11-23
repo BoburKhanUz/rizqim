@@ -46,12 +46,13 @@ class AdminSystemSettingController extends AdminController
     /**
      * Change settings
      *
-     * `values` {key: value} of the plain settings (`sms_driver`: log | eskiz, `eskiz_email`, `eskiz_from`), `reason`. An
-     * empty value removes the stored one (the .env value or the default applies). A secret key here is 422
-     * `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`. Answers every group.
+     * `values` {key: value} of the plain settings (`sms_driver`: log | eskiz | onlinegroup, `eskiz_email`, `eskiz_from`),
+     * `reason`. An empty value removes the stored one (the .env value or the default applies). A secret key here is
+     * 422 `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`; Onlinegroup without its
+     * API key 422 `onlinegroup_not_configured`. Answers every group.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::GROUPS . '}')]
-    #[ApiDocResponse(422, 'A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured)', type: self::ERROR)]
+    #[ApiDocResponse(422, 'A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured), Onlinegroup without its API key (onlinegroup_not_configured)', type: self::ERROR)]
     public function update(Request $request): JsonResponse
     {
         $request->validate([
@@ -80,7 +81,7 @@ class AdminSystemSettingController extends AdminController
     /**
      * Replace a secret
      *
-     * `value` (1-500 characters), `reason`. Only `eskiz_password` today. The answer and the audit entry never hold the
+     * `value` (1-500 characters), `reason`. `eskiz_password` or `onlinegroup_api_key`. The answer and the audit entry never hold the
      * value: the entry says which setting and whether it was set before.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::GROUPS . '}')]
@@ -95,8 +96,8 @@ class AdminSystemSettingController extends AdminController
     /**
      * Clear a secret
      *
-     * `reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password cannot be
-     * cleared while SMS goes through Eskiz (422 `in_use`).
+     * `reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password (the Onlinegroup
+     * API key) cannot be cleared while SMS goes through Eskiz (Onlinegroup): 422 `in_use`.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::GROUPS . '}')]
     #[ApiDocResponse(422, 'Still used (in_use)', type: self::ERROR)]

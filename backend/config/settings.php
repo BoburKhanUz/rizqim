@@ -7,5 +7,6 @@ return [
     'eskiz_email' => env('ESKIZ_EMAIL'),
     'eskiz_password' => env('ESKIZ_PASSWORD'),
     'eskiz_from' => env('ESKIZ_FROM'),
+    'onlinegroup_api_key' => env('ONLINEGROUP_API_KEY'),
 
 ];

@@ -190,7 +190,7 @@ class PhoneLoginController extends Controller
             'token' => null,
             'user' => $user,
             'store' => $user->store_id ? Store::with('branches')->find($user->store_id) : null,
-            'sms_verification_required' => setting('sms_driver', 'log') === 'eskiz',
+            'sms_verification_required' => \App\Services\Sms\SmsDriver::verificationRequired(),
             'is_new_user' => $created,
         ];
 

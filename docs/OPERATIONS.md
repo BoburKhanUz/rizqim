@@ -1192,3 +1192,20 @@ Landing va "Hamkor bo'lish" sahifasi: statik sayt `infra/landing/` (nginx, build
 4. Tekshiruv: `node infra/landing/tests/check.mjs` (bog'liqliksiz; `--sync` o'zbekcha matnni `uz.js` dan HTML ga yozadi), brauzer testi `node infra/landing/tests/smoke.mjs` (partner/web dagi Playwright'dan foydalanadi), mahalliy ko'rish `node infra/landing/tests/serve.mjs`.
 5. Logo: `site/img/logo.svg`, `logo-light.svg`, `logo-mark.svg`, `favicon.svg` vaqtincha (konsept asosida); dizayner SVG'si bilan shu fayllar almashtiriladi.
 6. **HSTS va TLS.** `landing` ichidagi nginx oddiy HTTP (root bo'lmagan `nginx-unprivileged`, port 8080) beradi; `Strict-Transport-Security` sarlavhasini tashqi TLS proksi qo'shadi (`rizqim.uz` va `www`), landing konfigida HSTS yo'q. Maxfiylik va shartlar sahifalari `noindex` va sitemap'da yo'q: yurist tasdiqlagach shu ikkalasidan `noindex` olinadi va `sitemap.xml` ga qo'shiladi. Aloqa maydonlari (`phone`, `telegramHandle`, `social.*`, `address`) bo'sh yuboriladi: egasi to'ldirmaguncha sahifada ko'rinmaydi.
+
+## 28. SMS: sms.onlinegroup.uz (P)
+
+Kirish kodlari (hamkor paneli, xodim va kassa telefon orqali kirishi, Mini App'da raqamni tasdiqlash) va boshqa SMS'lar `sms_driver` bo'yicha ketadi: `log` (standart — hech narsa yuborilmaydi, kod faqat server jurnalida), `eskiz` yoki `onlinegroup` (egasining gateway'i). Hujjat: https://sms.onlinegroup.uz/docs.
+
+**Yoqish (egasi):**
+
+1. sms.onlinegroup.uz kabinetida chap menyu → **Ilovalar** → yangi ilova (masalan `RIZQIM`), ruxsati **`sms:send`** (`otp:send` kerak emas). Kalit (`sk_...`) faqat bir marta ko'rsatiladi — darhol nusxalang. Webhook manzilini hozircha bermang.
+2. Boshqaruv markazi → Tizim → Tizim sozlamalari → Sozlamalar → SMS: **«Onlinegroup API kaliti»** → «Almashtirish», kalitni qo'ying, sabab yozing, 2FA. Javobda va jurnalda faqat oxirgi 4 belgi.
+3. Shu yerda **«SMS yuborish usuli»** → «Onlinegroup (haqiqiy SMS)», sabab bilan saqlang. Kalit kiritilmagan bo'lsa 422 `onlinegroup_not_configured`. Ishlab turganda kalitni o'chirib bo'lmaydi (422 `in_use`) — avval «Log» ga qaytaring.
+4. Sinov: hamkor panelida telefon bilan kirish → o'z raqamingizga «RIZQIM tasdiqlash kodi: NNNNNN» kelishi kerak. Kabinetdagi «Xabarlar» sahifasida xabar holati (`queued` → `sent` → `delivered`) ko'rinadi. Kelmasa: `error_code` (`BLOCKED_NOT_ALLOWED` — gateway serverida raqam ruxsat ro'yxatida yo'q; `TTL_EXPIRED` — 5 daqiqada bo'sh SIM topilmadi), server jurnalida `Onlinegroup SMS` qatorlari (raqam yashirilgan, kod va kalit yozilmaydi).
+
+**Qanday ishlaydi.** Kodni o'zimiz yaratamiz va tekshiramiz (`PhoneOtpService`: hash, 5 daqiqa, urinish va kunlik limitlar, `otp-send`/`otp-verify` throttle, audit — avvalgidek); gateway'ga faqat `POST /v1/sms` (`X-API-Key`, `kind: transactional`, `ttl_seconds: 300`, raqam `+998XXXXXXXXX`). Har yuborishda bitta `Idempotency-Key`: javob kelmasa yoki 5xx bo'lsa shu kalit bilan yana 2 marta uriniladi, gateway ikkinchi SMS yaratmaydi. 401/403/422/429 qayta urinilmaydi. Redirect kuzatilmaydi, timeout 10 s (ulanish 5 s). Kalitni `.env` da `ONLINEGROUP_API_KEY` bilan ham berish mumkin (boshqaruv markazidagisi ustun); manzil `ONLINEGROUP_SMS_BASE_URL` (standart `https://sms.onlinegroup.uz`).
+
+**Narx.** Matnda faqat oddiy `'` (U+0027) va lotin harflari: tipografik apostrof (`ʻ`, `’`) yoki kirill matnni UCS-2 ga o'tkazadi va segmentni 160 dan 70 belgiga tushiradi. Kod matni 30 belgi — bitta segment.
+
+**Hali yo'q.** Yetkazilganlik webhook'i (`X-Signature` HMAC-SHA256) — keyingi qadam; hozir holat faqat kabinetda.

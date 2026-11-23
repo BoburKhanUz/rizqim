@@ -16,7 +16,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             \App\Services\Sms\SmsServiceInterface::class,
-            \App\Services\Sms\EskizSmsService::class
+            // The control centre's sms_driver chooses: log (default), eskiz or onlinegroup
+            \App\Services\Sms\SmsDriver::class
         );
 
         // P4-32: the payment providers' switches, read once per request or queued job (a store list asks per store)

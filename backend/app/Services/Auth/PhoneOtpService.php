@@ -43,7 +43,7 @@ class PhoneOtpService
             'attempts' => 0,
         ]);
 
-        return ['sent' => $this->sms->send($phone, "FastFood tasdiqlash kodi: {$code}"), 'code' => $code];
+        return ['sent' => $this->sms->send($phone, "RIZQIM tasdiqlash kodi: {$code}"), 'code' => $code];
     }
 
     /**

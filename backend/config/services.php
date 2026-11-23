@@ -115,4 +115,14 @@ return [
         'lock_wait' => 0.5,
     ],
 
+    // Wave P: the owner's SMS gateway (sms_driver = onlinegroup). The API key is a control-centre secret
+    // (onlinegroup_api_key, or ONLINEGROUP_API_KEY in .env), never here. Docs: https://sms.onlinegroup.uz/docs
+    'onlinegroup' => [
+        'base_url' => env('ONLINEGROUP_SMS_BASE_URL', 'https://sms.onlinegroup.uz'),
+        'timeout' => 10,
+        'connect_timeout' => 5,
+        // A code lives 5 minutes (PhoneOtpService): a message the gateway could not hand to a SIM by then expires unsent
+        'ttl_seconds' => 300,
+    ],
+
 ];

@@ -28,6 +28,7 @@ class AdminSystemSettingsTest extends TestCase
             'settings.eskiz_password' => null,
             'settings.sms_driver' => null,
             'settings.eskiz_from' => null,
+            'settings.onlinegroup_api_key' => null,
             'services.telegram.bot_token' => '123456:AAEexampleTokenWXYZ',
             'services.telegram.bot_username' => 'rizqim_bot',
             'services.telegram.webhook_secret' => null,
@@ -61,7 +62,8 @@ class AdminSystemSettingsTest extends TestCase
         $items = $this->items($response->json('data.groups'));
 
         $this->assertSame(['log', 'settings', true], [$items['sms_driver']['value'], $items['sms_driver']['source'], $items['sms_driver']['editable']]);
-        $this->assertSame(['log', 'eskiz'], array_column($items['sms_driver']['options'], 'value'));
+        $this->assertSame(['log', 'eskiz', 'onlinegroup'], array_column($items['sms_driver']['options'], 'value'));
+        $this->assertSame([null, false, null, true, 'sms'], [$items['onlinegroup_api_key']['value'], $items['onlinegroup_api_key']['configured'], $items['onlinegroup_api_key']['last4'], $items['onlinegroup_api_key']['secret'], $items['onlinegroup_api_key']['group']]);
         $this->assertSame('sms@rizqim.uz', $items['eskiz_email']['value']);
         // Not stored: the code's default
         $this->assertSame(['4546', 'default'], [$items['eskiz_from']['value'], $items['eskiz_from']['source']]);
@@ -141,6 +143,37 @@ class AdminSystemSettingsTest extends TestCase
         // While Eskiz sends, its email cannot go empty and its password cannot be cleared
         $this->adminJson('PATCH', '/system/settings', $token, ['values' => ['eskiz_email' => ''], 'reason' => "Email o'chadi"])->assertStatus(422)->assertJsonPath('code', 'eskiz_not_configured');
         $this->adminJson('DELETE', '/system/settings/secrets/eskiz_password', $token, ['reason' => "Parol o'chadi"])->assertStatus(422)->assertJsonPath('code', 'in_use');
+    }
+
+    public function test_onlinegroup_needs_its_api_key_which_is_masked_and_never_audited(): void
+    {
+        $token = $this->superToken();
+        // Built at runtime: no key-shaped literal in the repository
+        $key = 'sk_' . bin2hex(random_bytes(16));
+
+        $this->adminJson('PATCH', '/system/settings', $token, ['values' => ['sms_driver' => 'onlinegroup'], 'reason' => 'Haqiqiy SMS'])->assertStatus(422)->assertJsonPath('code', 'onlinegroup_not_configured');
+        $this->assertSame('log', Setting::where('key', 'sms_driver')->value('value'));
+
+        $response = $this->adminJson('PUT', '/system/settings/secrets/onlinegroup_api_key', $token, ['value' => $key, 'reason' => 'Kalit berildi'])->assertOk();
+        $item = $this->items($response->json('data.groups'))['onlinegroup_api_key'];
+        $this->assertSame([null, true, substr($key, -4)], [$item['value'], $item['configured'], $item['last4']]);
+        $this->assertStringNotContainsString($key, $response->getContent());
+
+        $this->adminJson('PATCH', '/system/settings', $token, ['values' => ['sms_driver' => 'onlinegroup'], 'reason' => 'Haqiqiy SMS'])->assertOk();
+        $this->assertSame('onlinegroup', setting('sms_driver', 'log'));
+        $this->assertTrue(\App\Services\Sms\SmsDriver::verificationRequired());
+
+        // While the gateway sends, its key cannot be cleared
+        $this->adminJson('DELETE', '/system/settings/secrets/onlinegroup_api_key', $token, ['reason' => "Kalit o'chadi"])->assertStatus(422)->assertJsonPath('code', 'in_use');
+        $this->assertSame($key, setting('onlinegroup_api_key'));
+
+        $audit = AuditLog::where('action', 'admin.system.setting_secret_replaced')->sole();
+        $this->assertSame('onlinegroup_api_key', $audit->payload_json['setting']);
+        $this->assertStringNotContainsString($key, (string) json_encode(AuditLog::all()->toArray()));
+
+        // Back to Log: the key may go
+        $this->adminJson('PATCH', '/system/settings', $token, ['values' => ['sms_driver' => 'log'], 'reason' => 'Sinov'])->assertOk();
+        $this->adminJson('DELETE', '/system/settings/secrets/onlinegroup_api_key', $token, ['reason' => "Kalit o'chadi"])->assertOk();
     }
 
     public function test_a_secret_is_replaced_on_its_own_and_its_value_never_reaches_the_audit(): void
