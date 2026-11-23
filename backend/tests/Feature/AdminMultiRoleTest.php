@@ -413,6 +413,8 @@ class AdminMultiRoleTest extends TestCase
      * logs every row it changed. For a team account the platform role decides users.role; a store-level account keeps
      * its store role and loses the platform role; users.role super_admin without a platform role is a superadmin (P4-11).
      */
+    // Runs the migration's down()/up() (ALTER TABLE): as the schema owner when the roles are split (CI tests-app-role)
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_brings_rows_whose_role_and_platform_role_disagree_into_line(): void
     {
         $migration = require database_path('migrations/2026_12_05_100000_add_platform_roles_to_users_table.php');
@@ -448,6 +450,8 @@ class AdminMultiRoleTest extends TestCase
     /**
      * Review 16: rolling the migration back keeps one role per member (the primary one); the roles it drops are logged.
      */
+    // Runs the migration's down()/up() (ALTER TABLE): as the schema owner when the roles are split (CI tests-app-role)
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_rolling_back_keeps_the_primary_role_and_logs_the_dropped_ones(): void
     {
         $member = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SALES, PlatformRole::VIEWER]);
