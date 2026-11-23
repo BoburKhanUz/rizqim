@@ -380,8 +380,16 @@ section { padding: 22px 0; }
 .legal h1 { font-size: 32px; margin-bottom: 16px; }
 .legal h2 { font-size: 20px; margin: 22px 0 6px; }
 .legal p { color: #334155; }
-.draft-note { display: inline-block; margin: 0 0 10px; padding: 4px 10px; border-radius: 999px; background: #78350F; color: #fff; font-size: 13px; font-weight: 700; }
-.draft { background: #FFFBEB; border: 1px solid #FDE68A; color: #78350F; padding: 12px 14px; border-radius: 12px; font-weight: 600; }
+.legal p, .legal li { overflow-wrap: anywhere; }
+.legal-body p { margin: 0 0 10px; }
+.legal-body ul { margin: 0 0 10px; padding-left: 22px; color: #334155; }
+.legal-body li { margin: 0 0 6px; }
+.legal-body a, .legal-req a { color: var(--brand-dark); text-decoration: underline; }
+.legal-req { margin: 8px 0 0; padding: 14px 16px; background: #fff; border-radius: 14px; box-shadow: var(--shadow); display: grid; gap: 10px; }
+.legal-req > div { display: grid; gap: 2px; }
+.legal-req dt { color: var(--muted); font-size: 14px; }
+.legal-req dd { margin: 0; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+@media (min-width: 700px) { .legal-req > div { grid-template-columns: 180px 1fr; gap: 12px; } }
 .nf { text-align: center; padding: 64px 0; }
 .nf .code { font-size: 88px; font-weight: 800; color: var(--brand); line-height: 1; }
 .nf h1 { font-size: 28px; margin: 12px 0 8px; }
