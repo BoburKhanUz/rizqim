@@ -174,6 +174,9 @@ class User extends Authenticatable
                     $roles = self::normalizePlatformRoles([...$current, \App\Enums\PlatformRole::SUPERADMIN]);
                 } elseif ($user->role !== \App\Enums\UserRole::PLATFORM && $current !== []) {
                     $roles = [];
+                } elseif ($user->role === \App\Enums\UserRole::PLATFORM && in_array(\App\Enums\PlatformRole::SUPERADMIN, $current, true)) {
+                    // Review 16: superadmin goes with users.role super_admin (the database CHECK ties them)
+                    $roles = array_values(array_filter($current, fn (\App\Enums\PlatformRole $role) => $role !== \App\Enums\PlatformRole::SUPERADMIN));
                 }
             } elseif ($user->role === \App\Enums\UserRole::SUPER_ADMIN && $user->platformRoles() === []) {
                 $roles = [\App\Enums\PlatformRole::SUPERADMIN];

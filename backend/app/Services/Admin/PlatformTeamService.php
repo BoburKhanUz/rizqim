@@ -162,22 +162,19 @@ class PlatformTeamService
     public function update(User $member, array|PlatformRole|null $roles, ?bool $disabled, User $actor): array
     {
         $roles = $roles === null ? null : self::roleSet($roles);
-        $this->assertMayManage($actor, $member);
-        if ($roles !== null) {
-            $this->assertMayGrant($actor, $roles);
-        }
+        // Early answer on the copy the request loaded; checked again below on the locked row
+        $this->assertMayUpdate($member, $roles, $disabled, $actor);
 
-        $before = self::state($member);
-        $self = (int) $member->id === (int) $actor->id;
+        $before = DB::transaction(function () use ($member, $roles, $disabled, $actor) {
+            // Review 16: the member's row is locked and the rules read again from it, so a change made meanwhile by
+            // another request (a privileged role given, superadmin added) is what they judge, not the stale copy
+            $locked = User::query()->whereKey($member->id)->lockForUpdate()->firstOrFail();
+            $this->assertMayUpdate($locked, $roles, $disabled, $actor);
+            $before = self::state($locked);
 
-        if ($self && (($roles !== null && $roles !== $member->platformRoles()) || $disabled === true)) {
-            throw new AdminAuthException("O'zingizning rollaringizni o'zgartira yoki hisobingizni o'chira olmaysiz.", 'cannot_change_self', 422);
-        }
+            $leavesSuperadmins = $locked->isPlatformSuperadmin()
+                && (($roles !== null && !in_array(PlatformRole::SUPERADMIN, $roles, true)) || $disabled === true);
 
-        $leavesSuperadmins = $member->isPlatformSuperadmin()
-            && (($roles !== null && !in_array(PlatformRole::SUPERADMIN, $roles, true)) || $disabled === true);
-
-        DB::transaction(function () use ($member, $roles, $disabled, $leavesSuperadmins) {
             if ($leavesSuperadmins) {
                 // Serialised: two superadmins demoting each other at the same moment cannot leave none. Review F7: only
                 // one somebody can sign in as counts (active, a password, 2FA on): not an invite never accepted, nor
@@ -187,7 +184,7 @@ class PlatformTeamService
                     ->whereJsonContains('platform_roles', PlatformRole::SUPERADMIN->value)
                     ->lockForUpdate()
                     ->get()
-                    ->filter(fn (User $superadmin) => (int) $superadmin->id !== (int) $member->id && self::canSignIn($superadmin))
+                    ->filter(fn (User $superadmin) => (int) $superadmin->id !== (int) $locked->id && self::canSignIn($superadmin))
                     ->count();
 
                 if ($others === 0) {
@@ -196,19 +193,41 @@ class PlatformTeamService
             }
 
             if ($roles !== null) {
-                $member->platform_roles = self::values($roles);
+                $locked->platform_roles = self::values($roles);
             }
             if ($disabled !== null) {
-                $member->platform_disabled_at = $disabled ? ($member->platform_disabled_at ?? now()) : null;
+                $locked->platform_disabled_at = $disabled ? ($locked->platform_disabled_at ?? now()) : null;
             }
-            $member->save();
+            $locked->save();
 
             if ($disabled === true) {
-                $this->endSessions($member);
+                $this->endSessions($locked);
             }
+
+            return $before;
         });
 
         return ['before' => $before, 'after' => self::state($member->refresh())];
+    }
+
+    /**
+     * The rules of a change to a member: only a superadmin touches a superadmin or privileged member or gives such a
+     * set, and nobody changes their own roles or disables themselves.
+     *
+     * @param  list<PlatformRole>|null  $roles
+     *
+     * @throws AdminAuthException
+     */
+    private function assertMayUpdate(User $member, ?array $roles, ?bool $disabled, User $actor): void
+    {
+        $this->assertMayManage($actor, $member);
+        if ($roles !== null) {
+            $this->assertMayGrant($actor, $roles);
+        }
+
+        if ((int) $member->id === (int) $actor->id && (($roles !== null && $roles !== $member->platformRoles()) || $disabled === true)) {
+            throw new AdminAuthException("O'zingizning rollaringizni o'zgartira yoki hisobingizni o'chira olmaysiz.", 'cannot_change_self', 422);
+        }
     }
 
     /**

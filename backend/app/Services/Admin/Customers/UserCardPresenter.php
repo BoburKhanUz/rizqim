@@ -352,7 +352,7 @@ class UserCardPresenter
      */
     private function audit(User $user): array
     {
-        return AuditLog::query()->with('user:id,name,role,platform_role')
+        return AuditLog::query()->with('user:id,name,role,platform_role,platform_roles')
             ->where('model_type', $user->getMorphClass())->where('model_id', $user->id)
             ->orderByDesc('id')->limit(30)->get()
             ->map(function (AuditLog $log) {

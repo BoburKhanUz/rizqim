@@ -260,7 +260,7 @@ class StorePresenter
             'activated_at' => $this->iso($application->activated_at),
             'checklist' => $this->pipeline->checklist($application),
             'crm' => $this->crm(null, $application),
-            'audit' => AuditLog::query()->with('user:id,name,role,platform_role')
+            'audit' => AuditLog::query()->with('user:id,name,role,platform_role,platform_roles')
                 ->where('model_type', $application->getMorphClass())->where('model_id', $application->id)
                 ->orderByDesc('id')->limit(50)->get()->map(fn (AuditLog $log) => $this->auditEntry($log))->values()->all(),
             'actions' => [
@@ -552,7 +552,7 @@ class StorePresenter
      */
     private function audit(Store $store): array
     {
-        return AuditLog::query()->with('user:id,name,role,platform_role')
+        return AuditLog::query()->with('user:id,name,role,platform_role,platform_roles')
             ->where(fn ($query) => $query->where('store_id', $store->id)
                 ->orWhere(fn ($subject) => $subject->where('model_type', $store->getMorphClass())->where('model_id', $store->id)))
             ->orderByDesc('id')->limit(50)->get()

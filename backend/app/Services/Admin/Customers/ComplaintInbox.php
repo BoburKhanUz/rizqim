@@ -413,14 +413,15 @@ class ComplaintInbox
     }
 
     /**
-     * The team members a complaint can be given to (active, with support.view), for the assignee picker.
+     * The team members a complaint can be given to (active, with support.view), for the assignee picker. Review 16:
+     * platform_roles is read too, so support.view from a member's secondary role counts (as in assertAssignable()).
      *
      * @return list<array{id: int, name: string}>
      */
     public function assignees(): array
     {
         return User::query()->whereNotNull('platform_role')->whereNull('platform_disabled_at')->orderBy('name')
-            ->get(['id', 'name', 'platform_role', 'role', 'platform_disabled_at'])
+            ->get(['id', 'name', 'platform_role', 'platform_roles', 'role', 'platform_disabled_at'])
             ->filter(fn (User $user) => $this->permissions->has($user, AdminPermission::SUPPORT_VIEW))
             ->map(fn (User $user) => ['id' => (int) $user->id, 'name' => (string) $user->name])
             ->values()->all();

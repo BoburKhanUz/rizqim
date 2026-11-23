@@ -2830,7 +2830,9 @@ qidiruv. Hammasi `/api/v1/admin` ostida, OpenAPI'da **Admin** guruhi. Kod: `rout
   sales, viewer). `users.platform_role` qoldirildi — **asosiy rol** (ro'yxatning birinchisi, superadmin bo'lsa doim
   u): eski ilovalar va SQL filtrlari ("jamoa a'zosimi", "superadminmi") uchun. Ikkalasini `User` modeli birga yozadi;
   bazadagi CHECK cheklovi ularning ajralishiga yo'l qo'ymaydi. Ruxsat va jamoa qoidalari faqat ro'yxatni o'qiydi.
-  `users.role`: ro'yxatda `superadmin` bo'lsa `super_admin`, aks holda `platform`.
+  `users.role`: ro'yxatda `superadmin` bo'lsa `super_admin`, aks holda `platform`. CHECK buni ham ushlaydi: ro'yxatda
+  faqat ma'lum rollar, har biri bir marta; `super_admin` faqat `superadmin` bilan; do'kon darajasidagi rol (`owner`,
+  `cashier`, `customer`...) bilan platforma roli bo'lmaydi.
 - Eski `super_admin` lar avtomatik `superadmin` bo'ldi (P4-25 dan beri faqat boshqaruv markaziga kiradi; eski Filament
   panellari P4-33 da olib tashlandi). 2FA'ni ular `php artisan rizqim:admin:invite <email>` havolasi (yoki boshqa superadmin "2FA ni tiklash")
   orqali o'rnatadi: faqat parol bilan o'rnatib bo'lmaydi (pastda, `setup_not_allowed`; docs/OPERATIONS.md, 10-bo'lim).

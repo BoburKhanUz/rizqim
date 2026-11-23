@@ -9,10 +9,12 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Admin\AdminAuthException;
 use App\Services\Admin\AdminPermissionService;
+use App\Services\Admin\Customers\ComplaintInbox;
 use App\Services\Admin\PlatformTeamService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -25,6 +27,9 @@ class AdminMultiRoleTest extends TestCase
 {
     use RefreshDatabase;
     use AdminFixtures;
+
+    /** @var list<array<string, mixed>> */
+    private array $warnings = [];
 
     /**
      * @param  list<PlatformRole>  $roles
@@ -324,5 +329,267 @@ class AdminMultiRoleTest extends TestCase
                 // refused
             }
         }
+    }
+
+    /**
+     * Review 16: a narrow column list without platform_roles made platformRoles() fall back to the primary role, so an
+     * operator + support member (primary operator, no support.view) was missing from the picker although
+     * assertAssignable() (full row) accepts them.
+     */
+    public function test_the_complaint_assignee_picker_counts_every_role_of_a_member(): void
+    {
+        $member = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SUPPORT]);
+        $operatorOnly = $this->makeMultiMember([PlatformRole::OPERATOR]);
+        $this->assertTrue(app(AdminPermissionService::class)->has($member->fresh(), AdminPermission::SUPPORT_VIEW));
+
+        $ids = array_column(app(ComplaintInbox::class)->assignees(), 'id');
+        $this->assertContains((int) $member->id, $ids);
+        $this->assertNotContains((int) $operatorOnly->id, $ids);
+    }
+
+    /**
+     * Review 16: an unknown value in the set would make User::platformRoles() throw (the team list and that member's
+     * every request a 500): the database stores known roles only, each once.
+     */
+    public function test_the_database_refuses_unknown_or_repeated_roles_in_the_set(): void
+    {
+        $member = $this->makeMultiMember([PlatformRole::OPERATOR]);
+        foreach ([['operator', 'owner'], ['operator', 'operator'], ['operator', 7], ['operator', ['sales']], ['operator', 'sales', 'sales']] as $set) {
+            try {
+                DB::transaction(fn () => DB::table('users')->where('id', $member->id)->update(['platform_roles' => json_encode($set)]));
+                $this->fail('The database stored the set ' . json_encode($set));
+            } catch (QueryException) {
+                // refused
+            }
+        }
+
+        // A proper multi-role set still goes in around the model
+        DB::table('users')->where('id', $member->id)->update(['platform_roles' => json_encode(['operator', 'sales', 'viewer'])]);
+        $this->assertSame([PlatformRole::OPERATOR, PlatformRole::SALES, PlatformRole::VIEWER], $member->refresh()->platformRoles());
+    }
+
+    /**
+     * Review 16: users.role is tied to the set: super_admin exactly when superadmin is among the roles, and a
+     * store-level account (owner, cashier, customer...) holds no platform role.
+     */
+    public function test_the_database_ties_users_role_to_the_set(): void
+    {
+        $member = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SALES]);
+        $superadmin = $this->makeMultiMember([PlatformRole::SUPERADMIN, PlatformRole::FINANCE]);
+        $this->assertSame(UserRole::SUPER_ADMIN, $superadmin->role);
+
+        foreach ([
+            [$member, ['role' => 'super_admin']],
+            [$member, ['role' => 'owner']],
+            [$member, ['role' => 'customer']],
+            [$superadmin, ['role' => 'platform']],
+        ] as [$user, $row]) {
+            try {
+                DB::transaction(fn () => DB::table('users')->where('id', $user->id)->update($row));
+                $this->fail('Stored ' . json_encode($row) . ' for ' . json_encode($user->platform_roles));
+            } catch (QueryException) {
+                // refused
+            }
+        }
+
+        // Store users keep working: no platform role, any store role
+        $owner = User::factory()->create(['role' => UserRole::OWNER]);
+        $this->assertNull(DB::table('users')->where('id', $owner->id)->value('platform_roles'));
+        try {
+            DB::transaction(fn () => DB::table('users')->where('id', $owner->id)->update(['platform_role' => 'viewer', 'platform_roles' => json_encode(['viewer'])]));
+            $this->fail('A store owner was given a platform role around the model.');
+        } catch (QueryException) {
+            // refused
+        }
+
+        // Through the model, users.role platform takes superadmin out of the set (it used to leave them out of step)
+        $superadmin->forceFill(['role' => UserRole::PLATFORM])->save();
+        $this->assertSame([PlatformRole::FINANCE], $superadmin->refresh()->platformRoles());
+        $this->assertSame(UserRole::PLATFORM, $superadmin->role);
+    }
+
+    /**
+     * Review 16: the migration brings rows whose users.role and platform role disagree into line before its CHECK, and
+     * logs every row it changed. For a team account the platform role decides users.role; a store-level account keeps
+     * its store role and loses the platform role; users.role super_admin without a platform role is a superadmin (P4-11).
+     */
+    public function test_the_migration_brings_rows_whose_role_and_platform_role_disagree_into_line(): void
+    {
+        $migration = require database_path('migrations/2026_12_05_100000_add_platform_roles_to_users_table.php');
+        $this->captureWarnings();
+        $migration->down();
+
+        $insert = fn (string $role, ?string $platformRole) => DB::table('users')->insertGetId([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(), 'name' => "{$role}/{$platformRole}", 'email' => uniqid('row') . '@rizqim.test', 'role' => $role, 'platform_role' => $platformRole,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $superOperator = $insert('super_admin', 'operator');
+        $platformSuper = $insert('platform', 'superadmin');
+        $ownerSales = $insert('owner', 'sales');
+        $loneSuper = $insert('super_admin', null);
+        $fine = $insert('platform', 'finance');
+        $store = $insert('cashier', null);
+
+        $migration->up();
+
+        $row = fn (int $id) => (array) DB::table('users')->where('id', $id)->first(['role', 'platform_role', 'platform_roles']);
+        $this->assertSame(['role' => 'platform', 'platform_role' => 'operator', 'platform_roles' => '["operator"]'], $row($superOperator));
+        $this->assertSame(['role' => 'super_admin', 'platform_role' => 'superadmin', 'platform_roles' => '["superadmin"]'], $row($platformSuper));
+        $this->assertSame(['role' => 'owner', 'platform_role' => null, 'platform_roles' => null], $row($ownerSales));
+        $this->assertSame(['role' => 'super_admin', 'platform_role' => 'superadmin', 'platform_roles' => '["superadmin"]'], $row($loneSuper));
+        $this->assertSame(['role' => 'platform', 'platform_role' => 'finance', 'platform_roles' => '["finance"]'], $row($fine));
+        $this->assertSame(['role' => 'cashier', 'platform_role' => null, 'platform_roles' => null], $row($store));
+
+        $this->assertSame([$loneSuper, $superOperator, $platformSuper, $ownerSales], array_column($this->warnings, 'user_id'));
+        $this->assertSame(['role' => 'super_admin', 'platform_role' => 'operator'], $this->warnings[1]['before']);
+        $this->assertSame(['role' => 'platform', 'platform_role' => 'operator'], $this->warnings[1]['after']);
+    }
+
+    /**
+     * Review 16: rolling the migration back keeps one role per member (the primary one); the roles it drops are logged.
+     */
+    public function test_rolling_back_keeps_the_primary_role_and_logs_the_dropped_ones(): void
+    {
+        $member = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SALES, PlatformRole::VIEWER]);
+        $single = $this->makeMultiMember([PlatformRole::FINANCE]);
+        $migration = require database_path('migrations/2026_12_05_100000_add_platform_roles_to_users_table.php');
+        $this->captureWarnings();
+
+        $migration->down();
+
+        $this->assertSame('operator', DB::table('users')->where('id', $member->id)->value('platform_role'));
+        $this->assertSame('finance', DB::table('users')->where('id', $single->id)->value('platform_role'));
+        $this->assertSame([['user_id' => (int) $member->id, 'kept' => 'operator', 'dropped' => ['sales', 'viewer']]], $this->warnings);
+
+        $migration->up();
+        $this->assertSame([PlatformRole::OPERATOR], $member->refresh()->platformRoles());
+    }
+
+    /**
+     * Review 16: the superadmin-only rules are checked again on the member's row locked inside the transaction: a
+     * member loaded before somebody else gave them a privileged role is not changed by a team manager on the strength
+     * of the stale copy (two requests racing).
+     */
+    public function test_a_change_is_checked_against_the_member_row_locked_in_the_transaction(): void
+    {
+        $superadmin = $this->makeMember();
+        app(AdminPermissionService::class)->setOverride(PlatformRole::SALES, AdminPermission::TEAM_MANAGE, true, $superadmin);
+        $manager = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SALES]);
+        $target = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::VIEWER]);
+        $team = app(PlatformTeamService::class);
+
+        // The manager's request loaded the target; meanwhile the superadmin's request made them finance
+        $stale = User::findOrFail($target->id);
+        $team->update(User::findOrFail($target->id), [PlatformRole::OPERATOR, PlatformRole::FINANCE], null, $superadmin);
+
+        foreach ([[[PlatformRole::VIEWER], null], [null, true]] as [$roles, $disabled]) {
+            try {
+                $team->update(clone $stale, $roles, $disabled, $manager);
+                $this->fail('A team manager changed a member who holds a privileged role now.');
+            } catch (AdminAuthException $e) {
+                $this->assertSame('superadmin_only', $e->reason);
+            }
+        }
+        $this->assertSame([PlatformRole::OPERATOR, PlatformRole::FINANCE], $target->refresh()->platformRoles());
+        $this->assertNull($target->platform_disabled_at);
+
+        // The last-superadmin rule reads the locked row too: a stale copy from before the member became the only
+        // superadmin does not let them be disabled
+        $only = $this->makeMultiMember([PlatformRole::OPERATOR]);
+        $staleOnly = User::findOrFail($only->id);
+        $team->update(User::findOrFail($only->id), [PlatformRole::SUPERADMIN, PlatformRole::OPERATOR], null, $superadmin);
+        $superadmin->forceFill(['platform_disabled_at' => now()])->save();
+        try {
+            $team->update($staleOnly, null, true, $superadmin->refresh());
+            $this->fail('The last superadmin was disabled through a stale copy.');
+        } catch (AdminAuthException $e) {
+            $this->assertSame('last_superadmin', $e->reason);
+        }
+        $this->assertNull($only->refresh()->platform_disabled_at);
+    }
+
+    /**
+     * Review 16 probe: the legacy single field cannot give, nor take from, a privileged role.
+     */
+    public function test_the_legacy_single_field_cannot_grant_or_touch_a_privileged_role(): void
+    {
+        [, $mt] = $this->nonSuperadminTeamManager();
+        $plain = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::VIEWER]);
+        $mixed = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::FINANCE]);
+
+        foreach (['superadmin', 'finance', 'sales'] as $legacy) {
+            $this->adminJson('PATCH', "/team/{$plain->id}", $mt, ['platform_role' => $legacy])->assertForbidden();
+        }
+        $this->adminJson('PATCH', "/team/{$mixed->id}", $mt, ['platform_role' => 'operator'])->assertForbidden();
+        $this->adminJson('POST', '/team', $mt, ['name' => 'Legacy', 'email' => 'l@rizqim.test', 'platform_role' => 'superadmin'])->assertForbidden();
+        // Both fields with a harmless list and an empty/blank legacy value
+        $this->adminJson('POST', '/team', $mt, ['name' => 'Both', 'email' => 'b@rizqim.test', 'platform_roles' => ['viewer'], 'platform_role' => 'superadmin'])->assertStatus(422);
+        $this->adminJson('POST', '/team', $mt, ['name' => 'Both', 'email' => 'b2@rizqim.test', 'platform_roles' => [], 'platform_role' => 'superadmin'])->assertStatus(422);
+        $this->adminJson('PATCH', "/team/{$plain->id}", $mt, ['platform_roles' => ['viewer'], 'platform_role' => ''])->assertStatus(422);
+        // An object (keyed) list, a role in the wrong case
+        $this->adminJson('PATCH', "/team/{$plain->id}", $mt, ['platform_roles' => ['a' => 'viewer', 'b' => 'superadmin']])->assertForbidden();
+        $this->adminJson('PATCH', "/team/{$plain->id}", $mt, ['platform_roles' => ['Superadmin']])->assertStatus(422);
+        $this->assertSame([PlatformRole::OPERATOR, PlatformRole::VIEWER], $plain->refresh()->platformRoles());
+        $this->assertSame([PlatformRole::OPERATOR, PlatformRole::FINANCE], $mixed->refresh()->platformRoles());
+        $this->assertSame(0, User::whereIn('email', ['l@rizqim.test', 'b@rizqim.test', 'b2@rizqim.test'])->count());
+    }
+
+    /**
+     * Review 16 probe: a role made privileged by an override is protected even as a secondary role.
+     */
+    public function test_a_secondary_role_made_privileged_by_an_override_is_protected(): void
+    {
+        [$superadmin, $mt] = $this->nonSuperadminTeamManager();
+        // viewer (last in PlatformRole::cases(), never the primary role next to another one) gets pii.view
+        $st = $this->confirmedSession($superadmin);
+        $this->adminJson('PUT', '/roles', $st, ['role' => 'viewer', 'permission' => 'admin.pii.view', 'allowed' => true])->assertOk();
+        $target = $this->makeMultiMember([PlatformRole::SUPPORT, PlatformRole::VIEWER]);
+        $this->adminJson('PATCH', "/team/{$target->id}", $mt, ['platform_roles' => ['support']])->assertForbidden();
+        $this->adminJson('PATCH', "/team/{$target->id}", $mt, ['disabled' => true])->assertForbidden();
+        $plain = $this->makeMultiMember([PlatformRole::SUPPORT]);
+        $this->adminJson('PATCH', "/team/{$plain->id}", $mt, ['platform_roles' => ['support', 'viewer']])->assertForbidden();
+    }
+
+    /**
+     * Review 16 probe: disabled and invited superadmins with other roles do not count as the remaining superadmin, an
+     * active one does.
+     */
+    public function test_the_last_superadmin_rule_ignores_disabled_and_invited_multi_role_superadmins(): void
+    {
+        $only = $this->makeMultiMember([PlatformRole::SUPERADMIN, PlatformRole::FINANCE]);
+        $this->makeMultiMember([PlatformRole::SUPERADMIN, PlatformRole::SALES], true, ['platform_disabled_at' => now()]);
+        $this->makeMultiMember([PlatformRole::SUPERADMIN, PlatformRole::OPERATOR], false, ['password' => null]);
+        $other = $this->makeMember();
+        $ot = $this->confirmedSession($other);
+        $this->adminJson('PATCH', "/team/{$only->id}", $ot, ['platform_roles' => ['finance']])->assertOk();
+        $this->assertSame(UserRole::PLATFORM, $only->refresh()->role);
+        $this->assertNotContains(AdminPermission::TEAM_MANAGE, app(AdminPermissionService::class)->permissionsFor($only));
+    }
+
+    /**
+     * The context of every warning logged from now on goes to $this->warnings.
+     */
+    private function captureWarnings(): void
+    {
+        Log::listen(function (\Illuminate\Log\Events\MessageLogged $event) {
+            if ($event->level === 'warning') {
+                $this->warnings[] = $event->context;
+            }
+        });
+    }
+
+    /**
+     * A superadmin, and a signed-in operator + sales member whose sales role was given team.manage.
+     *
+     * @return array{0: User, 1: string, 2: User}
+     */
+    private function nonSuperadminTeamManager(): array
+    {
+        $superadmin = $this->makeMember();
+        $token = $this->confirmedSession($superadmin);
+        $this->adminJson('PUT', '/roles', $token, ['role' => 'sales', 'permission' => 'admin.team.manage', 'allowed' => true])->assertOk();
+        $manager = $this->makeMultiMember([PlatformRole::OPERATOR, PlatformRole::SALES]);
+
+        return [$superadmin, $this->confirmedSession($manager), $manager];
     }
 }

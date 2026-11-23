@@ -116,7 +116,7 @@ class AuthenticateTelegramUserAction
             ->first();
 
         if (!$user) {
-            $holders = User::where('telegram_id', $telegramId)->get(['id', 'role', 'platform_role']);
+            $holders = User::where('telegram_id', $telegramId)->get(['id', 'role', 'platform_role', 'platform_roles']);
 
             // Other stores' staff exist for this id (a store's own bot): refuse instead of creating a shadow account
             if ($botStore && $holders->contains(fn (User $holder) => !$holder->isPlatformAccount())) {
