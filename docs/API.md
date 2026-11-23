@@ -58,7 +58,12 @@ Muhim qoidalar:
   aytilmaydi). Mijoz hech qachon do'konga biriktirilmaydi (`users.store_id` bo'sh qoladi). Avvalgi "birinchi faol
   do'kon" o'rniga ham endi `store: null` keladi; faol `store_<uuid>` havolasida o'sha do'kon, xodimga o'z do'koni
   qaytadi. O'zgarmagan: do'kon botlari faol do'konisiz 404, faol bo'lmagan do'kon xodimi 404, taklif havolalari,
-  `platform_account`/`account_blocked` 403.
+  `platform_account`/`account_blocked` 403. Faol bo'lmagan (`stores.is_active = false`) do'kon xodimi qaysi botdan va
+  qaysi `store_<uuid>` havolasidan kirmasin 404 oladi: rad etish shu kirish qaytaradigan hisob bo'yicha hal qilinadi (bir
+  Telegram id'da mijoz va ega hisobi bo'lsa, ustuvor ega hisobi). Bu faqat Telegram kirishiga tegishli: SMS kod
+  (`account=staff`), refresh token va kassa to'xtatilgan do'konda ham ishlayveradi ("Kassa to'xtamaydi", P4-22).
+  Mini App: manzil tanlangan va unga xizmat qiladigan do'kon yo'q bo'lsa "Bu manzilga hozircha yetkazib beradigan
+  oshxona yo'q" va "Manzilni o'zgartirish"; manzil yo'q va ro'yxat bo'sh bo'lsa "Hozircha oshxonalar yo'q".
 - **Chiqish:** `POST /auth/logout` (joriy sessiya), `POST /auth/logout-all` (hamma qurilmalar).
 - **Xodimlar (P1-36):** `POST /auth/phone/verify` da `account=staff` faqat tasdiqlangan login telefoni bor xodim
   hisoblarini topadi; bir odam bir nechta do'konda bo'lsa `POST /auth/phone/select-account` bilan tanlaydi.

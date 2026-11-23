@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useAddressStore } from '../store/useAddressStore';
 import { makeStore, makeUser } from '../test/factories';
 import Home from './Home';
 
@@ -30,7 +31,10 @@ async function openHome() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <Home />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/profile" element={<p>Profil sahifasi</p>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -39,6 +43,7 @@ async function openHome() {
 
 beforeEach(() => {
   get.mockReset();
+  useAddressStore.setState({ addresses: [], selectedAddressId: null });
   useAuthStore.getState().logout();
   useAuthStore.getState().setAuth('token', makeUser({ role: 'customer', store_id: null }), null, false);
 });
@@ -59,5 +64,21 @@ describe('Home: empty marketplace after a sign-in without a store', () => {
 
     expect(screen.getByText('Evos')).toBeInTheDocument();
     expect(screen.queryByText("Hozircha oshxonalar yo'q")).not.toBeInTheDocument();
+  });
+
+  it('says no store serves the selected address (not an empty marketplace) and offers to change it', async () => {
+    useAddressStore.setState({
+      addresses: [{ id: 5, title: 'Uy', address: 'Chilonzor 9', lat: 41.28, lng: 69.2, is_default: true }],
+      selectedAddressId: 5,
+    });
+    serve([]);
+    await openHome();
+
+    expect(screen.getByText("Bu manzilga hozircha yetkazib beradigan oshxona yo'q")).toBeInTheDocument();
+    expect(screen.queryByText("Hozircha oshxonalar yo'q")).not.toBeInTheDocument();
+    expect(screen.queryByText('Siz uchun tavsiyalar')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: "Manzilni o'zgartirish" }));
+    expect(screen.getByText('Profil sahifasi')).toBeInTheDocument();
   });
 });

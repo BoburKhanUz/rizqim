@@ -67,6 +67,8 @@ export default function Home() {
   const shownStores = searching ? searchStores(stores, query) : stores;
   // Wave P: a marketplace without any store yet (a fresh production; the customer signed in with `store: null`)
   const marketplaceEmpty = !searching && stores.length === 0 && cards.length === 0;
+  // Both lists are narrowed to the selected address: with one set, an empty answer means no store serves it
+  const nothingAtAddress = marketplaceEmpty && Object.keys(location).length > 0;
 
   // A later store page that failed (a search loading the rest) keeps what is there
   const error = feed.error ?? (storePages.data ? null : storePages.error);
@@ -212,7 +214,20 @@ export default function Home() {
         </Section>
       )}
 
-      {marketplaceEmpty && (
+      {nothingAtAddress && (
+        <EmptyState
+          icon={MapPin}
+          title="Bu manzilga hozircha yetkazib beradigan oshxona yo'q"
+          text="Boshqa manzilni tanlab ko'ring yoki keyinroq qayta kiring."
+          action={
+            <Button variant="secondary" onClick={() => navigate('/profile')}>
+              Manzilni o'zgartirish
+            </Button>
+          }
+        />
+      )}
+
+      {marketplaceEmpty && !nothingAtAddress && (
         <EmptyState
           icon={Store}
           title="Hozircha oshxonalar yo'q"
