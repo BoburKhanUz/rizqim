@@ -243,6 +243,18 @@ class SmsSecretsAndLimitsTest extends TestCase
         $this->assertSame(['disabled', 'critical'], [$alert->subject_key, $alert->severity]);
     }
 
+    public function test_the_log_driver_on_the_e2e_stacks_keeps_the_full_line(): void
+    {
+        // scripts/e2e-stack.sh and pos-e2e.sh run APP_ENV=e2e and read the sign-in code from this line
+        Setting::where('key', 'sms_driver')->update(['value' => 'log']);
+        Cache::flush();
+        $this->app->detectEnvironment(fn () => 'e2e');
+
+        $this->assertTrue(app(SmsServiceInterface::class)->send('+998901112233', 'RIZQIM tasdiqlash kodi: 654321'));
+
+        $this->assertStringContainsString('SMS Mocked to +998901112233: RIZQIM tasdiqlash kodi: 654321', implode("\n", $this->logged));
+    }
+
     public function test_the_log_driver_in_testing_keeps_the_full_line(): void
     {
         Setting::where('key', 'sms_driver')->update(['value' => 'log']);

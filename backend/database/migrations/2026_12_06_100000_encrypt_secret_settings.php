@@ -41,16 +41,15 @@ return new class extends Migration
      */
     private function rewrite(\Closure $transform): void
     {
-        $rows = DB::table('settings')->whereIn('key', self::KEYS)->whereNotNull('value')->where('value', '<>', '')->get(['id', 'value']);
+        $rows = DB::table('settings')->whereIn('key', self::KEYS)->whereNotNull('value')->where('value', '<>', '')->get(['id', 'key', 'value']);
         foreach ($rows as $row) {
             $new = $transform((string) $row->value);
             if ($new !== null) {
                 DB::table('settings')->where('id', $row->id)->update(['value' => $new, 'updated_at' => now()]);
+                // Only a rewritten key can have a stale cached value; a fresh database touches no cache at all,
+                // so the migration also runs where the cache store is not reachable (CI's migrate step).
+                Cache::forget("setting_{$row->key}");
             }
-        }
-
-        foreach (self::KEYS as $key) {
-            Cache::forget("setting_{$key}");
         }
     }
 

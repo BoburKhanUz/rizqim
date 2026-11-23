@@ -57,12 +57,12 @@ class SmsDriver implements SmsServiceInterface
     }
 
     /**
-     * Review 17 L1: in local development and tests the whole message is logged (the code is read from the log);
+     * Review 17 L1: in local development, tests and the e2e stacks (APP_ENV=e2e) the whole message is logged (the code is read from the log);
      * anywhere else only the masked phone, never the text, and the `sms_failures` alert says SMS is off.
      */
     private function log(string $phone, string $message): bool
     {
-        if (app()->environment('local', 'testing')) {
+        if (app()->environment('local', 'testing', 'e2e')) {
             Log::info("SMS Mocked to {$phone}: {$message}");
 
             return true;
