@@ -83,7 +83,7 @@ class AdminAuthController extends AdminController
      * The first code from the authenticator app turns 2FA on and opens the session. `recovery_codes` (10) are shown
      * only here, once: each one signs in once when the phone is lost; only their hashes are kept.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, expires_at: string, member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, recovery_codes: list<string>}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, expires_at: string, member: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, recovery_codes: list<string>}}')]
     #[ApiDocResponse(422, 'Wrong code (invalid_code) or challenge (challenge_invalid)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(409, 'Set-up not started or 2FA already on', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(429, 'Locked for 15 minutes (locked)', type: 'array{success: false, message: string, code: string, data: array{reason: string, retry_after: int}}')]
@@ -109,7 +109,7 @@ class AdminAuthController extends AdminController
      * already used, or one older than the last used, is refused (replay). Opens the session: `token` (Bearer, the
      * admin API only), absolute `expires_at` (12 hours); 60 minutes without a request also end it.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, expires_at: string, member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, expires_at: string, member: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}}}')]
     #[ApiDocResponse(422, 'Wrong code (invalid_code, invalid_recovery_code) or challenge (challenge_invalid)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(409, 'The account must set 2FA up first (setup_required)', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(429, 'Locked for 15 minutes (locked)', type: 'array{success: false, message: string, code: string, data: array{reason: string, retry_after: int}}')]
@@ -188,7 +188,7 @@ class AdminAuthController extends AdminController
      * Who is signed in, their platform role and effective admin permissions (the admin app shows only the sections
      * these allow), 2FA state and the current session (`reauthenticated_until`: the step-up confirmation, if any).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array{id: int, ip: string|null, user_agent: string|null, created_at: string|null, last_used_at: string|null, expires_at: string|null, reauthenticated_until: string|null, current: bool}|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, platform_roles: list<string>, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array{id: int, ip: string|null, user_agent: string|null, created_at: string|null, last_used_at: string|null, expires_at: string|null, reauthenticated_until: string|null, current: bool}|null}}')]
     public function me(Request $request): JsonResponse
     {
         return $this->success($this->mePayload($request));
@@ -197,7 +197,7 @@ class AdminAuthController extends AdminController
     /**
      * The signed-in member (alias of GET /admin/auth/me)
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array{id: int, ip: string|null, user_agent: string|null, created_at: string|null, last_used_at: string|null, expires_at: string|null, reauthenticated_until: string|null, current: bool}|null}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{member: array{id: int, name: string, email: string|null, platform_roles: list<string>, platform_role_labels: list<string>, platform_role: string|null, platform_role_label: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null}, platform_roles: list<string>, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array{id: int, ip: string|null, user_agent: string|null, created_at: string|null, last_used_at: string|null, expires_at: string|null, reauthenticated_until: string|null, current: bool}|null}}')]
     public function currentMember(Request $request): JsonResponse
     {
         return $this->success($this->mePayload($request));
@@ -241,7 +241,7 @@ class AdminAuthController extends AdminController
     }
 
     /**
-     * @return array{member: array<string, mixed>, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array<string, mixed>|null}
+     * @return array{member: array<string, mixed>, platform_roles: list<string>, platform_role: string|null, permissions: list<string>, two_factor_enabled: bool, recovery_codes_left: int, last_login_at: string|null, session: array<string, mixed>|null}
      */
     private function mePayload(Request $request): array
     {
@@ -251,6 +251,7 @@ class AdminAuthController extends AdminController
 
         return [
             'member' => $payload,
+            'platform_roles' => $payload['platform_roles'],
             'platform_role' => $payload['platform_role'],
             'permissions' => $payload['permissions'],
             'two_factor_enabled' => $payload['two_factor_enabled'],

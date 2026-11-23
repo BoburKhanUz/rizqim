@@ -2822,8 +2822,15 @@ qidiruv. Hammasi `/api/v1/admin` ostida, OpenAPI'da **Admin** guruhi. Kod: `rout
 
 ### Kim kiradi
 
-- Jamoa a'zosi — `users.platform_role` to'ldirilgan foydalanuvchi: `superadmin`, `operator`, `support` (Yordam),
+- Jamoa a'zosi — kamida bitta platforma roli bor foydalanuvchi: `superadmin`, `operator`, `support` (Yordam),
   `finance` (Moliya), `sales` (Savdo va ulash), `viewer` (Faqat ko'rish).
+- **Bir nechta rol (Wave P).** A'zo bir nechta rolga ega bo'lishi mumkin (masalan `operator` + `sales`): ruxsatlari —
+  rollari ruxsatlarining birlashmasi (har bir rol o'z o'zgartirishlari bilan); orasida `superadmin` bo'lsa — hammasi.
+  Saqlanishi: `users.platform_roles` (jsonb ro'yxat, `PlatformRole` tartibida: superadmin, operator, support, finance,
+  sales, viewer). `users.platform_role` qoldirildi — **asosiy rol** (ro'yxatning birinchisi, superadmin bo'lsa doim
+  u): eski ilovalar va SQL filtrlari ("jamoa a'zosimi", "superadminmi") uchun. Ikkalasini `User` modeli birga yozadi;
+  bazadagi CHECK cheklovi ularning ajralishiga yo'l qo'ymaydi. Ruxsat va jamoa qoidalari faqat ro'yxatni o'qiydi.
+  `users.role`: ro'yxatda `superadmin` bo'lsa `super_admin`, aks holda `platform`.
 - Eski `super_admin` lar avtomatik `superadmin` bo'ldi (P4-25 dan beri faqat boshqaruv markaziga kiradi; eski Filament
   panellari P4-33 da olib tashlandi). 2FA'ni ular `php artisan rizqim:admin:invite <email>` havolasi (yoki boshqa superadmin "2FA ni tiklash")
   orqali o'rnatadi: faqat parol bilan o'rnatib bo'lmaydi (pastda, `setup_not_allowed`; docs/OPERATIONS.md, 10-bo'lim).
@@ -2872,7 +2879,7 @@ tegishli bo'lmagan email bilan urinishlar jurnalga emas, ilova logiga (daqiqasig
 
 | Endpoint | Nima |
 |---|---|
-| `GET /admin/me` (yoki `GET /admin/auth/me`) | `{member, platform_role, permissions, two_factor_enabled, recovery_codes_left, last_login_at, session}` |
+| `GET /admin/me` (yoki `GET /admin/auth/me`) | `{member, platform_roles, platform_role, permissions, two_factor_enabled, recovery_codes_left, last_login_at, session}`; `member` da ham `platform_roles`, `platform_role_labels` va asosiy rol `platform_role` / `platform_role_label`; `permissions` — barcha rollarning birlashmasi |
 | `POST /admin/auth/logout` | joriy sessiyani yopadi |
 | `GET /admin/auth/sessions` | mening jonli sessiyalarim (`current` — shu sessiya) |
 | `DELETE /admin/auth/sessions/{id}` | sessiyani yopadi; boshqasini yopish uchun step-up kerak |
@@ -2888,23 +2895,29 @@ va buyurtmaga aralashish amallari.
 
 | Endpoint | Nima |
 |---|---|
-| `GET /admin/team`, `GET /admin/team/{id}` | a'zolar: rol, `status` (`invited`, `active`, `disabled`), 2FA, oxirgi kirish, jonli sessiyalar |
-| `POST /admin/team {name, email, platform_role}` | taklif (step-up): a'zo yaratiladi, `invite_url` (72 soat) faqat shu javobda; qabul qilgach 24 soat ichida 2FA o'rnatiladi |
+| `GET /admin/team`, `GET /admin/team/{id}` | a'zolar: rollar (`platform_roles`, `platform_role_labels`; asosiy rol `platform_role`), `status` (`invited`, `active`, `disabled`), 2FA, oxirgi kirish, jonli sessiyalar |
+| `POST /admin/team {name, email, platform_roles}` | taklif (step-up): `platform_roles` — bir yoki bir nechta takrorlanmas rol (eski `platform_role` ham qabul qilinadi, bitta rol degani; ikkalasi birga — 422); a'zo yaratiladi, `invite_url` (72 soat) faqat shu javobda; qabul qilgach 24 soat ichida 2FA o'rnatiladi |
 | `POST /admin/team/{id}/invite` | taklifni qayta berish (step-up); eski havola ishlamay qoladi |
-| `PATCH /admin/team/{id} {platform_role?, disabled?}` | rolni o'zgartirish, o'chirish/yoqish (step-up); o'chirish barcha sessiyalarni yopadi |
+| `PATCH /admin/team/{id} {platform_roles?, disabled?}` | rollarni o'zgartirish (yangi to'plam butunligicha, kamida bitta rol; eski `platform_role` to'plamni shu bitta rol bilan almashtiradi), o'chirish/yoqish (step-up); o'chirish barcha sessiyalarni yopadi |
 | `POST /admin/team/{id}/reset-2fa` | 2FA ni o'chirish (step-up): a'zo 24 soat ichida kirib qayta o'rnatadi (keyin `setup_not_allowed` — qayta tiklang) |
 | `GET /admin/roles` | `{roles: [{key, label, editable}], permissions: [{key, label, group}], grants: {rol: [ruxsat…]}, defaults: {rol: [ruxsat…]}}` — `defaults` o'zgartirishlarsiz standart jadval ("O'zgartirilgan" belgisi uchun) |
 | `PUT /admin/roles {role, permission, allowed}` | `allowed`: `true`, `false`, `null` (standartga qaytarish) (step-up); **faqat superadmin** (boshqalarga 403 `superadmin_only`) |
 
-Qoidalar: o'zingizning rolingizni o'zgartira, o'zingizni o'chira yoki 2FA'ingizni tiklay olmaysiz
-(`cannot_change_self`); kirish mumkin bo'lgan (faol, paroli va 2FA'si bor) oxirgi superadmin qoladi
-(`last_superadmin`: qabul qilinmagan taklif yoki 2FA'siz eski superadmin hisobga olinmaydi); superadmin hisobiga va
-superadmin rolini berishga faqat superadmin tegadi (`superadmin_only`). Superadmin roli o'zgarmaydi
+Qoidalar (rollar to'plami bilan): o'zingizning rollaringizni o'zgartira (bitta rol qo'shish yoki olish ham),
+o'zingizni o'chira yoki 2FA'ingizni tiklay olmaysiz (`cannot_change_self`); kirish mumkin bo'lgan (faol, paroli va
+2FA'si bor) oxirgi superadmin o'z to'plamida `superadmin` ni saqlaydi va o'chirilmaydi (`last_superadmin`: qabul
+qilinmagan taklif yoki 2FA'siz eski superadmin hisobga olinmaydi; boshqa rollari bo'lgan superadmin hisobga olinadi);
+rollari orasida superadmin bor a'zoga va `superadmin` li to'plam berishga faqat superadmin tegadi (`superadmin_only`);
+kamida bitta rol shart (422). Jurnal `admin.team.updated` / `admin.team.invited` da `platform_roles` — to'plam oldin va
+keyin. To'rt ko'z qoidalari (pul qaytarish so'rovi, payout, tuzatish, hisob-faktura bekor qilish, ovqatxona qaytarish
+tekshiruvi) rollarni emas, **odamlarni** solishtiradi: ham so'rovchi, ham tasdiqlovchi roli bor bitta a'zo o'z so'rovini
+tasdiqlay olmaydi. Superadmin roli o'zgarmaydi
 (`role_not_editable`). Rollar jadvalini (`PUT /admin/roles`) faqat superadmin o'zgartiradi. **Imtiyozli ruxsatlar**
 (`team.manage`, `pii.view`, `system.manage`, `orders.refund_approve`, `payouts.approve`;
-`AdminPermissionService::PRIVILEGED`): `team.manage` li superadmin bo'lmagan a'zo bunday ruxsati bor rolga taklif
-qila, a'zoni shunday rolga o'tkaza, shunday roldagi a'zoning taklifini qayta bera, uni o'zgartira, o'chira yoki 2FA'sini
-tiklay olmaydi (403 `superadmin_only`); qolgan rollar bilan avvalgidek ishlaydi.
+`AdminPermissionService::PRIVILEGED`): `team.manage` li superadmin bo'lmagan a'zo bunday ruxsati bor rolni (boshqa
+oddiy rollar yonida ham) o'z ichiga olgan to'plam bilan taklif qila, a'zoga shunday rol qo'sha, rollaridan biri shunday
+bo'lgan a'zoning taklifini qayta bera, rollarini o'zgartira (shu rolni olib tashlash ham), o'chira yoki 2FA'sini tiklay
+olmaydi (403 `superadmin_only`); qolgan rollar bilan avvalgidek ishlaydi.
 
 Ruxsatlar (`App\Enums\AdminPermission`, `admin.*`): `today.view`, `orders.view`, `orders.intervene`,
 `orders.refund_request`, `orders.refund_approve`, `stores.view`, `stores.manage`, `stores.impersonate`,

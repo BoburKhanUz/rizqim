@@ -19,6 +19,11 @@ use SensitiveParameter;
  * carrying a privileged permission (AdminPermissionService::PRIVILEGED: team.manage, pii.view, system.manage, refund
  * and payout approval) or changes a member holding one, so a team.manage holder cannot build a second account with
  * more rights. Disabling or resetting 2FA ends every session.
+ *
+ * Wave P: a member holds a set of roles (User::platformRoles, at least one). Every guard reads the whole set: a set
+ * holding superadmin or any privileged role is a superadmin's to give, a member with one such role among others is a
+ * superadmin's to change, nobody changes their own set, and the last superadmin anybody can sign in as keeps
+ * superadmin in theirs.
  */
 class PlatformTeamService
 {
@@ -32,27 +37,30 @@ class PlatformTeamService
     /**
      * A new member, disabled until they accept the invite (no password yet), and the one-time invite link.
      *
+     * @param  list<PlatformRole>|PlatformRole  $roles  at least one
      * @return array{member: User, token: string, expires_at: Carbon}
      *
      * @throws AdminAuthException
+     * @throws \InvalidArgumentException for an empty set
      */
-    public function invite(string $name, string $email, PlatformRole $role, ?User $actor): array
+    public function invite(string $name, string $email, array|PlatformRole $roles, ?User $actor): array
     {
-        $this->assertMayGrant($actor, $role);
+        $roles = self::roleSet($roles);
+        $this->assertMayGrant($actor, $roles);
         $email = mb_strtolower(trim($email));
 
         if (User::query()->whereRaw('lower(email) = ?', [$email])->exists()) {
             throw new AdminAuthException("Bu email bilan hisob allaqachon bor.", 'email_taken', 422);
         }
 
-        return DB::transaction(function () use ($name, $email, $role, $actor) {
+        return DB::transaction(function () use ($name, $email, $roles, $actor) {
             $member = new User();
             $member->forceFill([
                 'name' => trim($name),
                 'email' => $email,
                 'password' => null,
-                'role' => $role->userRole(),
-                'platform_role' => $role,
+                // The model's saving hook also sets platform_role (the primary role) and users.role from the set
+                'platform_roles' => self::values($roles),
             ])->save();
 
             return ['member' => $member, ...$this->issueInvite($member, $actor)];
@@ -69,9 +77,9 @@ class PlatformTeamService
     public function reissueInvite(User $member, ?User $actor): array
     {
         $this->assertMayManage($actor, $member);
-        if ($member->platform_role !== null) {
-            // Whoever holds the link becomes this member: the same rule as inviting into the role
-            $this->assertMayGrant($actor, $member->platform_role);
+        if ($member->platformRoles() !== []) {
+            // Whoever holds the link becomes this member: the same rule as inviting into their roles
+            $this->assertMayGrant($actor, $member->platformRoles());
         }
 
         if (!self::isInvited($member)) {
@@ -143,48 +151,52 @@ class PlatformTeamService
     }
 
     /**
-     * PATCH /admin/team/{id}: role and/or enabled state.
+     * PATCH /admin/team/{id}: the member's set of roles (replaced as a whole) and/or enabled state.
      *
+     * @param  list<PlatformRole>|PlatformRole|null  $roles  null: unchanged; else the new set, at least one role
      * @return array{before: array<string, mixed>, after: array<string, mixed>}
      *
      * @throws AdminAuthException
+     * @throws \InvalidArgumentException for an empty set
      */
-    public function update(User $member, ?PlatformRole $role, ?bool $disabled, User $actor): array
+    public function update(User $member, array|PlatformRole|null $roles, ?bool $disabled, User $actor): array
     {
+        $roles = $roles === null ? null : self::roleSet($roles);
         $this->assertMayManage($actor, $member);
-        if ($role !== null) {
-            $this->assertMayGrant($actor, $role);
+        if ($roles !== null) {
+            $this->assertMayGrant($actor, $roles);
         }
 
         $before = self::state($member);
         $self = (int) $member->id === (int) $actor->id;
 
-        if ($self && (($role !== null && $role !== $member->platform_role) || $disabled === true)) {
-            throw new AdminAuthException("O'zingizning rolingizni o'zgartira yoki hisobingizni o'chira olmaysiz.", 'cannot_change_self', 422);
+        if ($self && (($roles !== null && $roles !== $member->platformRoles()) || $disabled === true)) {
+            throw new AdminAuthException("O'zingizning rollaringizni o'zgartira yoki hisobingizni o'chira olmaysiz.", 'cannot_change_self', 422);
         }
 
         $leavesSuperadmins = $member->isPlatformSuperadmin()
-            && (($role !== null && $role !== PlatformRole::SUPERADMIN) || $disabled === true);
+            && (($roles !== null && !in_array(PlatformRole::SUPERADMIN, $roles, true)) || $disabled === true);
 
-        DB::transaction(function () use ($member, $role, $disabled, $leavesSuperadmins) {
+        DB::transaction(function () use ($member, $roles, $disabled, $leavesSuperadmins) {
             if ($leavesSuperadmins) {
                 // Serialised: two superadmins demoting each other at the same moment cannot leave none. Review F7: only
                 // one somebody can sign in as counts (active, a password, 2FA on): not an invite never accepted, nor
                 // an old super_admin who never set 2FA up
+                // Wave P: whoever holds superadmin among their roles
                 $others = User::query()
-                    ->where('platform_role', PlatformRole::SUPERADMIN->value)
+                    ->whereJsonContains('platform_roles', PlatformRole::SUPERADMIN->value)
                     ->lockForUpdate()
                     ->get()
                     ->filter(fn (User $superadmin) => (int) $superadmin->id !== (int) $member->id && self::canSignIn($superadmin))
                     ->count();
 
                 if ($others === 0) {
-                    throw new AdminAuthException("Oxirgi superadminni o'chirib yoki rolini o'zgartirib bo'lmaydi.", 'last_superadmin', 422);
+                    throw new AdminAuthException("Oxirgi superadminni o'chirib yoki undan superadmin rolini olib bo'lmaydi.", 'last_superadmin', 422);
                 }
             }
 
-            if ($role !== null) {
-                $member->platform_role = $role;
+            if ($roles !== null) {
+                $member->platform_roles = self::values($roles);
             }
             if ($disabled !== null) {
                 $member->platform_disabled_at = $disabled ? ($member->platform_disabled_at ?? now()) : null;
@@ -292,27 +304,59 @@ class PlatformTeamService
     }
 
     /**
-     * @return array{platform_role: string|null, disabled: bool}
+     * Wave P: what the audit log records of a member: the whole set of roles (before / after) and the enabled state.
+     *
+     * @return array{platform_roles: list<string>, disabled: bool}
      */
     private static function state(User $member): array
     {
-        return ['platform_role' => $member->platform_role?->value, 'disabled' => $member->platform_disabled_at !== null];
+        return ['platform_roles' => self::values($member->platformRoles()), 'disabled' => $member->platform_disabled_at !== null];
     }
 
     /**
+     * @param  list<PlatformRole>|PlatformRole  $roles
+     * @return non-empty-list<PlatformRole>
+     *
+     * @throws \InvalidArgumentException for an empty set
+     */
+    private static function roleSet(array|PlatformRole $roles): array
+    {
+        $set = User::normalizePlatformRoles($roles instanceof PlatformRole ? [$roles] : $roles);
+        if ($set === []) {
+            throw new \InvalidArgumentException('A team member holds at least one platform role.');
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param  list<PlatformRole>  $roles
+     * @return list<string>
+     */
+    private static function values(array $roles): array
+    {
+        return array_map(fn (PlatformRole $role) => $role->value, $roles);
+    }
+
+    /**
+     * Wave P: the whole set is checked: superadmin, or any role holding a privileged permission, next to harmless
+     * roles is still a superadmin's to give.
+     *
+     * @param  list<PlatformRole>  $roles
+     *
      * @throws AdminAuthException
      */
-    private function assertMayGrant(?User $actor, PlatformRole $role): void
+    private function assertMayGrant(?User $actor, array $roles): void
     {
         if ($actor === null || $actor->isPlatformSuperadmin()) {
             return;
         }
-        if ($role === PlatformRole::SUPERADMIN) {
+        if (in_array(PlatformRole::SUPERADMIN, $roles, true)) {
             throw new AdminAuthException("Superadmin rolini faqat superadmin bera oladi.", 'superadmin_only', 403);
         }
-        if ($this->permissions->privilegedOf($role) !== []) {
+        if ($this->permissions->privilegedOfRoles($roles) !== []) {
             throw new AdminAuthException(
-                "Bu rolda jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin bera oladi.",
+                "Tanlangan rollardan birida jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin bera oladi.",
                 'superadmin_only',
                 403,
             );
@@ -330,9 +374,9 @@ class PlatformTeamService
         if ($member->isPlatformSuperadmin()) {
             throw new AdminAuthException("Superadmin hisobini faqat superadmin o'zgartira oladi.", 'superadmin_only', 403);
         }
-        if ($member->platform_role !== null && $this->permissions->privilegedOf($member->platform_role) !== []) {
+        if ($this->permissions->privilegedOfRoles($member->platformRoles()) !== []) {
             throw new AdminAuthException(
-                "Bu a'zoning rolida jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin o'zgartira oladi.",
+                "Bu a'zoning rollaridan birida jamoa, shaxsiy ma'lumot, tizim yoki pulni tasdiqlash ruxsati bor: uni faqat superadmin o'zgartira oladi.",
                 'superadmin_only',
                 403,
             );

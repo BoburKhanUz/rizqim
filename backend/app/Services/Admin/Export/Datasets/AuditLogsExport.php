@@ -85,7 +85,7 @@ final class AuditLogsExport extends ExportDataset
 
     public function with(): array
     {
-        return ['user:id,name,role,platform_role', 'store:id,name'];
+        return ['user:id,name,role,platform_role,platform_roles', 'store:id,name'];
     }
 
     public function row(Model $record, ExportCells $cells): array
@@ -99,7 +99,10 @@ final class AuditLogsExport extends ExportDataset
             $cells->time($log->created_at),
             $cells->text($log->action),
             $cells->text($log->user?->name),
-            $cells->text($log->user?->platform_role->value ?? $log->user?->role->value),
+            // Wave P: every role of a team member, else the account's role
+            $cells->text($log->user?->isPlatformStaff()
+                ? implode(', ', array_map(fn (\App\Enums\PlatformRole $role) => $role->value, $log->user->platformRoles()))
+                : $log->user?->role->value),
             $cells->text($log->store?->name),
             $cells->text($log->subjectName()),
             $cells->number($log->model_id),

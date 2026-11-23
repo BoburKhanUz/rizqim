@@ -34,6 +34,13 @@ export type TeamMember = Data<'admin.team'>[number];
 // `status` is invited (has not accepted the invite), active or disabled
 export const isInvited = (member: Pick<TeamMember, 'status'>): boolean => member.status === 'invited';
 
+// Every role a member holds (team list, /me), in PLATFORM_ROLES order. An answer without `platform_roles` (an older backend) stands
+// for the one `platform_role`; a role the app does not know is left out.
+export const memberRoles = (member: { platform_roles?: readonly string[] | null; platform_role?: string | null }): PlatformRole[] => {
+  const held: readonly string[] = member.platform_roles ?? (member.platform_role ? [member.platform_role] : []);
+  return PLATFORM_ROLES.filter((role) => held.includes(role));
+};
+
 export interface InviteLink {
   // The link to hand over, shown once
   url: string;

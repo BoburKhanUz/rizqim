@@ -136,7 +136,7 @@ class AdminOrderPresenter
             'user:id,name,phone,telegram_id',
             'courier:id,name,phone',
             'items',
-            'statusHistories.user:id,name,role,platform_role',
+            'statusHistories.user:id,name,role,platform_role,platform_roles',
         ]);
         $order->load('payments'); // fresh: the money part must not come from a relation read before a change
         $storeRefundReviews = $this->storeRefundReviews($order);
@@ -331,8 +331,11 @@ class AdminOrderPresenter
         return [
             'id' => (int) $user->id,
             'name' => (string) $user->name,
-            'role' => $user->platform_role?->label() ?? $user->role->labelUz(),
-            'team' => $user->platform_role !== null,
+            // Wave P: every role of a team member (a narrow select without platform_roles shows the primary one)
+            'role' => $user->isPlatformStaff()
+                ? implode(', ', array_map(fn (\App\Enums\PlatformRole $role) => $role->label(), $user->platformRoles()))
+                : $user->role->labelUz(),
+            'team' => $user->isPlatformStaff(),
         ];
     }
 
@@ -401,7 +404,7 @@ class AdminOrderPresenter
     private function audit(Order $order): array
     {
         return AuditLog::query()
-            ->with('user:id,name,role,platform_role')
+            ->with('user:id,name,role,platform_role,platform_roles')
             ->where('model_type', $order->getMorphClass())
             ->where('model_id', $order->id)
             ->orderByDesc('id')

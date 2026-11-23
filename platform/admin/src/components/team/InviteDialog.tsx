@@ -2,14 +2,14 @@
 
 import { useState, type FormEvent } from 'react';
 import { Button, Dialog, Field, fieldClass, FormError } from '@rizqim/ui';
-import { PLATFORM_ROLES, type PlatformRole } from '@/lib/api/types';
+import type { PlatformRole } from '@/lib/api/types';
 import { fieldError } from '@/lib/errors';
-import { ROLE_LABELS } from '@/lib/labels';
 import { useT } from '../I18nProvider';
+import { RoleChecklist } from './RoleChecklist';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// A new member: name, email, role. The answer is a one-time link (InviteLinkDialog).
+// A new member: name, email, one or more roles. The answer is a one-time link (InviteLinkDialog).
 export function InviteDialog({
   busy,
   error,
@@ -21,13 +21,14 @@ export function InviteDialog({
   error: string | null;
   // The failed call itself, for its field messages (the email is taken ...)
   fieldErrors: unknown;
-  onSubmit: (input: { name: string; email: string; platform_role: PlatformRole }) => void;
+  onSubmit: (input: { name: string; email: string; platform_roles: PlatformRole[] }) => void;
   onClose: () => void;
 }) {
   const t = useT();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<PlatformRole>('operator');
+  const [roles, setRoles] = useState<PlatformRole[]>(['operator']);
+  const [rolesError, setRolesError] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
@@ -38,7 +39,12 @@ export function InviteDialog({
       return;
     }
     setLocalError(null);
-    onSubmit({ name: name.trim(), email: email.trim(), platform_role: role });
+    if (roles.length === 0) {
+      setRolesError(true);
+      return;
+    }
+    setRolesError(false);
+    onSubmit({ name: name.trim(), email: email.trim(), platform_roles: roles });
   }
 
   const emailError = fieldError(fieldErrors, 'email');
@@ -52,17 +58,15 @@ export function InviteDialog({
         <Field label={t('team_inviteEmail')} error={emailError}>
           {(control) => <input {...control} className={fieldClass} type="email" autoComplete="off" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />}
         </Field>
-        <Field label={t('team_inviteRole')} hint={t('team_inviteRoleHint')}>
-          {(control) => (
-            <select {...control} className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as PlatformRole)}>
-              {PLATFORM_ROLES.map((key) => (
-                <option key={key} value={key}>
-                  {ROLE_LABELS[key]}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
+        <RoleChecklist
+          value={roles}
+          onChange={(next) => {
+            setRoles(next);
+            if (next.length > 0) setRolesError(false);
+          }}
+          error={rolesError ? t('team_rolesRequired') : fieldError(fieldErrors, 'platform_roles') || null}
+          hint={t('team_inviteRoleHint')}
+        />
         <FormError message={localError ?? (emailError || nameError ? null : error)} />
         <div className="flex gap-2 [&>*]:flex-1">
           <Button variant="secondary" onClick={onClose} disabled={busy}>

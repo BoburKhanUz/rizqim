@@ -1,7 +1,7 @@
 import { expect, NEXT_CODE, openSignedIn, test, VALID_CODE } from './fixtures'
 import { PASSWORD } from './fake/backend'
 
-// Tizim → Jamoa: invite, change role, disable / enable, reset 2FA, re-issue an invite. Each change is a sensitive action: the
+// Tizim → Jamoa: invite, change roles (one or more), disable / enable, reset 2FA, re-issue an invite. Each change is a sensitive action: the
 // backend asks for a fresh 2FA code (step-up) once, and the app opens the dialog by itself and repeats the call.
 
 const card = (page: import('@playwright/test').Page, name: string) => page.getByRole('heading', { name: new RegExp(`^${name}`) }).locator('xpath=ancestor::li[1]')
@@ -11,9 +11,10 @@ test('a role change asks for the 2FA code once, then goes through', async ({ pag
   await expect(page.getByRole('heading', { name: 'Jamoa', level: 1 })).toBeVisible()
   await expect(page.getByRole('heading', { name: /^Sardor Operator/ })).toBeVisible()
 
-  await card(page, 'Sardor Operator').getByRole('button', { name: "Rolni o'zgartirish: Sardor Operator" }).click()
-  await page.getByRole('dialog', { name: "Rolni o'zgartirish" }).getByLabel('Roli').selectOption('finance')
-  await page.getByRole('dialog', { name: "Rolni o'zgartirish" }).getByRole('button', { name: 'Saqlash' }).click()
+  await card(page, 'Sardor Operator').getByRole('button', { name: "Rollarni o'zgartirish: Sardor Operator" }).click()
+  const roles = page.getByRole('dialog', { name: "Rollarni o'zgartirish" })
+  await roles.getByRole('checkbox', { name: 'Moliya' }).check()
+  await roles.getByRole('button', { name: 'Saqlash' }).click()
 
   // The backend answered 403 reauth_required: the step-up dialog opens
   const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
@@ -24,8 +25,9 @@ test('a role change asks for the 2FA code once, then goes through', async ({ pag
   await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
   await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
 
-  await expect(page.getByText('Sardor Operator endi «Moliya».')).toBeVisible()
-  expect(api.member('sardor@rizqim.uz').platform_role).toBe('finance')
+  await expect(page.getByText('Sardor Operator rollari: Operator, Moliya.')).toBeVisible()
+  expect(api.member('sardor@rizqim.uz').platform_roles).toEqual(['operator', 'finance'])
+  await expect(card(page, 'Sardor Operator').getByRole('list', { name: 'Rollari' }).getByRole('listitem')).toHaveText(['Operator', 'Moliya'])
   // The change was sent twice (refused, then repeated after the confirmation) and the confirmation once good
   expect(api.callsTo('PATCH', '/team/2').map((call) => call.status)).toEqual([403, 200])
 
@@ -53,7 +55,8 @@ test('invite: the link is shown once, a new browser accepts it, sets a password 
   const form = page.getByRole('dialog', { name: 'Yangi xodim taklif qilish' })
   await form.getByLabel('Ism').fill('Nodira Savdo')
   await form.getByLabel('Email').fill('nodira@rizqim.uz')
-  await form.getByLabel('Roli').selectOption('sales')
+  await form.getByRole('checkbox', { name: 'Operator' }).uncheck()
+  await form.getByRole('checkbox', { name: 'Savdo / ulash' }).check()
   await form.getByRole('button', { name: 'Taklif havolasini yaratish' }).click()
 
   const link = page.getByRole('dialog', { name: 'Taklif havolasi' })
@@ -98,9 +101,10 @@ test('the backend refuses to demote the last superadmin and says why inside the 
   // An operator who was given team.manage tries to demote Aziza, the only superadmin
   api.grants.operator = [...(api.grants.operator ?? []), 'admin.team.manage']
   await openSignedIn(page, signIn, '/team', 'sardor@rizqim.uz', { confirmed: true })
-  await card(page, 'Aziza Karimova').getByRole('button', { name: "Rolni o'zgartirish: Aziza Karimova" }).click()
-  const dialog = page.getByRole('dialog', { name: "Rolni o'zgartirish" })
-  await dialog.getByLabel('Roli').selectOption('operator')
+  await card(page, 'Aziza Karimova').getByRole('button', { name: "Rollarni o'zgartirish: Aziza Karimova" }).click()
+  const dialog = page.getByRole('dialog', { name: "Rollarni o'zgartirish" })
+  await dialog.getByRole('checkbox', { name: 'Operator' }).check()
+  await dialog.getByRole('checkbox', { name: 'Superadmin' }).uncheck()
   await dialog.getByRole('button', { name: 'Saqlash' }).click()
   await expect(dialog.getByText("Oxirgi superadministratorni o'zgartirib yoki o'chirib bo'lmaydi. Avval boshqa superadministrator tayinlang.")).toBeVisible()
   expect(api.member('aziza@rizqim.uz').platform_role).toBe('superadmin')

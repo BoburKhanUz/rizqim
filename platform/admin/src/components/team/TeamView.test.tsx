@@ -18,8 +18,10 @@ const member = (overrides: Record<string, unknown>) => ({
 });
 
 const TEAM = [
-  member({ id: 1, name: 'Aziza Karimova', email: 'aziza@rizqim.uz', platform_role: 'superadmin', active_sessions: 1 }),
-  member({}),
+  member({ id: 1, name: 'Aziza Karimova', email: 'aziza@rizqim.uz', platform_role: 'superadmin', platform_roles: ['superadmin'], active_sessions: 1 }),
+  // Two roles: operator and sales
+  member({ platform_roles: ['operator', 'sales'] }),
+  // An answer without platform_roles (an older backend): the single role stands for the set
   member({ id: 3, name: 'Dilnoza Moliya', email: 'dilnoza@rizqim.uz', platform_role: 'finance', two_factor_enabled: false, last_login_at: null, active_sessions: 0, disabled: true, status: 'disabled' }),
   member({ id: 4, name: 'Bekzod Yangi', email: 'bekzod@rizqim.uz', platform_role: 'sales', status: 'invited', two_factor_enabled: false, last_login_at: null, active_sessions: 0 }),
 ];
@@ -33,11 +35,12 @@ function setup(extra: Parameters<typeof mockFetch>[0] = {}, permissions?: string
 }
 
 describe('Jamoa', () => {
-  it('lists the team with role, 2FA, last sign-in and sessions', async () => {
+  it('lists the team with every role, 2FA, last sign-in and sessions', async () => {
     setup();
     expect(await screen.findByRole('heading', { name: 'Sardor Operator' })).toBeInTheDocument();
     const sardor = within(card('Sardor Operator'));
-    expect(sardor.getByText('Operator')).toBeInTheDocument();
+    expect(within(sardor.getByRole('list', { name: 'Rollari' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Operator', 'Savdo / ulash']);
+    expect(within(within(card('Dilnoza Moliya')).getByRole('list', { name: 'Rollari' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Moliya']);
     expect(sardor.getByText('2FA yoqilgan')).toBeInTheDocument();
     expect(sardor.getByText('Faol')).toBeInTheDocument();
     expect(sardor.getByText('Faol seanslar').nextSibling).toHaveTextContent('2');
@@ -77,13 +80,23 @@ describe('Jamoa', () => {
 
     await user.type(within(dialog).getByLabelText('Ism'), 'Yangi Xodim');
     await user.type(within(dialog).getByLabelText('Email'), 'yangi@rizqim.uz');
-    await user.selectOptions(within(dialog).getByLabelText('Roli'), 'support');
+    // Operator is ticked to begin with; none ticked is refused before any call
+    const roles = within(within(dialog).getByRole('group', { name: 'Rollari' }));
+    expect(roles.getByRole('checkbox', { name: 'Operator' })).toBeChecked();
+    await user.click(roles.getByRole('checkbox', { name: 'Operator' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Taklif havolasini yaratish' }));
+    expect(await within(dialog).findByText('Kamida bitta rolni tanlang.')).toBeInTheDocument();
+    expect(callsTo('POST', '/team')).toHaveLength(0);
+
+    // Several roles: their permissions add up
+    await user.click(roles.getByRole('checkbox', { name: 'Moliya' }));
+    await user.click(roles.getByRole('checkbox', { name: 'Yordam' }));
     await user.click(within(dialog).getByRole('button', { name: 'Taklif havolasini yaratish' }));
 
     const link = await screen.findByRole('dialog', { name: 'Taklif havolasi' });
     expect(link).toHaveTextContent('Havolani Yangi Xodim ga yuboring');
     expect(within(link).getByRole('textbox', { name: 'Taklif havolasi' })).toHaveValue('https://admin.rizqim.uz/invite/tok-123');
-    expect(callsTo('POST', '/team')[0]?.body).toEqual({ name: 'Yangi Xodim', email: 'yangi@rizqim.uz', platform_role: 'support' });
+    expect(callsTo('POST', '/team')[0]?.body).toEqual({ name: 'Yangi Xodim', email: 'yangi@rizqim.uz', platform_roles: ['support', 'finance'] });
 
     await user.click(within(link).getByRole('button', { name: 'Havoladan nusxa olish' }));
     expect(await navigator.clipboard.readText()).toBe('https://admin.rizqim.uz/invite/tok-123');
@@ -117,25 +130,40 @@ describe('Jamoa', () => {
     expect(await within(dialog).findByText('Bu email allaqachon jamoada.')).toBeInTheDocument();
   });
 
-  it('changes a role', async () => {
-    const { callsTo, user } = setup({ 'PATCH /team/2': () => ok(member({ platform_role: 'finance' })) });
+  it('changes the set of roles', async () => {
+    const { callsTo, user } = setup({ 'PATCH /team/2': () => ok(member({ platform_roles: ['operator', 'finance', 'sales'] })) });
     await screen.findByRole('heading', { name: 'Sardor Operator' });
-    await user.click(within(card('Sardor Operator')).getByRole('button', { name: "Rolni o'zgartirish: Sardor Operator" }));
-    const dialog = await screen.findByRole('dialog', { name: "Rolni o'zgartirish" });
+    await user.click(within(card('Sardor Operator')).getByRole('button', { name: "Rollarni o'zgartirish: Sardor Operator" }));
+    const dialog = await screen.findByRole('dialog', { name: "Rollarni o'zgartirish" });
+    const roles = within(within(dialog).getByRole('group', { name: 'Rollari' }));
+    // The member's roles are ticked; nothing changed yet, nothing to save
+    expect(roles.getByRole('checkbox', { name: 'Operator' })).toBeChecked();
+    expect(roles.getByRole('checkbox', { name: 'Savdo / ulash' })).toBeChecked();
+    expect(roles.getByRole('checkbox', { name: 'Moliya' })).not.toBeChecked();
     expect(within(dialog).getByRole('button', { name: 'Saqlash' })).toBeDisabled();
-    await user.selectOptions(within(dialog).getByLabelText('Roli'), 'finance');
+
+    // None ticked: refused here
+    await user.click(roles.getByRole('checkbox', { name: 'Operator' }));
+    await user.click(roles.getByRole('checkbox', { name: 'Savdo / ulash' }));
+    expect(within(dialog).getByText('Kamida bitta rolni tanlang.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Saqlash' })).toBeDisabled();
+
+    await user.click(roles.getByRole('checkbox', { name: 'Savdo / ulash' }));
+    await user.click(roles.getByRole('checkbox', { name: 'Moliya' }));
+    await user.click(roles.getByRole('checkbox', { name: 'Operator' }));
     await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
-    expect(await screen.findByText('Sardor Operator endi «Moliya».')).toBeInTheDocument();
-    expect(callsTo('PATCH', '/team/2')[0]?.body).toEqual({ platform_role: 'finance' });
+    expect(await screen.findByText('Sardor Operator rollari: Operator, Moliya, Savdo / ulash.')).toBeInTheDocument();
+    // Sent in the backend's order, as one whole set
+    expect(callsTo('PATCH', '/team/2')[0]?.body).toEqual({ platform_roles: ['operator', 'finance', 'sales'] });
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('shows the backend\'s refusal inside the dialog (the last superadmin)', async () => {
     const { user } = setup({ 'PATCH /team/2': () => refusal(422, "Oxirgi superadministratorni o'zgartirib bo'lmaydi.") });
     await screen.findByRole('heading', { name: 'Sardor Operator' });
-    await user.click(within(card('Sardor Operator')).getByRole('button', { name: /Rolni o'zgartirish/ }));
+    await user.click(within(card('Sardor Operator')).getByRole('button', { name: /Rollarni o'zgartirish/ }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText('Roli'), 'viewer');
+    await user.click(within(dialog).getByRole('checkbox', { name: "Faqat ko'rish" }));
     await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
     expect(await within(dialog).findByText("Oxirgi superadministratorni o'zgartirib bo'lmaydi.")).toBeInTheDocument();
   });

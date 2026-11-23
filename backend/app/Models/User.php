@@ -25,7 +25,8 @@ use SensitiveParameter;
  * @property string|null $pin_hash
  * @property string|null $staff_code
  * @property \App\Enums\CourierType $courier_type
- * @property \App\Enums\PlatformRole|null $platform_role
+ * @property \App\Enums\PlatformRole|null $platform_role Wave P: the primary role (the first of platform_roles), kept for SQL filters and old clients
+ * @property array<int, string>|null $platform_roles Wave P: every platform role the member holds, PlatformRole::cases() order
  * @property \Illuminate\Support\Carbon|null $platform_disabled_at
  * @property \Illuminate\Support\Carbon|null $platform_last_login_at
  * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
@@ -86,6 +87,7 @@ class User extends Authenticatable
         'telegram_invite_token',
         // P4-11: team and 2FA bookkeeping, never in the store/customer APIs (the admin API shows members itself)
         'platform_role',
+        'platform_roles',
         'platform_disabled_at',
         'platform_last_login_at',
         'two_factor_confirmed_at',
@@ -117,6 +119,8 @@ class User extends Authenticatable
             // P4-11: platform_role, platform_disabled_at and the 2FA columns are never mass assignable:
             // App\Services\Admin\PlatformTeamService and TwoFactorService set them
             'platform_role' => \App\Enums\PlatformRole::class,
+            // Wave P: read it through platformRoles(); the saving hook below keeps it and platform_role together
+            'platform_roles' => 'array',
             'platform_disabled_at' => 'datetime',
             'platform_last_login_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
@@ -146,24 +150,38 @@ class User extends Authenticatable
                 $user->phone_verified_at = null;
             }
 
-            // P4-11: users.role super_admin and platform_role superadmin go together, whichever path sets one of them
-            // (the seeder, user:assign-role, the old panel's user form, PlatformTeamService)
-            if ($user->isDirty('platform_role')) {
-                if ($user->platform_role === \App\Enums\PlatformRole::SUPERADMIN) {
+            // P4-11: users.role super_admin and the platform role superadmin go together, whichever path sets one of
+            // them (the seeder, user:assign-role, the old panel's user form, PlatformTeamService). Wave P: the set
+            // (platform_roles) is what counts; a write of the legacy single platform_role replaces the set with it
+            $roles = null; // the new set, or null: unchanged
+            if ($user->isDirty('platform_roles')) {
+                $roles = self::normalizePlatformRoles($user->getAttribute('platform_roles') ?? []);
+            } elseif ($user->isDirty('platform_role')) {
+                $roles = $user->platform_role !== null ? [$user->platform_role] : [];
+            }
+
+            if ($roles !== null) {
+                if (in_array(\App\Enums\PlatformRole::SUPERADMIN, $roles, true)) {
                     $user->role = \App\Enums\UserRole::SUPER_ADMIN;
-                } elseif ($user->platform_role !== null) {
+                } elseif ($roles !== []) {
                     $user->role = \App\Enums\UserRole::PLATFORM;
                 } elseif (in_array($user->role, [\App\Enums\UserRole::SUPER_ADMIN, \App\Enums\UserRole::PLATFORM], true)) {
                     $user->role = \App\Enums\UserRole::CUSTOMER;
                 }
             } elseif ($user->isDirty('role')) {
+                $current = $user->platformRoles();
                 if ($user->role === \App\Enums\UserRole::SUPER_ADMIN) {
-                    $user->platform_role = \App\Enums\PlatformRole::SUPERADMIN;
-                } elseif ($user->role !== \App\Enums\UserRole::PLATFORM && $user->platform_role !== null) {
-                    $user->platform_role = null;
+                    $roles = self::normalizePlatformRoles([...$current, \App\Enums\PlatformRole::SUPERADMIN]);
+                } elseif ($user->role !== \App\Enums\UserRole::PLATFORM && $current !== []) {
+                    $roles = [];
                 }
-            } elseif ($user->role === \App\Enums\UserRole::SUPER_ADMIN && $user->platform_role === null) {
-                $user->platform_role = \App\Enums\PlatformRole::SUPERADMIN;
+            } elseif ($user->role === \App\Enums\UserRole::SUPER_ADMIN && $user->platformRoles() === []) {
+                $roles = [\App\Enums\PlatformRole::SUPERADMIN];
+            }
+
+            if ($roles !== null) {
+                $user->setAttribute('platform_roles', $roles !== [] ? array_map(fn (\App\Enums\PlatformRole $role) => $role->value, $roles) : null);
+                $user->platform_role = $roles[0] ?? null;
             }
 
             // How it was verified goes with the verification; one set without saying how came from an SMS code
@@ -186,11 +204,54 @@ class User extends Authenticatable
     // --- P4-11: the RIZQIM team -----------------------------------------------------------------------------------
 
     /**
-     * A RIZQIM team member (users.platform_role set), disabled or not.
+     * Wave P: every platform role the member holds, in PlatformRole::cases() order (superadmin first); [] outside the
+     * team. A row read without platform_roles (a narrow select for a name list) falls back to its primary role.
+     *
+     * @return list<\App\Enums\PlatformRole>
+     */
+    public function platformRoles(): array
+    {
+        if (!array_key_exists('platform_roles', $this->getAttributes())) {
+            return $this->platform_role !== null ? [$this->platform_role] : [];
+        }
+        $stored = $this->getAttribute('platform_roles');
+
+        return is_array($stored) ? self::normalizePlatformRoles($stored) : [];
+    }
+
+    public function hasPlatformRole(\App\Enums\PlatformRole $role): bool
+    {
+        return in_array($role, $this->platformRoles(), true);
+    }
+
+    /**
+     * Wave P: a set of platform roles (enums or their values) without repeats, in PlatformRole::cases() order.
+     *
+     * @param  iterable<\App\Enums\PlatformRole|string>  $roles
+     * @return list<\App\Enums\PlatformRole>
+     *
+     * @throws \InvalidArgumentException for a value that is no platform role
+     */
+    public static function normalizePlatformRoles(iterable $roles): array
+    {
+        $held = [];
+        foreach ($roles as $role) {
+            $enum = $role instanceof \App\Enums\PlatformRole ? $role : \App\Enums\PlatformRole::tryFrom((string) $role);
+            if ($enum === null) {
+                throw new \InvalidArgumentException('Not a platform role: ' . json_encode($role));
+            }
+            $held[$enum->value] = true;
+        }
+
+        return array_values(array_filter(\App\Enums\PlatformRole::cases(), fn (\App\Enums\PlatformRole $role) => isset($held[$role->value])));
+    }
+
+    /**
+     * A RIZQIM team member (at least one platform role), disabled or not.
      */
     public function isPlatformStaff(): bool
     {
-        return $this->platform_role !== null;
+        return $this->platformRoles() !== [];
     }
 
     /**
@@ -198,7 +259,7 @@ class User extends Authenticatable
      */
     public function isActivePlatformStaff(): bool
     {
-        return $this->platform_role !== null && $this->platform_disabled_at === null;
+        return $this->isPlatformStaff() && $this->platform_disabled_at === null;
     }
 
     /**
@@ -207,7 +268,8 @@ class User extends Authenticatable
      */
     public function isPlatformAccount(): bool
     {
-        return $this->platform_role !== null
+        return $this->isPlatformStaff()
+            || $this->platform_role !== null
             || in_array($this->role, [\App\Enums\UserRole::SUPER_ADMIN, \App\Enums\UserRole::PLATFORM], true);
     }
 
@@ -219,9 +281,12 @@ class User extends Authenticatable
         return $this->blocked_at !== null;
     }
 
+    /**
+     * Wave P: superadmin is one of the member's roles (whatever else they hold).
+     */
     public function isPlatformSuperadmin(): bool
     {
-        return $this->platform_role === \App\Enums\PlatformRole::SUPERADMIN;
+        return $this->hasPlatformRole(\App\Enums\PlatformRole::SUPERADMIN);
     }
 
     public function hasTwoFactorEnabled(): bool

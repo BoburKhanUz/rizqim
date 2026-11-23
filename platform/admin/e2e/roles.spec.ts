@@ -35,7 +35,7 @@ test('a risky permission asks first, and backing out sends nothing', async ({ pa
   const table = page.getByRole('table', { name: 'Rollar va ruxsatlar jadvali' })
   await table.getByRole('switch', { name: 'Yordam: Payoutni tasdiqlash' }).click()
   const ask = page.getByRole('alertdialog', { name: '«Payoutni tasdiqlash» ruxsatini berasizmi?' })
-  await expect(ask).toContainText('«Yordam» rolidagi barcha xodimlar')
+  await expect(ask).toContainText('«Yordam» roli bor barcha xodimlar')
   await ask.getByRole('button', { name: 'Bekor qilish' }).click()
   expect(api.callsTo('PUT', '/roles')).toHaveLength(0)
 

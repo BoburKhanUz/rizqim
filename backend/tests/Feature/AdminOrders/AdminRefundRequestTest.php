@@ -123,6 +123,26 @@ class AdminRefundRequestTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'admin.orders.refund_requested')->where('user_id', $support->id)->count());
     }
 
+    public function test_four_eyes_compares_people_not_roles(): void
+    {
+        // Wave P: a member holding both the asking role (support) and the approving one (finance) never decides their
+        // own request; another member with exactly the same roles does
+        $order = $this->deliveredKeshbekOrder();
+        $both = $this->makeMember(PlatformRole::SUPPORT, attributes: ['platform_roles' => ['support', 'finance']]);
+        $token = $this->confirmedSession($both);
+
+        $request = $this->adminJson('POST', "/orders/{$order->uuid}/refund-requests", $token, ['amount' => '1000', 'reason' => 'Bitta taom kam keldi'])
+            ->assertCreated()->assertJsonPath('data.can_decide', false)->json('data');
+        $this->adminJson('POST', "/refund-requests/{$request['id']}/approve", $token, ['reason' => "O'zim tasdiqlayman"])
+            ->assertForbidden()->assertJsonPath('code', 'four_eyes');
+        $this->adminJson('POST', "/refund-requests/{$request['id']}/reject", $token, ['reason' => "O'zim rad etaman"])
+            ->assertForbidden()->assertJsonPath('code', 'four_eyes');
+
+        $twin = $this->makeMember(PlatformRole::SUPPORT, attributes: ['platform_roles' => ['finance', 'support']]);
+        $this->adminJson('POST', "/refund-requests/{$request['id']}/approve", $this->confirmedSession($twin), ['reason' => 'Tasdiqlandi'])
+            ->assertOk()->assertJsonPath('data.status', 'approved');
+    }
+
     public function test_approval_is_idempotent_with_an_idempotency_key(): void
     {
         $order = $this->orderWithHistory(100, ['canceled' => 50], ['cancel_reason' => 'store_closed']);

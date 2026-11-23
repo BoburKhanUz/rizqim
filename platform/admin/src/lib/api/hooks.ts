@@ -34,7 +34,7 @@ export function useReissueInvite() {
 export function useUpdateMember() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, change }: { id: number; change: { platform_role?: PlatformRole; disabled?: boolean } }) => updateMember(id, change),
+    mutationFn: ({ id, change }: { id: number; change: { platform_roles?: PlatformRole[]; disabled?: boolean } }) => updateMember(id, change),
     onSuccess: () => client.invalidateQueries({ queryKey: KEYS.team }),
   });
 }

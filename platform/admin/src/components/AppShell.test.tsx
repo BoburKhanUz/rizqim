@@ -54,6 +54,16 @@ describe('AppShell', () => {
     expect(screen.getByText('Operator')).toBeInTheDocument();
   });
 
+  it('names every role of a member with several (their sections add up)', async () => {
+    mockFetch({
+      'GET /auth/me': () =>
+        json(meBody({ platform_role: 'operator', platform_roles: ['operator', 'sales'], member: { id: 2, name: 'Sardor', email: 's@rizqim.uz', platform_role: 'operator', platform_roles: ['operator', 'sales'] }, permissions: OPERATOR })),
+    });
+    renderShell();
+    await screen.findByText('page content');
+    expect(screen.getByText('Operator, Savdo / ulash')).toBeInTheDocument();
+  });
+
   it('explains a menu that holds only Sessiyalarim (a role with no section yet)', async () => {
     pathname = '/sessions';
     mockFetch({ 'GET /auth/me': () => json(meBody({ permissions: [] })) });

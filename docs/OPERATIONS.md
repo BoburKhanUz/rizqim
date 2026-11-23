@@ -234,6 +234,7 @@ Eski tokenlarni scheduler `auth:prune-tokens` buyrug'i bilan o'zi tozalaydi (u P
 cd backend
 php artisan rizqim:admin:create boss@rizqim.uz "Bosh admin"            # superadmin
 php artisan rizqim:admin:create op@rizqim.uz "Navbatchi" --role=operator
+php artisan rizqim:admin:create ali@rizqim.uz "Ali" --role=operator,sales   # bir nechta rol: ruxsatlari qo'shiladi
 ```
 
 Buyruq bir martalik taklif havolasini chiqaradi (`{ADMIN_APP_URL}/invite/...`, 72 soat). Uni egasiga xavfsiz

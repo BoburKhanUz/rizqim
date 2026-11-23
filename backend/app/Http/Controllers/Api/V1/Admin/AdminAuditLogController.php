@@ -26,7 +26,7 @@ class AdminAuditLogController extends AdminController
      * `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive, Asia/Tashkent days; a
      * datetime with its offset is that exact moment), `q` (text in the action and its details, at least 2 characters).
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{id: int, action: string, actor: array{id: int, name: string, role: string, platform_role: string|null}|null, store: array{id: int, name: string}|null, branch_id: int|null, device: array{uuid: string, name: string|null, type: string}|null, subject_type: string|null, subject_id: int|null, before: array<string, mixed>|null, after: array<string, mixed>|null, meta: array<string, mixed>|null, reason: string|null, ip: string|null, user_agent: string|null, created_at: string}>, next_cursor: string|null, prev_cursor: string|null, per_page: int}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{id: int, action: string, actor: array{id: int, name: string, role: string, platform_role: string|null, platform_roles: list<string>}|null, store: array{id: int, name: string}|null, branch_id: int|null, device: array{uuid: string, name: string|null, type: string}|null, subject_type: string|null, subject_id: int|null, before: array<string, mixed>|null, after: array<string, mixed>|null, meta: array<string, mixed>|null, reason: string|null, ip: string|null, user_agent: string|null, created_at: string}>, next_cursor: string|null, prev_cursor: string|null, per_page: int}}')]
     public function index(Request $request): JsonResponse
     {
         $id = 'nullable|integer|min:1|max:999999999999999999';
@@ -44,7 +44,7 @@ class AdminAuditLogController extends AdminController
         ], UzValidation::messages());
 
         $logs = AuditLog::query()
-            ->with(['user:id,name,role,platform_role', 'store:id,name', 'device:id,uuid,name,type'])
+            ->with(['user:id,name,role,platform_role,platform_roles', 'store:id,name', 'device:id,uuid,name,type'])
             ->when($request->filled('actor_id'), fn (Builder $query) => $query->where('user_id', $request->integer('actor_id')))
             ->when($request->filled('action'), function (Builder $query) use ($request) {
                 $prefix = (string) $request->input('action');
@@ -91,6 +91,8 @@ class AdminAuditLogController extends AdminController
                 'name' => (string) $log->user->name,
                 'role' => $log->user->role->value,
                 'platform_role' => $log->user->platform_role?->value,
+                // Wave P: every role the actor holds now (platform_role: the primary one)
+                'platform_roles' => array_map(fn (\App\Enums\PlatformRole $role) => $role->value, $log->user->platformRoles()),
             ] : null,
             'store' => $log->store ? ['id' => (int) $log->store->id, 'name' => (string) $log->store->name] : null,
             'branch_id' => $log->branch_id !== null ? (int) $log->branch_id : null,

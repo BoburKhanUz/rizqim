@@ -47,7 +47,7 @@ export const regenerateRecoveryCodes = async (): Promise<string[]> => (await pos
 
 export const listTeam = () => get<TeamMember[]>('/team');
 
-export async function inviteMember(input: { name: string; email: string; platform_role: PlatformRole }): Promise<InviteLink> {
+export async function inviteMember(input: { name: string; email: string; platform_roles: PlatformRole[] }): Promise<InviteLink> {
   return toInviteLink(await post<Parameters<typeof toInviteLink>[0]>('/team', input), origin());
 }
 
@@ -55,7 +55,8 @@ export async function reissueInvite(id: number): Promise<InviteLink> {
   return toInviteLink(await post<Parameters<typeof toInviteLink>[0]>(`/team/${id}/invite`), origin());
 }
 
-export const updateMember = async (id: number, change: { platform_role?: PlatformRole; disabled?: boolean }): Promise<void> => {
+// platform_roles: the member's new set as a whole (at least one role)
+export const updateMember = async (id: number, change: { platform_roles?: PlatformRole[]; disabled?: boolean }): Promise<void> => {
   await patch(`/team/${id}`, change);
 };
 

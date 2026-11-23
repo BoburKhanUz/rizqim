@@ -3,12 +3,13 @@
 namespace App\Enums;
 
 /**
- * P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is
- * platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions
+ * P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). Wave P: a team
+ * member holds one or more of them (users.platform_roles, in cases() order; users.platform_role is the first, the
+ * primary role) and may do what any of them may. What each role may do is App\Services\Admin\PlatformRolePermissions
  * (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything.
  *
- * Only `superadmin` is also users.role = super_admin (the old store-level super admin); the
- * other roles are users.role = platform, which holds no store-level permission at all.
+ * A member holding `superadmin` is also users.role = super_admin (the old store-level super admin); the others are
+ * users.role = platform, which holds no store-level permission at all (App\Models\User keeps them in step).
  */
 enum PlatformRole: string
 {
@@ -37,14 +38,6 @@ enum PlatformRole: string
     public function isEditable(): bool
     {
         return $this !== self::SUPERADMIN;
-    }
-
-    /**
-     * The users.role that goes with the platform role.
-     */
-    public function userRole(): UserRole
-    {
-        return $this === self::SUPERADMIN ? UserRole::SUPER_ADMIN : UserRole::PLATFORM;
     }
 
     /**
