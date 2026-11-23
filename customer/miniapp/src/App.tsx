@@ -154,7 +154,7 @@ export const OnlyTelegramBlocker = () => {
 
   // A plain browser: the app only works inside Telegram (it signs in with Telegram's launch data)
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-page p-6 text-center">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-page p-inset-screen text-center">
       <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-sheet border border-line bg-surface p-8 shadow-xl">
         <span className="flex size-16 items-center justify-center rounded-full bg-brand text-on-brand">
           <Send aria-hidden="true" className="size-8" />
@@ -231,7 +231,11 @@ function AppContent() {
   }
 
   return (
-    <div className="relative min-h-screen pb-dock">
+    // pt-inset / px-inset: clear of the status bar, Telegram's full-screen buttons and side cut-outs (index.css)
+    <div className="relative min-h-screen pb-dock pt-inset px-inset">
+      {/* The top band (0 px in the normal mode): scrolled content never runs under the status bar or Telegram's
+          full-screen "Close" / "⌄ ⋯" buttons */}
+      <div aria-hidden="true" data-testid="top-inset-band" className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[var(--rz-inset-top)] bg-page" />
       <AuthDebugger error={error} token={token} user={user} isAuthenticated={isAuthenticated} />
       
       {/* Automatically Prompts User for Phone Number on first login if not yet provided */}
@@ -281,7 +285,7 @@ function AppContent() {
 function OfflineScreen() {
   const { t } = useLanguageStore();
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-6 text-center animate-fade-in" role="alert">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-inset-screen text-center animate-fade-in" role="alert">
       <span className="flex size-14 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
         <WifiOff aria-hidden="true" className="size-7" />
       </span>

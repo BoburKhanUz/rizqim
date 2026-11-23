@@ -70,7 +70,13 @@ export function Dialog({ open, onClose, title, description, children, footer, va
   const isSheet = variant === 'sheet';
   return createPortal(
     <div
-      className={cx('fixed inset-0 z-[120] flex justify-center bg-scrim animate-fade-in', isSheet ? 'items-end' : 'items-center p-4')}
+      className={cx(
+        // Clear of the safe areas (--rz-inset-*: the notch, and in the Mini App Telegram's full-screen buttons)
+        'fixed inset-0 z-[120] flex justify-center bg-scrim animate-fade-in',
+        isSheet
+          ? 'items-end pt-[calc(var(--rz-inset-top)+12px)] pl-[var(--rz-inset-left)] pr-[var(--rz-inset-right)]'
+          : 'items-center p-4 pt-[calc(var(--rz-inset-top)+16px)] pl-[calc(var(--rz-inset-left)+16px)] pr-[calc(var(--rz-inset-right)+16px)]',
+      )}
       onClick={(event) => {
         if (event.target === event.currentTarget && role === 'dialog' && !busy) onClose();
       }}
@@ -83,7 +89,7 @@ export function Dialog({ open, onClose, title, description, children, footer, va
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cx(
-          'flex max-h-[90vh] w-full max-w-md flex-col gap-4 overflow-y-auto bg-surface p-5 text-fg shadow-2xl outline-none',
+          'flex max-h-[min(90vh,100%)] w-full max-w-md flex-col gap-4 overflow-y-auto bg-surface p-5 text-fg shadow-2xl outline-none',
           isSheet ? 'rounded-t-sheet pb-[calc(20px+var(--rz-inset-bottom))] animate-slide-up' : 'max-w-sm rounded-sheet animate-scale-up',
         )}
       >

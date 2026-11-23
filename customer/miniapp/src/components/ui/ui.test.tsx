@@ -10,6 +10,7 @@ import { DialogHost } from './DialogHost';
 import { MainButtonHost } from './MainButtonHost';
 import { BottomDock } from './BottomDock';
 import { ProductImage } from './ProductImage';
+import { BrandLogo } from './BrandLogo';
 import { realImageUrl } from '../../lib/image';
 import { showAlert, showConfirm } from '../../lib/dialogs';
 import { useMainButton } from '../../hooks/useMainButton';
@@ -240,5 +241,34 @@ describe('ProductImage', () => {
     expect(realImageUrl('/storage/products/osh.png')).toBe('/storage/products/osh.png');
     expect(realImageUrl('https://ui-avatars.com/api/?name=Product')).toBeNull();
     expect(realImageUrl(undefined)).toBeNull();
+  });
+});
+
+describe('BrandLogo', () => {
+  it('is one image named "Rizqim": the inline brand mark and the wordmark, nothing fetched', () => {
+    const { container } = render(
+      <h1>
+        <BrandLogo />
+      </h1>,
+    );
+    expect(screen.getByRole('img', { name: 'Rizqim' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rizqim' })).toBeInTheDocument();
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('gives every logo its own gradient ids', () => {
+    const { container } = render(
+      <>
+        <BrandLogo />
+        <BrandLogo />
+      </>,
+    );
+    const ids = [...container.querySelectorAll('linearGradient')].map((gradient) => gradient.id);
+    expect(ids).toHaveLength(4);
+    expect(new Set(ids).size).toBe(4);
+    for (const path of container.querySelectorAll('path[fill^="url(#"]')) {
+      expect(ids).toContain(/url\(#(.+)\)/.exec(path.getAttribute('fill') ?? '')?.[1]);
+    }
   });
 });

@@ -263,7 +263,7 @@ export default function StoreDetail() {
         )}
 
         {/* Menu / reviews */}
-        <div role="tablist" aria-label="Oshxona bo'limlari" className="sticky top-0 z-10 -mx-4 flex gap-1 bg-page px-4 py-1">
+        <div role="tablist" aria-label="Oshxona bo'limlari" className="sticky-top z-10 -mx-4 flex gap-1 bg-page px-4 py-1">
           {([['menu', 'Menyu'], ['reviews', reviewCount > 0 ? `Fikrlar (${reviewCount})` : 'Fikrlar']] as const).map(([segment, label]) => (
             <button
               key={segment}

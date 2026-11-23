@@ -54,6 +54,8 @@ describe('Home: empty marketplace after a sign-in without a store', () => {
     await openHome();
 
     expect(useAuthStore.getState().store).toBeNull();
+    // The header shows the RIZQIM logo (an image named "Rizqim") as the page heading
+    expect(screen.getByRole('heading', { level: 1, name: 'Rizqim' })).toContainElement(screen.getByRole('img', { name: 'Rizqim' }));
     expect(screen.getByText("Hozircha oshxonalar yo'q")).toBeInTheDocument();
     expect(screen.queryByText('Siz uchun tavsiyalar')).not.toBeInTheDocument();
   });

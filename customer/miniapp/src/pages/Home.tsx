@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
+import { BrandLogo, Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
 import { MapPin, Search, Store } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { Link, useNavigate } from 'react-router-dom';
@@ -77,7 +77,7 @@ export default function Home() {
   if (error) {
     return (
       <div className="flex flex-col gap-4 px-4 pb-4 pt-2">
-        <PageHeader title="Rizqim" />
+        <PageHeader title={<BrandLogo />} />
         <InlineError
           onRetry={() => {
             if (feed.error) void feed.refetch();
@@ -130,7 +130,9 @@ export default function Home() {
       {/* Brand and delivery address */}
       <header className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-title font-bold text-fg">Rizqim</h1>
+          <h1 className="flex">
+            <BrandLogo />
+          </h1>
           <button
             type="button"
             onClick={() => navigate('/profile')}
