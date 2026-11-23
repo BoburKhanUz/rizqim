@@ -194,5 +194,40 @@ export const orders = defineSection({
     orders_rejectText: "{{amount}}. So'ragan xodim sababini ko'radi.",
     orders_approved: "Tasdiqlandi.",
     orders_rejected: "So'rov rad etildi.",
+
+    // Wave P: a refund the store made from its own Payme cabinet (docs/API.md "Ovqatxona kassasidan qaytarish")
+    orders_storeRefund: 'Ovqatxona kassasidan qaytarish',
+    orders_storeRefundExplain:
+      "Ovqatxona bu buyurtma pulini o'zining Payme kabinetidan mijozga qaytardi. Mijoz uchun to'lov qaytarilgan, buyurtma esa yetkazilgan holatda qoladi. RIZQIM komissiyasi qaror chiqarilguncha saqlanadi.",
+    orders_storeRefundHow:
+      "Ovqatxonaning Payme kabinetida pul haqiqatan mijozga qaytganini tekshiring. Qaytgan bo'lsa — tasdiqlang: bitta xodim taklif qiladi, boshqa xodim tasdiqlaydi, keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi. Ovqatxona o'zi yuborgan so'rov yoki o'z hisobidan qilgan qaytarish bo'lsa — rad eting, komissiya saqlanadi.",
+    orders_storeRefundPending: 'Qaror kutilmoqda',
+    orders_storeRefundApproved: 'Tasdiqlandi',
+    orders_storeRefundDismissed: 'Rad etildi',
+    orders_storeRefundReported: '{{provider}} · ovqatxona qaytardi: {{time}}',
+    orders_storeRefundProposedBy: 'Taklif qildi: {{name}}, {{time}}',
+    orders_storeRefundDecidedBy: "Ko'rib chiqdi: {{name}}, {{time}}",
+    orders_storeRefundMember: 'xodim #{{id}}',
+    orders_storeRefundMine: 'Siz taklif qilgansiz: ikkinchi tasdiqni boshqa xodim beradi. Rad etish mumkin.',
+    orders_storeRefundNeedsSecond: 'Qaytarish taklif qilingan: endi boshqa xodim tasdiqlashi kerak.',
+    orders_storeRefundViewOnly: "Qarorni moliya ruxsati bor xodim chiqaradi (buyurtmalar: qaytarishni tasdiqlash).",
+    orders_storeRefundPropose: 'Qaytarishni taklif qilish',
+    orders_storeRefundConfirm: 'Tasdiqlash',
+    orders_storeRefundDismiss: 'Rad etish',
+    orders_storeRefundProposeTitle: 'Qaytarishni taklif qilish',
+    orders_storeRefundProposeText:
+      "{{amount}}. Pul ovqatxona kabinetida haqiqatan qaytganini tekshirdingizmi? Taklifingizni boshqa xodim tasdiqlaganidan keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi.",
+    orders_storeRefundProposeSubmit: 'Taklif qilish',
+    orders_storeRefundConfirmTitle: 'Qaytarishni tasdiqlash (ikkinchi xodim)',
+    orders_storeRefundConfirmText:
+      "{{amount}}. Buyurtma «Qaytarildi» bo'ladi, komissiya bekor qilinadi va ovqatxonaga yozilgan hamma narsa bir marta qaytariladi. Pul mijozga ovqatxona kabinetidan allaqachon qaytgan: qo'lda hech narsa qaytarilmaydi.",
+    orders_storeRefundDismissTitle: 'Qaytarishni rad etish',
+    orders_storeRefundDismissText:
+      "{{amount}}. RIZQIM komissiyasi saqlanadi, buyurtma yetkazilgan holatda qoladi. Kutilayotgan taklif ham yopiladi.",
+    orders_storeRefundProposed: 'Qaytarish taklif qilindi: uni boshqa xodim tasdiqlashi kerak.',
+    orders_storeRefundDoneApproved: 'Qaytarish tasdiqlandi: buyurtma qaytarildi, komissiya bekor qilindi.',
+    orders_storeRefundDoneDismissed: 'Qaytarish rad etildi: komissiya saqlanadi.',
+    orders_storeRefundFourEyes: 'Siz bu qaytarishni taklif qilgansiz: ikkinchi tasdiqni boshqa xodim berishi kerak.',
+    orders_storeRefundGone: "Bu qaytarish bo'yicha qaror allaqachon chiqarilgan. Karta yangilandi.",
   },
 });

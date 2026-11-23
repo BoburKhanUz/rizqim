@@ -138,6 +138,24 @@ export interface SlaTimelineStage {
   late_by_minutes: number;
 }
 
+// Wave P (docs/API.md "Ovqatxona kassasidan qaytarish"): a Payme cancel signed with the store's own key on a delivered order.
+// The customer sees it refunded, RIZQIM keeps its commission until the team decides. Ids only for the members (their names
+// are on the card's audit entries of the same decision).
+export interface StoreRefundReview {
+  status: 'pending' | 'approved' | 'dismissed';
+  provider: string | null;
+  payment_uuid: string;
+  amount: string;
+  reason_code: number | null;
+  reported_at: string | null;
+  proposed_by: number | null;
+  proposed_at: string | null;
+  proposal_note: string | null;
+  decided_at: string | null;
+  decided_by: number | null;
+  note: string | null;
+}
+
 export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'> {
   notes: string | null;
   delivery_address: string | null;
@@ -167,6 +185,9 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
   sla_events: { stage: SlaStage; stage_label: string; state: 'warning' | 'late'; limit_minutes: number; crossed_at: string }[];
   fiscal_receipts: { uuid: string; type: string; status: string; provider: string | null; total: string; receipt_number: string | null; qr_url: string | null; issued_at: string | null; error: string | null }[];
   audit: { id: number; action: string; actor: Actor | null; reason: string | null; before: Record<string, unknown> | null; after: Record<string, unknown> | null; meta: Record<string, unknown> | null; created_at: string }[];
+  /** The latest store refund review (null when none) and all of them, the latest first */
+  store_refund_review: StoreRefundReview | null;
+  store_refund_reviews: StoreRefundReview[];
   actions: {
     can_intervene: boolean;
     can_cancel: boolean;
@@ -176,6 +197,10 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
     message_customer: boolean;
     can_request_refund: boolean;
     can_approve_refund: boolean;
+    /** A store refund review waits and the member may approve or dismiss it */
+    can_decide_store_refund: boolean;
+    /** ... and may approve it: false for the member who proposed it (four eyes) */
+    can_approve_store_refund: boolean;
   };
 }
 
@@ -244,6 +269,11 @@ export const requestRefund = (uuid: string, input: { amount: string; reason: str
 export const decideRefund = (id: number, decision: 'approve' | 'reject', reason: string, key: string) =>
   data<RefundRequest>(call('POST', `/refund-requests/${id}/${decision}`, { body: { reason }, headers: { 'Idempotency-Key': key } }));
 
+// Wave P: the first approve proposes, a different member's approve refunds; dismiss keeps the commission. Answers the card.
+export type StoreRefundDecision = 'approve' | 'dismiss';
+export const decideStoreRefund = (uuid: string, decision: StoreRefundDecision, reason: string, key: string) =>
+  data<OrderCard>(call('POST', `/orders/${encodeURIComponent(uuid)}/store-refund-review/${decision}`, { body: { reason }, headers: { 'Idempotency-Key': key } }));
+
 export const listRefundRequests = (status: 'pending' | 'all', signal?: AbortSignal) =>
   data<{ data: QueuedRefundRequest[]; next_cursor: string | null }>(call('GET', '/refund-requests', { query: { status, per_page: 50 }, signal }));
 
@@ -309,6 +339,16 @@ export const useRequestRefund = () =>
   useOrderWrite(({ uuid, key, ...body }: { uuid: string; amount: string; reason: string; key: string }) => requestRefund(uuid, body, key), (input) => input.uuid);
 export const useDecideRefund = () =>
   useOrderWrite((input: { id: number; decision: 'approve' | 'reject'; reason: string; key: string; uuid?: string }) => decideRefund(input.id, input.decision, input.reason, input.key), (input) => input.uuid ?? null);
+
+// Answers the card; any refusal refreshes it too (decided by someone else meanwhile: 409; the proposer: 403 four_eyes)
+export function useDecideStoreRefund() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { uuid: string; decision: StoreRefundDecision; reason: string; key: string }) => decideStoreRefund(input.uuid, input.decision, input.reason, input.key),
+    onSuccess: (result, input) => client.setQueryData(ORDER_KEYS.card(input.uuid), result),
+    onSettled: () => client.invalidateQueries({ queryKey: ORDER_KEYS.all }),
+  });
+}
 
 export function useUpdateSla() {
   const client = useQueryClient();

@@ -10,6 +10,7 @@ import { FakeCombos } from './combos'
 import { FakeCorporate } from './corporate'
 import { FakeDarkKitchen } from './darkkitchen'
 import { FakeFiscal } from './fiscal'
+import { FakeStoreSettings } from './storesettings'
 import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
 import { FakeHostess } from './hostess'
@@ -143,6 +144,8 @@ export class FakeBackend {
   takeaway: FakeTakeaway
   // P6 stage B: the branch's local bridge (Kassa sozlamalari → Lokal tarmoq)
   lan: FakeLan
+  // Sozlamalar → Do'kon (GET/POST /owner/settings), with the store's own Paylov keys (wave P)
+  storeSettings: FakeStoreSettings
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -151,6 +154,7 @@ export class FakeBackend {
     this.zones = new FakeZones(this)
     this.reports = new FakeReports(this)
     this.fiscal = new FakeFiscal(this)
+    this.storeSettings = new FakeStoreSettings(this)
     this.floor = new FakeFloor(this)
     this.shifts = new FakeShifts(this)
     this.bookings = new FakeBookings(this)
@@ -362,7 +366,7 @@ export class FakeBackend {
       if (reply) return reply
     }
 
-    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate, this.banquetPay, this.banquetOps, this.banquets, this.darkKitchen]) {
+    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate, this.banquetPay, this.banquetOps, this.banquets, this.darkKitchen, this.storeSettings]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

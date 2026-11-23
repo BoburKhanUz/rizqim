@@ -96,6 +96,7 @@ describe('SettingsView: the store tab', () => {
         payme: { enabled: false },
         uzum: { enabled: false },
         paynet: { enabled: false },
+        paylov: { enabled: false },
       },
     });
   });
@@ -149,6 +150,77 @@ describe('SettingsView: the store tab', () => {
     const body = (await calls.find((call) => call.method === 'POST')!.json()) as { payment_settings: Record<string, unknown> };
     expect(body.payment_settings.click).toEqual({ enabled: true, service_id: '111', merchant_id: '222' });
     expect(body.payment_settings.payme).toEqual({ enabled: true, merchant_id: 'pm-1', secret_key: 'secret-pm' });
+  });
+
+  // Wave P: the store's own Paylov account (POST /owner/settings payment_settings.paylov: seven keys, six of them secret)
+  const PAYLOV_STORED = { enabled: true, merchant_id: 'mrc-7f2c', has_consumer_key: true, has_consumer_secret: true, has_username: true, has_password: false, has_callback_login: true, has_callback_password: false };
+  const ownPaylov = (paylov: Record<string, unknown> = PAYLOV_STORED, extra: Record<string, unknown> = {}) => ({
+    ...SETTINGS,
+    payment_account_type: 'own_account',
+    allowed_methods: ['cash', 'click', 'payme', 'paylov'],
+    payment_settings: { ...SETTINGS.payment_settings, paylov },
+    ...extra,
+  });
+  const PAYLOV_SECRETS = ['Paylov Consumer key', 'Paylov Consumer secret', 'Paylov API login (username)', 'Paylov API paroli (password)', 'Webhook login (callback login)', 'Webhook paroli (callback password)'];
+
+  it('Wave P: a store on its own account enters its Paylov keys; secrets are never shown, the stored ones are kept, the webhook URL is said', async () => {
+    const { calls } = base({ 'GET /api/v1/owner/settings': () => ok(ownPaylov()), 'POST /api/v1/owner/settings': () => ok(null) });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    const card = (await screen.findByRole('heading', { name: "Paylov: o'z hisobingiz kalitlari" })).closest('div')!;
+    expect(screen.getByRole('checkbox', { name: 'Paylov' })).toBeChecked();
+    expect(within(card).getByLabelText('Paylov Merchant ID')).toHaveValue('mrc-7f2c');
+    for (const label of PAYLOV_SECRETS) {
+      const input = within(card).getByLabelText(label);
+      expect(input, label).toHaveAttribute('type', 'password');
+      expect(input, label).toHaveValue('');
+    }
+    expect(within(card).getAllByText('Saqlangan. Almashtirish uchun yangisini yozing.')).toHaveLength(4);
+    expect(within(card).getAllByText('Hali kiritilmagan.')).toHaveLength(2);
+    expect(within(card).getByText('https://api.rizqim.uz/api/v1/payments/paylov/webhook')).toBeInTheDocument();
+    expect(within(card).getByText(/Callback URL va Cancel webhook URL/)).toBeInTheDocument();
+
+    await typing.type(within(card).getByLabelText('Paylov API paroli (password)'), 'Api-Parol-1!');
+    await typing.type(within(card).getByLabelText('Webhook paroli (callback password)'), 'uzun-tasodifiy-parol-123');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await screen.findByRole('status');
+    const body = (await calls.find((call) => call.method === 'POST')!.json()) as { payment_settings: Record<string, unknown> };
+    expect(body.payment_settings.paylov).toEqual({ enabled: true, merchant_id: 'mrc-7f2c', password: 'Api-Parol-1!', callback_password: 'uzun-tasodifiy-parol-123' });
+  });
+
+  it('Wave P: a Paylov webhook password shorter than 16 characters is refused before saving, and the server refusal is shown under it', async () => {
+    const { calls } = base({
+      'GET /api/v1/owner/settings': () => ok(ownPaylov()),
+      'POST /api/v1/owner/settings': () => refusal('Xato', 422, { errors: { 'payment_settings.paylov.callback_password': ["Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak."] } }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    const field = await screen.findByLabelText('Webhook paroli (callback password)');
+    await typing.type(field, 'qisqa');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText("Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.")).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+
+    // Long enough here, refused by the server all the same: its sentence under the field
+    await typing.clear(field);
+    await typing.type(field, 'x'.repeat(16));
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1));
+    expect(await screen.findByText("Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.")).toBeInTheDocument();
+  });
+
+  it('Wave P: no Paylov keys for a store on the platform account, nor while RIZQIM has Paylov switched off', async () => {
+    base({ 'GET /api/v1/owner/settings': () => ok({ ...ownPaylov(), payment_account_type: 'platform_account' }) });
+    const { unmount } = renderPage(<SettingsView />);
+    expect(await screen.findByRole('checkbox', { name: 'Paylov' })).toBeChecked();
+    expect(screen.queryByLabelText('Paylov Merchant ID')).not.toBeInTheDocument();
+    unmount();
+
+    base({ 'GET /api/v1/owner/settings': () => ok(ownPaylov({ enabled: false, available: false, unavailable_reason: 'switched_off' })) });
+    renderPage(<SettingsView />);
+    expect(await screen.findByRole('checkbox', { name: 'Paylov' })).toBeDisabled();
+    expect(screen.queryByLabelText('Paylov Merchant ID')).not.toBeInTheDocument();
+    expect(screen.queryByText(/paylov\/webhook/)).not.toBeInTheDocument();
   });
 
   it('checks the name and the numbers before saving', async () => {
