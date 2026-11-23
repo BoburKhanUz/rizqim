@@ -47,7 +47,47 @@ function merchantDraft(setting: ProviderSetting): MerchantDraft {
   return { merchant_id: section.merchant_id ?? '', service_id: section.service_id ?? '', secret_key: '', hasSecret: section.has_secret_key === true };
 }
 
-export const PROVIDERS = ['cash', 'click', 'payme', 'uzum', 'paynet'] as const;
+// Wave P: the store's own Paylov account (POST /owner/settings payment_settings.paylov, PaylovAccount::KEYS): merchant_id
+// names the payment link; the other six are secrets (Store::isSecretKey: the login names too), write-only like Click's
+// secret_key: the API says only whether one is stored (has_consumer_key...), an empty field keeps it. Until all seven are
+// stored, Paylov orders are paid to the platform. The webhook password must be at least 16 characters (422 otherwise).
+export const PAYLOV_SECRETS = ['consumer_key', 'consumer_secret', 'username', 'password', 'callback_login', 'callback_password'] as const;
+export type PaylovSecret = (typeof PAYLOV_SECRETS)[number];
+export const PAYLOV_CALLBACK_PASSWORD_MIN = 16;
+// docs/PAYMENTS_GO_LIVE.md §11.3: one address for both the Checkout callback and the cancel webhook
+export const PAYLOV_WEBHOOK_URL = 'https://api.rizqim.uz/api/v1/payments/paylov/webhook';
+
+export interface PaylovDraft {
+  merchant_id: string;
+  secrets: Record<PaylovSecret, string>;
+  stored: Record<PaylovSecret, boolean>;
+}
+
+function paylovDraft(setting: unknown): PaylovDraft {
+  const section = (typeof setting === 'object' && setting !== null ? setting : {}) as Record<string, unknown>;
+  const secrets = {} as Record<PaylovSecret, string>;
+  const stored = {} as Record<PaylovSecret, boolean>;
+  for (const key of PAYLOV_SECRETS) {
+    secrets[key] = '';
+    stored[key] = section[`has_${key}`] === true;
+  }
+  return { merchant_id: typeof section.merchant_id === 'string' ? section.merchant_id : '', secrets, stored };
+}
+
+// A typed webhook password that is too short (an empty field keeps the stored one)
+export function paylovCallbackPasswordTooShort(draft: PaylovDraft): boolean {
+  const typed = draft.secrets.callback_password.trim();
+  return typed !== '' && typed.length < PAYLOV_CALLBACK_PASSWORD_MIN;
+}
+
+// The Paylov keys sent (own account only): merchant_id as typed (empty: none), each secret only when a new one was typed
+function paylovInput(draft: PaylovDraft): Record<string, string | null> {
+  const input: Record<string, string | null> = { merchant_id: draft.merchant_id.trim() || null };
+  for (const key of PAYLOV_SECRETS) if (draft.secrets[key].trim() !== '') input[key] = draft.secrets[key].trim();
+  return input;
+}
+
+export const PROVIDERS = ['cash', 'click', 'payme', 'paylov', 'uzum', 'paynet'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export interface SettingsDraft {
@@ -66,6 +106,7 @@ export interface SettingsDraft {
   closeTime: string;
   providers: Record<Provider, boolean>;
   merchant: Record<MerchantProvider, MerchantDraft>;
+  paylov: PaylovDraft;
 }
 
 export function draftFromSettings(settings: StoreSettings): SettingsDraft {
@@ -89,11 +130,13 @@ export function draftFromSettings(settings: StoreSettings): SettingsDraft {
       cash: cashOn(payment.cash),
       click: onlineOn(payment.click),
       payme: onlineOn(payment.payme),
+      paylov: providerAvailable(payment.paylov) && onlineOn(payment.paylov),
       // Not integrated yet: whatever was stored, they start (and stay) off
       uzum: providerAvailable(payment.uzum) && onlineOn(payment.uzum),
       paynet: providerAvailable(payment.paynet) && onlineOn(payment.paynet),
     },
     merchant: { click: merchantDraft(payment.click), payme: merchantDraft(payment.payme) },
+    paylov: paylovDraft(payment.paylov),
   };
 }
 
@@ -131,6 +174,8 @@ export function inputFromDraft(settings: StoreSettings, draft: SettingsDraft, nu
       cash: { enabled: draft.providers.cash },
       click: { enabled: draft.providers.click, ...merchant('click') },
       payme: { enabled: draft.providers.payme, ...merchant('payme') },
+      // Switched on only while RIZQIM offers it (the server refuses it otherwise)
+      paylov: { enabled: !unavailable('paylov') && draft.providers.paylov, ...(own && !unavailable('paylov') ? paylovInput(draft.paylov) : {}) },
       // Never switched on from here while the provider is not integrated (the server refuses it)
       uzum: { enabled: !unavailable('uzum') && draft.providers.uzum },
       paynet: { enabled: !unavailable('paynet') && draft.providers.paynet },

@@ -6,7 +6,22 @@ import { getApiFieldError, useSaveStoreSettings, type StoreSettings } from '@riz
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { Check, NumberField, PhoneField, parseDecimal, phoneToInput } from './fields';
-import { draftFromSettings, inputFromDraft, MERCHANT_FIELDS, MERCHANT_PROVIDERS, providerAvailable, PROVIDERS, unavailableReason, type MerchantProvider, type Provider, type SettingsDraft } from './paymentSettings';
+import {
+  draftFromSettings,
+  inputFromDraft,
+  MERCHANT_FIELDS,
+  MERCHANT_PROVIDERS,
+  PAYLOV_SECRETS,
+  PAYLOV_WEBHOOK_URL,
+  paylovCallbackPasswordTooShort,
+  providerAvailable,
+  PROVIDERS,
+  unavailableReason,
+  type MerchantProvider,
+  type PaylovSecret,
+  type Provider,
+  type SettingsDraft,
+} from './paymentSettings';
 import { TelegramGroupCard } from './TelegramGroupCard';
 
 const COMMON_TIMEZONES = ['Asia/Tashkent', 'Asia/Samarkand'];
@@ -34,6 +49,8 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
   const save = useSaveStoreSettings();
   const patch = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) => setDraft((previous) => ({ ...previous, [key]: value }));
   const allowed = (provider: Provider) => settings.allowed_methods.includes(provider);
+  const ownAccount = settings.payment_account_type === 'own_account';
+  const paylovKeys = ownAccount && providerAvailable(settings.payment_settings?.paylov);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -48,6 +65,7 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
     if (minOrder === undefined) problems.min_order_amount = t('mgmt_numberInvalid');
     if (deliveryFee === undefined) problems.delivery_fee = t('mgmt_numberInvalid');
     if (digits !== '' && digits.length !== 9) problems.phone = t('mgmt_phoneInvalid');
+    if (paylovKeys && paylovCallbackPasswordTooShort(draft.paylov)) problems.paylov_callback_password = t('settings_paylovCallbackPasswordShort');
     setErrors(problems);
     if (Object.keys(problems).length > 0) return;
 
@@ -62,6 +80,10 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         }
         const feeMessage = getApiFieldError(err, 'payment_settings.delivery_fee');
         if (feeMessage) next.delivery_fee = feeMessage;
+        for (const key of ['merchant_id', ...PAYLOV_SECRETS]) {
+          const message = getApiFieldError(err, `payment_settings.paylov.${key}`);
+          if (message) next[`paylov_${key}`] = message;
+        }
         setErrors(next);
         setFormError(Object.keys(next).length === 0 ? errorText(err, t) : null);
       },
@@ -123,7 +145,7 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
       <Section title={t('settings_paymentsSection')}>
         <Card className="flex flex-col gap-1">
           <p className="mb-1 text-footnote text-fg-muted">
-            {settings.payment_account_type === 'own_account' ? t('settings_ownAccount') : t('settings_platformAccount')}
+            {ownAccount ? t('settings_ownAccount') : t('settings_platformAccount')}
           </p>
           {PROVIDERS.map((provider) => {
             const available = providerAvailable(settings.payment_settings?.[provider]);
@@ -143,10 +165,18 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
           })}
           {errors.payment_settings && <p role="alert" className="text-footnote font-bold text-danger-soft-fg">{errors.payment_settings}</p>}
         </Card>
-        {settings.payment_account_type === 'own_account' &&
+        {ownAccount &&
           MERCHANT_PROVIDERS.filter((provider) => providerAvailable(settings.payment_settings?.[provider])).map((provider) => (
             <MerchantFields key={provider} provider={provider} draft={draft} onChange={(field, value) => setDraft((previous) => ({ ...previous, merchant: { ...previous.merchant, [provider]: { ...previous.merchant[provider], [field]: value } } }))} />
           ))}
+        {paylovKeys && (
+          <PaylovFields
+            draft={draft}
+            errors={errors}
+            onMerchantId={(value) => setDraft((previous) => ({ ...previous, paylov: { ...previous.paylov, merchant_id: value } }))}
+            onSecret={(key, value) => setDraft((previous) => ({ ...previous, paylov: { ...previous.paylov, secrets: { ...previous.paylov.secrets, [key]: value } } }))}
+          />
+        )}
       </Section>
 
       <TelegramGroupCard settings={settings} />
@@ -180,6 +210,64 @@ function MerchantFields({ provider, draft, onChange }: { provider: MerchantProvi
         <Field label={t('settings_secretKey', { name })} hint={keys.hasSecret ? t('settings_secretKeyStored') : t('settings_secretKeyMissing')}>
           {(props) => <input {...props} type="password" autoComplete="new-password" spellCheck={false} maxLength={255} value={keys.secret_key} onChange={(event) => onChange('secret_key', event.target.value)} className={fieldClass} />}
         </Field>
+      </div>
+    </Card>
+  );
+}
+
+const PAYLOV_LABEL = {
+  consumer_key: 'settings_paylovConsumerKey',
+  consumer_secret: 'settings_paylovConsumerSecret',
+  username: 'settings_paylovUsername',
+  password: 'settings_paylovPassword',
+  callback_login: 'settings_paylovCallbackLogin',
+  callback_password: 'settings_paylovCallbackPassword',
+} as const satisfies Record<PaylovSecret, string>;
+
+// Wave P: the store's own Paylov account (own account only, while RIZQIM offers Paylov). The six secrets are password
+// fields that never show a stored value ("saqlangan" from has_*), an empty one keeps it; the webhook address to give Paylov.
+function PaylovFields({
+  draft,
+  errors,
+  onMerchantId,
+  onSecret,
+}: {
+  draft: SettingsDraft;
+  errors: Record<string, string>;
+  onMerchantId: (value: string) => void;
+  onSecret: (key: PaylovSecret, value: string) => void;
+}) {
+  const { t } = useI18n();
+  const keys = draft.paylov;
+  return (
+    <Card className="mt-3 flex flex-col gap-3">
+      <h3 className="text-body font-bold text-fg">{t('settings_paylovTitle')}</h3>
+      <p className="text-footnote text-fg-muted">{t('settings_paylovHint')}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t('settings_paylovMerchantId')} hint={t('settings_paylovMerchantIdHint')} error={errors.paylov_merchant_id}>
+          {(props) => <input {...props} type="text" autoComplete="off" spellCheck={false} maxLength={255} value={keys.merchant_id} onChange={(event) => onMerchantId(event.target.value)} className={fieldClass} />}
+        </Field>
+        {PAYLOV_SECRETS.map((key) => (
+          <Field key={key} label={t(PAYLOV_LABEL[key])} hint={keys.stored[key] ? t('settings_secretKeyStored') : t('settings_secretKeyMissing')} error={errors[`paylov_${key}`]}>
+            {(props) => (
+              <input
+                {...props}
+                type="password"
+                autoComplete="new-password"
+                spellCheck={false}
+                maxLength={255}
+                value={keys.secrets[key]}
+                onChange={(event) => onSecret(key, event.target.value)}
+                className={fieldClass}
+              />
+            )}
+          </Field>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1 rounded-control border border-line p-3">
+        <p className="text-footnote font-bold text-fg">{t('settings_paylovWebhookTitle')}</p>
+        <code className="break-all font-mono text-footnote text-fg">{PAYLOV_WEBHOOK_URL}</code>
+        <p className="text-footnote text-fg-muted">{t('settings_paylovWebhookText')}</p>
       </div>
     </Card>
   );

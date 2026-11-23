@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPlatformOps, setPlatformOps } from '@/lib/realtime/platformOps';
 import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
-import { card, NOW, refundRequest } from './fixtures';
+import { card, NOW, refundRequest, storeRefundReview } from './fixtures';
 import { OrderCardView } from './OrderCardView';
 import { exactMoney } from './ordersModel';
 
@@ -169,9 +169,155 @@ describe('OrderCardView', () => {
   });
 
   it('offers no action buttons to a viewer', async () => {
-    setup({ [`GET /orders/${UUID}`]: () => ok(card({ actions: { can_intervene: false, can_cancel: false, cancel_reasons: [], transitions: [], message_store: false, message_customer: false, can_request_refund: false, can_approve_refund: false } })) }, ['admin.orders.view']);
+    setup({ [`GET /orders/${UUID}`]: () => ok(card({ actions: { can_intervene: false, can_cancel: false, cancel_reasons: [], transitions: [], message_store: false, message_customer: false, can_request_refund: false, can_approve_refund: false, can_decide_store_refund: false, can_approve_store_refund: false } })) }, ['admin.orders.view']);
     expect(await screen.findByText("Sizda faqat ko'rish ruxsati bor.")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ovqatxonaga yozish' })).not.toBeInTheDocument();
+  });
+});
+
+// Wave P: a refund the store made from its own Payme cabinet on a delivered order keeps RIZQIM's commission until the team
+// decides (POST /orders/{uuid}/store-refund-review/approve|dismiss: approving takes two members, dismissing one)
+describe('OrderCardView: the store refund review', () => {
+  const held = (overrides: Parameters<typeof storeRefundReview>[0] = {}, actions: Partial<ReturnType<typeof card>['actions']> = {}) => {
+    const review = storeRefundReview(overrides);
+    return card({
+      payment_status: 'refunded',
+      payments: [{ uuid: 'p1', provider: 'payme', amount: '85000.00', status: 'refunded', paid_at: null, manual_refund_required: false, manual_refund_approved: [], created_at: null }],
+      refunds: { paid: '85000.00', refunded: '85000.00', refundable: '0.00', requests: [] },
+      store_refund_review: review,
+      store_refund_reviews: [review],
+      audit: [
+        { id: 12, action: 'admin.orders.store_refund_review.approved', actor: { id: 40, name: 'Operator 1', role: 'Moliya', team: true }, reason: 'Kabinetda tekshirdim', before: null, after: null, meta: { decision: 'proposed' }, created_at: new Date(NOW - 10 * 60_000).toISOString() },
+      ],
+      actions: { ...card().actions, can_request_refund: false, can_approve_refund: true, can_decide_store_refund: true, can_approve_store_refund: true, ...actions },
+    });
+  };
+  const APPROVE = `/orders/${UUID}/store-refund-review/approve`;
+  const DISMISS = `/orders/${UUID}/store-refund-review/dismiss`;
+  const section = () => screen.findByRole('region', { name: 'Ovqatxona kassasidan qaytarish' });
+
+  it('says plainly what happened and that the commission is kept until someone decides', async () => {
+    setup({ [`GET /orders/${UUID}`]: () => ok(held()) });
+    const block = await section();
+    expect(within(block).getByText(/o'zining Payme kabinetidan mijozga qaytardi/)).toBeInTheDocument();
+    expect(within(block).getByText(/komissiyasi qaror chiqarilguncha saqlanadi/)).toBeInTheDocument();
+    expect(within(block).getByText('Qaror kutilmoqda')).toBeInTheDocument();
+    expect(within(block).getAllByText(/^85.000.so'm$/).length).toBeGreaterThanOrEqual(1);
+    expect(within(block).getByRole('button', { name: 'Qaytarishni taklif qilish' })).toBeInTheDocument();
+    expect(within(block).getByRole('button', { name: 'Rad etish' })).toBeInTheDocument();
+    expect(within(block).queryByRole('button', { name: 'Tasdiqlash' })).not.toBeInTheDocument();
+  });
+
+  it('proposes the refund with a reason and an Idempotency-Key, then shows it waits for another member', async () => {
+    const proposed = held({ proposed_by: 1, proposed_at: new Date(NOW).toISOString(), proposal_note: 'Kabinetda tekshirdim' }, { can_approve_store_refund: false });
+    let current = held();
+    const { user, fetchMock, callsTo } = setup({ [`GET /orders/${UUID}`]: () => ok(current), [`POST ${APPROVE}`]: () => ok((current = proposed)) });
+    await user.click(within(await section()).getByRole('button', { name: 'Qaytarishni taklif qilish' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni taklif qilish' });
+    expect(within(dialog).getByText(/boshqa xodim tasdiqlaganidan keyin/)).toBeInTheDocument();
+    const submit = within(dialog).getByRole('button', { name: 'Taklif qilish' });
+    expect(submit).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Kabinetda tekshirdim');
+    await user.click(submit);
+    await vi.waitFor(() => expect(callsTo('POST', APPROVE)[0]?.body).toEqual({ reason: 'Kabinetda tekshirdim' }));
+    const init = fetchMock.mock.calls.find(([input]) => String(input).includes('store-refund-review/approve'))?.[1];
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toMatch(/^[\x21-\x7E]{8,}$/);
+    expect(await screen.findByText('Qaytarish taklif qilindi: uni boshqa xodim tasdiqlashi kerak.')).toBeInTheDocument();
+    const block = await section();
+    expect(within(block).getByText(/Siz taklif qilgansiz/)).toBeInTheDocument();
+    expect(within(block).queryByRole('button', { name: 'Tasdiqlash' })).not.toBeInTheDocument();
+    expect(within(block).queryByRole('button', { name: 'Qaytarishni taklif qilish' })).not.toBeInTheDocument();
+    expect(within(block).getByRole('button', { name: 'Rad etish' })).toBeInTheDocument();
+  });
+
+  it("lets a second member confirm a colleague's proposal, naming who proposed it", async () => {
+    const proposed = held({ proposed_by: 40, proposed_at: new Date(NOW - 10 * 60_000).toISOString(), proposal_note: 'Kabinetda tekshirdim' });
+    const review = storeRefundReview({ status: 'approved', proposed_by: 40, proposed_at: proposed.store_refund_review!.proposed_at, proposal_note: 'Kabinetda tekshirdim', decided_by: 1, decided_at: new Date(NOW).toISOString(), note: 'Ikkinchi tasdiq' });
+    const approved = card({ ...proposed, status: 'refunded', status_label: 'Qaytarildi', store_refund_review: review, store_refund_reviews: [review], actions: { ...proposed.actions, can_decide_store_refund: false, can_approve_store_refund: false } });
+    let current = proposed;
+    const { user, callsTo } = setup({ [`GET /orders/${UUID}`]: () => ok(current), [`POST ${APPROVE}`]: () => ok((current = approved)) });
+    const block = await section();
+    expect(within(block).getByText(/Taklif qildi: Operator 1/)).toBeInTheDocument();
+    expect(within(block).getByText(/Kabinetda tekshirdim/)).toBeInTheDocument();
+    await user.click(within(block).getByRole('button', { name: 'Tasdiqlash' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni tasdiqlash (ikkinchi xodim)' });
+    expect(within(dialog).getByText(/komissiya bekor qilinadi/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Ikkinchi tasdiq');
+    await user.click(within(dialog).getByRole('button', { name: 'Tasdiqlash' }));
+    await vi.waitFor(() => expect(callsTo('POST', APPROVE)[0]?.body).toEqual({ reason: 'Ikkinchi tasdiq' }));
+    expect(await screen.findByText('Qaytarish tasdiqlandi: buyurtma qaytarildi, komissiya bekor qilindi.')).toBeInTheDocument();
+    const after = await section();
+    expect(within(after).getByText('Tasdiqlandi')).toBeInTheDocument();
+    expect(within(after).queryByRole('button', { name: 'Rad etish' })).not.toBeInTheDocument();
+  });
+
+  it('dismisses with a reason: the commission stays', async () => {
+    const review = storeRefundReview({ status: 'dismissed', decided_by: 1, decided_at: new Date(NOW).toISOString(), note: "Ovqatxona o'zi yuborgan" });
+    const dismissed = held({}, { can_decide_store_refund: false, can_approve_store_refund: false });
+    let current = held();
+    const { user, callsTo } = setup({
+      [`GET /orders/${UUID}`]: () => ok(current),
+      [`POST ${DISMISS}`]: () => ok((current = { ...dismissed, store_refund_review: review, store_refund_reviews: [review] })),
+    });
+    await user.click(within(await section()).getByRole('button', { name: 'Rad etish' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni rad etish' });
+    expect(within(dialog).getByText(/komissiyasi saqlanadi/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Sabab'), "Ovqatxona o'zi yuborgan");
+    await user.click(within(dialog).getByRole('button', { name: 'Rad etish' }));
+    await vi.waitFor(() => expect(callsTo('POST', DISMISS)[0]?.body).toEqual({ reason: "Ovqatxona o'zi yuborgan" }));
+    expect(await screen.findByText('Qaytarish rad etildi: komissiya saqlanadi.')).toBeInTheDocument();
+    const after = await section();
+    expect(within(after).getByText('Rad etildi')).toBeInTheDocument();
+    expect(within(after).getByText(/Ovqatxona o'zi yuborgan/)).toBeInTheDocument();
+  });
+
+  it('says four eyes in words when the proposer tries to confirm', async () => {
+    const proposed = held({ proposed_by: 40, proposed_at: new Date(NOW).toISOString() });
+    const { user } = setup({
+      [`GET /orders/${UUID}`]: () => ok(proposed),
+      [`POST ${APPROVE}`]: () => refusal(403, 'Qaytarishni taklif qilgan xodim uni tasdiqlay olmaydi.', { reason: 'four_eyes' }, { code: 'four_eyes' }),
+    });
+    await user.click(within(await section()).getByRole('button', { name: 'Tasdiqlash' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni tasdiqlash (ikkinchi xodim)' });
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Tasdiqlayman');
+    await user.click(within(dialog).getByRole('button', { name: 'Tasdiqlash' }));
+    expect(await within(dialog).findByText("Siz bu qaytarishni taklif qilgansiz: ikkinchi tasdiqni boshqa xodim berishi kerak.")).toBeInTheDocument();
+  });
+
+  it('says a decision already made (409) in words and refreshes the card', async () => {
+    let decided = false;
+    const review = storeRefundReview({ status: 'dismissed', decided_by: 40, decided_at: new Date(NOW).toISOString(), note: 'Boshqa xodim' });
+    const { user, callsTo } = setup({
+      [`GET /orders/${UUID}`]: () => ok(decided ? { ...held({}, { can_decide_store_refund: false, can_approve_store_refund: false }), store_refund_review: review, store_refund_reviews: [review] } : held()),
+      [`POST ${DISMISS}`]: () => {
+        decided = true;
+        return refusal(409, "Bu buyurtma bo'yicha tekshiruv kutayotgan qaytarish yo'q.", { reason: 'no_store_refund_review' }, { code: 'no_store_refund_review' });
+      },
+    });
+    await user.click(within(await section()).getByRole('button', { name: 'Rad etish' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Qaytarishni rad etish' });
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Rad etaman');
+    await user.click(within(dialog).getByRole('button', { name: 'Rad etish' }));
+    expect(await within(dialog).findByText(/Bu qaytarish bo'yicha qaror allaqachon chiqarilgan/)).toBeInTheDocument();
+    await vi.waitFor(() => expect(callsTo('GET', `/orders/${UUID}`).length).toBeGreaterThanOrEqual(2));
+  });
+
+  it('keeps the earlier decisions in the history, and shows no buttons to a member who may not decide', async () => {
+    const latest = storeRefundReview({ payment_uuid: 'p2', amount: '40000.00' });
+    const earlier = storeRefundReview({ status: 'dismissed', amount: '45000.00', decided_by: 40, decided_at: new Date(NOW - 60 * 60_000).toISOString(), note: 'Soxta so\'rov' });
+    setup({ [`GET /orders/${UUID}`]: () => ok({ ...held({}, { can_decide_store_refund: false, can_approve_store_refund: false }), store_refund_review: latest, store_refund_reviews: [latest, earlier] }) }, ['admin.orders.view']);
+    const block = await section();
+    expect(within(block).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(block).getByText(/Ko'rib chiqdi: Operator 1/)).toBeInTheDocument();
+    expect(within(block).getByText(/Soxta so'rov/)).toBeInTheDocument();
+    expect(within(block).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(block).getByText(/Qarorni moliya ruxsati bor xodim chiqaradi/)).toBeInTheDocument();
+  });
+
+  it('has no such block on an ordinary order', async () => {
+    setup();
+    expect(await screen.findByRole('heading', { name: 'Buyurtma #ORD-AB12CD' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Ovqatxona kassasidan qaytarish' })).not.toBeInTheDocument();
   });
 });
 

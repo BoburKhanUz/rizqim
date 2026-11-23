@@ -45,6 +45,39 @@ export interface FakeOrder {
   stage_started_at: string
   courier: { id: number; name: string } | null
   history: Array<{ status: string; at: string; actor: string | null; notes: string | null }>
+  /** Wave P: refunds the store made from its own Payme cabinet, held for the team (StoreRefundReview), oldest first */
+  storeRefunds?: FakeStoreRefund[]
+  /** The card's audit entries the fake writes (the store refund decisions) */
+  audit?: Array<{ id: number; action: string; actor: { id: number; name: string; role: string; team: boolean }; reason: string; meta: Record<string, unknown>; created_at: string }>
+}
+
+export interface FakeStoreRefund {
+  status: 'pending' | 'approved' | 'dismissed'
+  provider: string
+  payment_uuid: string
+  amount: string
+  reason_code: number
+  reported_at: string
+  proposed_by: number | null
+  proposed_at: string | null
+  proposal_note: string | null
+  decided_at: string | null
+  decided_by: number | null
+  note: string | null
+}
+
+/** A delivered order of a store with its own Payme cashbox, whose payment the store cancelled from its cabinet */
+export function heldStoreRefundOrder(): FakeOrder {
+  return {
+    uuid: 'ab77cc00-1111-4222-8333-444455556669', short_code: 'AB77CC', status: 'delivered', type: 'delivery', store: { id: 12, name: 'Lazzat Oshxona' }, branch: { id: 5, name: 'Chilonzor' },
+    customer: 'Olim Egamov', total: '96000.00', paid: '96000.00', payment_method: 'payme', created_at: minutesAgo(240), stage_started_at: minutesAgo(240), courier: { id: 21, name: 'Kuryer 1' },
+    history: [{ status: 'new', at: minutesAgo(240), actor: null, notes: null }, { status: 'delivered', at: minutesAgo(190), actor: 'Kuryer 1', notes: null }],
+    storeRefunds: [{
+      status: 'pending', provider: 'payme', payment_uuid: 'p-AB77CC', amount: '96000.00', reason_code: 5, reported_at: minutesAgo(45),
+      proposed_by: null, proposed_at: null, proposal_note: null, decided_at: null, decided_by: null, note: null,
+    }],
+    audit: [],
+  }
 }
 
 export interface FakeRefundRequest {
@@ -87,6 +120,8 @@ export class FakeOrders {
   refunds: FakeRefundRequest[] = []
   limits = { accept: 5, prepare: 30, deliver: 45 }
   messages: Array<{ uuid: string; to: string; text: string; reason: string }> = []
+  /** The Idempotency-Key of each store refund decision the page sent */
+  storeRefundKeys: Array<string | undefined> = []
   private nextRefundId = 1
 
   route(req: FakeRequest, path: string, body: Record<string, unknown>, can: (permission: string) => boolean, needsRecent: () => Reply | null, actor: { id: number; name: string }): Reply | null {
@@ -145,6 +180,41 @@ export class FakeOrders {
         }
       }
       return ok(this.presentRefund(refund, actor, can), { message: decision === 'approved' ? 'Tasdiqlandi.' : "So'rov rad etildi." })
+    }
+
+    // Wave P: the store refund review (AdminStoreRefundReviewController): approve twice by two members, or dismiss once
+    const review = /^\/orders\/([^/]+)\/store-refund-review\/(approve|dismiss)$/.exec(path)
+    if (req.method === 'POST' && review) {
+      this.storeRefundKeys.push(req.headers?.['idempotency-key'])
+      const refused = act('admin.orders.refund_approve')
+      if (refused) return refused
+      const order = this.find(review[1]!)
+      if (!order) return fail(404, 'Buyurtma topilmadi.', { reason: 'not_found' })
+      const pending = (order.storeRefunds ?? []).filter((row) => row.status === 'pending')
+      if (pending.length === 0) return fail(409, "Bu buyurtma bo'yicha tekshiruv kutayotgan qaytarish yo'q.", { reason: 'no_store_refund_review' })
+      const note = String(body.reason).trim()
+      const now = new Date().toISOString()
+      const proposer = pending.find((row) => row.proposed_by !== null)?.proposed_by ?? null
+      let decision: 'proposed' | 'approved' | 'dismissed'
+      if (review[2] === 'approve' && proposer === null) {
+        decision = 'proposed'
+        for (const row of pending) Object.assign(row, { proposed_by: actor.id, proposed_at: now, proposal_note: note })
+      } else if (review[2] === 'approve') {
+        if (proposer === actor.id) return fail(403, "Qaytarishni taklif qilgan xodim uni tasdiqlay olmaydi: ikkinchi tasdiqni boshqa xodim beradi.", { reason: 'four_eyes' })
+        decision = 'approved'
+        for (const row of pending) Object.assign(row, { status: 'approved', decided_by: actor.id, decided_at: now, note })
+        order.status = 'refunded'
+        order.history.push({ status: 'refunded', at: now, actor: actor.name, notes: `Boshqaruv markazi: ovqatxona kassasi orqali qilingan Payme qaytarishi tasdiqlandi. ${note}` })
+      } else {
+        decision = 'dismissed'
+        for (const row of pending) Object.assign(row, { status: 'dismissed', decided_by: actor.id, decided_at: now, note })
+      }
+      order.audit = [
+        { id: (order.audit?.length ?? 0) + 100, action: `admin.orders.store_refund_review.${review[2] === 'approve' ? 'approved' : 'dismissed'}`, actor: { ...actor, role: 'Moliya', team: true }, reason: note, meta: { short_code: order.short_code, decision }, created_at: now },
+        ...(order.audit ?? []),
+      ]
+      const message = decision === 'proposed' ? 'Qaytarish taklif qilindi: uni boshqa xodim tasdiqlashi kerak.' : decision === 'approved' ? 'Qaytarish tasdiqlandi: buyurtma qaytarildi, komissiya bekor qilindi.' : 'Qaytarish rad etildi: komissiya saqlanadi.'
+      return ok(this.card(order, actor, can), { message })
     }
 
     const action = /^\/orders\/([^/]+)(?:\/(cancel|status|message|refund-requests))?$/.exec(path)
@@ -227,6 +297,8 @@ export class FakeOrders {
 
   private refundable(order: FakeOrder): number {
     const approved = this.refunds.filter((refund) => refund.order === order.uuid && refund.status === 'approved').reduce((sum, refund) => sum + Number(refund.amount), 0)
+    // The store's own refund gave the whole payment back (the payment is refunded)
+    if (order.storeRefunds?.length) return 0
     return Math.max(0, Number(order.paid) - approved)
   }
 
@@ -234,7 +306,7 @@ export class FakeOrders {
     return {
       uuid: order.uuid, short_code: order.short_code, status: order.status, status_label: LABELS[order.status] ?? order.status, status_group: groupOf(order.status),
       type: order.type, channel: 'telegram', channel_label: 'Telegram', store: order.store, branch: order.branch, region: { id: 1, name: 'Toshkent shahri' },
-      customer_name: order.customer, total: order.total, payment_method: order.payment_method, payment_status: Number(order.paid) > 0 ? 'paid' : 'pending',
+      customer_name: order.customer, total: order.total, payment_method: order.payment_method, payment_status: order.storeRefunds?.length ? 'refunded' : Number(order.paid) > 0 ? 'paid' : 'pending',
       courier: order.courier, sla: this.sla(order), refund_pending: this.refunds.some((refund) => refund.order === order.uuid && refund.status === 'pending'),
       manual_refund_required: false, created_at: order.created_at, updated_at: order.created_at,
     }
@@ -279,6 +351,8 @@ export class FakeOrders {
     const refundable = this.refundable(order)
     const requests = this.refunds.filter((refund) => refund.order === order.uuid).sort((a, b) => b.id - a.id)
     const pending = requests.some((refund) => refund.status === 'pending')
+    const reviews = [...(order.storeRefunds ?? [])].reverse().map((row) => ({ ...row }))
+    const reviewPending = reviews.some((row) => row.status === 'pending')
     return {
       ...this.row(order),
       notes: null,
@@ -288,15 +362,17 @@ export class FakeOrders {
       store: { ...order.store, phone: '+998 71 *** ** 00' },
       branch: { ...order.branch, address: 'Bunyodkor 5' },
       items: [{ id: 1, name: 'Osh', variant: null, modifiers: null, quantity: '2', unit_price: (Number(order.total) / 2).toFixed(2), total: order.total, void: false }],
-      totals: { subtotal: order.total, discount: '0.00', delivery_price: '0.00', service_charge: '0.00', place_fee: '0.00', total: order.total, commission: (Number(order.total) / 10).toFixed(2), payment_owner: 'PLATFORM' },
+      totals: { subtotal: order.total, discount: '0.00', delivery_price: '0.00', service_charge: '0.00', place_fee: '0.00', total: order.total, commission: (Number(order.total) / 10).toFixed(2), payment_owner: order.storeRefunds ? 'STORE' : 'PLATFORM' },
       cancel: order.status === 'canceled' ? { reason: 'other', reason_label: 'Boshqa sabab', note: null } : null,
-      payments: Number(order.paid) > 0 ? [{ uuid: `p-${order.short_code}`, provider: order.payment_method, amount: order.paid, status: 'paid', paid_at: order.created_at, manual_refund_required: false, manual_refund_approved: [], created_at: order.created_at }] : [],
+      payments: Number(order.paid) > 0 ? [{ uuid: `p-${order.short_code}`, provider: order.payment_method, amount: order.paid, status: order.storeRefunds?.length ? 'refunded' : 'paid', paid_at: order.created_at, manual_refund_required: false, manual_refund_approved: [], created_at: order.created_at }] : [],
       refunds: { paid: order.paid, refunded: (Number(order.paid) - refundable).toFixed(2), refundable: refundable.toFixed(2), requests: requests.map((refund) => this.presentRefund(refund, actor, can)) },
       history: order.history.map((row, index) => ({ status: row.status, status_label: LABELS[row.status] ?? row.status, from_status: index > 0 ? order.history[index - 1]!.status : null, at: row.at, actor: row.actor ? { id: 1, name: row.actor, role: 'Operator', team: row.notes?.startsWith('Boshqaruv') ?? false } : null, notes: row.notes })),
       sla_timeline: [],
       sla_events: [],
       fiscal_receipts: [],
-      audit: [],
+      audit: (order.audit ?? []).map((entry) => ({ ...entry, before: null, after: null })),
+      store_refund_review: reviews[0] ?? null,
+      store_refund_reviews: reviews,
       actions: {
         can_intervene: intervene,
         can_cancel: intervene && active,
@@ -306,6 +382,8 @@ export class FakeOrders {
         message_customer: intervene,
         can_request_refund: can('admin.orders.refund_request') && !active && refundable > 0 && !pending,
         can_approve_refund: can('admin.orders.refund_approve'),
+        can_decide_store_refund: can('admin.orders.refund_approve') && reviewPending,
+        can_approve_store_refund: can('admin.orders.refund_approve') && reviewPending && reviews[0]?.proposed_by !== actor.id,
       },
     }
   }

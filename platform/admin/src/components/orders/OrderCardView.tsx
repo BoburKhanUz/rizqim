@@ -12,9 +12,10 @@ import { when } from '@/lib/format';
 import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
 import { useT } from '../I18nProvider';
-import { CancelDialog, DecideRefundDialog, MessageDialog, RefundRequestDialog, StatusDialog } from './OrderDialogs';
+import { CancelDialog, DecideRefundDialog, MessageDialog, RefundRequestDialog, StatusDialog, StoreRefundReviewDialog } from './OrderDialogs';
 import { exactMoney, money, STAGE_LABEL } from './ordersModel';
 import { SlaBadge } from './SlaBadge';
+import { StoreRefundReviewSection, type StoreRefundAction } from './StoreRefundReviewSection';
 import { useNow } from './useNow';
 
 type Dialog =
@@ -22,7 +23,8 @@ type Dialog =
   | { kind: 'status' }
   | { kind: 'message'; to: 'store' | 'customer' }
   | { kind: 'refund' }
-  | { kind: 'decide'; request: RefundRequest; decision: 'approve' | 'reject' };
+  | { kind: 'decide'; request: RefundRequest; decision: 'approve' | 'reject' }
+  | { kind: 'store-refund'; action: StoreRefundAction };
 
 // The order card (/orders/[uuid]): everything about one marketplace order and what the member may do to it. The buttons are
 // the ones the backend offers this member now (`actions`); each opens a dialog that asks for a reason. Refreshed by its
@@ -91,7 +93,8 @@ export function OrderCardView({ uuid }: { uuid: string }) {
     setNotice(message);
   };
   const actions = order.actions;
-  const anyAction = actions.can_cancel || (actions.can_intervene && actions.transitions.length > 0) || actions.message_store || actions.message_customer || actions.can_request_refund;
+  const anyAction =
+    actions.can_cancel || (actions.can_intervene && actions.transitions.length > 0) || actions.message_store || actions.message_customer || actions.can_request_refund || actions.can_decide_store_refund;
 
   return (
     <>
@@ -146,6 +149,8 @@ export function OrderCardView({ uuid }: { uuid: string }) {
           {!anyAction && <p className="text-footnote text-fg-muted">{can('orders.intervene') ? t('orders_noActions') : t('orders_viewOnly')}</p>}
         </Card>
 
+        <StoreRefundReviewSection order={order} onAction={(action) => setDialog({ kind: 'store-refund', action })} />
+
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <HistorySection order={order} />
           <SlaSection order={order} />
@@ -161,6 +166,7 @@ export function OrderCardView({ uuid }: { uuid: string }) {
       {dialog?.kind === 'status' && <StatusDialog order={order} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'message' && <MessageDialog order={order} to={dialog.to} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'refund' && <RefundRequestDialog order={order} onDone={done} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'store-refund' && <StoreRefundReviewDialog order={order} action={dialog.action} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'decide' && <DecideRefundDialog orderUuid={order.uuid} request={dialog.request} decision={dialog.decision} onDone={done} onClose={() => setDialog(null)} />}
     </>
   );

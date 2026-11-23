@@ -6,6 +6,7 @@ import {
   idempotencyKey,
   useCancelOrder,
   useDecideRefund,
+  useDecideStoreRefund,
   useFixStatus,
   useMessageOrder,
   useRequestRefund,
@@ -14,9 +15,11 @@ import {
   type RefundRequest,
   type SlaSettings,
 } from '@/lib/api/orders';
+import { ApiError } from '@/lib/api/client';
 import { errorText, fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 import { exactMoney, parseAmountInput } from './ordersModel';
+import type { StoreRefundAction } from './StoreRefundReviewSection';
 
 // The action dialogs of Buyurtmalar. Each asks for a reason (3–500 characters, it goes into the audit log); the step-up
 // (a fresh 2FA code) is asked by the shell when the backend wants it. Money dialogs send one Idempotency-Key per dialog.
@@ -229,6 +232,47 @@ export function DecideRefundDialog({
         decide.mutate(
           { id: request.id, decision, reason, key, uuid: orderUuid },
           { onSuccess: () => onDone(decision === 'approve' ? t('orders_approved') : t('orders_rejected')) },
+        )
+      }
+    />
+  );
+}
+
+// Wave P: approve (a proposal, or a second member's confirmation) or dismiss a refund the store made from its own cashbox.
+// The backend decides which approval it is; the notice follows the card it answers.
+const STORE_REFUND_DIALOG = {
+  propose: { title: 'orders_storeRefundProposeTitle', text: 'orders_storeRefundProposeText', submit: 'orders_storeRefundProposeSubmit', decision: 'approve', tone: 'primary' },
+  confirm: { title: 'orders_storeRefundConfirmTitle', text: 'orders_storeRefundConfirmText', submit: 'orders_storeRefundConfirm', decision: 'approve', tone: 'primary' },
+  dismiss: { title: 'orders_storeRefundDismissTitle', text: 'orders_storeRefundDismissText', submit: 'orders_storeRefundDismiss', decision: 'dismiss', tone: 'danger' },
+} as const;
+
+export function StoreRefundReviewDialog({ order, action, onDone, onClose }: { order: OrderCard; action: StoreRefundAction; onDone: (message: string) => void; onClose: () => void }) {
+  const t = useT();
+  const decide = useDecideStoreRefund();
+  const [key] = useState(idempotencyKey);
+  const copy = STORE_REFUND_DIALOG[action];
+  const amount = exactMoney(order.store_refund_reviews.filter((review) => review.status === 'pending').reduce((sum, review) => sum + Number(review.amount), 0) || order.store_refund_review?.amount);
+  const code = decide.error instanceof ApiError ? decide.error.code : '';
+  const error = !decide.error ? null : code === 'four_eyes' ? t('orders_storeRefundFourEyes') : code === 'no_store_refund_review' ? t('orders_storeRefundGone') : errorText(decide.error, t);
+  return (
+    <ReasonForm
+      title={t(copy.title)}
+      text={t(copy.text, { amount })}
+      submitLabel={t(copy.submit)}
+      tone={copy.tone}
+      busy={decide.isPending}
+      error={error}
+      reasonError={fieldError(decide.error, 'reason')}
+      onClose={onClose}
+      onSubmit={(reason) =>
+        decide.mutate(
+          { uuid: order.uuid, decision: copy.decision, reason, key },
+          {
+            onSuccess: (card) => {
+              const status = card.store_refund_review?.status;
+              onDone(t(status === 'approved' ? 'orders_storeRefundDoneApproved' : status === 'dismissed' ? 'orders_storeRefundDoneDismissed' : 'orders_storeRefundProposed'));
+            },
+          },
         )
       }
     />

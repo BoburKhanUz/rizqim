@@ -4,7 +4,7 @@ import { createTranslator } from '@/i18n';
 import { errorText, firstFieldError, reasonOf } from './errors';
 import { parseDecimal, phoneToE164, phoneToInput } from './fields';
 import { hoursText, clock } from './hours';
-import { cashOn, draftFromSettings, inputFromDraft, onlineOn, providerAvailable, unavailableReason } from './paymentSettings';
+import { cashOn, draftFromSettings, inputFromDraft, onlineOn, paylovCallbackPasswordTooShort, providerAvailable, unavailableReason } from './paymentSettings';
 
 const t = createTranslator('uz');
 
@@ -95,14 +95,35 @@ describe('payment settings', () => {
     telegram: { group_link: null, group_linked: false },
   };
 
+  it('Wave P: sends the Paylov keys of an own account only, each secret only when typed, never switches a switched-off Paylov on', () => {
+    const own = { ...settings, payment_account_type: 'own_account' as const, payment_settings: { ...settings.payment_settings, paylov: { enabled: true, merchant_id: 'm-1', has_consumer_key: true, has_callback_password: true } } };
+    const draft = draftFromSettings(own);
+    expect(draft.providers.paylov).toBe(true);
+    expect(draft.paylov.stored).toEqual({ consumer_key: true, consumer_secret: false, username: false, password: false, callback_login: false, callback_password: true });
+    expect(Object.values(draft.paylov.secrets).every((value) => value === '')).toBe(true);
+    draft.paylov.secrets.consumer_secret = ' cs-1 ';
+    expect(inputFromDraft(own, draft, { minOrder: 0, deliveryFee: 0 }).payment_settings.paylov).toEqual({ enabled: true, merchant_id: 'm-1', consumer_secret: 'cs-1' });
+    expect(inputFromDraft({ ...own, payment_account_type: 'platform_account' }, draft, { minOrder: 0, deliveryFee: 0 }).payment_settings.paylov).toEqual({ enabled: true });
+
+    const off = { ...own, payment_settings: { ...own.payment_settings, paylov: { enabled: false, available: false, unavailable_reason: 'switched_off' as const } } };
+    expect(inputFromDraft(off, { ...draftFromSettings(off), providers: { ...draft.providers, paylov: true } }, { minOrder: 0, deliveryFee: 0 }).payment_settings.paylov).toEqual({ enabled: false });
+
+    draft.paylov.secrets.callback_password = 'qisqa-parol';
+    expect(paylovCallbackPasswordTooShort(draft.paylov)).toBe(true);
+    draft.paylov.secrets.callback_password = 'x'.repeat(16);
+    expect(paylovCallbackPasswordTooShort(draft.paylov)).toBe(false);
+    draft.paylov.secrets.callback_password = '';
+    expect(paylovCallbackPasswordTooShort(draft.paylov)).toBe(false);
+  });
+
   it('starts a form from the stored values with the defaults of a store that saved nothing', () => {
     const draft = draftFromSettings(settings);
     expect(draft).toMatchObject({ deliveryEnabled: true, pickupEnabled: true, openTime: '09:00', closeTime: '22:00', deliveryFee: '0' });
-    expect(draft.providers).toEqual({ cash: true, click: false, payme: false, uzum: false, paynet: false });
+    expect(draft.providers).toEqual({ cash: true, click: false, payme: false, paylov: false, uzum: false, paynet: false });
   });
 
   it('writes the request with the stored logo and banner and never switches an unavailable provider on', () => {
-    const draft = { ...draftFromSettings(settings), providers: { cash: true, click: true, payme: false, uzum: true, paynet: true } };
+    const draft = { ...draftFromSettings(settings), providers: { cash: true, click: true, payme: false, paylov: false, uzum: true, paynet: true } };
     const input = inputFromDraft(settings, draft, { minOrder: 5000, deliveryFee: 1000 });
     expect(input).toMatchObject({ logo: 'l.png', banner: 'b.png', phone: null, min_order_amount: 5000, name: 'Osh', timezone: 'Asia/Tashkent' });
     expect(input.payment_settings).toMatchObject({ delivery_fee: 1000, click: { enabled: true }, uzum: { enabled: false }, paynet: { enabled: true } });

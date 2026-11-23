@@ -1,4 +1,4 @@
-import type { OrderCard, OrderPage, OrderRow, RefundRequest } from '@/lib/api/orders';
+import type { OrderCard, OrderPage, OrderRow, RefundRequest, StoreRefundReview } from '@/lib/api/orders';
 
 // Orders as the backend answers them (AdminOrderController), for the screen tests
 export const NOW = new Date('2026-11-10T09:00:00Z').getTime();
@@ -63,6 +63,25 @@ export function refundRequest(overrides: Partial<RefundRequest> = {}): RefundReq
   };
 }
 
+// Wave P: a Payme cancel signed with the store's own key on a delivered order, held for the team's decision
+export function storeRefundReview(overrides: Partial<StoreRefundReview> = {}): StoreRefundReview {
+  return {
+    status: 'pending',
+    provider: 'payme',
+    payment_uuid: 'p1',
+    amount: '85000.00',
+    reason_code: 5,
+    reported_at: iso(20),
+    proposed_by: null,
+    proposed_at: null,
+    proposal_note: null,
+    decided_at: null,
+    decided_by: null,
+    note: null,
+    ...overrides,
+  };
+}
+
 export function card(overrides: Partial<OrderCard> = {}): OrderCard {
   const base = row({ status: 'delivered', status_label: 'Yetkazildi', status_group: 'done', sla: null });
   return {
@@ -89,6 +108,8 @@ export function card(overrides: Partial<OrderCard> = {}): OrderCard {
     sla_events: [{ stage: 'prepare', stage_label: 'Tayyorlash', state: 'late', limit_minutes: 30, crossed_at: iso(28) }],
     fiscal_receipts: [{ uuid: 'f1', type: 'sale', status: 'issued', provider: 'payme', total: '85000.00', receipt_number: '77', qr_url: 'https://ofd.soliq.uz/check?t=1', issued_at: iso(59), error: null }],
     audit: [{ id: 9, action: 'admin.orders.status_fixed', actor: { id: 40, name: 'Operator 1', role: 'Operator', team: true }, reason: 'Kuryer topshirdi', before: { status: 'on_the_way' }, after: { status: 'delivered' }, meta: null, created_at: iso(5) }],
+    store_refund_review: null,
+    store_refund_reviews: [],
     actions: {
       can_intervene: true,
       can_cancel: false,
@@ -98,6 +119,8 @@ export function card(overrides: Partial<OrderCard> = {}): OrderCard {
       message_customer: true,
       can_request_refund: true,
       can_approve_refund: false,
+      can_decide_store_refund: false,
+      can_approve_store_refund: false,
     },
     ...overrides,
   };

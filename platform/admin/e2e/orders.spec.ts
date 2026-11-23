@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { heldStoreRefundOrder } from './fake/orders'
 import { expect, openSignedIn, test, VALID_CODE } from './fixtures'
 
 // P4-14 Buyurtmalar: the live list (SLA in words, chips with counts, polling while Reverb is off), the order card, the
@@ -99,6 +100,64 @@ test('a refund request waits for another member, who approves it', async ({ page
   await expect(page.getByTestId('refund-1')).toContainText('Tasdiqlandi')
   await expect(page.getByTestId('refund-1')).toContainText("120 000 so'm mijozga to'lov tizimi kabinetida yoki naqd qaytariladi")
   expect(api.orders.refunds[0]?.status).toBe('approved')
+})
+
+test("a refund from the store's own cashbox: one member proposes, another confirms, the commission goes back", async ({ page, api, signIn, context }) => {
+  const held = heldStoreRefundOrder()
+  api.orders.orders.push(held)
+  api.addMember({ name: 'Feruza Moliya', email: 'feruza@rizqim.uz', platform_role: 'finance', twoFactor: true })
+  const block = page.getByRole('region', { name: 'Ovqatxona kassasidan qaytarish' })
+
+  // The finance member proposes it, with a reason and a fresh 2FA code
+  await openSignedIn(page, signIn, `/orders/${held.uuid}`, 'feruza@rizqim.uz')
+  await expect(block).toContainText("o'zining Payme kabinetidan mijozga qaytardi")
+  await expect(block).toContainText('Qaror kutilmoqda')
+  await expect(block.getByRole('button', { name: 'Tasdiqlash' })).toHaveCount(0)
+  await block.getByRole('button', { name: 'Qaytarishni taklif qilish' }).click()
+  const propose = page.getByRole('dialog', { name: 'Qaytarishni taklif qilish' })
+  await propose.getByLabel('Sabab', { exact: true }).fill('Payme kabinetida tekshirdim')
+  await propose.getByRole('button', { name: 'Taklif qilish' }).click()
+  const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
+  await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
+  await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(page.getByText('Qaytarish taklif qilindi: uni boshqa xodim tasdiqlashi kerak.')).toBeVisible()
+  await expect(block).toContainText('Siz taklif qilgansiz')
+  await expect(block.getByRole('button', { name: 'Tasdiqlash' })).toHaveCount(0)
+  expect(held.storeRefunds?.[0]?.status).toBe('pending')
+  expect(api.orders.storeRefundKeys.at(-1)).toMatch(/^[\x21-\x7E]{8,}$/)
+
+  // The superadmin sees who proposed it and confirms it
+  await context.clearCookies()
+  await openSignedIn(page, signIn, `/orders/${held.uuid}`, 'aziza@rizqim.uz', { confirmed: true })
+  await expect(block).toContainText('Taklif qildi: Feruza Moliya')
+  await expect(block).toContainText('Payme kabinetida tekshirdim')
+  await block.getByRole('button', { name: 'Tasdiqlash' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Qaytarishni tasdiqlash (ikkinchi xodim)' })
+  await confirm.getByLabel('Sabab', { exact: true }).fill('Ikkinchi tasdiq')
+  await confirm.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(page.getByText('Qaytarish tasdiqlandi: buyurtma qaytarildi, komissiya bekor qilindi.')).toBeVisible()
+  await expect(block).toContainText('Tasdiqlandi')
+  await expect(block).toContainText("Ko'rib chiqdi: Aziza Karimova")
+  await expect(block.getByRole('button')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Holatlar tarixi' })).toContainText('Qaytarildi')
+  expect(held.status).toBe('refunded')
+})
+
+test('a review decided meanwhile answers 409 in words and the card refreshes', async ({ page, api, signIn }) => {
+  const held = heldStoreRefundOrder()
+  api.orders.orders.push(held)
+  await openSignedIn(page, signIn, `/orders/${held.uuid}`, 'aziza@rizqim.uz', { confirmed: true })
+  const block = page.getByRole('region', { name: 'Ovqatxona kassasidan qaytarish' })
+  await block.getByRole('button', { name: 'Rad etish' }).click()
+  // Someone else dismisses it meanwhile
+  held.storeRefunds![0]!.status = 'dismissed'
+  const dismiss = page.getByRole('dialog', { name: 'Qaytarishni rad etish' })
+  await dismiss.getByLabel('Sabab', { exact: true }).fill("Ovqatxona o'zi yuborgan")
+  await dismiss.getByRole('button', { name: 'Rad etish' }).click()
+  await expect(dismiss).toContainText("Bu qaytarish bo'yicha qaror allaqachon chiqarilgan")
+  await dismiss.getByRole('button', { name: 'Bekor qilish' }).click()
+  await expect(block).toContainText('Rad etildi')
+  await expect(block.getByRole('button')).toHaveCount(0)
 })
 
 test('the superadmin changes the SLA limits with a reason', async ({ page, api, signIn }) => {
