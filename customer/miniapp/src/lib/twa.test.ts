@@ -21,6 +21,10 @@ const fake = {
   HapticFeedback: { selectionChanged: vi.fn(), notificationOccurred: vi.fn(), impactOccurred: vi.fn() },
   BackButton: { show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn() },
   showPopup: vi.fn(),
+  // Bot API 8.0: the device's safe area, the band Telegram's own buttons cover, and the full-screen flag
+  safeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+  contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+  isFullscreen: false,
 };
 vi.mock('./telegram', () => ({ tg: fake }));
 
@@ -44,7 +48,14 @@ beforeEach(() => {
 afterEach(() => {
   Reflect.deleteProperty(window, 'TelegramWebviewProxy');
   delete document.documentElement.dataset.theme;
+  delete document.documentElement.dataset.fullscreen;
+  document.documentElement.removeAttribute('style');
+  fake.safeAreaInset = { top: 0, bottom: 0, left: 0, right: 0 };
+  fake.contentSafeAreaInset = { top: 0, bottom: 0, left: 0, right: 0 };
+  fake.isFullscreen = false;
 });
+
+const rootVar = (name: string) => document.documentElement.style.getPropertyValue(name);
 
 describe('outside Telegram', () => {
   it('is not hosted, even with launch data (the e2e tests and a browser with test parameters)', () => {
@@ -145,5 +156,82 @@ describe('inside Telegram', () => {
     expect(answer).not.toBe(false);
     await expect(answer).resolves.toBe('ok');
     expect(twa.nativePopup(undefined, 'x'.repeat(300), [{ id: 'ok', text: 'OK' }])).toBe(false);
+  });
+});
+
+describe('safe areas (Bot API 8.0 full-screen)', () => {
+  it('publishes nothing outside Telegram, so the CSS falls back to env(safe-area-inset-*)', () => {
+    fake.safeAreaInset = { top: 47, bottom: 34, left: 0, right: 0 };
+    twa.startTelegramChrome();
+    expect(rootVar('--rz-tg-safe-top')).toBe('');
+    expect(rootVar('--rz-tg-content-top')).toBe('');
+    expect(document.documentElement.dataset.fullscreen).toBeUndefined();
+  });
+
+  it('publishes nothing on a client before 8.0', () => {
+    openInTelegram('7.10');
+    fake.safeAreaInset = { top: 47, bottom: 34, left: 0, right: 0 };
+    twa.startTelegramChrome();
+    expect(rootVar('--rz-tg-safe-top')).toBe('');
+  });
+
+  it('publishes zero insets in the normal mode', () => {
+    openInTelegram('8.0');
+    twa.startTelegramChrome();
+    expect(rootVar('--rz-tg-safe-top')).toBe('0px');
+    expect(rootVar('--rz-tg-content-top')).toBe('0px');
+    expect(document.documentElement.dataset.fullscreen).toBeUndefined();
+  });
+
+  it("follows full-screen: the status bar and Telegram's buttons, then back to normal", () => {
+    openInTelegram('8.0');
+    const stop = twa.startTelegramChrome();
+
+    fake.isFullscreen = true;
+    fake.safeAreaInset = { top: 47, bottom: 34, left: 0, right: 0 };
+    fake.contentSafeAreaInset = { top: 46, bottom: 0, left: 0, right: 0 };
+    handlers.get('fullscreenChanged')?.();
+    expect(rootVar('--rz-tg-safe-top')).toBe('47px');
+    expect(rootVar('--rz-tg-content-top')).toBe('46px');
+    expect(rootVar('--rz-tg-safe-bottom')).toBe('34px');
+    expect(document.documentElement.dataset.fullscreen).toBe('true');
+
+    // Landscape: the notch moves to a side
+    fake.safeAreaInset = { top: 0, bottom: 21, left: 59, right: 59 };
+    handlers.get('safeAreaChanged')?.();
+    expect(rootVar('--rz-tg-safe-left')).toBe('59px');
+    expect(rootVar('--rz-tg-safe-right')).toBe('59px');
+    fake.contentSafeAreaInset = { top: 40, bottom: 0, left: 0, right: 0 };
+    handlers.get('contentSafeAreaChanged')?.();
+    expect(rootVar('--rz-tg-content-top')).toBe('40px');
+
+    fake.isFullscreen = false;
+    fake.safeAreaInset = { top: 0, bottom: 0, left: 0, right: 0 };
+    fake.contentSafeAreaInset = { top: 0, bottom: 0, left: 0, right: 0 };
+    handlers.get('fullscreenChanged')?.();
+    expect(rootVar('--rz-tg-safe-top')).toBe('0px');
+    expect(document.documentElement.dataset.fullscreen).toBeUndefined();
+
+    stop();
+    for (const event of ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']) {
+      expect(fake.offEvent).toHaveBeenCalledWith(event, expect.any(Function));
+    }
+  });
+
+  it('ignores missing or broken values', () => {
+    openInTelegram('8.0');
+    (fake as { safeAreaInset: unknown }).safeAreaInset = undefined;
+    (fake.contentSafeAreaInset as Record<string, unknown>).top = Number.NaN;
+    twa.startTelegramChrome();
+    expect(rootVar('--rz-tg-safe-top')).toBe('0px');
+    expect(rootVar('--rz-tg-content-top')).toBe('0px');
+  });
+
+  it('never asks for full-screen itself', () => {
+    openInTelegram('8.0');
+    const requestFullscreen = vi.fn();
+    Object.assign(fake, { requestFullscreen });
+    twa.startTelegramChrome();
+    expect(requestFullscreen).not.toHaveBeenCalled();
   });
 });

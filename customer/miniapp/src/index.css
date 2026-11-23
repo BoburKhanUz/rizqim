@@ -22,9 +22,29 @@
   /* Height of what is fixed at the bottom of the screen (bottom nav, cart bar, main button fallback), measured by
      components/ui/BottomDock.tsx. Page content is padded by it. */
   --rz-dock-height: 0px;
-  /* Telegram's own safe areas (Bot API 8.0+ sets --tg-content-safe-area-inset-*; older clients leave them unset) */
-  --rz-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
-  --rz-inset-bottom: calc(var(--rz-safe-bottom) + var(--tg-content-safe-area-inset-bottom, 0px));
+  /*
+   * Safe areas (Bot API 8.0+, https://core.telegram.org/bots/webapps).
+   *   --rz-safe-*:    the device's safe area: status bar / notch / home indicator / landscape cut-outs. Telegram gives
+   *                   it as --tg-safe-area-inset-* (telegram-web-app.js) and lib/twa.ts again as --rz-tg-safe-*
+   *                   (from WebApp.safeAreaInset); a client before 8.0 gives neither, and env(safe-area-inset-*)
+   *                   (viewport-fit=cover in index.html) is the fallback. The largest wins, nothing is added twice.
+   *   --rz-content-*: the band inside it that Telegram's own controls cover (full-screen: the "Close" and "⌄ ⋯"
+   *                   buttons at the top): --tg-content-safe-area-inset-* / --rz-tg-content-* (contentSafeAreaInset).
+   *   --rz-inset-*:   both together, what the layout keeps clear. In the normal (half / expanded) mode all of them
+   *                   are 0 and nothing moves; in full-screen on an iPhone the top is about 47 + 46 px.
+   */
+  --rz-safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--rz-tg-safe-top, 0px));
+  --rz-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), var(--rz-tg-safe-bottom, 0px));
+  --rz-safe-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px), var(--rz-tg-safe-left, 0px));
+  --rz-safe-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px), var(--rz-tg-safe-right, 0px));
+  --rz-content-top: max(var(--tg-content-safe-area-inset-top, 0px), var(--rz-tg-content-top, 0px));
+  --rz-content-bottom: max(var(--tg-content-safe-area-inset-bottom, 0px), var(--rz-tg-content-bottom, 0px));
+  --rz-content-left: max(var(--tg-content-safe-area-inset-left, 0px), var(--rz-tg-content-left, 0px));
+  --rz-content-right: max(var(--tg-content-safe-area-inset-right, 0px), var(--rz-tg-content-right, 0px));
+  --rz-inset-top: calc(var(--rz-safe-top) + var(--rz-content-top));
+  --rz-inset-bottom: calc(var(--rz-safe-bottom) + var(--rz-content-bottom));
+  --rz-inset-left: calc(var(--rz-safe-left) + var(--rz-content-left));
+  --rz-inset-right: calc(var(--rz-safe-right) + var(--rz-content-right));
 }
 
 @theme {
@@ -46,6 +66,8 @@
   html {
     /* Focus and scrollIntoView keep what they reveal above the bottom dock */
     scroll-padding-bottom: calc(var(--rz-dock-height) + 12px);
+    /* ... and below the top band (status bar and Telegram's buttons in full-screen) */
+    scroll-padding-top: calc(var(--rz-inset-top) + 12px);
   }
   body {
     /* Prevent text selection in Telegram Web App */
@@ -62,6 +84,24 @@
 
 /* Custom Utilities for safe areas in Telegram */
 @layer utilities {
+  /* The app shell: keeps the content clear of the status bar, Telegram's full-screen buttons and side cut-outs */
+  .pt-inset {
+    padding-top: var(--rz-inset-top);
+  }
+  .px-inset {
+    padding-left: var(--rz-inset-left);
+    padding-right: var(--rz-inset-right);
+  }
+  /* A full-screen message (loader, error, offline): 24px around it, more where the insets need it */
+  .p-inset-screen {
+    padding: calc(var(--rz-inset-top) + 24px) calc(var(--rz-inset-right) + 24px) calc(var(--rz-inset-bottom) + 24px)
+      calc(var(--rz-inset-left) + 24px);
+  }
+  /* Sticks right under the top band instead of under the status bar */
+  .sticky-top {
+    position: sticky;
+    top: var(--rz-inset-top);
+  }
   .pb-safe {
     padding-bottom: var(--rz-inset-bottom);
   }

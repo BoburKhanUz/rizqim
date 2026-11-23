@@ -75,6 +75,16 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 - `AddressLocationField`: "Joylashuvimni aniqlash" (avval Telegram `LocationManager`, Bot API 8.0+, so'ng brauzer geolokatsiyasi), manzil qidirish (kamida 3 belgi), xaritada bosish yoki pinni sudrash — 500 ms dan keyin nuqta manzilga aylantiriladi. Mijoz o'zi yozgan manzil ustidan yozilmaydi, faqat taklif qilinadi. Pin — haqiqat manbai: koordinata haqiqiy nuqta tanlanmaguncha `null`, standart yoki "o'ylab topilgan" nuqta yo'q (shunday eski saqlangan manzillarni `useAddressStore` migratsiyasi tozalaydi).
 - Leaflet va CSS'i faqat manzil formasi ochilganda yuklanadi (`LazyMapPicker`, alohida `leaflet` chunk); yuklanmasa `MapErrorBoundary` faqat xarita o'rnini almashtiradi, forma ishlashda qoladi. Pin ham, qo'shimcha markaz (masalan, do'kon joylashuvi) ham bo'lmasa xarita Toshkentga qaratiladi (faqat ko'rinish, manzil emas).
 
+## To'liq ekran va xavfsiz hududlar (safe area)
+
+Telegram Bot API 8.0+ to'liq ekran rejimida ilova telefon status bari va Telegramning "Yopish" / "⌄ ⋯" tugmalari ostidan
+chiziladi. `src/index.css` `--rz-inset-*` (top/bottom/left/right) = qurilma xavfsiz hududi (`--tg-safe-area-inset-*`,
+eski klientlarda `env(safe-area-inset-*)`) + Telegram tugmalari hududi (`--tg-content-safe-area-inset-*`). `lib/twa.ts`
+(`applySafeAreas`) ularni `safeAreaInset` / `contentSafeAreaInset` dan `--rz-tg-*` sifatida ham yozadi va
+`safeAreaChanged`, `contentSafeAreaChanged`, `fullscreenChanged` hodisalarini kuzatadi. Oddiy rejimda hammasi 0.
+Ilova o'zi to'liq ekran so'ramaydi (`requestFullscreen` chaqirilmaydi): buni foydalanuvchi yoki BotFather sozlamasi hal
+qiladi. Tekshiruv: `e2e/safe-area.spec.ts` (`MINIAPP_SHOTS_DIR=<papka>` bilan skrinshotlar ham oladi).
+
 ## Ma'lumot yangilanishi
 
 Ro'yxatlar so'rov (polling) bilan yangilanadi (`lib/polling.ts`): mijoz buyurtmalari 10 s, menejer 8 s, kuryer va admin buyurtmalari 15 s, xabarnomalar 15 s, egasi moliyasi 10 s, smena xulosasi 30 s, qarzdorlar 60 s. Sahifa yashirin bo'lsa so'rov to'xtaydi, qaytganda yoki tarmoq tiklanganda yangilanadi; ketma-ket xatolarda interval ikki baravar oshadi (ko'pi bilan 120 s). Pul summalari API'dan o'nli satr (`"15000.00"`) bo'lib keladi: hisob-kitob va ko'rsatishdan oldin `lib/money.ts` (`toAmount`, `sumAmounts`) va `lib/format.ts` (`formatUzbekSum`) dan o'tkaziladi.

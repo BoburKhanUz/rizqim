@@ -8,7 +8,7 @@ import { Button, Spinner } from '@rizqim/ui';
 export const FullScreenLoader = ({ message }: { message?: string }) => {
   const { t } = useLanguageStore();
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-page" role="status">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-page p-inset-screen" role="status">
       <Spinner className="size-10 border-4 text-brand" />
       <p className="text-body font-medium text-fg-muted">{message ?? t('loading')}</p>
     </div>
@@ -20,7 +20,7 @@ export const FullScreenLoader = ({ message }: { message?: string }) => {
 export const ErrorFallback = ({ error }: { error?: string | null }) => {
   const { t } = useLanguageStore();
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-6 text-center" role="alert">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-inset-screen text-center" role="alert">
       <span className="flex size-14 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
         <LockKeyhole aria-hidden="true" className="size-7" />
       </span>

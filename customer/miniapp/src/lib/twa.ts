@@ -121,19 +121,65 @@ function applyTheme(): void {
   }
 }
 
-// Starts following Telegram's theme (and sets up the chrome once). Returns the function that stops it.
+/* --------------------------------------------------------------- safe areas */
+
+// Bot API 8.0 (https://core.telegram.org/bots/webapps): `safeAreaInset` is the device's own safe area (status bar,
+// notch, home indicator, landscape cut-outs), `contentSafeAreaInset` the band Telegram's own controls cover inside it
+// (in full-screen: the "Close" and "⌄ ⋯" buttons at the top). Both are 0 in the normal (half / expanded) mode.
+// telegram-web-app.js already mirrors them as --tg-safe-area-inset-* and --tg-content-safe-area-inset-*; they are
+// published again here as --rz-tg-safe-* / --rz-tg-content-* so the layout does not depend on that script's version
+// (index.css takes the larger of the two, so nothing is counted twice).
+type Inset = Partial<Record<InsetSide, number>>;
+type InsetSide = 'top' | 'bottom' | 'left' | 'right';
+const SIDES: InsetSide[] = ['top', 'bottom', 'left', 'right'];
+type FullscreenApp = { safeAreaInset?: Inset; contentSafeAreaInset?: Inset; isFullscreen?: boolean };
+// The events that change the insets (orientation, entering / leaving full-screen)
+const INSET_EVENTS = ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged'] as const;
+
+const px = (value: unknown) => `${typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0}px`;
+
+// Publishes the insets and <html data-fullscreen>; outside Telegram or on a client before 8.0 it removes them
+// (index.css then falls back to env(safe-area-inset-*)).
+export function applySafeAreas(): void {
+  const root = document.documentElement;
+  const app = webApp() as (Partial<WebApp> & FullscreenApp) | undefined;
+  const known = supports('8.0') && app !== undefined;
+  for (const side of SIDES) {
+    if (known) {
+      root.style.setProperty(`--rz-tg-safe-${side}`, px(app.safeAreaInset?.[side]));
+      root.style.setProperty(`--rz-tg-content-${side}`, px(app.contentSafeAreaInset?.[side]));
+    } else {
+      root.style.removeProperty(`--rz-tg-safe-${side}`);
+      root.style.removeProperty(`--rz-tg-content-${side}`);
+    }
+  }
+  if (known && app.isFullscreen) root.dataset.fullscreen = 'true';
+  else delete root.dataset.fullscreen;
+}
+
+// Starts following Telegram's theme and safe areas (and sets up the chrome once). Returns the function that stops it.
+// The app never asks for full-screen itself (requestFullscreen): the user, or the bot's Mini App setting in
+// BotFather, decides; the layout follows whichever mode Telegram opens it in.
 export function startTelegramChrome(): () => void {
   applyTheme();
+  applySafeAreas();
   const app = webApp();
   if (supports('7.7') && typeof app?.disableVerticalSwipes === 'function') {
     // Scrolling a long list must not pull the whole Mini App down and close it
     safely(() => app.disableVerticalSwipes!());
   }
   if (typeof app?.onEvent !== 'function') return () => {};
+  // The SDK's event list predates Bot API 8.0
+  const on = app.onEvent as (event: string, handler: () => void) => void;
+  const off = app.offEvent as ((event: string, handler: () => void) => void) | undefined;
   const onThemeChanged = () => applyTheme();
-  safely(() => app.onEvent!('themeChanged', onThemeChanged));
+  const onInsetsChanged = () => applySafeAreas();
+  safely(() => on.call(app, 'themeChanged', onThemeChanged));
+  for (const event of INSET_EVENTS) safely(() => on.call(app, event, onInsetsChanged));
   return () => {
-    if (typeof app.offEvent === 'function') safely(() => app.offEvent!('themeChanged', onThemeChanged));
+    if (typeof off !== 'function') return;
+    safely(() => off.call(app, 'themeChanged', onThemeChanged));
+    for (const event of INSET_EVENTS) safely(() => off.call(app, event, onInsetsChanged));
   };
 }
 

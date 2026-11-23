@@ -57,9 +57,13 @@
   --rz-info-soft: #eaf1fe;
   --rz-info-soft-fg: #1e40af;
 
-  /* Bottom safe area (home indicator). A host with more insets (the Mini App) redefines both. */
+  /* Safe areas (status bar / notch, home indicator). A host with more insets (the Mini App: Telegram's full-screen
+     buttons) redefines them. */
   --rz-safe-bottom: env(safe-area-inset-bottom, 0px);
   --rz-inset-bottom: var(--rz-safe-bottom);
+  --rz-inset-top: env(safe-area-inset-top, 0px);
+  --rz-inset-left: env(safe-area-inset-left, 0px);
+  --rz-inset-right: env(safe-area-inset-right, 0px);
 }
 
 /* The dark palette: twice, for an explicit dark theme and for a dark system without an explicit one. */

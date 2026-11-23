@@ -25,3 +25,4 @@ export { InlineError } from './InlineError';
 export { Dialog } from './Dialog';
 export { PageHeader } from './PageHeader';
 export { ProductImage } from './ProductImage';
+export { BrandLogo } from './BrandLogo';
