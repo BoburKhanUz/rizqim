@@ -128,7 +128,7 @@ class PaymentLateSettlementTest extends TestCase
         $this->assertSame(PaymentStatus::REFUNDED, Payment::where('provider_transaction_id', 'early-1')->first()->status);
     }
 
-    public function test_payme_refund_after_delivery_refunds_a_store_owned_order_and_reverses_its_commission(): void
+    public function test_payme_refund_after_delivery_of_a_store_owned_order_is_shown_but_keeps_its_commission_for_review(): void
     {
         $this->store->update([
             'payment_account_type' => 'own_account',
@@ -152,15 +152,15 @@ class PaymentLateSettlementTest extends TestCase
         $this->assertTrue($payment->payload['refunded_after_delivery']);
         // Payme has already returned the money: nothing is left for a manual refund
         $this->assertArrayNotHasKey('manual_refund_required', $payment->payload);
-        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
+        // Wave P: signed with the store's own key, so RIZQIM's commission waits for a manager (PaymentStoreRefundReviewTest)
+        $this->assertSame('pending', $payment->payload['store_refund_review']['status']);
+        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
         $this->assertSame(PaymentStatus::REFUNDED, $order->fresh()->payment_status);
-        $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
-        $this->assertSame(1, StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFUND->value)->count());
+        $this->assertEquals(5000, (float) $this->store->fresh()->debt_balance);
+        $this->assertSame(0, StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFUND->value)->count());
         $this->assertSame(0, $this->settlements($order));
-        $history = OrderStatusHistory::where('order_id', $order->id)->where('status', 'refunded')->sole();
-        $this->assertNull($history->user_id);
-        $this->assertStringContainsString('Payme', $history->notes);
-        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'refund after delivery'));
+        $this->assertSame(0, OrderStatusHistory::where('order_id', $order->id)->where('status', 'refunded')->count());
+        Log::shouldHaveReceived('critical')->once();
     }
 
     public function test_payme_can_return_a_platform_orders_money_once_the_admin_refund_took_it_back_from_the_store(): void

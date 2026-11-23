@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string|null $commission_rate P4-21: the percent charged at checkout
  * @property \Illuminate\Support\Carbon|null $settlement_failed_at
  * @property int $settlement_attempts
+ * @property \Illuminate\Support\Carbon|null $store_refund_review_at Wave P: a provider refund of the store's own cashbox waits for a manager (StoreRefundReview)
  * @property \App\Enums\CancelReason|null $cancel_reason
  * @property string|null $cancel_note
  * @property int|null $cancelled_by
@@ -98,7 +99,7 @@ class Order extends Model
         'delivery_price', 'total_price', 'currency', 'notes', 'shipping_address', 'created_at', 'updated_at',
         'deleted_at', 'payment_method', 'courier_id', 'commission_amount', 'branch_id', 'address_id', 'manager_id',
         'payment_owner', 'discount', 'promo_code_id', 'settlement_failed_at', 'settlement_error',
-        'settlement_attempts', 'cancel_reason', 'cancel_note', 'cancelled_by', 'channel', 'external_id',
+        'settlement_attempts', 'store_refund_review_at', 'cancel_reason', 'cancel_note', 'cancelled_by', 'channel', 'external_id',
         'service_charge_amount', 'place_fee_amount', 'guests_count', 'hall_ref', 'table_ref', 'delivery_zone_id',
         'delivery_zone_name', 'delivery_zone_price', 'delivery_min_order_amount', 'hall_id', 'table_id', 'waiter_id',
         'device_id', 'version', 'room_fee_amount', 'min_spend_topup_amount', 'booking_id', 'due_at', 'shift_id',
@@ -128,6 +129,10 @@ class Order extends Model
     
     protected $appends = ['address', 'type'];
 
+    // Wave P review: the platform's review of a store-initiated provider refund is internal (control centre only: the
+    // admin order card reads it explicitly); never serialized into the customer's, the store's or the POS order JSON
+    protected $hidden = ['store_refund_review_at'];
+
     /** The column default, so an order just created reads its channel like one loaded back (P1-21). */
     protected $attributes = [
         'channel' => 'telegram',
@@ -149,6 +154,8 @@ class Order extends Model
             // A delivered order whose ledger booking failed and is retried (SettlementRecoveryService)
             'settlement_failed_at' => 'datetime',
             'settlement_attempts' => 'integer',
+            // Wave P: since when a provider refund on the store's own cashbox waits for a manager (StoreRefundReview)
+            'store_refund_review_at' => 'datetime',
             // Why the order was cancelled or rejected; null on older cancellations (App\Enums\CancelReason)
             'cancel_reason' => \App\Enums\CancelReason::class,
             // P1-21: where the order came from; service charge and place fee lines (POS hall), guests

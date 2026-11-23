@@ -9,6 +9,7 @@ use App\Services\Admin\Today\Attention\OfflineTerminalsSource;
 use App\Services\Admin\Today\Attention\OverdueInvoicesSource;
 use App\Services\Admin\Today\Attention\PendingPayoutsSource;
 use App\Services\Admin\Today\Attention\SettlementFailuresSource;
+use App\Services\Admin\Today\Attention\StoreRefundReviewsSource;
 use App\Services\Admin\Today\Attention\StuckTopupsSource;
 use App\Services\Admin\Today\PlatformStats;
 use Illuminate\Console\Scheduling\Schedule;
@@ -29,6 +30,7 @@ class AdminTodayServiceProvider extends ServiceProvider
             OverdueInvoicesSource::class,
             PendingPayoutsSource::class,
             StuckTopupsSource::class,
+            StoreRefundReviewsSource::class,
         ], AttentionSource::TAG);
     }
 
