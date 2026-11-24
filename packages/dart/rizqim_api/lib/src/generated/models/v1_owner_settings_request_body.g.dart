@@ -22,6 +22,8 @@ V1OwnerSettingsRequestBody _$V1OwnerSettingsRequestBodyFromJson(
   address: json['address'] as String?,
   locationUrl: json['location_url'] as String?,
   minOrderAmount: json['min_order_amount'] as num?,
+  legalAddress: json['legal_address'] as String?,
+  complaintContact: json['complaint_contact'] as String?,
   tin: json['tin'] as String?,
   taxRegime: json['tax_regime'] == null
       ? null
@@ -46,6 +48,8 @@ Map<String, dynamic> _$V1OwnerSettingsRequestBodyToJson(
   'location_url': instance.locationUrl,
   'is_open': instance.isOpen,
   'min_order_amount': instance.minOrderAmount,
+  'legal_address': instance.legalAddress,
+  'complaint_contact': instance.complaintContact,
   'tin': instance.tin,
   'tax_regime': instance.taxRegime,
   'fiscal_settings': instance.fiscalSettings,

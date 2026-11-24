@@ -47,6 +47,7 @@
     document.querySelectorAll('[data-cfg]').forEach(function (el) { var v = get(el.getAttribute('data-cfg')); if (v) el.textContent = v; });
     document.querySelectorAll('[data-cfg-i18n]').forEach(function (el) { var v = localised(get(el.getAttribute('data-cfg-i18n'))); if (v) el.textContent = v; });
     document.querySelectorAll('[data-cfg-href]').forEach(function (el) { var v = get(el.getAttribute('data-cfg-href')); if (v) el.setAttribute('href', v); });
+    document.querySelectorAll('[data-cfg-mailto]').forEach(function (el) { var v = get(el.getAttribute('data-cfg-mailto')); if (v) el.setAttribute('href', 'mailto:' + v); });
     document.querySelectorAll('[data-cfg-host]').forEach(function (el) { var v = get(el.getAttribute('data-cfg-host')); if (v) el.textContent = String(v).replace(/^https?:\/\//, '').replace(/\/$/, ''); });
     document.querySelectorAll('[data-cfg-show]').forEach(function (el) { el.hidden = !localised(get(el.getAttribute('data-cfg-show'))); });
     document.querySelectorAll('a[data-cfg-href^="social."]').forEach(function (el) { el.hidden = !get(el.getAttribute('data-cfg-href')); });

@@ -159,10 +159,21 @@ export interface StoreListItem {
   delivery_time?: string; // not sent by this endpoint
 }
 
+// Wave P (receipts): who sells the food (App\Domain\Receipts\SellerDetails): the store's legal name, STIR, legal
+// address, phone and complaint contact. Any of them may be null (the screen leaves it out).
+export interface StoreSeller {
+  legal_name: string | null;
+  tin: string | null;
+  legal_address: string | null;
+  phone: string | null;
+  complaint_contact: string | null;
+}
+
 // What GET /catalog?store_id=... returns as `store`: the store plus its branches and reviews.
 export interface StoreCatalogStore extends StoreBase {
   branches: BranchSummary[];
   ratings: StoreRating[];
+  seller?: StoreSeller | null; // wave P (missing on an older backend)
 }
 
 // GET /owner/settings (the owner's own store, settings screen).

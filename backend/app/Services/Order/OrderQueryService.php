@@ -158,6 +158,17 @@ class OrderQueryService
     }
 
     /**
+     * Wave P (receipts): whether the user's list is their own orders as a buyer (the customer role only), whose items
+     * then carry `seller` and `receipts` (App\Domain\Receipts\CustomerOrderReceipts). Floor staff (cashier, waiter,
+     * cook, hostess) also list "their own" orders, but those are the till orders they rang up: no customer extras.
+     */
+    public function listsOwnOrders(User $user): bool
+    {
+        // A user created without a role is a customer (users.role defaults to it; the model may not have read it back)
+        return ($user->role ?? UserRole::CUSTOMER) === UserRole::CUSTOMER;
+    }
+
+    /**
      * The orders this user may list, with the relations their app shows (eager loaded: a fixed number of queries
      * however many orders there are). Every scope shares it, so items have the same shape everywhere.
      *

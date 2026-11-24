@@ -4,6 +4,7 @@
  *
  * Konfiguratsiya kalitlari:
  *   siteUrl, botUrl, businessUrl, phone, phoneHref, telegramHandle, telegramUrl, address (uz/ru),
+ *   legal.name, legal.stir, legal.address (uz/ru), legal.email (maxfiylik va shartlar sahifalaridagi rekvizitlar),
  *   social.telegram, social.instagram (bo'sh = ko'rinmaydi), faq.<id> (javob; null = "Tez orada"),
  *   tariffs.* (null = "Tariflar" bloki umuman ko'rinmaydi), photos.<nom> (true = img/photos/<nom>.webp va <nom>-1x.webp ishlatiladi).
  * Hech qachon o'ylab topilgan narx yozmang: faqat egasi bergan haqiqiy qiymat.
@@ -24,6 +25,16 @@ window.RZ_SITE = {
   telegramHandle: '',
   telegramUrl: '',
   address: { uz: '', ru: '' },
+
+  // EGASI BERADI: kompaniya rekvizitlari. /maxfiylik va /shartlar sahifalarining oxirgi bo'limida ko'rsatiladi
+  // (telefon va Telegram yuqoridagi phone, phoneHref, telegramHandle, telegramUrl dan olinadi).
+  // Bo'sh ('') = sahifada "[egasi kiritadi]" ko'rinadi. Hech qachon o'ylab topilgan qiymat yozmang.
+  legal: {
+    name: '',                 // yuridik nomi, masalan: "... MChJ" (guvohnomadagidek)
+    stir: '',                 // STIR (9 raqam)
+    address: { uz: '', ru: '' }, // yuridik manzil
+    email: '',                // shaxsga doir ma'lumotlar va murojaatlar uchun e-pochta (mailto havolasi o'zi yasaladi)
+  },
 
   // EGASI BERADI: faqat haqiqatan bor ijtimoiy tarmoqlar. Bo'sh qator ('') = tugma ko'rinmaydi
   social: {

@@ -35,6 +35,11 @@ use App\Traits\Auditable;
  *
  * Wave M5 S3: the signed offline queue (App\Domain\Pos\Sync\SignaturePolicy)
  * @property bool $pos_sync_enforce_signatures false: observe (record only); true: enforce
+ *
+ * Wave P (receipts): the seller's details shown to customers (App\Domain\Receipts\SellerDetails)
+ * @property string|null $legal_name set by RIZQIM (the application check), never by the owner
+ * @property string|null $legal_address
+ * @property string|null $complaint_contact a phone or a Telegram handle for complaints
  */
 class Store extends Model
 {
@@ -61,6 +66,9 @@ class Store extends Model
         'subscription_debt', 'commission_overrides', 'delivery_courier', // P4-21
         'marketplace_offline_minutes', // wave M2: the reachability rule's limit (App\Domain\Marketplace\StoreReachability)
         'pos_sync_enforce_signatures', // wave M5 S3: shown through GET /owner/pos/sync-signing only
+        // Wave P (receipts): reach customers only inside `seller` (App\Domain\Receipts\SellerDetails), the owner
+        // through GET /owner/settings
+        'legal_address', 'complaint_contact',
     ];
 
     /**

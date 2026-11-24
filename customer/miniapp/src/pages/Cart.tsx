@@ -17,6 +17,7 @@ import { AlertTriangle, Banknote, Bike, ChevronDown, CreditCard, MapPin, Message
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ProductSheet from '../components/ProductSheet';
+import { SellerInfo } from '../components/SellerInfo';
 import { DeliveryQuoteNote } from '../components/catalog/DeliveryQuoteNote';
 import { PickupTimePicker } from '../components/catalog/PickupTimePicker';
 import { SoldOutBadge } from '../components/catalog/SoldOutBadge';
@@ -45,7 +46,7 @@ import { ORDERS_KEY } from '../hooks/useOrders';
 import AddressLocationField from '../features/address/AddressLocationField';
 import { isOnAnyBranch, toLatLng } from '../features/address/coordinates';
 import type { AddressLocationValue, LatLng } from '../features/address/types';
-import type { ApiErrorBody, ApiResponse, BranchSummary, Product, PromoValidation, StoreCatalog, StoreListItem } from '../types';
+import type { ApiErrorBody, ApiResponse, BranchSummary, Product, PromoValidation, StoreCatalog, StoreListItem, StoreSeller } from '../types';
 
 const NO_PRODUCTS: Product[] = [];
 const CART_SETTLE_MS = 400;
@@ -125,7 +126,8 @@ export default function Cart() {
   const [noteOpen, setNoteOpen] = useState(false);
 
   // The upsell catalog of the store it was fetched for, so a different store's products are never shown
-  const [catalog, setCatalog] = useState<{ storeId: string; products: Product[]; accepting: boolean } | null>(null);
+  // Wave P: the menu's store also says who sells the food (`seller`), shown before payment
+  const [catalog, setCatalog] = useState<{ storeId: string; products: Product[]; accepting: boolean; seller: StoreSeller | null } | null>(null);
   const [catalogReload, setCatalogReload] = useState(0); // bumped when the menu may have changed under the cart
 
   // The customer's own pick (the way actually used is deliveryMethod, which only ever is one the store takes)
@@ -221,7 +223,7 @@ export default function Cart() {
       api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${storeId}`).then(res => {
         if (res.data?.success) {
           // Wave M2: the menu's store says whether it takes orders now (open, not locked, reachable)
-          setCatalog({ storeId, products: res.data.data.products || [], accepting: isAcceptingOrders(res.data.data.store) });
+          setCatalog({ storeId, products: res.data.data.products || [], accepting: isAcceptingOrders(res.data.data.store), seller: res.data.data.store?.seller ?? null });
         }
       }).catch(err => {
         logApiError('Failed to fetch store products for upsell', err);
@@ -1110,6 +1112,9 @@ export default function Cart() {
           )}
         </div>
       </Card>
+
+      {/* Wave P: who sells the food, before the order is placed (consumer law art. 28-1) */}
+      {catalog && catalog.storeId === cartStoreId && <SellerInfo seller={catalog.seller} showOperator />}
 
       {/* Payment method: a vertical list of radios */}
       <Section title="To'lov usuli">

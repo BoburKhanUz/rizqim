@@ -74,7 +74,7 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
       onSuccess: () => setSaved(t('settings_saved')),
       onError: (err) => {
         const next: Record<string, string> = {};
-        for (const field of ['name', 'timezone', 'phone', 'min_order_amount', 'payment_settings', 'description', 'address', 'location_url']) {
+        for (const field of ['name', 'timezone', 'phone', 'min_order_amount', 'payment_settings', 'description', 'address', 'location_url', 'legal_address', 'complaint_contact']) {
           const message = getApiFieldError(err, field);
           if (message) next[field] = message;
         }
@@ -123,6 +123,35 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
           </Field>
         </Card>
       </Section>
+
+      {(draft.legalAddress !== null || draft.complaintContact !== null) && (
+        <Section title={t('settings_sellerSection')}>
+          <Card className="flex flex-col gap-4">
+            <p className="text-footnote text-fg-muted">{t('settings_sellerHint')}</p>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-footnote text-fg-muted">{t('settings_legalName')}</dt>
+                <dd className="text-body font-bold text-fg">{settings.legal_name || t('settings_notSet')}</dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-footnote text-fg-muted">{t('settings_tin')}</dt>
+                <dd className="text-body font-bold text-fg">{settings.tin || t('settings_notSet')}</dd>
+              </div>
+            </dl>
+            <p className="text-footnote text-fg-muted">{t('settings_legalNameHint')}</p>
+            {draft.legalAddress !== null && (
+              <Field label={t('settings_legalAddress')} hint={t('settings_legalAddressHint')} error={errors.legal_address}>
+                {(props) => <textarea {...props} rows={2} maxLength={500} value={draft.legalAddress ?? ''} onChange={(event) => patch('legalAddress', event.target.value)} className={`${fieldClass} resize-none`} />}
+              </Field>
+            )}
+            {draft.complaintContact !== null && (
+              <Field label={t('settings_complaintContact')} hint={t('settings_complaintContactHint')} error={errors.complaint_contact}>
+                {(props) => <input {...props} type="text" maxLength={255} autoComplete="off" value={draft.complaintContact ?? ''} onChange={(event) => patch('complaintContact', event.target.value)} className={fieldClass} />}
+              </Field>
+            )}
+          </Card>
+        </Section>
+      )}
 
       <Section title={t('settings_ordersSection')}>
         <Card className="flex flex-col gap-3">

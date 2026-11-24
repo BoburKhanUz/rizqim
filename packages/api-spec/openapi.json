@@ -42027,7 +42027,7 @@
         "/v1/orders": {
             "get": {
                 "operationId": "order.index",
-                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.",
+                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.\n\nWave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a\n9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the\nstore's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:\nready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.",
                 "summary": "List orders",
                 "tags": [
                     "Orders"
@@ -78551,6 +78551,24 @@
                                                         null
                                                     ]
                                                 },
+                                                "legal_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "legal_address": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "complaint_contact": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "telegram": {
                                                     "type": "object",
                                                     "properties": {
@@ -78681,6 +78699,9 @@
                                                 "allowed_methods",
                                                 "tin",
                                                 "tax_regime",
+                                                "legal_name",
+                                                "legal_address",
+                                                "complaint_contact",
                                                 "telegram",
                                                 "fiscal_settings"
                                             ]
@@ -78722,7 +78743,7 @@
             },
             "post": {
                 "operationId": "ownerSettings.update",
-                "description": "`payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per\nprovider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`. Wave P: with an own\nmerchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and\ncallback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back\n(has_consumer_secret...).\n\nP3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as\nPUT /owner/fiscal/settings takes them; left out = kept.",
+                "description": "`payment_settings` is an object (not a list): the delivery fee and switches, working hours and one entry per\nprovider. A provider that cannot be enabled yet (uzum, paynet) is a 422 on `payment_settings`. Wave P: with an own\nmerchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and\ncallback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back\n(has_consumer_secret...).\n\nP3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as\nPUT /owner/fiscal/settings takes them; left out = kept.\n\nWave P (receipts): optional `legal_address` and `complaint_contact` (the seller's details customers see; left out =\nkept, empty = cleared); a change is written to the audit log (`store.seller_details_updated`). `legal_name` is\nnot taken here.",
                 "summary": "Update store settings",
                 "tags": [
                     "Owner: settings"
@@ -78793,6 +78814,20 @@
                                             "null"
                                         ],
                                         "minimum": 0
+                                    },
+                                    "legal_address": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Wave P: yuridik manzil (mijozga \"Sotuvchi\" blokida ko'rinadi), ko'pi bilan 500 belgi."
+                                    },
+                                    "complaint_contact": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Wave P: shikoyat uchun aloqa (telefon yoki Telegram), ko'pi bilan 255 belgi."
                                     },
                                     "tin": {
                                         "type": [
