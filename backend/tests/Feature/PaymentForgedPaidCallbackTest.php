@@ -142,7 +142,8 @@ class PaymentForgedPaidCallbackTest extends TestCase
         $this->payme('CreateTransaction', ['id' => 'real-y', 'time' => 1764000000000, 'amount' => 5000000, 'account' => $account], $this->stores['y']['payme'])
             ->assertJsonPath('result.state', 1);
         $ownOrder = $this->order('x', 'payme');
-        $this->payme('PerformTransaction', ['id' => 'real-y'], $mine)->assertJsonPath('error.code', -32504);
+        // Security review F5: Y's transaction is unknown to X's cashbox, with or without an account
+        $this->payme('PerformTransaction', ['id' => 'real-y'], $mine)->assertJsonPath('error.code', -31003);
         $this->payme('PerformTransaction', ['id' => 'real-y', 'account' => ['order_id' => $ownOrder->uuid]], $mine)->assertJsonPath('error.code', -31003);
         $this->payme('CancelTransaction', ['id' => 'real-y', 'reason' => 3, 'account' => ['order_id' => $ownOrder->uuid]], $mine)->assertJsonPath('error.code', -31003);
 

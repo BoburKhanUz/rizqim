@@ -541,6 +541,8 @@ class PaylovWebhookTest extends TestCase
         // As Payme's CancelTransaction: the order is no longer paid
         $this->assertSame(PaymentStatus::PENDING, $order->fresh()->payment_status);
         $this->assertSame(1, Payment::where('provider', 'paylov')->where('status', PaymentStatus::REFUNDED->value)->count());
+        // Security review F1: money given back before delivery is no part of what delivery books the commission on
+        $this->assertTrue($payment->payload['refunded_before_delivery'] ?? false);
     }
 
     public function test_the_cancel_webhook_of_a_delivered_order_refunds_the_order_and_reverses_the_store_once(): void

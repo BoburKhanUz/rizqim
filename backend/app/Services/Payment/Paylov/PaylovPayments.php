@@ -546,14 +546,19 @@ class PaylovPayments
                 ]);
             } elseif (in_array($order->status, [OrderStatus::REFUNDED, OrderStatus::CANCELED, OrderStatus::REJECTED], true)) {
                 $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
-            } elseif ($order->payment_status === PaymentStatus::PAID) {
-                // Still in progress: the money went back, so the order is no longer paid (as Payme's CancelTransaction)
-                $order->update(['payment_status' => PaymentStatus::PENDING->value]);
-                Log::warning("Paylov cancelled the payment of order {$order->uuid} still in progress: it is unpaid again", [
-                    'order_id' => $order->id,
-                    'payment_id' => $locked->id,
-                    'status' => $order->status->value,
-                ]);
+            } else {
+                // Security review F1: given back while the order is still in progress, no part of what delivery books
+                // the commission on (RefundRequestService::deliveryShareOf)
+                $locked->forceFill(['payload' => array_merge($locked->payload ?? [], ['refunded_before_delivery' => true])])->save();
+                if ($order->payment_status === PaymentStatus::PAID) {
+                    // Still in progress: the money went back, so the order is no longer paid (as Payme's CancelTransaction)
+                    $order->update(['payment_status' => PaymentStatus::PENDING->value]);
+                    Log::warning("Paylov cancelled the payment of order {$order->uuid} still in progress: it is unpaid again", [
+                        'order_id' => $order->id,
+                        'payment_id' => $locked->id,
+                        'status' => $order->status->value,
+                    ]);
+                }
             }
 
             return ['refunded', $locked];

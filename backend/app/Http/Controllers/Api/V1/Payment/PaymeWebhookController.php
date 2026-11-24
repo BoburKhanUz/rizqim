@@ -20,12 +20,11 @@ use App\Services\Payment\Fiscal\OnlineFiscalReceipt;
 use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
 use App\Services\Payment\Fiscal\PaymeReceiptDetail;
+use App\Services\Payment\PaymeCashbox;
 use App\Services\Payment\PaymeRpcMessage;
 use App\Services\Payment\StoreRefundReview;
-use App\Domain\Pos\QrPayments\Providers\StoreMerchant;
 use App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook;
 use App\Models\PosQrPayment;
-use App\Models\Store;
 use Brick\Math\BigDecimal;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
@@ -39,10 +38,22 @@ class PaymeWebhookController extends Controller
     private const TRANSACTION_TIMEOUT_MS = 43200000;
 
     /**
-     * Wave P review F3: the id of a transaction of another cashbox this request named (authorizePayme), treated as
-     * unknown by every method. Reset per request: the route keeps its controller instance.
+     * Security review F5/F6: the cashbox the request's key speaks for (cashboxOf): null for the platform's, the ids of the
+     * stores whose own key it is, false for no known key. A transaction id is looked up only within that cashbox's
+     * merchant accounts (Payment::merchant_scope), so a transaction of another cashbox is, to this caller, simply
+     * unknown. Reset per request: the route keeps its controller instance.
+     *
+     * @var list<int>|false|null
      */
-    private ?string $foreignTransactionId = null;
+    private array|false|null $cashbox = false;
+
+    /**
+     * The stores whose own Payme key the request's key is, also when it is the platform's (a store that saved the
+     * platform's key as its own still has its transactions found).
+     *
+     * @var list<int>
+     */
+    private array $keyStores = [];
 
     /**
      * Payme: Merchant API (JSON-RPC 2.0)
@@ -60,7 +71,6 @@ class PaymeWebhookController extends Controller
             return $this->rpcError(null, -32700, 'Parse error');
         }
 
-        $this->foreignTransactionId = null;
         $payload = $request->all();
         Log::info("Payme Webhook Received", $payload);
 
@@ -68,31 +78,31 @@ class PaymeWebhookController extends Controller
         $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
         $id = $payload['id'] ?? null;
 
-        // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`, or a transaction one holds) confirms a bill, never an order:
-        // the store's own key, no `detail` and no SetFiscalData record (Rizqim issues the receipt)
-        if (\App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook::claims($params)) {
-            return app(\App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id);
+        try {
+            // Inside a try: a database error looking the key up is a -32400, never an HTTP 500
+            $this->cashbox = $this->cashboxOf($request);
+
+            // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`, or a transaction id one of this cashbox's QRs holds and
+            // none of its payments does) confirms a bill, never an order: the store's own key, no `detail` and no
+            // SetFiscalData record (Rizqim issues the receipt)
+            $qrRoute = PaymePosQrWebhook::claims($params, $this->keyStores);
+        } catch (\Throwable $e) {
+            Log::error('Payme Webhook Exception: ' . $e->getMessage());
+
+            return $this->rpcError($id, -32400, 'System error');
+        }
+        if ($qrRoute) {
+            return app(PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id, $this->keyStores);
         }
 
-        // GetStatement names no account: the key says which cashbox asks (the platform's, or a restaurant's own)
-        if ($method === 'GetStatement') {
-            try {
-                // Inside the try: a database error looking the key up is a -32400 too, never an HTTP 500
-                $cashbox = $this->statementCashbox($request);
-                if ($cashbox === false) {
-                    return $this->rpcError($id, -32504, 'Insufficient privileges');
-                }
-
-                return $this->getStatement($params, $id, $cashbox);
-            } catch (\Throwable $e) {
-                Log::error('Payme Webhook Exception: ' . $e->getMessage());
-
-                return $this->rpcError($id, -32400, 'System error');
-            }
-        }
-
-        // 1. Basic Auth check for Payme (merchant key validation)
-        if (!$this->authorizePayme($request, $params)) {
+        // 1. HTTP Basic `Paycom:<key>`. Security review F3: a method about an account (CheckPerformTransaction,
+        // CreateTransaction) is signed by that account's key, whatever transaction id it names; one about a transaction
+        // id (PerformTransaction, CancelTransaction, CheckTransaction, SetFiscalData) and GetStatement by a known key,
+        // the id then looked up within that key's cashbox only
+        $authorized = in_array($method, ['CheckPerformTransaction', 'CreateTransaction'], true)
+            ? $this->authorizeAccount($request, $params)
+            : $this->cashbox !== false;
+        if (!$authorized) {
             return $this->rpcError($id, -32504, 'Insufficient privileges');
         }
 
@@ -108,6 +118,9 @@ class PaymeWebhookController extends Controller
                     return $this->cancelTransaction($params, $id);
                 case 'CheckTransaction':
                     return $this->checkTransaction($params, $id);
+                case 'GetStatement':
+                    // GetStatement names no account: the key says which cashbox asks (the platform's, or a restaurant's own)
+                    return $this->getStatement($params, $id, $this->cashbox === false ? null : $this->cashbox);
                 case 'SetFiscalData':
                     return $this->setFiscalData($params, $id);
                 default:
@@ -125,39 +138,24 @@ class PaymeWebhookController extends Controller
     }
 
     /**
-     * Authorize Payme via HTTP Basic Authentication.
+     * CheckPerformTransaction and CreateTransaction: signed with the key of the account they name (the platform's for
+     * a top-up or an account that does not exist, so an unknown account is answered "not found" only to the platform).
      */
-    protected function authorizePayme(Request $request, array $params): bool
+    protected function authorizeAccount(Request $request, array $params): bool
     {
         $presented = $this->presentedKey($request);
         if ($presented === null) {
             return false;
         }
 
-        $expectedKey = $this->secretKey($this->orderForAuthorization($params));
+        $expectedKey = $this->secretKey($this->findTarget($this->accountReference($params))[0]);
         if ($expectedKey === null) {
             Log::error('Payme webhook rejected: no merchant key is configured for this payment (PAYME_SECRET_KEY or the store\'s own key).');
+
             return false;
         }
 
-        if (hash_equals($expectedKey, $presented)) {
-            return true;
-        }
-
-        // Wave P review F3: a transaction of another cashbox, named with an `account` this key does sign, is to this
-        // caller an unknown transaction (-31003, -32001 for SetFiscalData), never -32504: the answer must not tell a
-        // store which Payme ids exist on other cashboxes. The transaction is then invisible to this request.
-        if ($this->findPayment($params) !== null && $this->accountReference($params) !== '') {
-            [$order, $topupRequest] = $this->findTarget($this->accountReference($params));
-            $accountKey = ($order || $topupRequest) ? $this->secretKey($order) : null;
-            if ($accountKey !== null && hash_equals($accountKey, $presented)) {
-                $this->foreignTransactionId = $this->transactionId($params);
-
-                return true;
-            }
-        }
-
-        return false;
+        return hash_equals($expectedKey, $presented);
     }
 
     /**
@@ -185,47 +183,41 @@ class PaymeWebhookController extends Controller
     }
 
     /**
-     * Which cashbox a GetStatement comes from: null for the platform's key, the ids of the stores whose own Payme key
-     * it is (one cashbox may serve several stores of a chain, each saving the same key), or false for no known key.
-     * The platform key wins. payment_settings is encrypted at rest, so the stores are read and compared one by one.
+     * Which cashbox the request's key speaks for: null for the platform's key, the ids of the stores whose own Payme key
+     * it is (one cashbox may serve several stores of a chain, each saving the same key), or false for no known key. The
+     * platform key wins. Security review F6: the stores are found through the indexed digest of their key
+     * (PaymeCashbox), never by decrypting every store's settings.
      *
      * @return list<int>|false|null
      */
-    protected function statementCashbox(Request $request): array|false|null
+    protected function cashboxOf(Request $request): array|false|null
     {
+        $this->keyStores = [];
         $presented = $this->presentedKey($request);
         if ($presented === null) {
             return false;
         }
 
+        $this->keyStores = PaymeCashbox::storesWithKey($presented);
         $platformKey = OrderMerchantAccount::secretKey('payme', null);
         if ($platformKey !== null && hash_equals($platformKey, $presented)) {
             return null;
         }
 
-        $storeIds = [];
-        foreach (Store::query()->whereNotNull('payment_settings')->select(['id', 'payment_settings'])->lazyById(200) as $store) {
-            $key = StoreMerchant::credential($store, 'payme', 'secret_key');
-            if ($key !== null && hash_equals($key, $presented)) {
-                $storeIds[] = (int) $store->id;
-            }
-        }
-
-        return $storeIds !== [] ? $storeIds : false;
+        return $this->keyStores !== [] ? $this->keyStores : false;
     }
 
     /**
-     * The order whose merchant key must sign this request (null means the platform key).
+     * The merchant accounts (Payment::merchant_scope) of the request's cashbox.
+     *
+     * @return list<string>
      */
-    protected function orderForAuthorization(array $params): ?Order
+    protected function scopes(): array
     {
-        $payment = $this->findPayment($params);
-        if ($payment) {
-            // An existing transaction is always authorised by its own order, whatever `account` claims.
-            return $payment->order;
-        }
-
-        return $this->findTarget($this->accountReference($params))[0];
+        return [
+            ...($this->cashbox === null ? [Payment::SCOPE_PLATFORM] : []),
+            ...array_map(fn (int $storeId) => Payment::storeScope($storeId), $this->keyStores),
+        ];
     }
 
     /**
@@ -303,11 +295,20 @@ class PaymeWebhookController extends Controller
         }
 
         return DB::transaction(function () use ($params, $id, $trxId, $order, $topupRequest) {
+            // Security review F2: one transaction id of a cashbox is one payment or one POS QR, never both; every
+            // CreateTransaction of this id (order, top-up or QR) is serialised here, so the first one to commit owns it
+            // and the other is answered "belongs to another order"
+            PaymeCashbox::lockTransaction($trxId);
             // All transactions of one account are serialised on its row.
             [$order, $topupRequest] = $this->lockTarget($order, $topupRequest);
 
+            // Security review F4/F5: the id within this cashbox's merchant accounts only. An id another cashbox holds
+            // is unknown here and answered as such (a payment of this account is created under it), never "belongs to
+            // another order", which told a store which Payme ids exist elsewhere
             $payment = Payment::where('provider', 'payme')
+                ->whereIn('merchant_scope', $this->scopes())
                 ->where('provider_transaction_id', $trxId)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->first();
 
@@ -331,6 +332,11 @@ class PaymeWebhookController extends Controller
                     'transaction' => (string) $payment->id,
                     'state' => 1
                 ]);
+            }
+
+            // Security review F2: a POS QR of this cashbox holds the id: its transaction, not this account's
+            if (PaymePosQrWebhook::heldByQr($trxId, $this->keyStores)) {
+                return $this->rpcError($id, -31050, 'Transaction belongs to another order', 'order_id');
             }
 
             if ($error = $this->accountError($order, $topupRequest, $params['amount'] ?? null)) {
@@ -359,6 +365,7 @@ class PaymeWebhookController extends Controller
                 // M4: the order's store, or the store topping up its balance
                 'store_id' => $order->store_id ?? $topupRequest?->store_id,
                 'provider' => 'payme',
+                'merchant_scope' => Payment::merchantScopeOf($order),
                 'provider_transaction_id' => $trxId,
                 'amount' => Money::fromTiyin($params['amount'])->toString(), // Payme sends tiyin
                 'status' => PaymentStatus::PENDING,
@@ -549,6 +556,12 @@ class PaymeWebhookController extends Controller
                 ]);
             }
 
+            // Security review F1: money given back while the order is still in progress is no part of what delivery
+            // books the commission on (RefundRequestService::deliveryShareOf)
+            if ($wasPaid && $order && !in_array($order->status, [OrderStatus::DELIVERED, OrderStatus::REFUNDED, OrderStatus::CANCELED, OrderStatus::REJECTED], true)) {
+                $payment->update(['payload' => array_merge($payment->payload ?? [], ['refunded_before_delivery' => true])]);
+            }
+
             return $this->cancelResult($id, $payment);
         });
     }
@@ -589,18 +602,17 @@ class PaymeWebhookController extends Controller
             return $this->rpcError($id, -32600, 'Invalid statement period');
         }
 
-        $transactions = Payment::with('order.store')
+        // The platform cashbox: the platform-collected orders and top-ups; a store's: its STORE-owned orders (the
+        // merchant account each payment was made in, Payment::merchant_scope)
+        $transactions = Payment::query()
             ->where('provider', 'payme')
+            ->whereIn('merchant_scope', $cashbox === null ? [Payment::SCOPE_PLATFORM] : array_map(fn (int $storeId) => Payment::storeScope($storeId), $cashbox))
             ->whereNotNull('provider_transaction_id')
             ->whereRaw(
                 "(CASE WHEN payload->>'time' ~ '^[0-9]+$' THEN CAST(payload->>'time' AS BIGINT) END) BETWEEN ? AND ?",
                 [(int) $from, (int) $to]
             )
-            ->when($cashbox !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->whereIn('store_id', $cashbox)))
             ->get()
-            // The platform cashbox: the platform-collected orders and top-ups; a store's: its STORE-owned orders
-            ->filter(fn (Payment $payment) => $cashbox === null ? !OrderMerchantAccount::isStore($payment->order) : OrderMerchantAccount::isStore($payment->order))
-            ->values()
             ->map(fn (Payment $payment) => [
                 'id' => $payment->provider_transaction_id,
                 'time' => $this->createTime($payment),
@@ -723,7 +735,9 @@ class PaymeWebhookController extends Controller
                     $payment,
                     'payme',
                     $type === 'PERFORM' ? FiscalReceiptType::SALE : FiscalReceiptType::REFUND,
-                    'payme:' . $payment->provider_transaction_id . ':' . strtolower($type),
+                    // Security review F5: one id may be a payment of the platform's cashbox and of the store's own,
+                    // both of this store: the platform's receipt key names its account
+                    'payme:' . ($payment->merchant_scope === Payment::SCOPE_PLATFORM ? 'platform:' : '') . $payment->provider_transaction_id . ':' . strtolower($type),
                     ['id' => $payment->provider_transaction_id, 'type' => $type] + $fiscalData,
                     $type === 'CANCEL' ? ($fiscal['receipt_uuid'] ?? null) : null,
                 );
@@ -867,15 +881,21 @@ class PaymeWebhookController extends Controller
             && ($payment->payload['account']['order_id'] ?? null) === 'topup_' . $topupRequest->uuid;
     }
 
+    /**
+     * The payment of this transaction id within the request's cashbox (security review F5: a transaction of another
+     * cashbox is unknown to this caller).
+     */
     protected function findPayment(array $params): ?Payment
     {
         $trxId = $this->transactionId($params);
-        if ($trxId === '' || $trxId === $this->foreignTransactionId) {
+        if ($trxId === '') {
             return null;
         }
 
         return Payment::where('provider', 'payme')
+            ->whereIn('merchant_scope', $this->scopes())
             ->where('provider_transaction_id', $trxId)
+            ->orderBy('id')
             ->first();
     }
 

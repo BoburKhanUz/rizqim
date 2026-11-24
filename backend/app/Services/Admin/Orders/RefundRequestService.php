@@ -42,6 +42,9 @@ use Illuminate\Support\Facades\DB;
  * (balanceOf): paid = payments paid or refunded; refunded = the full amount of every refunded payment (keshbek
  * returned on cancel, a Payme cancel — whether or not an approval covered a part of it before) + the approved shares
  * on payments that are still paid. So a provider refund after a partial approval never leaves money to refund twice.
+ * Security review F1: the ledger share is NOT that ratio (a payment paid and cancelled before delivery would count as
+ * both paid and refunded): it is what approved requests gave back after delivery of what was paid at delivery
+ * (deliveryShareOf), and the whole order through the order's own refund path when that is everything paid at delivery.
  *
  * Approving twice is a no-op (the same answer), under a row lock; the HTTP layer also honours Idempotency-Key.
  */
@@ -71,7 +74,7 @@ class RefundRequestService
     public function balance(Order $order): array
     {
         return self::balanceOf(
-            Payment::query()->where('order_id', $order->id)->get(['id', 'provider', 'amount', 'status', 'payload']),
+            Payment::query()->where('order_id', $order->id)->get(['id', 'provider', 'amount', 'status', 'payload', 'cancelled_at']),
             self::approvedRequests([(int) $order->id])->get(),
         );
     }
@@ -147,6 +150,66 @@ class RefundRequestService
             'refundable' => Money::max(Money::zero(), $paid->minus($refunded)),
             'allocated' => $allocated,
         ];
+    }
+
+    /**
+     * Security review F1: the two amounts a part of a delivered order reverses its share of the ledger booking by
+     * (LedgerService::reverseDeliveredOrderShare): `refunded` — what was given back after delivery, i.e. the approved
+     * requests made while the order was delivered (+ $plus, the request being approved now); `paid` — what was paid when
+     * the commission was booked: the payments still paid and those refunded after delivery. A payment refunded while the
+     * order was still in progress (a Payme or Paylov transaction paid and cancelled before delivery, each leaving a
+     * `refunded` payment) takes no part in either: the commission was booked on the money the order was finally paid
+     * with. A provider refund after delivery that is not an approved request (StoreRefundReview's hold) counts in `paid`
+     * only: RIZQIM's commission on it is decided by the review, never by a later part. balanceOf stays what may still
+     * be refunded; this is only the ratio of the ledger reversal.
+     *
+     * @param  iterable<Payment>  $payments  the order's payments (any status)
+     * @param  iterable<OrderRefundRequest>  $approved  the order's approved requests (those to count)
+     * @return array{refunded: Money, paid: Money}
+     */
+    public static function deliveryShareOf(Order $order, iterable $payments, iterable $approved, ?Money $plus = null): array
+    {
+        $refunded = $plus ?? Money::zero();
+        $touched = [];
+        foreach ($approved as $request) {
+            if (($request->execution['order_status_before'] ?? null) !== OrderStatus::DELIVERED->value) {
+                continue;
+            }
+            $refunded = $refunded->plus($request->amount);
+            foreach (self::allocations($request) ?? [] as $share) {
+                $touched[$share['payment_id']] = true;
+            }
+        }
+
+        $deliveredAt = false; // not read yet
+        $paid = Money::zero();
+        foreach ($payments as $payment) {
+            if ($payment->status === PaymentStatus::PAID) {
+                $paid = $paid->plus($payment->amount);
+
+                continue;
+            }
+            if ($payment->status !== PaymentStatus::REFUNDED) {
+                continue;
+            }
+            $payload = $payment->payload ?? [];
+            if (($payload['refunded_before_delivery'] ?? false) === true) {
+                continue;
+            }
+            if (($payload['refunded_after_delivery'] ?? false) !== true && !isset($touched[(int) $payment->id]) && $payment->cancelled_at !== null) {
+                // Refunded before the marker was written: told apart by the time, against the order's first delivery
+                if ($deliveredAt === false) {
+                    $first = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', OrderStatus::DELIVERED->value)->min('created_at');
+                    $deliveredAt = $first !== null ? \Illuminate\Support\Carbon::parse((string) $first) : null;
+                }
+                if ($deliveredAt !== null && $payment->cancelled_at->lt($deliveredAt)) {
+                    continue;
+                }
+            }
+            $paid = $paid->plus($payment->amount);
+        }
+
+        return ['refunded' => $refunded, 'paid' => $paid];
     }
 
     /**
@@ -252,8 +315,14 @@ class RefundRequestService
             $now = now();
             $ledgerReversal = null;
 
-            // The whole order and nothing of it given back yet: the order's own refund path (ledger reversal included)
-            if ($order->status === OrderStatus::DELIVERED && $balance['refunded']->isZero() && $amount->equals($balance['paid'])) {
+            // F1: the ledger share counts only what was paid when delivery booked it and given back since
+            $approvedBefore = self::approvedRequests([(int) $order->id])->get();
+            $deliveryShare = self::deliveryShareOf($order, $payments, $approvedBefore);
+
+            // The whole order and nothing of it given back since delivery: the order's own refund path (ledger reversal
+            // included). Payments refunded before delivery are not part of it.
+            if ($order->status === OrderStatus::DELIVERED && $deliveryShare['refunded']->isZero() && $amount->equals($deliveryShare['paid'])
+                && $amount->equals($balance['refundable'])) {
                 $paidBefore = $payments->filter(fn (Payment $payment) => $payment->status === PaymentStatus::PAID)->keyBy('id');
                 try {
                     $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}");
@@ -283,7 +352,8 @@ class RefundRequestService
                 // P4-23: a part of a delivered order takes back the same share of the store's commission and settlement
                 // (pro-rata of what is given back in all; each request once, parts adding up to the whole reverse it all)
                 if ($statusBefore === OrderStatus::DELIVERED) {
-                    $reversed = $this->ledger->reverseDeliveredOrderShare($order, (int) $refund->id, $balance['refunded']->plus($amount), $balance['paid'], (int) $approver->id);
+                    $share = self::deliveryShareOf($order, $payments, $approvedBefore, $amount);
+                    $reversed = $this->ledger->reverseDeliveredOrderShare($order, (int) $refund->id, $share['refunded'], $share['paid'], (int) $approver->id);
                     $ledgerReversal = array_map(fn (Money $value) => $value->toString(), $reversed);
                 }
             }

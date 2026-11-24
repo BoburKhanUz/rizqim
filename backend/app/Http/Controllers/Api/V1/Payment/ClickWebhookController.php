@@ -250,7 +250,13 @@ class ClickWebhookController extends Controller
             // Every completion for this order is serialised on the order row.
             $lockedOrder = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
 
+            // Security review F5: a click_trans_id is Click's id within one merchant account (the platform's service or
+            // the store's own, the one whose key signed this): looked up there only. A store that recorded a guessed
+            // future id on its own order on its own service no longer makes the real Complete of that id for another
+            // account's order fail (-9, Click then gives the customer's money back)
+            $scope = Payment::merchantScopeOf($lockedOrder);
             $payment = Payment::where('provider', 'click')
+                ->where('merchant_scope', $scope)
                 ->where('provider_transaction_id', $clickTransId)
                 ->lockForUpdate()
                 ->first();
@@ -276,6 +282,7 @@ class ClickWebhookController extends Controller
                 'order_id' => $lockedOrder->id,
                 'store_id' => $lockedOrder->store_id,
                 'provider' => 'click',
+                'merchant_scope' => $scope,
                 'provider_transaction_id' => $clickTransId,
                 'amount' => Money::of($request->input('amount'))->toString(),
                 'payload' => $request->all(),

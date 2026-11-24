@@ -31,6 +31,12 @@ use App\Enums\PaymentStatus;
  * explicitly by every creation site; a database trigger sets it from the parent for any other writer and keeps it equal
  * to the parent's (migration 2026_11_27_100000)
  * @property int $store_id
+ *
+ * Security review F5: the merchant account the provider's transaction id belongs to (`platform`, or `store:<id>` for an
+ * order paid into its store's own account); the identity of a provider transaction is (provider, merchant_scope,
+ * provider_transaction_id). Set by the creation sites (merchantScopeOf) and kept equal to the order's by a database
+ * trigger (migration 2026_12_09_100100)
+ * @property string $merchant_scope
  */
 class Payment extends Model
 {
@@ -43,8 +49,29 @@ class Payment extends Model
         'uuid', 'order_id', 'provider', 'provider_transaction_id', 'amount', 'status', 'payload', 'paid_at',
         'cancelled_at', 'expired_at', 'created_at', 'updated_at', 'bill_id', 'shift_id', 'device_id', 'received_by',
         'tendered_amount', 'change_amount', 'card_type', 'transaction_id', 'reference', 'offline_paid_at',
-        'synced_at', 'card_last4', 'store_id',
+        'synced_at', 'card_last4', 'store_id', 'merchant_scope',
     ];
+
+    // Security review F5: internal identity of the provider transaction, never part of a serialized payment
+    protected $hidden = ['merchant_scope'];
+
+    /** The platform's own merchant accounts (Click service, Payme cashbox, Paylov account); top-ups are paid into them. */
+    public const SCOPE_PLATFORM = 'platform';
+
+    /**
+     * Security review F5: the merchant account a payment of this order (null: a top-up) is made in and its callbacks are
+     * authenticated with (OrderMerchantAccount): the platform's, or its store's own. The same rule as the database's
+     * payments_merchant_scope().
+     */
+    public static function merchantScopeOf(?Order $order): string
+    {
+        return $order !== null && \App\Services\Payment\OrderMerchantAccount::isStore($order) ? self::storeScope((int) $order->store_id) : self::SCOPE_PLATFORM;
+    }
+
+    public static function storeScope(int $storeId): string
+    {
+        return "store:{$storeId}";
+    }
 
     protected function casts(): array
     {

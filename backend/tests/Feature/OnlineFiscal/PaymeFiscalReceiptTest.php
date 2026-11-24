@@ -253,9 +253,10 @@ class PaymeFiscalReceiptTest extends TestCase
         $order = $this->storeOrder();
         $this->paidTransaction($order);
 
-        // The transaction's own merchant key only
+        // The transaction's own merchant key only: no key is refused; to another cashbox's key (here the platform's)
+        // the store's transaction is unknown (security review F5), its receipt not found
         $this->rpc('SetFiscalData', $this->fiscalData('PERFORM'), null)->assertJsonPath('error.code', -32504);
-        $this->rpc('SetFiscalData', $this->fiscalData('PERFORM'), self::PLATFORM_KEY)->assertJsonPath('error.code', -32504);
+        $this->rpc('SetFiscalData', $this->fiscalData('PERFORM'), self::PLATFORM_KEY)->assertJsonPath('error.code', -32001);
 
         $this->rpc('SetFiscalData', ['id' => 'unknown-receipt'] + $this->fiscalData('PERFORM'), self::PLATFORM_KEY)
             ->assertExactJson(['jsonrpc' => '2.0', 'id' => 7, 'error' => ['code' => -32001, 'message' => 'Receipt not found']]);

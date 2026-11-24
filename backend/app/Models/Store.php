@@ -50,7 +50,8 @@ class Store extends Model
     // Ledger balances change only through LedgerService (explicit forceFill), never via mass assignment.
     protected $guarded = ['id', 'debt_balance', 'wallet_balance', 'subscription_debt'];
 
-    protected $hidden = ['telegram_bot_token'];
+    // Security review F6: the digest of the store's own Payme key (App\Services\Payment\PaymeCashbox) never leaves the server
+    protected $hidden = ['telegram_bot_token', 'payme_key_digest'];
 
     protected $appends = ['logo_url', 'banner_url', 'min_order', 'delivery_fee', 'is_order_locked'];
 
@@ -448,6 +449,13 @@ class Store extends Model
                     $settings['working_hours']['close'] = substr($store->close_time, 0, 5);
                 }
                 $store->payment_settings = $settings;
+            }
+
+            // Security review F6: the cashbox key's digest follows every save of the settings (PaymeCashbox), so a
+            // Payme call finds its store through an index instead of decrypting every store's settings
+            if (array_key_exists('payment_settings', $store->getAttributes())
+                && (!$store->exists || $store->isDirty('payment_settings') || $store->getAttribute('payme_key_digest') === null)) {
+                $store->payme_key_digest = \App\Services\Payment\PaymeCashbox::digestOf($store->payment_settings);
             }
 
             // 3. Sync payment_settings JSON to columns for query compatibility

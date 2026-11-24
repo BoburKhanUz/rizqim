@@ -80,7 +80,7 @@ class PaylovWebhookController extends Controller
         ]);
 
         try {
-            $payment = $this->findPayment($params);
+            $payment = $this->findPayment($request, $params);
             $order = $payment ? $payment->order : $this->findOrder($params);
 
             if (!$this->authorized($request, $order)) {
@@ -153,7 +153,9 @@ class PaylovWebhookController extends Controller
         [$answer, $confirm, $replayPaid] = DB::transaction(function () use ($id, $params, $accountOrder, $transactionId) {
             // Every write about this order's money is serialised on the order row (the other webhooks, the unpaid timeout)
             $order = Order::whereKey($accountOrder->id)->lockForUpdate()->firstOrFail();
-            $payment = Payment::where('provider', 'paylov')->where('provider_transaction_id', $transactionId)->lockForUpdate()->first();
+            // Security review F5: the id within the merchant account of this order (the one whose credentials signed it)
+            $payment = Payment::where('provider', 'paylov')->where('merchant_scope', Payment::merchantScopeOf($order))
+                ->where('provider_transaction_id', $transactionId)->lockForUpdate()->first();
 
             if ($payment) {
                 if ((int) $payment->order_id !== (int) $order->id) {
@@ -173,6 +175,7 @@ class PaylovWebhookController extends Controller
                 'order_id' => $order->id,
                 'store_id' => $order->store_id,
                 'provider' => 'paylov',
+                'merchant_scope' => Payment::merchantScopeOf($order),
                 'provider_transaction_id' => $transactionId,
                 'amount' => Money::fromTiyin((int) PaylovPayments::wholeTiyin($params['amount_tiyin'] ?? null))->toString(),
                 'status' => PaymentStatus::PENDING,
@@ -281,12 +284,15 @@ class PaylovWebhookController extends Controller
      * Basic Auth of the callback login and password of the account the order is paid into (OrderMerchantAccount; the
      * platform's when no order is found), both compared in constant time. Unset credentials fail closed.
      */
-    private function authorized(Request $request, ?Order $order): bool
+    private function authorized(Request $request, ?Order $order, bool $logMissing = true): bool
     {
         $account = PaylovAccount::forOrder($order);
         $login = $account->get('callback_login');
         $password = $account->get('callback_password');
         if ($login === null || $password === null) {
+            if (!$logMissing) {
+                return false;
+            }
             Log::error("Paylov webhook rejected: no callback login/password is configured for this payment (PAYLOV_CALLBACK_LOGIN / PAYLOV_CALLBACK_PASSWORD or the store's own).", [
                 'order_id' => $order?->id,
                 'store_account' => $account->isStore,
@@ -312,11 +318,21 @@ class PaylovWebhookController extends Controller
         return $loginMatches && $passwordMatches;
     }
 
-    private function findPayment(array $params): ?Payment
+    /**
+     * The payment of this transaction id in the merchant account whose callback credentials signed the request.
+     * Security review F5: an id is unique per merchant account only (payments.merchant_scope), so of the payments
+     * recorded under it, the one whose account's login and password these are; none is "no payment" (the request is
+     * then authorised by its account's order like a new transaction).
+     */
+    private function findPayment(Request $request, array $params): ?Payment
     {
         $transactionId = $this->transactionId($params);
+        if ($transactionId === null) {
+            return null;
+        }
 
-        return $transactionId === null ? null : Payment::with('order')->where('provider', 'paylov')->where('provider_transaction_id', $transactionId)->first();
+        return Payment::with('order')->where('provider', 'paylov')->where('provider_transaction_id', $transactionId)->orderBy('id')->get()
+            ->first(fn (Payment $payment) => $this->authorized($request, $payment->order, false));
     }
 
     /**

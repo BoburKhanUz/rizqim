@@ -392,7 +392,8 @@ class PaymentGoLiveFollowUpTest extends TestCase
             throw new \RuntimeException('SQLSTATE[08006] connection lost (simulated)');
         });
 
-        $this->payme('GetStatement', ['from' => 1, 'to' => 2], 'some_store_key')->assertOk()->assertJsonPath('error.code', -32400);
+        // Security review F6: only the stores the key's digest names are read (a key no store has reads none)
+        $this->payme('GetStatement', ['from' => 1, 'to' => 2], 'own_key')->assertOk()->assertJsonPath('error.code', -32400);
     }
 
     public function test_click_refuses_sub_tiyin_amounts_but_takes_whole_and_two_decimal_ones(): void
