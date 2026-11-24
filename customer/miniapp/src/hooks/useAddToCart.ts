@@ -4,6 +4,7 @@ import { showAlert } from '../lib/dialogs';
 import { buildCartItem, needsProductSheet } from '../lib/catalog';
 import { NO_AVAILABILITY, isVariantUnavailable, type AvailabilityView } from '../lib/menuAvailability';
 import { getAddBlockedMessage } from '../lib/stock';
+import { trackAddToCart } from './useAnalytics';
 import { quantityOfVariant, useCartStore, type CartStoreInfo, type PendingCartItem } from '../store/cartStore';
 import type { ProductChoice } from '../components/ProductSheet';
 import type { Product, ProductVariant } from '../types';
@@ -47,7 +48,8 @@ export function useAddToCart({ storeInfoOf, availability = NO_AVAILABILITY }: Ad
 
     const storeInfo = storeInfoOf(product);
     const added = addItem(cartItem, storeInfo);
-    if (!added) setPending({ item: cartItem, storeInfo });
+    if (added) trackAddToCart(cartItem);
+    else setPending({ item: cartItem, storeInfo });
     return added;
   };
 

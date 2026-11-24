@@ -29,7 +29,9 @@ import { toOrderModifiers } from '../lib/modifiers';
 import { toOrderCombo } from '../lib/combo';
 import { createCheckoutAttempt, newIdempotencyKey } from '../lib/idempotency';
 import { currentLines } from '../lib/cartPricing';
-import { describeOrderFailure } from '../lib/orderErrors';
+import { checkoutErrorCode, checkoutErrorCodeOfReason, describeOrderFailure } from '../lib/orderErrors';
+import { track, type CheckoutErrorCode } from '../lib/analytics';
+import { useTrackOnce } from '../hooks/useAnalytics';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { useDeliveryQuote } from '../hooks/useDeliveryQuote';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -244,6 +246,13 @@ export default function Cart() {
   const pricedLineOf = (itemId: string) => pricedItems.find((line) => line.id === itemId);
   const subtotal = pricedItems.reduce((sum, line) => sum + cartLineTotal(line), 0);
 
+  // Analytics (wave P): the cart was opened (once per visit, with the prices it was opened with). Pieces counted as the
+  // cart counts them: a weighed line is one dish
+  const cartPieces = Math.round(items.reduce((sum, item) => sum + (isMeasuredUnit(item.unit) ? 1 : item.quantity), 0));
+  useTrackOnce(cartStoreId !== undefined ? 'cart' : null, () => {
+    if (cartStoreId !== undefined) track('cart_view', { store_id: Number(cartStoreId), props: { items: cartPieces, value: subtotal } });
+  });
+
   // What the store cannot offer now (stop-list, sold-out batches): kept current by events and polling. The branch that
   // cooks the order decides, so the view narrows to it once it is known (the delivery quote's, or the pickup branch)
   const { branches: availabilityBranches, refetch: refetchAvailability } = useMenuAvailability(cartStoreId);
@@ -448,27 +457,47 @@ export default function Cart() {
   const handlePlaceOrder = async () => {
     // One order per press: a second tap (or a second MainButton event) while the first is being sent is dropped
     if (items.length === 0 || orderingRef.current) return;
+
+    // Analytics (wave P): "Buyurtma berish" was pressed; a refusal is told by its kind only. A push to a queue: it never
+    // waits on anything and never fails the order
+    const analyticsStoreId = Number(items[0].storeId);
+    track('checkout_start', {
+      store_id: analyticsStoreId,
+      props: {
+        items: cartPieces,
+        value: subtotal,
+        ...(effectivePaymentMethod ? { payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod } : {}),
+        ...(deliveryMethod ? { order_type: deliveryMethod } : {}),
+      },
+    });
+    const checkoutError = (code: CheckoutErrorCode) => track('checkout_error', { store_id: analyticsStoreId, props: { code } });
+
     if (isStoreLocked) {
+      checkoutError('store_closed');
       hapticFeedback('error');
       void showAlert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
       return;
     }
     if (isNotAccepting) {
+      checkoutError('store_closed');
       hapticFeedback('error');
       void showAlert(`${NOT_ACCEPTING_TEXT}. Savat saqlanadi, keyinroq urinib ko'ring.`);
       return;
     }
     if (lineProblems.length > 0) {
+      checkoutError('item_unavailable');
       hapticFeedback('error');
       void showAlert("Savatdagi ba'zi taomlar tugagan yoki menyudan olib tashlangan. Ularni olib tashlang, so'ng buyurtma bering.");
       return;
     }
     if (priceChanges.length > 0) {
+      checkoutError('validation');
       hapticFeedback('error');
       void showAlert("Savatdagi ba'zi taomlarning narxi o'zgardi. Yangi narxlarni tasdiqlang, so'ng buyurtma bering.");
       return;
     }
     if (deliveryMethod === 'delivery' && isQuoteBlocking) {
+      checkoutError(quote.status === 'refused' ? (checkoutErrorCodeOfReason(quote.reason) ?? 'out_of_zone') : quote.status === 'error' ? 'network' : 'validation');
       hapticFeedback('error');
       void showAlert(quote.status === 'refused' ? quote.message : quote.status === 'error'
         ? "Yetkazib berish narxini hisoblab bo'lmadi. Qayta urinib ko'ring."
@@ -476,33 +505,39 @@ export default function Cart() {
       return;
     }
     if (isMinOrderNotMet) {
+      checkoutError('min_order');
       void showAlert(`Minimal buyurtma summasi ${formatMoney(minOrderLimit)}. Iltimos, yana taom qo'shing.`);
       return;
     }
     // The server refuses an order its store does not take this way or with this payment
     if (deliveryMethod === null) {
+      checkoutError('store_closed');
       hapticFeedback('error');
       void showAlert("Do'kon hozircha yetkazib berishni ham, olib ketishni ham qabul qilmayapti. Keyinroq urinib ko'ring.");
       return;
     }
     if (effectivePaymentMethod === null) {
+      checkoutError('payment');
       hapticFeedback('error');
       void showAlert("Do'kon hozircha to'lov qabul qilmayapti yoki keshbek balansi yetarli emas. Keyinroq urinib ko'ring.");
       return;
     }
     if (deliveryMethod === 'delivery' && !selectedAddress) {
+      checkoutError('validation');
       void showAlert("Iltimos, yetkazib berish manzilini tanlang yoki yangisini qo'shing!");
       return;
     }
 
     // Never send made-up coordinates: they silently pick the wrong branch and delivery fee.
     if (deliveryMethod === 'delivery' && !deliveryPoint) {
+      checkoutError('validation');
       hapticFeedback('error');
       void showAlert("Tanlangan manzilning xaritadagi joylashuvi aniqlanmagan. Iltimos, manzilni tahrirlab, xaritada belgilang.");
       return;
     }
 
     if (deliveryMethod === 'pickup' && !selectedBranch) {
+      checkoutError('store_closed');
       void showAlert("Kechirasiz, restoranning faol filiali topilmadi.");
       return;
     }
@@ -543,6 +578,9 @@ export default function Cart() {
       if (res.data.success) {
         attemptRef.current.finish();
         const orderData = res.data.data ?? {};
+        // Analytics: the order the server made (it checks the uuid is this customer's own order)
+        const placedUuid = orderData.order_uuid || orderData.uuid;
+        if (placedUuid) track('order_placed', { props: { order_uuid: placedUuid } });
         setSuccessOrderNumber(getOrderDisplayNumber(orderData));
         // The customer's own channel brings no event for an order they placed: without this, a cached list of their
         // orders (refreshed slowly while the socket is up) could miss the new one when they go to look at it
@@ -551,6 +589,7 @@ export default function Cart() {
         // Handle redirect to the click/payme/paylov URL if present
         const paymentUrl = orderData.payment_url;
         if (paymentUrl) {
+          track('payment_redirect', { store_id: analyticsStoreId });
           if (typeof tg.openLink === 'function') {
             tg.openLink(paymentUrl);
           } else {
@@ -565,6 +604,7 @@ export default function Cart() {
       logApiError('Failed to place order:', err);
       const response = isAxiosError<ApiErrorBody>(err) ? err.response : undefined;
       const promoErrors = response?.data?.errors?.promo_code;
+      checkoutError(response?.status === 422 && promoErrors ? 'validation' : checkoutErrorCode(err));
       if (response?.status === 422 && promoErrors) {
         // The server no longer accepts the promo: drop it and make the user re-check the total.
         const promoMessage = (Array.isArray(promoErrors) ? promoErrors[0] : promoErrors) || response.data?.message || "Promo-kod yaroqsiz yoki muddati tugagan";

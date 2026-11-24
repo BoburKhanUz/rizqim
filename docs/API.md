@@ -5650,3 +5650,21 @@ hech qachon DDL qilmaydi). Bazada **joriy oy va undan oldingi ikki oy** (`ANALYT
 chiqqan kunning kechasi bo'lak arxivsiz o'chiriladi (`db:partitions:archive`, [OPERATIONS.md](OPERATIONS.md) 20-bo'lim). Kunlik yig'indilar (16-qadam) shaxssiz va muddatsiz.
 RLS: `store_id` bo'sh bo'lishi mumkin va jadvalni hech bir restoran o'qimaydi (`TenantRlsInventoryTest::NOT_UNDER_RLS`,
 `MIXED`); restoran o'z voronkasini 16-qadamdagi RLS ostidagi kunlik jadvallardan ko'radi.
+
+### Mini App klienti (3-qadam)
+
+`customer/miniapp/src/lib/analytics.ts` (qaramliksiz) va `src/hooks/useAnalytics.ts`; tafsilot va yangi hodisa qo'shish
+tartibi: [customer/miniapp/README.md](../customer/miniapp/README.md) "Analitika". Build'da `VITE_ANALYTICS_ENABLED=true`
+bo'lmasa (standart o'chiq) hech narsa yuborilmaydi va qurilmaga yozilmaydi.
+
+- Paket ~10 soniyada bir (`order_placed` va `payment_redirect` darhol), sahifa yashirilganda `fetch keepalive` bilan;
+  bir vaqtda bitta so'rov, daqiqasiga ko'pi bilan 10 ta; ≤ 50 hodisa va ≤ 32 KB. `202` — tayyor; `429`/`5xx`/tarmoq —
+  o'sha `uid` lar bilan, kutib (`Retry-After` hisobga olinadi), 3 marta; `413`/`422` — paket tashlanadi; `401` — yangi
+  token kelguncha kutadi.
+- `session_id` — `sessionStorage` dagi `rz_session` (`{id, last, open}`); 30 daqiqa hodisasiz o'tsa yangi sessiya va
+  uning `app_open` i (`start_kind: none`). Xom `start_param` faqat ishga tushishdagi `app_open` paketida bir marta;
+  klient `props.start_kind` (va kampaniya bo'lsa `campaign_code`) ni ham `StartParam` qoidasi bilan o'zi hisoblaydi.
+- `app_version` = `VITE_SENTRY_RELEASE` (shaklga mos kelmasa yuborilmaydi), `platform` = `Telegram.WebApp.platform`
+  (bo'sh bo'lsa `unknown`).
+- Kim: roli `customer` va `store_id` bo'sh hisob (serverdagi `EventIngestor::excluded` bilan bir xil). Xodim uchun
+  navbat tozalanadi va hech narsa yuborilmaydi.

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { hapticFeedback } from '../lib/telegram';
 import { selectionChanged } from '../lib/twa';
 import { useVisibleInterval } from '../hooks/useVisibleInterval';
+import { track } from '../lib/analytics';
 import { useLanguageStore } from '../store/languageStore';
 import { cx } from './ui';
 import type { Promo } from '../types';
@@ -53,6 +54,7 @@ export default function HeroPromoSlider({ promos = [] }: { promos?: Promo[] }) {
   const uz = language === 'uz';
   const openPromo = (banner: Promo) => {
     hapticFeedback('medium');
+    track('promo_banner_click', { props: { promo_id: banner.id } });
     if (banner.product_id) {
       navigate(`/store/${banner.store_uuid}?product_id=${banner.product_id}`);
     } else {

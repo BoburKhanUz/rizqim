@@ -209,6 +209,8 @@ export class FakeApi {
   geocoderDown = false
 
   calls: ApiCall[] = []
+  /** Wave P: the analytics batches the app posted (POST /analytics/events) and the fake took (202), oldest first. */
+  analyticsBatches: Array<Record<string, unknown>> = []
   /** Calls that matched no endpoint of the fake: a test fails when the app starts using one it does not know. */
   unhandled: string[] = []
 
@@ -322,6 +324,7 @@ export class FakeApi {
       return ok(this.pickupSlots ? { enabled: true, ...this.pickupSlots } : { enabled: false, min_lead_minutes: 0, slot_minutes: 15, slots: [] })
     }
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {}, idempotencyKey)
+    if (method === 'POST' && path === '/analytics/events') return this.analyticsEvents(body)
 
     const staffReply = this.staff.handle(method, path, query, body)
     if (staffReply) return staffReply
@@ -513,6 +516,27 @@ export class FakeApi {
   }
 
   // POST /orders
+  // Wave P: the envelope checks of the real endpoint (EventController): 422 for a malformed one, else 202 for all of it.
+  // What the events carry is for the spec to check (e2e/analytics.spec.ts)
+  private analyticsEvents(body: Record<string, unknown> | null): ApiReply {
+    const envelopeKeys = ['session_id', 'app_version', 'platform', 'start_param', 'events']
+    const events = body?.events
+    if (
+      !body ||
+      Object.keys(body).some((key) => !envelopeKeys.includes(key)) ||
+      typeof body.session_id !== 'string' ||
+      !/^[0-9a-f-]{36}$/i.test(body.session_id) ||
+      body.platform === undefined ||
+      !Array.isArray(events) ||
+      events.length < 1 ||
+      events.length > 50
+    ) {
+      return reply(422, { success: false, message: 'The given data was invalid.', data: { reason: 'validation' } })
+    }
+    this.analyticsBatches.push(body)
+    return reply(202, { success: true, message: '', data: { accepted: events.length, dropped: 0 } })
+  }
+
   private placeOrder(body: Record<string, unknown>, idempotencyKey: string | null): ApiReply {
     type Line = { variant_id: string; quantity: number; modifiers?: Array<{ id: string; quantity?: number } | string>; combo?: Array<{ option_id: string; quantity?: number }> }
     const lines = Array.isArray(body.items) ? (body.items as Line[]) : []

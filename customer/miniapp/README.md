@@ -31,6 +31,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Xarita tile shabloni (`{z}/{x}/{y}` bilan). Ochiq OSM serveri faqat ishlab chiqish va kam trafik uchun: productionda akkauntingiz bor provayder yoki o'z tile serveringizni bering |
 | `VITE_MAP_ATTRIBUTION` | OpenStreetMap attribution (HTML) | Tile provayderi talab qiladigan attribution matni (HTML); xaritada ko'rsatiladi |
 | `VITE_APP_DEBUG` | o'chiq | `true` bo'lsa Telegramsiz ochishga ruxsat beradi va auth debug panelini ko'rsatadi. Productionda qo'ymang |
+| `VITE_ANALYTICS_ENABLED` | o'chiq | `true` bo'lsa Mini App o'z serverimizga foydalanish statistikasini yuboradi (pastdagi "Analitika" bo'limi). O'chiq bo'lsa hech narsa yuborilmaydi, navbatga qo'yilmaydi va `sessionStorage` ga yozilmaydi. Maxfiylik siyosatining yangi matni e'lon qilingandan keyingina yoqing; serverda ham `ANALYTICS_ENABLED` alohida yoqiladi |
 
 ## Skriptlar
 
@@ -56,7 +57,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `hooks/` | `useTelegramAuth`, `useOrders`/`useStaffOrders`, `useStores`, `useCatalog`, `useNotifications`, `useVisibleInterval` |
 | `services/api.ts` | axios klienti: token qo'shish va 401 da qayta autentifikatsiya |
 | `store/` | zustand. `localStorage` ga saqlanadiganlar: `authStore` (`auth-storage`), `cartStore` (`cart-storage`), `useAddressStore` (`address-storage`), `languageStore` (`restaurant-language-store`; `uz`/`ru`/`en`). `useAppStore` (UI holati) saqlanmaydi |
-| `lib/` | sof yordamchi funksiyalar: `money`, `format`, `orderStatus`, `polling`, `roles`, `phone`, `stock`, `catalog`, `location`, `analytics`, `apiError`, `telegram`, `lazyWithRetry`, `user` |
+| `lib/` | sof yordamchi funksiyalar: `money`, `format`, `orderStatus`, `polling`, `roles`, `phone`, `stock`, `catalog`, `location`, `analytics` (o'z serverimizga statistika, "Analitika" bo'limi), `apiError`, `telegram`, `lazyWithRetry`, `user` |
 | `types/` | API JSON shakllari (backend controller va modellaridan yozilgan) va `telegram.d.ts` |
 | `test/` | `setup.ts`, `factories.ts`, `httpErrors.ts` |
 
@@ -84,6 +85,44 @@ eski klientlarda `env(safe-area-inset-*)`) + Telegram tugmalari hududi (`--tg-co
 `safeAreaChanged`, `contentSafeAreaChanged`, `fullscreenChanged` hodisalarini kuzatadi. Oddiy rejimda hammasi 0.
 Ilova o'zi to'liq ekran so'ramaydi (`requestFullscreen` chaqirilmaydi): buni foydalanuvchi yoki BotFather sozlamasi hal
 qiladi. Tekshiruv: `e2e/safe-area.spec.ts` (`MINIAPP_SHOTS_DIR=<papka>` bilan skrinshotlar ham oladi).
+
+## Analitika (P to'lqini, 3-qadam)
+
+Mini App voronka hodisalarini (ochildi → restoran → savat → buyurtmaga o'tish → buyurtma) **faqat o'z serverimizga**
+yuboradi: `POST /api/v1/analytics/events`, mijoz tokeni bilan. Shartnoma va hodisalar ro'yxati:
+[docs/API.md](../../docs/API.md) "Analitika hodisalari"; reja: [docs/ANALYTICS_PLAN.md](../../docs/ANALYTICS_PLAN.md) 4.1, A.4.
+
+- `src/lib/analytics.ts` — klient (qaramliksiz): `track(name, payload)`; xotiradagi navbat (200 tadan oshsa eng eskisi
+  tashlanadi), ~10 s da bir paket (≤ 50 hodisa, ≤ 32 KB), sahifa yashirilganda/yopilganda `fetch keepalive`, bir vaqtda
+  bitta so'rov va daqiqasiga ko'pi bilan 10 ta. `202` — tayyor (`accepted: 0` ham: server standart bo'yicha o'chiq);
+  `429`/`5xx`/tarmoq — o'sha `uid` lar bilan, kutib, 3 marta; `413`/`422` — paket tashlanadi; `401` — yangi token
+  kelguncha kutadi. Kirishdan oldingi hodisalar xotirada turadi va kirgandan keyin o'z vaqti (`at`) bilan ketadi.
+  Sessiya: `sessionStorage` dagi `rz_session` (tasodifiy UUID, 30 daqiqa hodisasiz o'tsa yangisi va uning `app_open` i).
+  `localStorage` ga hech narsa yozilmaydi. Hech qachon xato otmaydi va buyurtma/to'lov so'rovlarini kutdirmaydi.
+- `src/hooks/useAnalytics.ts` — React qismi: kirishni uzatish (`useAnalyticsAuth`; roli `customer` bo'lmagan yoki
+  do'konga biriktirilgan hisob — **hech narsa yuborilmaydi**, navbat tozalanadi), bir harakatga bitta hodisa
+  (`useTrackOnce` — StrictMode va qayta render ikki marta yubormaydi), qidiruv (`useTrackSearch` — faqat natijalar soni
+  va so'z uzunligi, matn hech qachon).
+- Hodisalar qayerda: `App.tsx` (`app_open`, sessiyada bir marta, `start_param` turi bilan; xom `start_param` faqat shu
+  hodisa paketida bir marta), `StoreDetail.tsx` (`store_view`, `category_view`), `ProductSheet.tsx` (`product_view`),
+  `useAddToCart.ts` va `ReplaceCartDialog.tsx` (`add_to_cart`), `Cart.tsx` (`cart_view`, `checkout_start`,
+  `checkout_error`, `order_placed` — `POST /orders` 2xx dan keyin, `payment_redirect` — `tg.openLink` dan oldin),
+  `Home.tsx`, `Stores.tsx`, `CategoryDetail.tsx` (`search`), `HeroPromoSlider.tsx` (`promo_banner_click`).
+- Testlar: `src/lib/analytics.test.ts` (navbat, paketlar, qayta urinish, sessiya, o'chirgich, maxfiylik),
+  `src/hooks/useAnalytics.test.tsx`, `src/pages/StoreDetail.analytics.test.tsx`, `src/pages/Cart.analytics.test.tsx`,
+  `src/test/analyticsPlaces.test.tsx`; e2e: `e2e/analytics.spec.ts` (e2e build'ida `VITE_ANALYTICS_ENABLED=true`, soxta
+  API paketlarni `api.analyticsBatches` ga yozadi).
+
+**Yangi hodisa qo'shish** (shu tartibda, aks holda server hodisani jim tashlaydi):
+
+1. **Ro'yxat:** `docs/API.md` "Hodisalar ro'yxati" jadvaliga qator — nom, qachon, id'lar, ruxsat etilgan `props` va
+   ularning qoidasi. Erkin matn, ism, telefon, manzil, Telegram id hech qachon prop bo'lmaydi; maxfiylik siyosati
+   (`privacy.s2.b`) yangi turdagi ma'lumotni qamrab olishini tekshiring.
+2. **Server:** `backend/app/Domain/Analytics/AnalyticsEvent.php` ga yangi `case` (keyingi raqam; raqamlar saqlangan
+   ma'lumot — hech qachon o'zgartirilmaydi) va `spec()` dagi ids/props; `EventIngestor` testi.
+3. **Klient:** `src/lib/analytics.ts` dagi `AnalyticsCatalogue` (tur: ro'yxatda yo'q prop kompilyatsiya bo'lmaydi) va
+   `SPEC` (ishga tushganda ruxsat ro'yxati); hodisani joyida `track(...)` bilan chaqiring (bir harakatga bir marta:
+   kerak bo'lsa `useTrackOnce`), testini yozing; `e2e/analytics.spec.ts` dagi `ALLOWED` ni yangilang.
 
 ## Ma'lumot yangilanishi
 

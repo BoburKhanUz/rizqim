@@ -1,7 +1,9 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { initTelegramApp } from './lib/telegram';
+import { initTelegramApp, tg } from './lib/telegram';
+import { trackAppOpen } from './lib/analytics';
+import { useAnalyticsAuth } from './hooks/useAnalytics';
 import { startTelegramChrome } from './lib/twa';
 import { useTelegramAuth } from './hooks/useTelegramAuth';
 import { useRealtimeOrders } from './hooks/useRealtimeOrders';
@@ -199,6 +201,10 @@ function usePrefetchCustomerPages(enabled: boolean) {
 function AppContent() {
   const { isAuthenticating, error, isAuthenticated, token, user } = useTelegramAuth();
   const location = useLocation();
+  // Analytics (wave P): the launch opens the session (app_open once per session, with the kind of Telegram's
+  // start_param). Before any page's effect, so the first event of a launch always carries it; sent once signed in
+  useState(() => trackAppOpen(tg.initDataUnsafe?.start_param));
+  useAnalyticsAuth(isAuthenticating, token, user);
   const isCustomer = isCustomerRole(user?.role);
 
   const { t, language } = useLanguageStore();

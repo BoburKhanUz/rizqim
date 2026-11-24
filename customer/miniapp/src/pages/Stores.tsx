@@ -8,6 +8,7 @@ import { Button, EmptyState, InlineError, PageHeader } from '../components/ui';
 import { SearchField } from '../components/catalog/SearchField';
 import { StoreCard } from '../components/catalog/StoreCard';
 import { useStorePages } from '../hooks/useMarketplace';
+import { useTrackSearch } from '../hooks/useAnalytics';
 
 import { useAddressStore } from '../store/useAddressStore';
 
@@ -63,6 +64,8 @@ export default function Stores() {
   const filteredStores = useMemo(() => searchStores(stores, searchQuery, true), [stores, searchQuery]);
   // The count of the header: every store serving the address (the server says how many), or the matches of a search
   const count = searching ? filteredStores.length : (total ?? filteredStores.length);
+  // Analytics (wave P): how many stores a search found and how long it was, never what was typed. Once every page is in
+  useTrackSearch(searchQuery, filteredStores.length, !loading && (!hasNextPage || isFetchNextPageError));
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-4 pt-2 animate-fade-in">

@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useTrackOnce } from '../hooks/useAnalytics';
+import { track } from '../lib/analytics';
 import { Check } from 'lucide-react';
 import { hapticFeedback } from '../lib/telegram';
 import { nativeMainButton } from '../lib/twa';
@@ -59,6 +61,8 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
   const variants = useMemo(() => product.variants ?? [], [product]);
   const groups = useMemo(() => groupsOf(product), [product]);
   const cartItems = useCartStore((state) => state.items);
+  // Analytics (wave P): the dish's card was opened (once per opening; the sheet is keyed by product)
+  useTrackOnce(String(product.id), () => track('product_view', { store_id: product.store_id, product_id: product.id }));
 
   // A variant the customer can pick: not switched off, not sold out, not stopped
   const isSelectable = (variant: ProductVariant) => !isVariantUnavailable(product, variant, availability);
