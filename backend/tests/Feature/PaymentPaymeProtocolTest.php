@@ -166,4 +166,31 @@ class PaymentPaymeProtocolTest extends TestCase
         // An unknown key is still refused
         $this->rpc('GetStatement', $period, 'nobodys_key')->assertJsonPath('error.code', -32504);
     }
+
+    /**
+     * Fourth review: GetStatement is answered through the partial index payments_payme_statement_index (merchant
+     * account, Payme's `time`), never by reading every Payme payment. Its `time` expression only casts up to 18 digits,
+     * so a `time` too long for a bigint is never a statement's (it was a -32400 for the whole statement) and never stops
+     * a payment from being recorded (the index computes it on insert).
+     */
+    public function test_the_statement_is_read_through_its_index_and_an_oversized_time_breaks_nothing(): void
+    {
+        $this->create('trx-normal', $this->order, 1760000000000)->assertJsonPath('result.state', 1);
+        $other = $this->makeOrder();
+        $this->rpc('CreateTransaction', ['id' => 'trx-huge', 'time' => '99999999999999999999', 'amount' => 5000000, 'account' => ['order_id' => $other->uuid]])
+            ->assertJsonPath('result.state', 1);
+
+        $period = ['from' => 1760000000000, 'to' => 1760000010000];
+        $this->assertSame(['trx-normal'], array_column($this->rpc('GetStatement', $period)->assertOk()->json('result.transactions'), 'id'));
+
+        $plan = \Illuminate\Support\Facades\DB::transaction(function () {
+            \Illuminate\Support\Facades\DB::statement('SET LOCAL enable_seqscan = off');
+
+            return implode("\n", array_column(array_map(fn ($row) => (array) $row, \Illuminate\Support\Facades\DB::select(
+                "EXPLAIN SELECT * FROM payments WHERE provider = 'payme' AND merchant_scope IN ('platform') AND provider_transaction_id IS NOT NULL AND "
+                . \App\Http\Controllers\Api\V1\Payment\PaymeWebhookController::STATEMENT_TIME . ' BETWEEN ? AND ?', [1760000000000, 1760000010000],
+            )), 'QUERY PLAN'));
+        });
+        $this->assertStringContainsString('payments_payme_statement_index', $plan);
+    }
 }

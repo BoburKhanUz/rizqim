@@ -99,9 +99,10 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     as_app env DB_POOLER=direct php artisan migrate --force
     # Third review M1: stores.payme_key_digest is an index hint that a release without its hook (a code rollback) can
     # leave stale; recomputed on every deploy (idempotent, one row update per changed store, no table lock). A failure
-    # never stops the start: Payme calls still find the store, the slow way (docs/OPERATIONS.md, 29)
-    as_app env DB_POOLER=direct php artisan payments:payme-digests \
-        || echo "OGOHLANTIRISH: payments:payme-digests hammasini yoza olmadi — logni ko'ring va qo'lda qayta ishga tushiring (OPERATIONS.md, 29-bo'lim)." >&2
+    # never stops the start: Payme calls still find the store, the slow way (docs/OPERATIONS.md, 29). Fourth review: at
+    # most 300 s (`timeout` of the image's busybox, php:*-alpine), so a hung database connection never blocks the start
+    as_app timeout 300 env DB_POOLER=direct php artisan payments:payme-digests \
+        || echo "OGOHLANTIRISH: payments:payme-digests hammasini yoza olmadi yoki 300 s da tugamadi — logni ko'ring va qo'lda qayta ishga tushiring (OPERATIONS.md, 29-bo'lim)." >&2
     as_app php artisan storage:link || true
     as_app php artisan config:cache
     as_app php artisan route:cache

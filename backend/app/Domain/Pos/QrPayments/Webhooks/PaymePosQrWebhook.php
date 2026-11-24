@@ -372,10 +372,17 @@ final class PaymePosQrWebhook
         if ($expected === null || !hash_equals($expected, trim($parts[1]))) {
             return false;
         }
+        // Fourth review: a store whose own key is the platform's has no QR cashbox of its own. A call signed with the
+        // platform key is the platform cashbox's and never routed to a QR by transaction id (PaymeWebhookController::
+        // qrStores()), so a QR held here could never be performed or cancelled: every QR call is refused up front
+        $platform = $qr !== null ? PaymentProvider::platformCredential('payme', 'secret_key') : null;
+        if ($platform !== null && hash_equals($platform, $expected)) {
+            return false;
+        }
         // Third review M1: the store's own key signed this; a stale digest of it is repaired (PaymeCashbox), so the
         // calls about the QR's transaction id find the store through the index again
         if ($qr !== null && isset($store) && $store->getAttribute('payme_key_digest') !== PaymeCashbox::digest($expected)) {
-            PaymeCashbox::remember((int) $store->id, $expected);
+            PaymeCashbox::remember((int) $store->id, $expected, $store->getRawOriginal('payment_settings'));
         }
 
         return true;

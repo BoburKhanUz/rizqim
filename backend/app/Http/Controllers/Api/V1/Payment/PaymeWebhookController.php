@@ -38,6 +38,13 @@ class PaymeWebhookController extends Controller
     private const TRANSACTION_TIMEOUT_MS = 43200000;
 
     /**
+     * Payme's `time` of a payment (CreateTransaction's, payload.time) as a bigint, null when it is not 1 to 18 digits
+     * (always within a bigint: a longer one never fails a query or an insert). The very expression of the partial index
+     * payments_payme_statement_index (migration 2026_12_09_100300): GetStatement is read through it.
+     */
+    public const STATEMENT_TIME = "(CASE WHEN payload->>'time' ~ '^[0-9]{1,18}$' THEN CAST(payload->>'time' AS BIGINT) END)";
+
+    /**
      * Security review F5/F6: the cashbox the request's key speaks for (cashboxOf): null for the platform's, the ids of the
      * stores whose own key it is, false for no known key. A transaction id is looked up only within that cashbox's
      * merchant accounts (Payment::merchant_scope), so a transaction of another cashbox is, to this caller, simply
@@ -87,7 +94,8 @@ class PaymeWebhookController extends Controller
             // none of its payments does) confirms a bill, never an order: the store's own key, no `detail` and no
             // SetFiscalData record (Rizqim issues the receipt). Third review L2: the platform's cashbox has no QRs, so
             // a call signed with the platform key is never routed by transaction id to the QRs of a store that saved
-            // the platform's key as its own (qrStores())
+            // the platform's key as its own (qrStores()); fourth review: that store's QR calls by account are refused
+            // too (-32504, PaymePosQrWebhook::authorized), so none of its QRs ever holds an id
             $qrRoute = PaymePosQrWebhook::claims($params, $this->qrStores());
         } catch (\Throwable $e) {
             Log::error('Payme Webhook Exception: ' . $e->getMessage());
@@ -168,7 +176,7 @@ class PaymeWebhookController extends Controller
         if (OrderMerchantAccount::isStore($order)) {
             $storeId = (int) $order->store_id;
             if ($order->store?->getAttribute('payme_key_digest') !== PaymeCashbox::digest($presented)) {
-                PaymeCashbox::remember($storeId, $presented);
+                PaymeCashbox::remember($storeId, $presented, $order->store?->getRawOriginal('payment_settings'));
             }
             if (!in_array($storeId, $this->keyStores, true)) {
                 $this->keyStores[] = $storeId;
@@ -641,15 +649,14 @@ class PaymeWebhookController extends Controller
         }
 
         // The platform cashbox: the platform-collected orders and top-ups; a store's: its STORE-owned orders (the
-        // merchant account each payment was made in, Payment::merchant_scope)
+        // merchant account each payment was made in, Payment::merchant_scope). Fourth review: these predicates are the
+        // partial index payments_payme_statement_index (merchant_scope, STATEMENT_TIME) WHERE provider = 'payme' AND
+        // provider_transaction_id IS NOT NULL; keep them in step with it
         $transactions = Payment::query()
             ->where('provider', 'payme')
             ->whereIn('merchant_scope', $cashbox === null ? [Payment::SCOPE_PLATFORM] : array_map(fn (int $storeId) => Payment::storeScope($storeId), $cashbox))
             ->whereNotNull('provider_transaction_id')
-            ->whereRaw(
-                "(CASE WHEN payload->>'time' ~ '^[0-9]+$' THEN CAST(payload->>'time' AS BIGINT) END) BETWEEN ? AND ?",
-                [(int) $from, (int) $to]
-            )
+            ->whereRaw(self::STATEMENT_TIME . ' BETWEEN ? AND ?', [(int) $from, (int) $to])
             ->get()
             ->map(fn (Payment $payment) => [
                 'id' => $payment->provider_transaction_id,
@@ -802,6 +809,12 @@ class PaymeWebhookController extends Controller
      * (`payme:platform:<id>:<type>`). A receipt recorded before that change has the old key (`payme:<id>:<type>`): when
      * this order's receipt is on record under it, that key is kept, so a replay finds it instead of recording the sale
      * again (the old key of another order — the store's own payment with the same id — is never taken).
+     *
+     * Fourth review: the old key is looked up through fiscal_receipt_keys (store_id, idempotency_key), as
+     * FiscalService::existing() does — one index probe, never one per month of the partitioned fiscal_receipts — and
+     * the receipt then in its own month only, its subject checked. A receipt whose month is archived (its key row kept,
+     * its row gone) is this payment's unless the store's own cashbox has a payment of the same id (the only other
+     * payment an old key of this id and store can name: one payment per merchant account and id).
      */
     protected function fiscalKey(Payment $payment, Order $order, string $type): string
     {
@@ -809,15 +822,22 @@ class PaymeWebhookController extends Controller
         if ($payment->merchant_scope !== Payment::SCOPE_PLATFORM) {
             return $legacy;
         }
+        $platform = 'payme:platform:' . $payment->provider_transaction_id . ':' . strtolower($type);
 
-        $recordedUnderLegacy = \App\Models\FiscalReceipt::query()
-            ->where('store_id', $order->store_id)
-            ->where('idempotency_key', $legacy)
-            ->where('subject_type', 'order')
-            ->where('subject_id', $order->id)
-            ->exists();
+        $key = DB::table('fiscal_receipt_keys')->where('store_id', $order->store_id)->where('idempotency_key', $legacy)->first();
+        if ($key === null) {
+            return $platform;
+        }
+        $receipt = \App\Models\FiscalReceipt::query()->whereKey((int) $key->receipt_id)->where('created_at', $key->receipt_created_at)
+            ->first(['id', 'subject_type', 'subject_id']);
+        if ($receipt !== null) {
+            return $receipt->subject_type === 'order' && (int) $receipt->subject_id === (int) $order->id ? $legacy : $platform;
+        }
 
-        return $recordedUnderLegacy ? $legacy : 'payme:platform:' . $payment->provider_transaction_id . ':' . strtolower($type);
+        $storeHolds = Payment::query()->where('provider', 'payme')->where('provider_transaction_id', $payment->provider_transaction_id)
+            ->where('merchant_scope', Payment::storeScope((int) $order->store_id))->exists();
+
+        return $storeHolds ? $platform : $legacy;
     }
 
     /**

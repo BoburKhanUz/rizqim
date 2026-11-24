@@ -133,7 +133,7 @@ final class PaymeCashbox
             return false;
         }
         if ($store->getAttribute('payme_key_digest') !== self::digest($key)) {
-            self::remember((int) $store->id, $key);
+            self::remember((int) $store->id, $key, $store->getRawOriginal('payment_settings'));
         }
 
         return true;
@@ -163,16 +163,25 @@ final class PaymeCashbox
      * settings): its digest is set to this key's when it is not. A single-row update of that column, waiting at most a
      * second for a store row a ledger transaction holds; when it cannot be written now the request is still answered
      * for the store (the caller has it), and the next call or `payments:payme-digests` writes it.
+     *
+     * Fourth review: $verifiedSettings is stores.payment_settings as stored (the ciphertext, Model::getRawOriginal) that
+     * the key was checked against. The digest is written only while the row still holds those settings, as
+     * recomputeAll() does: an owner who saved another key meanwhile had its digest written by the model hook, and a
+     * late repair for the old key never overwrites it.
      */
-    public static function remember(int $storeId, string $key): void
+    public static function remember(int $storeId, string $key, mixed $verifiedSettings): void
     {
         $digest = self::digest($key);
+        if (!is_string($verifiedSettings) || $verifiedSettings === '') {
+            return; // nothing verified to compare against: the next call or `payments:payme-digests` writes it
+        }
         try {
-            DB::transaction(function () use ($storeId, $digest) {
+            DB::transaction(function () use ($storeId, $digest, $verifiedSettings) {
                 if (DB::getDriverName() === 'pgsql') {
                     DB::select("SELECT set_config('lock_timeout', '1s', true)");
                 }
                 $repaired = DB::table('stores')->where('id', $storeId)
+                    ->where('payment_settings', $verifiedSettings)
                     ->where(fn ($query) => $query->whereNull('payme_key_digest')->orWhere('payme_key_digest', '!=', $digest))
                     ->update(['payme_key_digest' => $digest]);
                 if ($repaired > 0) {

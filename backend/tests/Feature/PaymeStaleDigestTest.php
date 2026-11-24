@@ -189,6 +189,34 @@ class PaymeStaleDigestTest extends TestCase
     }
 
     /**
+     * Fourth review: a repair never overwrites a newer digest. The request verified the store's key K1 (stale digest);
+     * meanwhile the owner saved K2 (the model hook wrote digest(K2)); the late repair for K1 must leave digest(K2), or
+     * GetStatement signed with K2 would be refused until something repaired it again.
+     */
+    public function test_a_late_repair_never_overwrites_the_digest_of_a_key_saved_meanwhile(): void
+    {
+        $this->stale();
+        $verified = Store::findOrFail($this->store->id); // what the request read and checked K1 against
+        $this->assertNotNull($verified->getRawOriginal('payment_settings'));
+
+        $newKey = 'newer-key-' . Str::random(24);
+        $owner = Store::findOrFail($this->store->id);
+        $owner->payment_settings = ['payme' => ['enabled' => true, 'merchant_id' => 'pm-stale', 'secret_key' => $newKey]];
+        $owner->save();
+        $this->assertSame(PaymeCashbox::digest($newKey), $this->digest());
+
+        PaymeCashbox::remember((int) $verified->id, $this->key, $verified->getRawOriginal('payment_settings'));
+        $this->assertSame(PaymeCashbox::digest($newKey), $this->digest());
+        $this->payme('GetStatement', ['from' => 1763999999999, 'to' => 1764000000001], $newKey)->assertJsonPath('result.transactions', []);
+
+        // While the settings are still the ones verified, the repair goes through
+        $this->stale();
+        $current = Store::findOrFail($this->store->id);
+        PaymeCashbox::remember((int) $current->id, $newKey, $current->getRawOriginal('payment_settings'));
+        $this->assertSame(PaymeCashbox::digest($newKey), $this->digest());
+    }
+
+    /**
      * The command run after a rollback (docs/OPERATIONS.md) and at every deploy: every digest recomputed from the key,
      * a store whose settings cannot be read left NULL (still matched, retried next time) and counted.
      */

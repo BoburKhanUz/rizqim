@@ -149,9 +149,15 @@ class PosQrPaymeTransactionOwnershipTest extends TestCase
         $order = $this->onlineOrder($this->store, 'PLATFORM');
         $this->create('pm-plat-1', $order->uuid, 5000000, 'platform_payme_key')->assertJsonPath('result.state', 1);
 
-        // The store's QR, signed with "its own" key (the platform's), takes the id too
+        // Fourth review: a QR of a store whose own key is the platform's is refused up front (-32504), every method:
+        // otherwise it would hold an id that its Perform/Cancel (signed with the platform key, never routed to a QR)
+        // could not reach, and the QR would wait 12 h
         $qr = $this->paymeQr();
-        $this->create('pm-plat-1', $qr->account(), $this->tiyin, 'platform_payme_key');
+        $this->payme('CheckPerformTransaction', ['amount' => $this->tiyin, 'account' => ['order_id' => $qr->account()]], 'platform_payme_key')
+            ->assertJsonPath('error.code', -32504);
+        $this->create('pm-plat-1', $qr->account(), $this->tiyin, 'platform_payme_key')->assertJsonPath('error.code', -32504);
+        $this->create('pm-plat-2', $qr->account(), $this->tiyin, 'platform_payme_key')->assertJsonPath('error.code', -32504);
+        $this->assertNull($qr->refresh()->provider_transaction_id);
 
         $payment = Payment::where('order_id', $order->id)->sole();
         $this->payme('CheckTransaction', ['id' => 'pm-plat-1'], 'platform_payme_key')->assertJsonPath('result.transaction', (string) $payment->id);
