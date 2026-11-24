@@ -19,7 +19,7 @@ import { ApiError } from '@/lib/api/client';
 import { errorText, fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 import { exactMoney, parseAmountInput } from './ordersModel';
-import type { StoreRefundAction } from './StoreRefundReviewSection';
+import { providerName, type StoreRefundAction } from './StoreRefundReviewSection';
 
 // The action dialogs of Buyurtmalar. Each asks for a reason (3–500 characters, it goes into the audit log); the step-up
 // (a fresh 2FA code) is asked by the shell when the backend wants it. Money dialogs send one Idempotency-Key per dialog.
@@ -257,7 +257,7 @@ export function StoreRefundReviewDialog({ order, action, onDone, onClose }: { or
   return (
     <ReasonForm
       title={t(copy.title)}
-      text={t(copy.text, { amount })}
+      text={t(copy.text, { amount, provider: providerName(order.store_refund_review?.provider ?? null) })}
       submitLabel={t(copy.submit)}
       tone={copy.tone}
       busy={decide.isPending}

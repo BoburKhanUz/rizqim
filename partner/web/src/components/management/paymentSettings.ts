@@ -1,4 +1,4 @@
-import type { OwnerPaymentSettings, PaymentProviderSettings, StoreSettings, StoreSettingsInput } from '@rizqim/staff';
+import { isStaffApiError, type OwnerPaymentSettings, type PaymentProviderSettings, type StoreSettings, type StoreSettingsInput } from '@rizqim/staff';
 
 // How the stored payment_settings are read back into a form, and written again. A provider is either a bare boolean (older data)
 // or an object; the API adds `available: false` to one the platform cannot process now (Uzum, Paynet not integrated yet; P4-32: a
@@ -189,4 +189,19 @@ export function inputFromDraft(settings: StoreSettings, draft: SettingsDraft, nu
       paynet: { enabled: !unavailable('paynet') && draft.providers.paynet },
     },
   };
+}
+
+// Owner decision 1: POST /owner/settings refuses a credential that is RIZQIM's own (422, reason `platform_credential`): the
+// refused fields as [provider, field] ("payment_settings.payme.secret_key" → ['payme', 'secret_key']), never their values.
+// The server's sentence is Uzbek; the panel says it in its own language (settings_platformCredential).
+export const PLATFORM_CREDENTIAL = 'platform_credential';
+
+export function platformCredentialFields(err: unknown): [string, string][] {
+  if (!isStaffApiError(err) || err.status !== 422 || err.reason !== PLATFORM_CREDENTIAL || !err.errors) return [];
+  const fields: [string, string][] = [];
+  for (const key of Object.keys(err.errors)) {
+    const match = /^payment_settings\.([a-z]+)\.([a-z_]+)$/.exec(key);
+    if (match) fields.push([match[1]!, match[2]!]);
+  }
+  return fields;
 }

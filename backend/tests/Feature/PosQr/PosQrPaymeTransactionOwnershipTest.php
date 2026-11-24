@@ -145,7 +145,14 @@ class PosQrPaymeTransactionOwnershipTest extends TestCase
      */
     public function test_a_platform_key_call_never_reaches_a_qr_of_a_store_that_saved_the_platform_key(): void
     {
-        $this->store->forceFill(['payment_settings' => ['payme' => ['enabled' => true, 'merchant_id' => self::PAYME_MERCHANT, 'secret_key' => 'platform_payme_key']]])->save();
+        // Owner decision 1: such a key is refused at save time now (PlatformCredentialGuard); a store that saved it before
+        // keeps it (a raw write here, as an older release left it, with the digest it would have)
+        $settings = ['payme' => ['enabled' => true, 'merchant_id' => self::PAYME_MERCHANT, 'secret_key' => 'platform_payme_key']];
+        \Illuminate\Support\Facades\DB::table('stores')->where('id', $this->store->id)->update([
+            'payment_settings' => \Illuminate\Support\Facades\Crypt::encryptString((string) json_encode($settings)),
+            'payme_key_digest' => \App\Services\Payment\PaymeCashbox::digest('platform_payme_key'),
+        ]);
+        $this->store->refresh();
         $order = $this->onlineOrder($this->store, 'PLATFORM');
         $this->create('pm-plat-1', $order->uuid, 5000000, 'platform_payme_key')->assertJsonPath('result.state', 1);
 

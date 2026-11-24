@@ -127,6 +127,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], $e->status);
             }
 
+            // Owner decision 1: a store's own-account credential equal to the platform's (field names only, never a value)
+            if ($e instanceof \App\Services\Payment\PlatformCredentialException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => $e->reason,
+                    'errors' => $e->errors(),
+                    'data' => ['reason' => $e->reason, 'fields' => $e->fields, 'errors' => $e->errors()],
+                ], $e->status);
+            }
+
             // P6-31: a combo pick refused (combo_option_unavailable, combo_slot_required...): the same shape, its own code
             if ($e instanceof \App\Domain\Pos\Menu\ComboPickException) {
                 return response()->json([

@@ -122,6 +122,12 @@ class OwnerSettingsController extends Controller
      * callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back
      * (has_consumer_secret...).
      *
+     * Owner decision 1: an own-account credential equal to the platform's own one for that provider (Payme merchant_id /
+     * secret_key, Click service_id / merchant_id / secret_key, any of Paylov's seven) is a 422 with `code` and
+     * `data.reason` `platform_credential` and `data.fields` (the refused field names, never a value); nothing is saved.
+     * Only a value sent now is judged: one already stored and not sent again never blocks a save (App\Services\Payment\
+     * PlatformCredentialGuard, run by the Store model on every write).
+     *
      * P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
      * PUT /owner/fiscal/settings takes them; left out = kept.
      *

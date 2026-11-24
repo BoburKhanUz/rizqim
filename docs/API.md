@@ -680,7 +680,19 @@ vaqtincha o'chirgan); `POST` uni yoqishga urinsa 422. `own_account` ovqatxona Cl
 yuboradi; maxfiy kalit hech qachon qaytmaydi (`has_secret_key`, Paylov'da `has_consumer_key`, `has_consumer_secret`,
 `has_username`, `has_password`, `has_callback_login`, `has_callback_password`), bo'sh yoki yulduzchali qiymat saqlanganini
 qoldiradi. Paylov `callback_password` (webhook paroli) kamida 16 belgi — qisqasi 422
-(`payment_settings.paylov.callback_password`: «Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.»). Paylov mijozga (do'kon ro'yxati, `payment_settings.paylov`) faqat RIZQIM yoqqan **va** to'lov tushadigan hisobning
+(`payment_settings.paylov.callback_password`: «Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.»).
+**Platforma kaliti — do'konniki emas (egasining 1-qarori).** O'z hisobi kalitlaridan biri RIZQIM platformasining shu
+tizimdagi o'sha kalitiga teng bo'lsa (Tizim → To'lov tizimlari'dagi qiymat, bo'lmasa `.env`; bo'sh joylarsiz, doimiy vaqtda
+solishtiriladi) — 422, `code` va `data.reason`: `platform_credential`, `data.fields` — rad etilgan maydonlar
+(`payment_settings.payme.secret_key`...), har birida o'zbekcha xabar; qiymatning o'zi javobda ham, logda ham yo'q, hech
+narsa saqlanmaydi. Tekshiriladigan maydonlar: Payme `merchant_id`, `secret_key`; Click `service_id`, `merchant_id`,
+`secret_key`, `merchant_user_id`; Paylov yettala kaliti; Uzum `merchant_id` (platformaning `merchant_id` yoki
+`terminal_id` siga), `secret_key`; Paynet `merchant_id`, `secret_key`. Qoida `Store` modelida (`PlatformCredentialGuard`):
+do'kon sozlamasini yozadigan har qanday yo'l (shu endpoint, admin vositalari, `StoreProvisioner`, seeder, import)
+undan o'tolmaydi. Faqat **hozir yuborilgan yangi** qiymat tekshiriladi: avval saqlangan va qayta yuborilmagan (bo'sh,
+yulduzchali yoki o'zgarmagan) qiymat saqlashni to'xtatmaydi va o'zgartirilmaydi — bunday do'konlarni
+`payments:own-credentials-check` ko'rsatadi (OPERATIONS.md, 30-bo'lim). Hamkor paneli xabarni maydon ostida o'z tilida
+(uz/ru/en) ko'rsatadi. Paylov mijozga (do'kon ro'yxati, `payment_settings.paylov`) faqat RIZQIM yoqqan **va** to'lov tushadigan hisobning
 (do'konning o'zi yoki platforma) yetti kaliti to'liq bo'lsa ko'rsatiladi, aks holda `{enabled: false, available: false}`. Hamkor panelida: «Sozlamalar»
 (Telegram guruhi, o'z kassa kalitlari), «Harakatlar jurnali» (`/audit`, `GET /owner/audit-logs`), «Xodimlar» → «Mening PIN
 kodim» (`PUT /owner/staff/{o'z id}/pin`).
@@ -918,7 +930,15 @@ JSON-RPC 2.0. Rasmiy hujjat: [paylov-payment-gateway](https://developer.paylov.u
   qo'llanadi; `payed` (yoki boshqa holat) — e'tiborsiz, ogohlantirish logi; Paylov javob bermasa — to'lovda
   `payload.paylov.cancel_reported_at`, `payments:paylov-reconcile` qayta so'raydi (1 soatdan keyin bir marta `critical`).
   Tasdiqlangani bir marta yoziladi: `unconfirmed` to'lov `cancelled`, to'langan — `refunded`;
-  yetkazilgan buyurtma `refunded` (komissiya va hisob-kitob qaytadi, "qo'lda qaytarish" yo'q), bekor qilingan/qaytarilgan
+  yetkazilgan buyurtma `refunded` (komissiya va hisob-kitob qaytadi, "qo'lda qaytarish" yo'q) — **egasining 2-qarori:**
+  ovqatxonaning o'z Paylov hisobiga to'langan (`payment_owner: STORE`) yetkazilgan buyurtma uchun, agar bu qaytarishni
+  RIZQIM o'zi so'ramagan bo'lsa (`payload.paylov.refund` da `requested`/`retrying`/`failed` yo'q, `manual_refund_required`
+  yo'q), u Payme'dagidek **tekshiruvga qo'yiladi** («Ovqatxona kassasidan qaytarish» bo'limi): to'lov `refunded`,
+  buyurtmaning `payment_status` — `refunded`, buyurtma `delivered` qoladi, komissiya va ledger menejer qaroriga qadar
+  o'zgarmaydi (`store_refund_review.provider: paylov`, `reason_code: null`); qaytarish cheki (agar sotuv cheki Paylov
+  orqali yozilgan bo'lsa) darhol so'raladi — pul haqiqatan qaytgan (Payme'da ham qaytarish chekini Payme o'zi yozadi,
+  tekshiruvdan qat'i nazar). RIZQIM'ning o'z `payment/cancel` i, platforma yig'gan buyurtma va hali yetkazilmagan buyurtma
+  avvalgidek; bekor qilingan/qaytarilgan
   buyurtmaning `payment_status` — `refunded`, jarayondagi buyurtma yana `pending` (Payme `CancelTransaction` kabi).
   Noma'lum tranzaksiya — 2xx, hech narsa yozilmaydi. Yozib bo'lmasa — HTTP 500 (Paylov qayta yuboradi).
 - Rejim: Tizim → To'lov tizimlari → Paylov `test` faqat `APP_ENV` production bo'lmagan serverda — soxta drayver (Paylov
@@ -3294,7 +3314,10 @@ tegishli to'lovlar `payload.refund_request_ids` oladi; tasdiqdan oldin qaytarilg
 **Click/Payme orqali avtomatik qaytarish yo'q**: kodda Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i
 sifatida keladi (kabinetdan qilinganda), Click qaytarish API (`payment/reversal`) va Uzum ulanmagan.
 
-**Ovqatxona kassasidan qaytarish (wave P).** Ovqatxona o'z Payme kassasiga pul yig'sa (`payment_owner: STORE`), Payme
+**Ovqatxona kassasidan qaytarish (wave P; Paylov — egasining 2-qarori).** Quyidagi Payme uchun yozilgan; ovqatxonaning o'z
+Paylov kabinetida qilingan va Paylov tasdiqlagan qaytarish (`transaction.cancel`, «Paylov» bo'limi) ham xuddi shunday
+tekshiruvga qo'yiladi va xuddi shu endpointlar bilan hal qilinadi (`provider: paylov`, `reason` yo'q, Paylov'ga javob
+odatdagidek `0`). Ovqatxona o'z Payme kassasiga pul yig'sa (`payment_owner: STORE`), Payme
 Merchant API chaqiruvlarini tasdiqlaydigan kalitni ovqatxonaning o'zi biladi (u kalitni hamkor panelida kiritgan), Payme
 Merchant API'da esa tranzaksiyani qayta tekshirish usuli yo'q. Shuning uchun yetkazilgan (komissiyasi yozilgan) buyurtmaning
 bajarilgan tranzaksiyasiga kelgan `CancelTransaction` — haqiqiy kabinet qaytarishimi yoki ovqatxonaning o'zi yuborgan
@@ -3329,7 +3352,8 @@ soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
   (taklif qilgan xodimga `false`).
 - Qaytgan pul bilan yetkazilgan buyurtma (`delivered`, `payment_status: refunded`) **qayta to'lanmaydi**: Payme
   `CheckPerformTransaction`/`CreateTransaction` — `-31051` («Order is not payable»), Click Prepare/Complete — `-9`.
-  Shunday qilib ovqatxona rad etilgan tekshiruvni o'z kaliti bilan qayta to'lab-bekor qilib yana ko'tara olmaydi. Hali
+  Paylov `transaction.check`/`transaction.perform` — `+1 order_not_payable` (perform baribir yoziladi va Paylov `payed`
+  desa pul to'liq qaytariladi). Shunday qilib ovqatxona rad etilgan tekshiruvni o'z kaliti bilan qayta to'lab-bekor qilib yana ko'tara olmaydi. Hali
   hech narsa to'lanmagan yetkazilgan buyurtma (`pending`) kechikkan to'lovni avvalgidek qabul qiladi.
 - Payme `CancelTransaction` `reason` faqat butun son 1–10 (Payme: 1–5, 10); boshqasi (satr, kasr, massiv, yo'q) — `-32600`,
   hech narsa o'zgarmaydi. Bekor qilingan/rad etilgan buyurtmaning to'langan tranzaksiyasi Payme orqali qaytsa,

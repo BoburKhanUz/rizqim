@@ -2200,7 +2200,7 @@ export interface paths {
         /**
          * Approve a store's provider refund
          * @description Two members (four eyes, as refund requests): the money did go back to the customer (checked in the store's Payme
-         *     cabinet). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
+         *     or Paylov cabinet: `store_refund_review.provider`). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
          *     `pending`, `proposed_by` set) and nothing is booked. A DIFFERENT member's approval refunds the order through
          *     RIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,
          *     nothing flagged for a manual refund (the provider already returned it). The proposer approving again: 403
@@ -8258,6 +8258,12 @@ export interface paths {
          *     merchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and
          *     callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back
          *     (has_consumer_secret...).
+         *
+         *     Owner decision 1: an own-account credential equal to the platform's own one for that provider (Payme merchant_id /
+         *     secret_key, Click service_id / merchant_id / secret_key, any of Paylov's seven) is a 422 with `code` and
+         *     `data.reason` `platform_credential` and `data.fields` (the refused field names, never a value); nothing is saved.
+         *     Only a value sent now is judged: one already stored and not sent again never blocks a save (App\Services\Payment\
+         *     PlatformCredentialGuard, run by the Store model on every write).
          *
          *     P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
          *     PUT /owner/fiscal/settings takes them; left out = kept.

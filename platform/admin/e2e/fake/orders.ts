@@ -56,7 +56,7 @@ export interface FakeStoreRefund {
   provider: string
   payment_uuid: string
   amount: string
-  reason_code: number
+  reason_code: number | null
   reported_at: string
   proposed_by: number | null
   proposed_at: string | null

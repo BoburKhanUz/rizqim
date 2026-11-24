@@ -2,7 +2,8 @@
 // values and payment_settings. Wave P: the store's own Paylov account, with the server's rules that matter to the screen:
 // the secrets (Store::isSecretKey) are never sent back, only has_*; a blank or masked secret keeps the stored one; the
 // webhook (callback) password is at least 16 characters (422 on payment_settings.paylov.callback_password); a provider
-// RIZQIM switched off cannot be switched on (422 on payment_settings).
+// RIZQIM switched off cannot be switched on (422 on payment_settings). Owner decision 1: a credential equal to the
+// platform's own (PlatformCredentialGuard) is 422 `platform_credential` on its field, nothing saved.
 import type { FakeBackend } from './backend'
 import { fail, ok, type FakeRequest, type Reply } from './types'
 
@@ -30,6 +31,8 @@ export class FakeStoreSettings {
     payme: { enabled: true, merchant_id: 'pm-1', secret_key: 'payme-secret' },
     paylov: { enabled: true, merchant_id: '4f9c2a7e-1b3d-4e8f-9a6b-0c2d4e6f8a1b', consumer_key: 'ck-1', consumer_secret: 'cs-1', username: 'osh-markazi' },
   }
+  /** The platform's own credentials (Tizim → To'lov tizimlari / .env), never a store's */
+  platform: Record<string, Record<string, string>> = { payme: { merchant_id: 'rizqim-payme-cashbox', secret_key: 'rizqim-platform-payme-key' }, click: { service_id: '90001', merchant_id: '90002' } }
   /** Methods RIZQIM cannot process now: not integrated (uzum, paynet) or switched off (a test adds paylov) */
   unavailable: Record<string, 'not_integrated' | 'switched_off'> = { uzum: 'not_integrated', paynet: 'not_integrated' }
 
@@ -47,6 +50,15 @@ export class FakeStoreSettings {
     const callback = paylov.callback_password
     if (typeof callback === 'string' && !masked(callback) && callback.trim().length < 16) {
       return fail(422, "Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.", { 'payment_settings.paylov.callback_password': ["Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak."] })
+    }
+    const refused: string[] = []
+    for (const [provider, keys] of Object.entries(this.platform)) {
+      const requested = (input[provider] ?? {}) as Record<string, unknown>
+      for (const [field, value] of Object.entries(keys)) if (typeof requested[field] === 'string' && (requested[field] as string).trim() === value) refused.push(`payment_settings.${provider}.${field}`)
+    }
+    if (refused.length > 0) {
+      const errors = Object.fromEntries(refused.map((field) => [field, ["Bu RIZQIM platformasining kaliti: do'kon o'z hisobi uchun uni kirita olmaydi."]]))
+      return { status: 422, body: { success: false, message: 'Xato', code: 'platform_credential', errors, data: { reason: 'platform_credential', fields: refused, errors } } }
     }
     for (const [method, reason] of Object.entries(this.unavailable)) {
       const requested = input[method] as Record<string, unknown> | undefined

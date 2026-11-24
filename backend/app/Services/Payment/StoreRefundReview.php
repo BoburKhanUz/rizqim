@@ -28,6 +28,11 @@ use Illuminate\Support\Facades\Log;
  * the commission reversed once), dismiss (one member) keeps the commission. The order is then never payable again
  * (moneyWentBack), so the store cannot raise the review once more by re-paying and cancelling.
  *
+ * Owner decision 2: Paylov's verified transaction.cancel of a payment into the store's own Paylov account is held the
+ * same way (PaylovPayments::applyCancel), unless RIZQIM itself asked Paylov for that refund (payment/cancel requested:
+ * PaylovPayments::refundRequestedByRizqim). Paylov's cancel is read back from Paylov first, so the money did go back;
+ * what stays the store's to answer for is whether RIZQIM's commission goes back with it. Its `reason` is null.
+ *
  * A refund RIZQIM itself made first (the order is `refunded`: admin refund, approved refund request) is not held:
  * the provider's cancel then only gives the money back it was flagged for. Platform-owned orders keep their own rule
  * (their key is RIZQIM's: PaymeWebhookController refuses a cancel while the store holds the money).

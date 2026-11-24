@@ -25,7 +25,7 @@ function memberNames(order: OrderCard): Map<number, string> {
   return names;
 }
 
-// Wave P: a refund the store made from its own Payme cabinet on a delivered order (docs/API.md "Ovqatxona kassasidan
+// Wave P: a refund the store made from its own Payme or (owner decision 2) Paylov cabinet on a delivered order (docs/API.md "Ovqatxona kassasidan
 // qaytarish"). The customer already has the money back; RIZQIM keeps its commission until the team decides: approving takes
 // two members (a proposal, then a different member's confirmation), dismissing one. The buttons follow `actions`.
 export function StoreRefundReviewSection({ order, onAction }: { order: OrderCard; onAction: (action: StoreRefundAction) => void }) {
@@ -42,8 +42,8 @@ export function StoreRefundReviewSection({ order, onAction }: { order: OrderCard
   return (
     <Section title={t('orders_storeRefund')}>
       <Card className="flex flex-col gap-3 border-warning-soft-fg/40">
-        <p className="text-footnote text-fg">{t('orders_storeRefundExplain')}</p>
-        {pending && <p className="text-footnote text-fg-muted">{t('orders_storeRefundHow')}</p>}
+        <p className="text-footnote text-fg">{t('orders_storeRefundExplain', { provider: providerName(latest.provider) })}</p>
+        {pending && <p className="text-footnote text-fg-muted">{t('orders_storeRefundHow', { provider: providerName(latest.provider) })}</p>}
 
         <ul className="flex flex-col gap-3 border-t border-line pt-3">
           {order.store_refund_reviews.map((review, index) => (

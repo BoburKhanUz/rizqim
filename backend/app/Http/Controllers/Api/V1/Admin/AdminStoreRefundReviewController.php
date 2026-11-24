@@ -19,7 +19,8 @@ use Illuminate\Http\Request;
 
 /**
  * Wave P: a provider refund made on the store's own cashbox of a delivered order (a Payme CancelTransaction signed
- * with the store's own key) is shown as refunded but keeps RIZQIM's commission until a manager decides it here
+ * with the store's own key; owner decision 2: a refund in the store's own Paylov cabinet, confirmed by Paylov) is shown
+ * as refunded but keeps RIZQIM's commission until a manager decides it here
  * (admin.orders.refund_approve, a step-up and a `reason`; audited: the decision, the payment ids and the amount).
  * Approving takes two different members (proposal, then confirmation), dismissing one. The card's `store_refund_review`
  * (latest), `store_refund_reviews` (all, newest first), `actions.can_decide_store_refund` and
@@ -39,7 +40,7 @@ class AdminStoreRefundReviewController extends AdminController
      * Approve a store's provider refund
      *
      * Two members (four eyes, as refund requests): the money did go back to the customer (checked in the store's Payme
-     * cabinet). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
+     * or Paylov cabinet: `store_refund_review.provider`). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
      * `pending`, `proposed_by` set) and nothing is booked. A DIFFERENT member's approval refunds the order through
      * RIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,
      * nothing flagged for a manual refund (the provider already returned it). The proposer approving again: 403

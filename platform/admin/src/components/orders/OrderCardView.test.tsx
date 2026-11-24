@@ -208,6 +208,21 @@ describe('OrderCardView: the store refund review', () => {
     expect(within(block).queryByRole('button', { name: 'Tasdiqlash' })).not.toBeInTheDocument();
   });
 
+  // Owner decision 2: a refund made in the store's own Paylov cabinet is held the same way; every text names its provider
+  it('names Paylov, never Payme, for a refund made in the store\'s own Paylov cabinet', async () => {
+    const review = storeRefundReview({ provider: 'paylov', reason_code: null });
+    setup({ [`GET /orders/${UUID}`]: () => ok({ ...held(), payment_method: 'paylov', store_refund_review: review, store_refund_reviews: [review] }) });
+    const block = await section();
+    expect(within(block).getByText(/o'zining Paylov kabinetidan mijozga qaytardi/)).toBeInTheDocument();
+    expect(within(block).getByText(/Ovqatxonaning Paylov kabinetida pul haqiqatan/)).toBeInTheDocument();
+    expect(within(block).getByText(/^Paylov · ovqatxona qaytardi/)).toBeInTheDocument();
+    expect(within(block).queryByText(/Payme/)).not.toBeInTheDocument();
+
+    await userEvent.click(within(block).getByRole('button', { name: 'Qaytarishni taklif qilish' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Paylov kabinetida haqiqatan qaytganini/)).toBeInTheDocument();
+  });
+
   it('proposes the refund with a reason and an Idempotency-Key, then shows it waits for another member', async () => {
     const proposed = held({ proposed_by: 1, proposed_at: new Date(NOW).toISOString(), proposal_note: 'Kabinetda tekshirdim' }, { can_approve_store_refund: false });
     let current = held();

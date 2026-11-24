@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Services\Order\OrderStatusService;
 use App\Services\Payment\Fiscal\OnlineFiscalReceiptBuilder;
 use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
+use App\Services\Payment\StoreRefundReview;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,7 +44,10 @@ use Illuminate\Support\Facades\Log;
  *  - the transaction.cancel webhook carries Basic Auth only, which a store on its own Paylov account knows: it is applied
  *    only once getTransactions reports the transaction cancelled (verifyCancel, review 2). Until Paylov answers it is
  *    `cancel_reported_at` and the scheduled re-check asks again; a cancel Paylov does not confirm is logged and ignored.
- *    applyCancel() records a cancellation however it came (our own payment/cancel, or a verified webhook), once.
+ *    applyCancel() records a cancellation however it came (our own payment/cancel, or a verified webhook), once;
+ *  - owner decision 2: a verified cancel webhook RIZQIM did not ask for (refundRequestedByRizqim) of a delivered order
+ *    paid into the store's own account is a refund the store made in its own Paylov cabinet: held for a manager
+ *    (StoreRefundReview, as Payme's CancelTransaction on the store's own cashbox), the commission kept until then.
  *
  * An order with a payment still unconfirmed is never expired as unpaid (CancelUnpaidOnlineOrdersJob).
  */
@@ -107,7 +111,24 @@ class PaylovPayments
     public static function isPayable(Order $order): bool
     {
         return $order->payment_status !== PaymentStatus::PAID
-            && !in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true);
+            && !in_array($order->status, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true)
+            // Owner decision 2: a delivered order whose money went back (a cabinet refund held for review, decided or
+            // not) never takes a payment again, as Payme's accountError and Click's isPayable
+            && !StoreRefundReview::moneyWentBack($order);
+    }
+
+    /**
+     * Owner decision 2: whether RIZQIM itself asked Paylov to give this payment back — its payment/cancel requested,
+     * retried or refused for good (payload.paylov.refund: an order cancelled or refunded here, a refund request's share,
+     * money refused at perform), or a manual refund it flagged. A cancel webhook for such a payment is RIZQIM's own
+     * refund arriving, never a refund the store made in its own cabinet.
+     */
+    public static function refundRequestedByRizqim(Payment $payment): bool
+    {
+        $refund = self::state($payment)['refund'] ?? null;
+
+        return (is_array($refund) && in_array($refund['status'] ?? null, [self::REFUND_REQUESTED, self::REFUND_RETRYING, self::REFUND_FAILED], true))
+            || !empty($payment->payload['manual_refund_required']);
     }
 
     /**
@@ -494,8 +515,12 @@ class PaylovPayments
     /**
      * Records that Paylov cancelled the transaction (by us, from its business panel, or by its staff), exactly once.
      * A pending (unconfirmed) payment is closed; a paid one is refunded, and its order follows as with Payme's
-     * CancelTransaction: a delivered order is refunded (its commission and settlement reversed), a cancelled or refunded
-     * one is marked refunded, one still in progress is no longer paid. Returns closed, refunded or noop.
+     * CancelTransaction: a delivered order is refunded (its commission and settlement reversed) — owner decision 2: unless
+     * the cancel came by the webhook, RIZQIM did not ask for it (refundRequestedByRizqim) and the order is store-owned
+     * (StoreRefundReview::applies): then it is held for a manager (StoreRefundReview::hold: payment and order payment
+     * status refunded, the order stays delivered, no ledger change) —, a cancelled or refunded one is marked refunded,
+     * one still in progress is no longer paid. The refund receipt is queued whenever the money went back (as Payme
+     * registers its refund receipt itself, held or not). Returns closed, refunded or noop.
      *
      * @param  'merchant'|'webhook'  $by
      */
@@ -526,12 +551,25 @@ class PaylovPayments
 
             $state = self::state($locked);
             $refund = is_array($state['refund'] ?? null) ? $state['refund'] : [];
+            // Read before the write below marks the refund done
+            $requestedByRizqim = self::refundRequestedByRizqim($locked);
             $this->write($locked, ['status' => PaymentStatus::REFUNDED, 'cancelled_at' => now()], $cancel + [
                 'refund' => array_merge($refund, ['status' => self::REFUND_DONE, 'done_at' => now()->toIso8601String()]),
             ], ['cancel_reported_at']);
 
             // Money taken for an order that could not take it never was the order's
             if (($state['refused'] ?? null) !== null || $order === null) {
+                return ['refunded', $locked];
+            }
+
+            if ($by === 'webhook' && !$requestedByRizqim && StoreRefundReview::applies($order)) {
+                // Owner decision 2: a refund the store made in its own Paylov cabinet of an order RIZQIM settled
+                // (delivered, the money in the store's own account). Paylov confirmed the money went back
+                // (verifyCancel), but the store decides refunds on its own account: as Payme's CancelTransaction,
+                // shown refunded (payment and order payment status), the order stays delivered, RIZQIM's commission
+                // and ledger untouched until a manager approves or dismisses it (StoreRefundReview)
+                app(StoreRefundReview::class)->hold($order, $locked, 'paylov', null);
+
                 return ['refunded', $locked];
             }
 
