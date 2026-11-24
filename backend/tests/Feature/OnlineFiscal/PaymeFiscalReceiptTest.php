@@ -268,6 +268,43 @@ class PaymeFiscalReceiptTest extends TestCase
         $this->assertSame([], $this->issuer->recorded);
     }
 
+    /**
+     * A sale receipt exists only for a performed transaction and a refund receipt only for one cancelled after it was
+     * performed (Payme registers them after PerformTransaction / CancelTransaction). The store knows its own cashbox
+     * key, so a SetFiscalData out of that order is answered like an unknown receipt and records nothing.
+     */
+    public function test_set_fiscal_data_is_refused_for_a_transaction_in_the_wrong_state(): void
+    {
+        $order = $this->storeOrder();
+        $amount = (int) round((float) $order->total_price * 100);
+        $this->rpc('CreateTransaction', ['id' => self::TRX, 'time' => 1760000000000, 'amount' => $amount, 'account' => ['order_id' => $order->uuid]])
+            ->assertJsonPath('result.state', 1);
+        $notFound = ['jsonrpc' => '2.0', 'id' => 7, 'error' => ['code' => -32001, 'message' => 'Receipt not found']];
+
+        // Created, never performed: no sale and no refund receipt
+        $this->rpc('SetFiscalData', $this->fiscalData('PERFORM'))->assertExactJson($notFound);
+        $this->rpc('SetFiscalData', $this->fiscalData('CANCEL'))->assertExactJson($notFound);
+
+        // Performed and still paid: a sale receipt, but no refund receipt
+        $this->rpc('PerformTransaction', ['id' => self::TRX])->assertJsonPath('result.state', 2);
+        $this->rpc('SetFiscalData', $this->fiscalData('CANCEL'))->assertExactJson($notFound);
+        $this->assertSame([], $this->issuer->recorded);
+        $this->assertArrayNotHasKey('fiscal', Payment::where('provider_transaction_id', self::TRX)->first()->payload);
+
+        $this->rpc('SetFiscalData', $this->fiscalData('PERFORM'))->assertJsonPath('result.success', true);
+        $this->assertSame(['payme:' . self::TRX . ':perform'], array_keys($this->issuer->recorded));
+
+        // A transaction cancelled before it was performed never had a receipt
+        $other = $this->storeOrder();
+        $this->rpc('CreateTransaction', ['id' => 'never-performed', 'time' => 1760000000000, 'amount' => (int) round((float) $other->total_price * 100), 'account' => ['order_id' => $other->uuid]])
+            ->assertJsonPath('result.state', 1);
+        $this->rpc('CancelTransaction', ['id' => 'never-performed', 'reason' => 3])->assertJsonPath('result.state', -1);
+        foreach (['PERFORM', 'CANCEL'] as $type) {
+            $this->rpc('SetFiscalData', ['id' => 'never-performed'] + $this->fiscalData($type))->assertExactJson($notFound);
+        }
+        $this->assertCount(1, $this->issuer->recorded);
+    }
+
     public function test_an_ofd_refusal_is_flagged_and_a_later_registration_recorded(): void
     {
         $order = $this->storeOrder();

@@ -674,8 +674,16 @@ class PaymeWebhookController extends Controller
             return $this->rpcError($id, -32001, 'Receipt not found');
         }
 
-        DB::transaction(function () use ($payment, $type, $data, $accepted) {
+        $recorded = DB::transaction(function () use ($payment, $type, $data, $accepted) {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
+
+            // Payme registers a sale receipt after PerformTransaction and a refund receipt after cancelling a performed
+            // transaction. A store's own cashbox key is known to the store, so a report out of that order (a sale of a
+            // transaction never performed, a refund of one still paid) is no receipt of ours: answered like an
+            // unknown one, nothing recorded
+            if (!$this->hasReceipt($payment, $type)) {
+                return false;
+            }
             $fiscal = is_array($payment->payload['fiscal'] ?? null) ? $payment->payload['fiscal'] : [];
             $key = $type === 'PERFORM' ? 'perform_data' : 'cancel_data';
             $stored = is_array($fiscal[$key] ?? null) ? $fiscal[$key] : null;
@@ -691,7 +699,7 @@ class PaymeWebhookController extends Controller
                     ]);
                 }
 
-                return;
+                return true;
             }
 
             $fiscalData = array_intersect_key($data, array_flip(['receipt_id', 'status_code', 'message', 'terminal_id', 'fiscal_sign', 'qr_code_url', 'date']));
@@ -727,9 +735,30 @@ class PaymeWebhookController extends Controller
             }
 
             app(OnlineFiscalRecorder::class)->mark($payment, $marks);
+
+            return true;
         });
 
+        if (!$recorded) {
+            return $this->rpcError($id, -32001, 'Receipt not found');
+        }
+
         return $this->result($id, ['success' => true]);
+    }
+
+    /**
+     * Whether Payme can have registered a receipt of this type for the payment: a sale (PERFORM) once the transaction
+     * was performed (paid, or refunded after it), a refund (CANCEL) once a performed transaction was cancelled.
+     */
+    protected function hasReceipt(Payment $payment, string $type): bool
+    {
+        if ($payment->paid_at === null) {
+            return false;
+        }
+
+        return $type === 'PERFORM'
+            ? in_array($payment->status, [PaymentStatus::PAID, PaymentStatus::REFUNDED], true)
+            : $payment->status === PaymentStatus::REFUNDED;
     }
 
     protected function state(Payment $payment): int

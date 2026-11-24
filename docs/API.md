@@ -950,7 +950,8 @@ yoqilgan bo'lsa (`stores.fiscal_settings.enabled`) ishlaydi; o'chiq bo'lsa webho
 - `SetFiscalData` (yangi metod, o'sha Basic auth — to'lovning o'z kaliti): `{id, type: PERFORM|CANCEL, fiscal_data:
   {receipt_id, status_code, message, terminal_id, fiscal_sign, qr_code_url, date}}` → `{"result": {"success": true}}`.
   `PERFORM` — sotuv cheki, `CANCEL` — alohida qaytarish cheki (asl sotuv chekiga bog'lanadi). Takroriy chaqiruv hech
-  narsani o'zgartirmaydi (birinchi qabul qilingan chek saqlanadi). Xatolar: `-32001` (bunday chek yo'q), `-32602`
+  narsani o'zgartirmaydi (birinchi qabul qilingan chek saqlanadi). Xatolar: `-32001` (bunday chek yo'q; `PERFORM`
+  bajarilmagan, `CANCEL` bajarilib bekor qilinmagan tranzaksiyaga ham), `-32602`
   (noto'g'ri parametr, `message` da nomi: `Invalid parameter: type`), `-32504` (kalit noto'g'ri). `status_code ≠ 0`
   (OFD rad etgan) — to'lovda `failed` / `payme_ofd_rejected` deb belgilanadi, keyingi muvaffaqiyatli chaqiruv yoziladi.
 
@@ -3342,6 +3343,17 @@ soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
 - Click: SHOP API'da faqat Prepare/Complete bor, qaytarish (`payment/reversal`) — RIZQIM'ning o'zi yuboradigan chaqiruv;
   `error < 0` bilan kelgan Complete — `-9`, to'langan buyurtma o'zgarmaydi. Kassadagi QR (Payme/Click) — bajarilgan
   tranzaksiyani faqat RIZQIM qaytarishi so'raganda bekor qiladi (`-31007` aks holda), platforma puli yo'q.
+
+**Ovqatxona kassasiga «to'landi» (soxta «paid»).** O'z hisobli ovqatxona (`payment_owner: STORE`) Click Complete va Payme
+`PerformTransaction` ni tasdiqlaydigan kalitni biladi, Click SHOP API va Payme Merchant API'da esa buyurtma to'lovini
+qayta o'qish yo'q, shuning uchun ovqatxona **o'z** buyurtmasini kalit bilan «to'landi» qila oladi (Paylov'da bunday emas:
+perform `getTransactions` `payed` desagina to'lov bo'ladi). Kalit faqat shu: buyurtmaning o'z hisobi kaliti tekshiriladi
+(`OrderMerchantAccount`, `payment_owner` checkout'da qotadi) — boshqa ovqatxonaning buyurtmasi ham, shu ovqatxonaning
+platforma yig'adigan (`PLATFORM`) buyurtmasi ham, top-up ham bu kalit bilan to'lanmaydi; summa tiyinigacha teng bo'lishi
+shart. Bunday «to'landi» platforma pulini qo'zg'atmaydi: hamyonga o'tkazma yo'q (`settlePlatformOrder` faqat `PLATFORM`),
+keshbek balansi o'zgarmaydi; yetkazilganda komissiya to'lanmagan buyurtmadagidek ovqatxona qarziga yoziladi. Payme
+`SetFiscalData`: `PERFORM` faqat bajarilgan (to'langan yoki keyin qaytarilgan), `CANCEL` faqat bajarilib bekor qilingan
+tranzaksiyaga yoziladi, boshqasi — `-32001`, hech narsa yozilmaydi. Testlar: `tests/Feature/PaymentForgedPaidCallbackTest.php`.
 
 **Paylov (wave P) — faqat to'liq qaytarish.** Paylov `payment/cancel` faqat `transactionId` oladi, summa yo'q. Shuning
 uchun Paylov buyurtmasiga so'rov faqat **butun qaytariladigan summaga**: qismi — 422 `paylov_partial_refund_not_supported`
