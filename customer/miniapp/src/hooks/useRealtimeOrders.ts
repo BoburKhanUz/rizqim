@@ -5,6 +5,7 @@ import { getOrderChannelNames, isStaffChannel, openOrderChannels, resolveRealtim
 import { loadRealtimeStatus } from '../lib/realtimeStatus';
 import { revisions } from '../lib/revisions';
 import { logApiError } from '../lib/apiError';
+import { isForeignSession, sessionToken } from '../lib/session';
 import { tg } from '../lib/telegram';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeStore } from '../store/realtimeStore';
@@ -70,7 +71,8 @@ function onTelegramActivated(listener: () => void): () => void {
 // Without any Reverb key, or when the connection cannot be made, nothing changes: the screens just poll.
 export function useRealtimeOrders(): void {
   const queryClient = useQueryClient();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // A session stored for another Telegram user never opens that user's channels (lib/session.ts)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated && !isForeignSession(state));
   const role = useAuthStore((state) => state.user?.role);
   const userId = useAuthStore((state) => state.user?.id);
   const storeId = useAuthStore((state) => state.user?.store_id ?? null);
@@ -182,7 +184,7 @@ export function useRealtimeOrders(): void {
         });
       }
 
-      const opened = await openOrderChannels(config, channelNames, () => useAuthStore.getState().token, {
+      const opened = await openOrderChannels(config, channelNames, sessionToken, {
         onEvent: (event) => {
           touch(event.channel);
           const verdict = revisions.onEvent(event.channel, event.rev);

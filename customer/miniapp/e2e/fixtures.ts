@@ -6,22 +6,38 @@ import { FakeApi, TELEGRAM_ID } from './fakeApi'
 export { expect }
 
 // What Telegram hands the Mini App on launch (the tgWebAppData launch parameter, an initData query string).
-// The backend is the only one that verifies the hash, and here the backend is the fake.
-function buildInitData(): string {
-  const user = { id: Number(TELEGRAM_ID), first_name: 'Ali', username: 'ali', language_code: 'uz' }
-  return `query_id=E2E&user=${encodeURIComponent(JSON.stringify(user))}&auth_date=1790000000&hash=e2e`
+// The backend is the only one that verifies the hash, and here the backend is the fake. auth_date is when Telegram
+// opened the app (epoch seconds): now, unless a test asks for an older launch (the fake refuses one over 10 minutes old,
+// as the backend does).
+export function buildInitData(telegramId: string = TELEGRAM_ID, firstName = 'Ali', authDate: number = Math.floor(Date.now() / 1000)): string {
+  const user = { id: Number(telegramId), first_name: firstName, username: `user_${telegramId}`, language_code: 'uz' }
+  return `query_id=E2E&user=${encodeURIComponent(JSON.stringify(user))}&auth_date=${authDate}&hash=e2e`
 }
 
-export async function installTelegram(page: Page): Promise<void> {
+// Where the SDK looks for the launch parameters (per tab: sessionStorage)
+const LAUNCH_PARAMS_KEY = '__telegram__initParams'
+
+export async function installTelegram(page: Page, telegramId: string = TELEGRAM_ID): Promise<void> {
   // The app bundles Telegram's own web-app script (@twa-dev/sdk), which builds window.Telegram.WebApp from the launch
   // parameters it finds in sessionStorage. Seeding them there is what opening the Mini App from Telegram amounts to.
-  await page.addInitScript((initData) => {
-    const key = '__telegram__initParams'
+  await page.addInitScript(({ key, initData }) => {
     if (sessionStorage.getItem(key) === null) {
       sessionStorage.setItem(key, JSON.stringify({ tgWebAppData: initData, tgWebAppVersion: '8.0', tgWebAppPlatform: 'web' }))
     }
-  }, buildInitData())
+  }, { key: LAUNCH_PARAMS_KEY, initData: buildInitData(telegramId) })
 }
+
+// The next load of this tab is a launch by another Telegram account (the device's storage stays as it is). Takes effect
+// on the next page.goto / page.reload.
+export async function relaunchAs(page: Page, telegramId: string, firstName = 'Ali'): Promise<void> {
+  await page.evaluate(({ key, initData }) => {
+    sessionStorage.setItem(key, JSON.stringify({ tgWebAppData: initData, tgWebAppVersion: '8.0', tgWebAppPlatform: 'web' }))
+  }, { key: LAUNCH_PARAMS_KEY, initData: buildInitData(telegramId, firstName) })
+}
+
+// The key a per-user store of the app is saved under for a Telegram account (src/lib/userStorage.ts)
+export const userStorageKey = (name: 'auth-storage' | 'cart-storage' | 'address-storage', telegramId: string = TELEGRAM_ID): string =>
+  `${name}:${telegramId}`
 
 function jsonBody(request: Request): Record<string, unknown> | null {
   try {
@@ -31,7 +47,7 @@ function jsonBody(request: Request): Record<string, unknown> | null {
   }
 }
 
-async function installNetwork(page: Page, api: FakeApi, origin: string): Promise<void> {
+export async function installNetwork(page: Page, api: FakeApi, origin: string): Promise<void> {
   // Nothing but the app itself and the mocked API is reachable: external images, tiles and scripts are answered empty
   // (they are not what these tests are about, and the CI runner may be offline from them anyway)
   await page.route((url) => url.origin !== origin, (route) => {

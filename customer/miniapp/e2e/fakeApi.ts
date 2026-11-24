@@ -174,6 +174,27 @@ const ok = (data: unknown, extra: Record<string, unknown> = {}): ApiReply => rep
 const fail = (status: number, message: string, errors?: Record<string, string[]>): ApiReply =>
   reply(status, errors ? { success: false, message, errors } : { success: false, message })
 
+// The Telegram user id of an initData query string ('' when there is none)
+function telegramIdOf(initData: unknown): string {
+  if (typeof initData !== 'string') return ''
+  try {
+    const user = JSON.parse(new URLSearchParams(initData).get('user') ?? 'null') as { id?: number } | null
+    return user?.id === undefined ? '' : String(user.id)
+  } catch {
+    return ''
+  }
+}
+
+// The backend refuses initData older than this (backend/app/Actions/Auth/ValidateTelegramInitDataAction.php)
+export const INIT_DATA_MAX_AGE_S = 600
+
+// The auth_date (epoch seconds) of an initData query string, null when there is none
+function authDateOf(initData: unknown): number | null {
+  if (typeof initData !== 'string') return null
+  const value = Number(new URLSearchParams(initData).get('auth_date') ?? NaN)
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
 // A deterministic uuid, so a test can name an order by its first eight characters (the list shows them as "#AAAAAAAA")
 export const uuidOf = (n: number): string => `e2e${String(n).padStart(5, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`
 
@@ -270,6 +291,16 @@ export class FakeApi {
   unhandled: string[] = []
 
   private validTokens = new Set<string>()
+  /** Tokens of other accounts (addSession): a request carrying one is answered as that account. */
+  private sessions = new Map<string, ApiUser>()
+  /** Set to make POST /auth/telegram answer with this status (a 500, a 429) instead of signing in; null signs in. */
+  loginFailureStatus: number | null = null
+  /**
+   * The server's clock (epoch ms). Like the backend (ValidateTelegramInitDataAction), POST /auth/telegram refuses with a
+   * 401 initData without an auth_date or with one more than INIT_DATA_MAX_AGE_S older than this clock. Move it ahead
+   * (`api.now = () => Date.now() + 11 * 60_000`) to make the launch of a page as old as that.
+   */
+  now: () => number = () => Date.now()
   private tokenCounter = 0
   private orderCounter = 100
   /** The Idempotency-Key of every order that was placed, oldest first. */
@@ -322,6 +353,21 @@ export class FakeApi {
     return order
   }
 
+  /** A valid token of another account (say, the previous Telegram user of the device): its requests are answered as `user`. */
+  addSession(token: string, user: ApiUser): void {
+    this.validTokens.add(token)
+    this.sessions.set(token, user)
+  }
+
+  /** Telegram accounts other than the default one: a sign-in with the initData of `user.telegram_id` is answered as `user`. */
+  private accounts = new Map<string, ApiUser>()
+
+  /** Another Telegram account that can sign in on this device (its initData names `user.telegram_id`). */
+  addAccount(user: ApiUser): ApiUser {
+    this.accounts.set(String(user.telegram_id), user)
+    return user
+  }
+
   /** Makes every token issued so far invalid, like an expired or pruned one. */
   expireTokens(): void {
     this.validTokens.clear()
@@ -335,9 +381,16 @@ export class FakeApi {
   handle(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null = null): ApiReply {
     const call: ApiCall = { method, path, query, body, authorization, idempotencyKey, status: 0 }
     this.calls.push(call)
-    const result = this.route(method, path, query, body, authorization, idempotencyKey)
-    call.status = result.status
-    return result
+    const other = this.sessions.get(authorization?.replace(/^Bearer /, '') ?? '')
+    const own = this.user
+    if (other) this.user = other
+    try {
+      const result = this.route(method, path, query, body, authorization, idempotencyKey)
+      call.status = result.status
+      return result
+    } finally {
+      this.user = own
+    }
   }
 
   /** Wave M2: what GET /realtime says. Real-time is off in these tests (no Reverb key in the build, none here). */
@@ -354,7 +407,7 @@ export class FakeApi {
   acceptingOrders = true
 
   private route(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null): ApiReply {
-    if (method === 'POST' && path === '/auth/telegram') return this.login()
+    if (method === 'POST' && path === '/auth/telegram') return this.login(body)
     // Public: no token (GET /api/v1/realtime)
     if (method === 'GET' && path === '/realtime') return ok(this.realtimeStatus)
 
@@ -367,6 +420,8 @@ export class FakeApi {
     if (method === 'GET' && path === '/stores') return this.stores(query)
     if (method === 'GET' && path === '/catalog') return this.catalog(query)
     if (method === 'GET' && path === '/couriers') return ok([])
+    // The profile's region / district pickers: none set up
+    if (method === 'GET' && path === '/locations') return ok({ regions: [], districts: [] })
     // The unread badge of the home screen's bell: no notifications
     if (method === 'GET' && path === '/notifications') return ok({ items: [], unread_count: 0, pagination: { current_page: 1, last_page: 1, per_page: 20, total: 0 } })
     if (method === 'POST' && path === '/notifications/read') return ok(null)
@@ -398,10 +453,16 @@ export class FakeApi {
   }
 
   // POST /auth/telegram
-  private login(): ApiReply {
+  private login(body: Record<string, unknown> | null): ApiReply {
+    const authDate = authDateOf(body?.initData)
+    if (authDate === null || this.now() / 1000 - authDate > INIT_DATA_MAX_AGE_S) return fail(401, 'Invalid Telegram authentication data.')
+    if (this.loginFailureStatus !== null) return fail(this.loginFailureStatus, 'Server Error')
     const token = `token-${++this.tokenCounter}`
     this.validTokens.add(token)
-    return ok({ token, user: this.user, store: this.userStore(), sms_verification_required: false })
+    // The account of the Telegram user the initData names (the default user unless another account was added)
+    const account = this.accounts.get(telegramIdOf(body?.initData))
+    if (account) this.sessions.set(token, account)
+    return ok({ token, user: account ?? this.user, store: this.userStore(), sms_verification_required: false })
   }
 
   private userStore(): Store | null {

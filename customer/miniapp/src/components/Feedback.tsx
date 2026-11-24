@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { LockKeyhole, RotateCw, WifiOff } from 'lucide-react';
+import { Clock, LockKeyhole, RotateCw, WifiOff, X } from 'lucide-react';
 import { logApiError } from '../lib/apiError';
+import { tg } from '../lib/telegram';
 import { useLanguageStore } from '../store/languageStore';
 import { Button, Spinner } from '@rizqim/ui';
 
@@ -15,21 +16,37 @@ export const FullScreenLoader = ({ message }: { message?: string }) => {
   );
 };
 
+// Closes the Mini App (Telegram opens it again with new launch data); outside Telegram, where there is nothing to close,
+// a reload
+function closeApp() {
+  if (typeof tg.close === 'function') tg.close();
+  else window.location.reload();
+}
+
 // Signing in failed: the app cannot work at all. ONLY for that: a screen whose data failed to load shows
 // <InlineError onRetry={refetch} /> inside the page, so the navigation stays.
-export const ErrorFallback = ({ error }: { error?: string | null }) => {
+// `reopen`: this launch's Telegram data is too old to sign in with (lib/launch.ts). A reload keeps the same data and
+// would fail again, so the screen says so and offers closing the app to open it again from Telegram; otherwise (a
+// transient failure while the data is fresh) the reload retry.
+export const ErrorFallback = ({ error, reopen = false }: { error?: string | null; reopen?: boolean }) => {
   const { t } = useLanguageStore();
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-page p-inset-screen text-center" role="alert">
       <span className="flex size-14 items-center justify-center rounded-full bg-danger-soft text-danger-soft-fg">
-        <LockKeyhole aria-hidden="true" className="size-7" />
+        {reopen ? <Clock aria-hidden="true" className="size-7" /> : <LockKeyhole aria-hidden="true" className="size-7" />}
       </span>
-      <h2 className="text-title font-bold text-fg">{t('authErrorTitle')}</h2>
-      <p className="max-w-xs text-body text-fg-muted">{t('authErrorText')}</p>
+      <h2 className="text-title font-bold text-fg">{t(reopen ? 'authExpiredTitle' : 'authErrorTitle')}</h2>
+      <p className="max-w-xs text-body text-fg-muted">{t(reopen ? 'authExpiredText' : 'authErrorText')}</p>
       {error && <p className="max-w-xs text-footnote text-fg-muted">{error}</p>}
-      <Button icon={RotateCw} className="mt-3 w-full max-w-xs" onClick={() => window.location.reload()}>
-        {t('retry')}
-      </Button>
+      {reopen ? (
+        <Button icon={X} className="mt-3 w-full max-w-xs" onClick={closeApp}>
+          {t('closeApp')}
+        </Button>
+      ) : (
+        <Button icon={RotateCw} className="mt-3 w-full max-w-xs" onClick={() => window.location.reload()}>
+          {t('retry')}
+        </Button>
+      )}
     </div>
   );
 };

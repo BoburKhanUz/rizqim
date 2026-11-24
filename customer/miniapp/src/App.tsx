@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { initTelegramApp, tg } from './lib/telegram';
 import { trackAppOpen } from './lib/analytics';
 import { useAnalyticsAuth } from './hooks/useAnalytics';
@@ -175,15 +176,6 @@ export const OnlyTelegramBlocker = () => {
   );
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5,
-    },
-  },
-});
-
 // Customers are likely to open these next from the catalog: fetch them once the app is idle so the tap is instant.
 function usePrefetchCustomerPages(enabled: boolean) {
   useEffect(() => {
@@ -199,7 +191,7 @@ function usePrefetchCustomerPages(enabled: boolean) {
 }
 
 function AppContent() {
-  const { isAuthenticating, error, isAuthenticated, token, user } = useTelegramAuth();
+  const { isAuthenticating, error, reopen, isAuthenticated, token, user } = useTelegramAuth();
   const location = useLocation();
   // Analytics (wave P): the launch opens the session (app_open once per launch, with the kind of Telegram's
   // start_param; the launch data only tells a relaunch from a reload). Before any page's effect, so the first event of
@@ -231,7 +223,7 @@ function AppContent() {
   if (error && !isAuthenticated) {
     return (
       <>
-        <ErrorFallback error={error} />
+        <ErrorFallback error={error} reopen={reopen} />
         <AuthDebugger error={error} token={token} user={user} isAuthenticated={isAuthenticated} />
       </>
     );

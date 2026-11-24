@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { userPersistStorage } from '../lib/userStorage';
 import { normalizeUser } from '../lib/user';
 import type { ApiUser, Store, User } from '../types';
 
@@ -32,7 +33,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ token: null, user: null, store: null, isAuthenticated: false, smsVerificationRequired: false }),
     }),
     {
-      name: 'auth-storage', // saves to localStorage
+      name: 'auth-storage', // localStorage, under the key of the Telegram user who has the app open (lib/userStorage.ts)
+      storage: userPersistStorage<AuthState>(),
     }
   )
 );

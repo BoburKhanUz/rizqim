@@ -118,7 +118,9 @@ test('a relaunch from a start link in the same tab is a new session; the raw sta
   // Telegram Web opens the app again in the same tab (sessionStorage survives): new launch data with a referral link
   await page.evaluate((telegramId) => {
     const user = { id: Number(telegramId), first_name: 'Ali', username: 'ali', language_code: 'uz' }
-    const initData = `query_id=E2E2&user=${encodeURIComponent(JSON.stringify(user))}&start_param=ref_424242&auth_date=1790000600&hash=e2e2`
+    // A new launch: launched a little later than the first one (and within the 10 minutes the server accepts)
+    const authDate = Math.floor(Date.now() / 1000) + 1
+    const initData = `query_id=E2E2&user=${encodeURIComponent(JSON.stringify(user))}&start_param=ref_424242&auth_date=${authDate}&hash=e2e2`
     sessionStorage.setItem('__telegram__initParams', JSON.stringify({ tgWebAppData: initData, tgWebAppVersion: '8.0', tgWebAppPlatform: 'web', tgWebAppStartParam: 'ref_424242' }))
   }, TELEGRAM_ID)
   await page.reload()

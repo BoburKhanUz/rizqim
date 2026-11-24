@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAddressStore } from '../../store/useAddressStore';
 import type { Address } from '../../store/useAddressStore';
+import { userStorageKey } from '../../lib/userStorage';
+import { TEST_TELEGRAM_ID } from '../../test/telegramId';
+
+// Saved under the key of the Telegram user who has the app open (lib/userStorage.ts)
+const ADDRESS_KEY = userStorageKey('address-storage', TEST_TELEGRAM_ID);
 
 function address(overrides: Partial<Address> = {}): Address {
   return { id: 1, title: 'Uy', address: 'Chilonzor 12', lat: 41.3651, lng: 69.2872, is_default: false, ...overrides };
@@ -8,7 +13,7 @@ function address(overrides: Partial<Address> = {}): Address {
 
 // What an address of the app BEFORE the map picker looked like in localStorage (zustand persist, version 0)
 function saveOldStore(addresses: Address[], selectedAddressId: number | null = null) {
-  localStorage.setItem('address-storage', JSON.stringify({ state: { addresses, selectedAddressId }, version: 0 }));
+  localStorage.setItem(ADDRESS_KEY, JSON.stringify({ state: { addresses, selectedAddressId }, version: 0 }));
 }
 
 beforeEach(() => {
@@ -25,6 +30,7 @@ describe('addresses saved by the app before the map picker', () => {
 
     await useAddressStore.persist.rehydrate();
 
+    expect(useAddressStore.getState().addresses).toHaveLength(3);
     for (const saved of useAddressStore.getState().addresses) {
       expect(saved.lat).toBeNull();
       expect(saved.lng).toBeNull();
@@ -43,7 +49,7 @@ describe('addresses saved by the app before the map picker', () => {
 
   it('are only cleaned once: a point picked on the map later is never second-guessed', async () => {
     localStorage.setItem(
-      'address-storage',
+      ADDRESS_KEY,
       JSON.stringify({ state: { addresses: [address({ lat: 41.31, lng: 69.28 })], selectedAddressId: null }, version: 1 }),
     );
 
