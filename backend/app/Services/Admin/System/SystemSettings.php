@@ -3,6 +3,7 @@
 namespace App\Services\Admin\System;
 
 use App\Models\Setting;
+use App\Support\SettingSecrets;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -10,9 +11,10 @@ use Illuminate\Support\Facades\Cache;
  * setting() helper: SMS) and, read-only, what the server's configuration says about Telegram and the app. Grouped as
  * SMS, Telegram and Umumiy; payment providers have their own tab (PaymentProviders).
  *
- * A secret (the Eskiz password, the bot token...) is never answered: only whether it is set and its last 4 characters
+ * A secret (the Eskiz password, the Onlinegroup API key, the bot token...) is never answered: only whether it is set and its last 4 characters
  * (SecretMask). It is not changed with the other settings either, but replaced on its own (replaceSecret) and the
- * audit entry never holds its value.
+ * audit entry never holds its value. Review 17 M1: a secret is stored encrypted with APP_KEY (SettingSecrets): write()
+ * encrypts it, resolve() and the setting() helper decrypt it, and the cache only holds the ciphertext.
  *
  * The value a setting has follows setting(): a row in `settings` with a non-null value wins (an empty string too: it
  * means "nothing"), then config/settings.php (.env), then the code's own default.
@@ -34,11 +36,11 @@ final class SystemSettings
         'sms_driver' => [
             'group' => 'sms',
             'label' => 'SMS yuborish usuli',
-            'description' => "«Log» — SMS yuborilmaydi, kod faqat server jurnaliga yoziladi (sinov uchun). «Eskiz» — haqiqiy SMS; Eskiz email va paroli kiritilgan bo'lishi kerak.",
+            'description' => "«Log» — SMS yuborilmaydi, kod faqat server jurnaliga yoziladi (sinov uchun). «Eskiz» — haqiqiy SMS; Eskiz email va paroli kiritilgan bo'lishi kerak. «Onlinegroup» — haqiqiy SMS sms.onlinegroup.uz orqali; uning API kaliti kiritilgan bo'lishi kerak.",
             'type' => 'select',
             'default' => 'log',
-            'options' => ['log' => 'Log (SMS yuborilmaydi)', 'eskiz' => 'Eskiz (haqiqiy SMS)'],
-            'rules' => ['in:log,eskiz'],
+            'options' => ['log' => 'Log (SMS yuborilmaydi)', 'eskiz' => 'Eskiz (haqiqiy SMS)', 'onlinegroup' => 'Onlinegroup (haqiqiy SMS)'],
+            'rules' => ['in:log,eskiz,onlinegroup'],
         ],
         'eskiz_email' => [
             'group' => 'sms',
@@ -59,6 +61,12 @@ final class SystemSettings
             'group' => 'sms',
             'label' => 'Eskiz paroli',
             'description' => "Eskiz API paroli. Faqat oxirgi 4 belgisi ko'rinadi; almashtirish alohida amal.",
+            'type' => 'secret',
+        ],
+        'onlinegroup_api_key' => [
+            'group' => 'sms',
+            'label' => 'Onlinegroup API kaliti',
+            'description' => "sms.onlinegroup.uz → Ilovalar sahifasida yaratilgan ilovaning kaliti (sk_..., «sms:send» ruxsati bilan). Faqat oxirgi 4 belgisi ko'rinadi; almashtirish alohida amal.",
             'type' => 'secret',
         ],
     ];
@@ -129,7 +137,7 @@ final class SystemSettings
 
     /**
      * Saves the plain settings that changed. An empty value removes the stored one (the .env value or the default
-     * applies again). Switching SMS to Eskiz needs its email and password set.
+     * applies again). Switching SMS to Eskiz needs its email and password set, to Onlinegroup its API key.
      *
      * @param  array<string, string|null>  $values  key => value, already validated
      * @return array{before: array<string, string|null>, after: array<string, string|null>}
@@ -166,6 +174,11 @@ final class SystemSettings
             }
         }
 
+        // SMS through the Onlinegroup gateway needs its API key
+        if ($driver === 'onlinegroup' && array_key_exists('sms_driver', $after) && blank($this->effective('onlinegroup_api_key'))) {
+            throw new SystemAdminException('Onlinegroup uchun avval API kalitini kiriting.', 'onlinegroup_not_configured');
+        }
+
         foreach ($after as $key => $value) {
             $this->write($key, $value);
         }
@@ -196,6 +209,11 @@ final class SystemSettings
             throw new SystemAdminException("SMS Eskiz orqali yuborilmoqda: parolni o'chirishdan oldin SMS usulini «Log»ga o'tkazing.", 'in_use');
         }
 
+        // Clearing the gateway's key while SMS goes through it would stop every sign-in code too
+        if ($value === null && $key === 'onlinegroup_api_key' && $this->effective('sms_driver') === 'onlinegroup') {
+            throw new SystemAdminException("SMS Onlinegroup orqali yuborilmoqda: kalitni o'chirishdan oldin SMS usulini «Log»ga o'tkazing.", 'in_use');
+        }
+
         $this->write($key, $value);
 
         return ['was_configured' => $wasConfigured, 'changed' => true];
@@ -212,7 +230,7 @@ final class SystemSettings
     private function write(string $key, ?string $value): void
     {
         $row = Setting::query()->firstOrNew(['key' => $key]);
-        $row->value = $value;
+        $row->value = $value !== null && self::isSecret($key) ? SettingSecrets::encrypt($value) : $value;
         $row->save();
         // The model's own `saved` hook forgets the cache too; this covers a row that did not change
         Cache::forget("setting_{$key}");
@@ -241,7 +259,8 @@ final class SystemSettings
     private function resolve(string $key, ?Setting $row): array
     {
         if ($row !== null && $row->value !== null) {
-            return [(string) $row->value, 'settings'];
+            // A secret's ciphertext is decrypted (a plain value from before the encryption migration as it is)
+            return [self::isSecret($key) ? SettingSecrets::decrypt((string) $row->value) : (string) $row->value, 'settings'];
         }
         $config = config("settings.{$key}");
         if ($config !== null && $config !== '') {

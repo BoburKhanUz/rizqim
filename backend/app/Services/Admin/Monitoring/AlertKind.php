@@ -11,6 +11,7 @@ use App\Services\Admin\Monitoring\Checks\PosSyncSignatureCheck;
 use App\Services\Admin\Monitoring\Checks\QueueBacklogCheck;
 use App\Services\Admin\Monitoring\Checks\SchedulerStaleCheck;
 use App\Services\Admin\Monitoring\Checks\SettlementFailuresCheck;
+use App\Services\Admin\Monitoring\Checks\SmsFailuresCheck;
 use App\Services\Admin\Monitoring\Checks\DbConnectionsCheck;
 use App\Services\Admin\Monitoring\Checks\DbLongTransactionCheck;
 use App\Services\Admin\Monitoring\Checks\DbLockWaitsCheck;
@@ -57,6 +58,8 @@ enum AlertKind: string
     case TLS_EXPIRY = 'tls_expiry';
     // Wave M5 S3-d: the signed offline queue of the tills (docs/scale/M5_DESIGN.md section 4)
     case POS_SYNC_SIGNATURE = 'pos_sync_signature';
+    // Review 17: SMS (sign-in codes) that did not go out
+    case SMS_FAILURES = 'sms_failures';
 
     public function label(): string
     {
@@ -82,6 +85,7 @@ enum AlertKind: string
             self::PARTITIONS => 'Jurnallarning oylik bo\'limlari',
             self::TLS_EXPIRY => 'HTTPS sertifikati muddati tugayapti',
             self::POS_SYNC_SIGNATURE => 'Kassa navbati imzosi',
+            self::SMS_FAILURES => 'SMS yuborilmayapti',
         };
     }
 
@@ -109,6 +113,7 @@ enum AlertKind: string
             self::PARTITIONS => 'Jurnallar (audit, fiskal, bildirishnoma) uchun oldindagi oylar tayyor emas, zaxira bo\'limda qatorlar bor yoki arxivlashda xato.',
             self::TLS_EXPIRY => 'Saytning HTTPS sertifikati muddati tugashiga oz qoldi: tugasa mijozlar ilovani ocholmaydi.',
             self::POS_SYNC_SIGNATURE => 'Kassaning internetsiz navbatidan kelgan amal imzosi noto\'g\'ri yoki navbatdan amal yo\'qolgan: navbat fayli qo\'lda o\'zgartirilgan bo\'lishi mumkin.',
+            self::SMS_FAILURES => 'SMS (kirish kodlari) yuborilmadi: SMS xizmati sozlanmagan, kalit rad etilgan, SMS o\'chiq (log) yoki gateway javob bermayapti.',
         };
     }
 
@@ -138,6 +143,7 @@ enum AlertKind: string
             self::TABLE_BLOAT => 'Kechasi o\'sha jadvalga VACUUM (ANALYZE) bajaring; takrorlansa autovacuum sozlamasini ko\'rib chiqing.',
             self::PARTITIONS => 'php artisan db:partitions:ensure bajaring; xabar boshqa buyruqni aytsa, o\'shani bajaring.',
             self::TLS_EXPIRY => 'Sertifikatni yangilang (masalan certbot renew) va proksi serverni qayta yuklang.',
+            self::SMS_FAILURES => 'Tizim → Sozlamalar → SMS bo\'limida SMS usuli va API kalitini tekshiring (kalit sms:send ruxsati bilan, muddati o\'tmagan); sms.onlinegroup.uz kabinetida limit va SIM paketlarini ko\'ring.',
             self::POS_SYNC_SIGNATURE => 'Qurilmalar bo\'limida kassani oching, ovqatxona egasi bilan bog\'lanib o\'sha kungi sotuv va smena pulini solishtiring; kassa qayta o\'rnatilgan bo\'lsa bu kutilgan holat.',
         };
     }
@@ -151,6 +157,8 @@ enum AlertKind: string
             self::FAILED_JOBS_SPIKE, self::QUEUE_BACKLOG, self::POS_DEVICE_OFFLINE => 'warning',
             self::FISCAL_FAILURES, self::SETTLEMENT_FAILURES, self::BACKUP_STALE, self::SCHEDULER_STALE => 'critical',
             self::DB_LONG_TRANSACTION, self::DB_LOCK_WAITS, self::REALTIME_DOWN, self::TABLE_BLOAT, self::POS_SYNC_SIGNATURE => 'warning',
+            // Its `delivery` findings warn, `config` and `disabled` (no code reaches anyone) are critical
+            self::SMS_FAILURES => 'critical',
             // Their findings say warning or critical (restore_drill_stale: overdue warns, a failed drill is critical)
             self::DB_CONNECTIONS, self::WAL_ARCHIVE, self::PITR_BACKUP_STALE, self::RESTORE_DRILL_STALE, self::DISK_USAGE,
             self::REDIS_MEMORY, self::QUEUE_WORKER_STALE, self::PARTITIONS, self::TLS_EXPIRY => 'critical',
@@ -184,6 +192,7 @@ enum AlertKind: string
             self::PARTITIONS => ['threshold' => 2, 'threshold_secondary' => null, 'window_minutes' => null],
             self::TLS_EXPIRY => ['threshold' => 14, 'threshold_secondary' => 3, 'window_minutes' => null],
             self::POS_SYNC_SIGNATURE => ['threshold' => 1, 'threshold_secondary' => null, 'window_minutes' => 1440],
+            self::SMS_FAILURES => ['threshold' => 3, 'threshold_secondary' => null, 'window_minutes' => 15],
         };
     }
 
@@ -301,6 +310,11 @@ enum AlertKind: string
                 'threshold_secondary' => null,
                 'window' => ['label' => 'Oxirgi qancha vaqt ichida', 'unit' => 'daqiqa', 'min' => 5, 'max' => 10080],
             ],
+            self::SMS_FAILURES => [
+                'threshold' => ['label' => 'Yuborilmagan SMS soni (gateway xatolari)', 'unit' => 'ta', 'min' => 1, 'max' => 10000],
+                'threshold_secondary' => null,
+                'window' => ['label' => 'Oxirgi qancha vaqt ichida', 'unit' => 'daqiqa', 'min' => 1, 'max' => 1440],
+            ],
         };
     }
 
@@ -331,6 +345,7 @@ enum AlertKind: string
             self::PARTITIONS => PartitionsCheck::class,
             self::TLS_EXPIRY => TlsExpiryCheck::class,
             self::POS_SYNC_SIGNATURE => PosSyncSignatureCheck::class,
+            self::SMS_FAILURES => SmsFailuresCheck::class,
         };
     }
 

@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\PhoneVerification;
+use App\Services\Sms\SmsFailures;
 use App\Services\Sms\SmsServiceInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -22,8 +23,14 @@ class PhoneOtpService
         protected SmsServiceInterface $sms,
     ) {}
 
+    /** A code's lifetime, in seconds: also how long it may wait in an SMS gateway's queue */
+    public const CODE_TTL_SECONDS = 300;
+
     /**
-     * @return array{sent: bool, code: string}
+     * `rate_limited`: not sent because the SMS gateway's own limit refused it (429); the endpoints answer it like
+     * their own throttle.
+     *
+     * @return array{sent: bool, code: string, rate_limited: bool}
      */
     public function send(string $phone): array
     {
@@ -39,11 +46,15 @@ class PhoneOtpService
         PhoneVerification::create([
             'phone' => $phone,
             'code_hash' => Hash::make($code),
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => now()->addSeconds(self::CODE_TTL_SECONDS),
             'attempts' => 0,
         ]);
 
-        return ['sent' => $this->sms->send($phone, "FastFood tasdiqlash kodi: {$code}"), 'code' => $code];
+        $failures = app(SmsFailures::class);
+        $failures->clearLast();
+        $sent = $this->sms->send($phone, "RIZQIM tasdiqlash kodi: {$code}", self::CODE_TTL_SECONDS);
+
+        return ['sent' => $sent, 'code' => $code, 'rate_limited' => !$sent && $failures->last() === SmsFailures::RATE_LIMITED];
     }
 
     /**

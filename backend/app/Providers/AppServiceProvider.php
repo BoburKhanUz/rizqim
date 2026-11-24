@@ -16,8 +16,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             \App\Services\Sms\SmsServiceInterface::class,
-            \App\Services\Sms\EskizSmsService::class
+            // The control centre's sms_driver chooses: log (default), eskiz or onlinegroup
+            \App\Services\Sms\SmsDriver::class
         );
+        // Review 17 M2: the SMS failure counter (and why the last send of this request / job failed)
+        $this->app->scoped(\App\Services\Sms\SmsFailures::class);
 
         // P4-32: the payment providers' switches, read once per request or queued job (a store list asks per store)
         $this->app->scoped(\App\Services\Payment\PaymentProviderSwitch::class);
@@ -81,6 +84,10 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(1)->by('cooldown:' . $phone),
                 Limit::perHour(5)->by('hourly:' . $user),
                 Limit::perHour(5)->by('hourly:' . $phone),
+                // Review 17 M3: a platform-wide budget (the gateway takes 60 requests a minute per key and its SIMs
+                // have monthly packages), counted last so a request the limits above refuse does not spend it
+                Limit::perMinute(max(1, (int) config('auth.phone_verification.global_per_minute', 40)))->by('global:minute'),
+                Limit::perDay(max(1, (int) config('auth.phone_verification.global_per_day', 1000)))->by('global:day'),
             ];
         });
 

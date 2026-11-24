@@ -122,7 +122,7 @@ class TelegramAuthController extends Controller
             'token' => $token,
             'user' => $user,
             'store' => $resolvedStore,
-            'sms_verification_required' => setting('sms_driver', 'log') === 'eskiz',
+            'sms_verification_required' => \App\Services\Sms\SmsDriver::verificationRequired(),
         ], $deviceTokens?->toArray() ?? []), 'Authenticated successfully.');
     }
 }

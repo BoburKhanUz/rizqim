@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
@@ -29,6 +30,11 @@ class PhoneVerificationController extends Controller
         ]);
 
         $sent = $this->otp->send($request->phone);
+
+        // Review 17 M3: the gateway's own limit answers like ours (429, "Juda ko'p urinish...")
+        if ($sent['rate_limited']) {
+            throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => 60]);
+        }
 
         if (!$sent['sent']) {
             return response()->json([

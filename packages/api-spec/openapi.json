@@ -17453,6 +17453,7 @@
                                 "partitions",
                                 "tls_expiry",
                                 "pos_sync_signature",
+                                "sms_failures",
                                 null
                             ]
                         }
@@ -19618,7 +19619,7 @@
         "/v1/admin/monitoring/rules": {
             "get": {
                 "operationId": "admin.monitoring.rules",
-                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
+                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry; M5: pos_sync_signature; review 17: sms_failures). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
                 "summary": "Alert rules",
                 "tags": [
                     "Admin"
@@ -34843,7 +34844,7 @@
             },
             "patch": {
                 "operationId": "admin.system.settings_updated",
-                "description": "`values` {key: value} of the plain settings (`sms_driver`: log | eskiz, `eskiz_email`, `eskiz_from`), `reason`. An\nempty value removes the stored one (the .env value or the default applies). A secret key here is 422\n`secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`. Answers every group.",
+                "description": "`values` {key: value} of the plain settings (`sms_driver`: log | eskiz | onlinegroup, `eskiz_email`, `eskiz_from`),\n`reason`. An empty value removes the stored one (the .env value or the default applies). A secret key here is\n422 `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`; Onlinegroup without its\nAPI key 422 `onlinegroup_not_configured`. Answers every group.",
                 "summary": "Change settings",
                 "tags": [
                     "Admin"
@@ -34866,6 +34867,7 @@
                                                 "enum": [
                                                     "log",
                                                     "eskiz",
+                                                    "onlinegroup",
                                                     null
                                                 ]
                                             },
@@ -35048,7 +35050,7 @@
                         }
                     },
                     "422": {
-                        "description": "A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured)",
+                        "description": "A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured), Onlinegroup without its API key (onlinegroup_not_configured)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -35071,7 +35073,7 @@
         "/v1/admin/system/settings/secrets/{key}": {
             "put": {
                 "operationId": "admin.system.setting_secret_replaced",
-                "description": "`value` (1-500 characters), `reason`. Only `eskiz_password` today. The answer and the audit entry never hold the\nvalue: the entry says which setting and whether it was set before.",
+                "description": "`value` (1-500 characters), `reason`. `eskiz_password` or `onlinegroup_api_key`. The answer and the audit entry never hold the\nvalue: the entry says which setting and whether it was set before.",
                 "summary": "Replace a secret",
                 "tags": [
                     "Admin"
@@ -35283,7 +35285,7 @@
             },
             "delete": {
                 "operationId": "admin.system.setting_secret_cleared",
-                "description": "`reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password cannot be\ncleared while SMS goes through Eskiz (422 `in_use`).",
+                "description": "`reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password (the Onlinegroup\nAPI key) cannot be cleared while SMS goes through Eskiz (Onlinegroup): 422 `in_use`.",
                 "summary": "Clear a secret",
                 "tags": [
                     "Admin"
@@ -38077,6 +38079,25 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
                                 }
                             }
                         }
@@ -85875,6 +85896,25 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
                                 }
                             }
                         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use App\Actions\Auth\GenerateAuthTokenAction;
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
@@ -55,6 +56,11 @@ class PhoneLoginController extends Controller
 
         // Sent whether or not an account exists: the answer must not tell who is registered
         $sent = $this->otp->send($request->phone);
+
+        // Review 17 M3: the gateway's own limit answers like ours (429, "Juda ko'p urinish...")
+        if ($sent['rate_limited']) {
+            throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => 60]);
+        }
 
         if (!$sent['sent']) {
             return $this->error("SMS yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
@@ -190,7 +196,7 @@ class PhoneLoginController extends Controller
             'token' => null,
             'user' => $user,
             'store' => $user->store_id ? Store::with('branches')->find($user->store_id) : null,
-            'sms_verification_required' => setting('sms_driver', 'log') === 'eskiz',
+            'sms_verification_required' => \App\Services\Sms\SmsDriver::verificationRequired(),
             'is_new_user' => $created,
         ];
 

@@ -1959,7 +1959,7 @@ export interface paths {
          * @description One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
          *     backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
          *     pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
-         *     partitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+         *     partitions, tls_expiry; M5: pos_sync_signature; review 17: sms_failures). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
          *     kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
          *     for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
          *     (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
@@ -3781,9 +3781,10 @@ export interface paths {
         head?: never;
         /**
          * Change settings
-         * @description `values` {key: value} of the plain settings (`sms_driver`: log | eskiz, `eskiz_email`, `eskiz_from`), `reason`. An
-         *     empty value removes the stored one (the .env value or the default applies). A secret key here is 422
-         *     `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`. Answers every group.
+         * @description `values` {key: value} of the plain settings (`sms_driver`: log | eskiz | onlinegroup, `eskiz_email`, `eskiz_from`),
+         *     `reason`. An empty value removes the stored one (the .env value or the default applies). A secret key here is
+         *     422 `secret_separate`; Eskiz without its email and password 422 `eskiz_not_configured`; Onlinegroup without its
+         *     API key 422 `onlinegroup_not_configured`. Answers every group.
          */
         patch: operations["admin.system.settings_updated"];
         trace?: never;
@@ -3798,15 +3799,15 @@ export interface paths {
         get?: never;
         /**
          * Replace a secret
-         * @description `value` (1-500 characters), `reason`. Only `eskiz_password` today. The answer and the audit entry never hold the
+         * @description `value` (1-500 characters), `reason`. `eskiz_password` or `onlinegroup_api_key`. The answer and the audit entry never hold the
          *     value: the entry says which setting and whether it was set before.
          */
         put: operations["admin.system.setting_secret_replaced"];
         post?: never;
         /**
          * Clear a secret
-         * @description `reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password cannot be
-         *     cleared while SMS goes through Eskiz (422 `in_use`).
+         * @description `reason`. The stored value goes; the .env value applies again (if there is one). The Eskiz password (the Onlinegroup
+         *     API key) cannot be cleared while SMS goes through Eskiz (Onlinegroup): 422 `in_use`.
          */
         delete: operations["admin.system.setting_secret_cleared"];
         options?: never;
@@ -19756,7 +19757,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "active" | "all" | "open" | "acknowledged" | "resolved" | null;
-                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | "pos_sync_signature" | null;
+                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | "pos_sync_signature" | "sms_failures" | null;
                 severity?: "critical" | "warning" | "info" | null;
                 store_id?: number | null;
                 per_page?: number | null;
@@ -25704,7 +25705,7 @@ export interface operations {
                 "application/json": {
                     values: {
                         /** @enum {string|null} */
-                        sms_driver?: "log" | "eskiz" | null;
+                        sms_driver?: "log" | "eskiz" | "onlinegroup" | null;
                         /** Format: email */
                         eskiz_email?: string | null;
                         eskiz_from?: string | null;
@@ -25750,7 +25751,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            /** @description A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured) */
+            /** @description A secret sent here (secret_separate), an unknown key (unknown_setting), Eskiz not set up (eskiz_not_configured), Onlinegroup without its API key (onlinegroup_not_configured) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -26809,6 +26810,18 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Error overview. */
+                        message: string;
+                    };
+                };
+            };
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -41961,6 +41974,18 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Error overview. */
+                        message: string;
+                    };
+                };
+            };
             500: {
                 headers: {
                     [name: string]: unknown;

@@ -138,7 +138,7 @@ class NotificationRouterTest extends TestCase
         $sms = new class implements SmsServiceInterface {
             public array $sent = [];
 
-            public function send(string $phone, string $message): bool
+            public function send(string $phone, string $message, ?int $ttlSeconds = null): bool
             {
                 $this->sent[] = [$phone, $message];
 

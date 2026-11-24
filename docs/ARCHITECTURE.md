@@ -107,7 +107,7 @@ flowchart LR
     Q -- HTTP API --> REV
     SCH[scheduler] --> API
     API -- geokodlash --> NOM[Nominatim]
-    API -- SMS --> ESK[Eskiz]
+    API -- SMS --> ESK[Eskiz / sms.onlinegroup.uz]
 ```
 
 `queue`, `queue-reports`, `scheduler` va `reverb` backend bilan **bir xil image va kod**dan ishlaydi, faqat buyrug'i
@@ -126,7 +126,7 @@ Laravel 12, PHP 8.3. Kod `backend/app` ostida, vazifa bo'yicha:
 | `Services/Catalog` | mavjudlik (`MenuAvailability`), stop-list, qozon/partiya (`BatchService`), kanal menyusi, rasmlar |
 | `Services/Finance` | `LedgerService` (komissiya, hisob-kitob, qarz/hamyon), obuna va hisob-fakturalar, daromad hisoboti |
 | `Services/Auth` | tokenlar va refresh, qurilmalar, terminal ulash, PIN, ruxsatlar (`PermissionService`, `RolePermissions`), hisoblarni birlashtirish |
-| `Services/Notifications`, `Push`, `Telegram`, `Sms` | xabarlarni kanallarga taqsimlash (`NotificationRouter`), FCM, Telegram bot, Eskiz SMS |
+| `Services/Notifications`, `Push`, `Telegram`, `Sms` | xabarlarni kanallarga taqsimlash (`NotificationRouter`), FCM, Telegram bot, SMS (`SmsDriver`: log, Eskiz yoki sms.onlinegroup.uz) |
 | `Services/Audit` | harakatlar jurnali va maxfiy ma'lumotni yashirish |
 | `Domain/Delivery` | hududlar geometriyasi, hudud va filial tanlash, yetkazish narxi |
 | `Domain/Fiscal`, `Domain/Pos/*` | fiskal qatlam va POS modullari (3-bosqich, pastda 4.1) |
@@ -366,7 +366,7 @@ hodisa (yangi buyurtma, holat o'zgardi, kuryer biriktirildi)
 ```
 
 Xabar turlari: `order_updates`, `staff_new_order`, `courier_tasks`, `pos_alerts` (kassa ogohlantirishlari egaga), `promotions`. Push kaliti berilmasa push o'chiq,
-xato chiqmaydi. Batafsil: [PUSH.md](PUSH.md). SMS (OTP) — Eskiz (`sms_driver = eskiz`) yoki `log`.
+xato chiqmaydi. Batafsil: [PUSH.md](PUSH.md). SMS (OTP) — Eskiz (`sms_driver = eskiz`), sms.onlinegroup.uz (`onlinegroup`) yoki `log`.
 
 ## 8. Navbatlar va rejalashtirilgan ishlar
 

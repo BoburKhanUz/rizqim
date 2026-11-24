@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cache;
 
 class EskizSmsService implements SmsServiceInterface
 {
-    public function send(string $phone, string $message): bool
+    public function send(string $phone, string $message, ?int $ttlSeconds = null): bool
     {
         $driver = setting('sms_driver', 'log');
 
