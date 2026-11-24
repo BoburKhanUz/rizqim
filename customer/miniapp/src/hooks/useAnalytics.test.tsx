@@ -2,19 +2,24 @@ import { StrictMode, type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setAnalyticsAuth, track } from '../lib/analytics';
+import { getTelegramUser } from '../lib/telegram';
 import { isTrackedUser, trackAddToCart, useAnalyticsAuth, useTrackOnce, useTrackSearch } from './useAnalytics';
 
 // The React side of the Mini App analytics: one event per real action (not per render or StrictMode effect run), the
 // search without its text, and staff never tracked.
 
 vi.mock('../lib/analytics', () => ({ track: vi.fn(), setAnalyticsAuth: vi.fn(), trackAppOpen: vi.fn() }));
+vi.mock('../lib/telegram', () => ({ getTelegramUser: vi.fn(() => undefined) }));
 
 const strict = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
 
 beforeEach(() => {
   vi.mocked(track).mockClear();
   vi.mocked(setAnalyticsAuth).mockClear();
+  vi.mocked(getTelegramUser).mockReturnValue(undefined);
 });
+
+const CUSTOMER = { id: 41, telegram_id: '5550001', role: 'customer' as const, store_id: null };
 
 describe('useTrackOnce', () => {
   it('fires once per key under StrictMode and re-renders, again for a new key', () => {
@@ -77,27 +82,39 @@ describe('useTrackSearch', () => {
 });
 
 describe('useAnalyticsAuth', () => {
-  it('passes the token on once the sign-in has finished, for a customer', () => {
-    const { rerender } = renderHook(({ busy }: { busy: boolean }) => useAnalyticsAuth(busy, 'tok', { role: 'customer', store_id: null }), { initialProps: { busy: true } });
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: null, allowed: null });
+  it('passes the token and the account on once the sign-in has finished, for a customer', () => {
+    const { rerender } = renderHook(({ busy }: { busy: boolean }) => useAnalyticsAuth(busy, 'tok', CUSTOMER), { initialProps: { busy: true } });
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: null, allowed: null, userId: null });
     rerender({ busy: false });
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok', allowed: true });
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok', allowed: true, userId: 41 });
   });
 
   it.each([
-    ['an owner', { role: 'owner' as const, store_id: 1 }],
-    ['a manager', { role: 'manager' as const, store_id: 1 }],
-    ['a courier', { role: 'courier' as const, store_id: 1 }],
-    ['a customer account tied to a store', { role: 'customer' as const, store_id: 3 }],
+    ['an owner', { ...CUSTOMER, role: 'owner' as const, store_id: 1 }],
+    ['a manager', { ...CUSTOMER, role: 'manager' as const, store_id: 1 }],
+    ['a courier', { ...CUSTOMER, role: 'courier' as const, store_id: 1 }],
+    ['a customer account tied to a store', { ...CUSTOMER, store_id: 3 }],
   ])('marks %s as never tracked', (_label, user) => {
     renderHook(() => useAnalyticsAuth(false, 'tok', user));
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok', allowed: false });
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok', allowed: false, userId: 41 });
     expect(isTrackedUser(user)).toBe(false);
+  });
+
+  it("never tracks a stored account that is not this launch's Telegram user (a failed sign-in left the old one)", () => {
+    vi.mocked(getTelegramUser).mockReturnValue({ id: 7770002, first_name: 'B' } as ReturnType<typeof getTelegramUser>);
+    renderHook(() => useAnalyticsAuth(false, 'tok-of-a', CUSTOMER));
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok-of-a', allowed: false, userId: 41 });
+  });
+
+  it("tracks the stored account when it is this launch's Telegram user", () => {
+    vi.mocked(getTelegramUser).mockReturnValue({ id: 5550001, first_name: 'A' } as ReturnType<typeof getTelegramUser>);
+    renderHook(() => useAnalyticsAuth(false, 'tok', CUSTOMER));
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'tok', allowed: true, userId: 41 });
   });
 
   it('holds while nobody is signed in', () => {
     renderHook(() => useAnalyticsAuth(false, null, null));
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: null, allowed: null });
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: null, allowed: null, userId: null });
   });
 });
 

@@ -201,9 +201,10 @@ function usePrefetchCustomerPages(enabled: boolean) {
 function AppContent() {
   const { isAuthenticating, error, isAuthenticated, token, user } = useTelegramAuth();
   const location = useLocation();
-  // Analytics (wave P): the launch opens the session (app_open once per session, with the kind of Telegram's
-  // start_param). Before any page's effect, so the first event of a launch always carries it; sent once signed in
-  useState(() => trackAppOpen(tg.initDataUnsafe?.start_param));
+  // Analytics (wave P): the launch opens the session (app_open once per launch, with the kind of Telegram's
+  // start_param; the launch data only tells a relaunch from a reload). Before any page's effect, so the first event of
+  // a launch always carries it; sent once signed in
+  useState(() => trackAppOpen(tg.initDataUnsafe?.start_param, tg.initData));
   useAnalyticsAuth(isAuthenticating, token, user);
   const isCustomer = isCustomerRole(user?.role);
 

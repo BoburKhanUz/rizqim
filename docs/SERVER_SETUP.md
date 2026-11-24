@@ -208,6 +208,7 @@ variables -> Actions -> *Repository secrets*), ularni **o'chiring**: workflow en
 | `PROD_VITE_PARTNER_WEB_URL` | `https://business.rizqim.uz` (standart) | |
 | `PROD_VITE_MAP_TILE_URL`, `PROD_VITE_MAP_ATTRIBUTION` | bo'sh | production'da xarita provayderi (ochiq OSM faqat sinov uchun) |
 | `PROD_VITE_SENTRY_DSN` | bo'sh | Sentry bo'lsa |
+| `PROD_VITE_ANALYTICS_ENABLED` | bo'sh (o'chiq) | `true` — Mini App statistika klientini yig'adi (faqat maxfiylik siyosatining yangi matni e'lon qilingandan keyin); o'zgartirgach qayta deploy. Serverdagi `ANALYTICS_ENABLED` alohida (ishlayotgan o'chirgich) |
 
 `PROD_VITE_*` sir emas (Mini App ichiga yoziladi, brauzerda ko'rinadi) va ixtiyoriy: berilmasa standart ishlaydi. Ular
 repozitoriy darajasida turadi, chunki obraz yig'ish ishi environment'dan oldin bajariladi.

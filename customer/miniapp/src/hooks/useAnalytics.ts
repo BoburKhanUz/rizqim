@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { setAnalyticsAuth, track } from '../lib/analytics';
 import { isCustomerRole } from '../lib/roles';
+import { getTelegramUser } from '../lib/telegram';
 import { useDebouncedValue } from './useDebouncedValue';
 import type { CartItem } from '../store/cartStore';
 import type { User } from '../types';
@@ -13,15 +14,29 @@ export function isTrackedUser(user: Pick<User, 'role' | 'store_id'>): boolean {
   return isCustomerRole(user.role) && (user.store_id === null || user.store_id === undefined);
 }
 
-/** Hands the sign-in to analytics: events wait until it has finished, and staff send nothing. */
-export function useAnalyticsAuth(isAuthenticating: boolean, token: string | null, user: Pick<User, 'role' | 'store_id'> | null): void {
+type AuthUser = Pick<User, 'id' | 'telegram_id' | 'role' | 'store_id'>;
+
+/**
+ * Hands the sign-in to analytics: events wait until it has finished, are only ever sent with their own account's token,
+ * and staff send nothing. A stored account that is not this launch's Telegram user (a sign-in that failed left the
+ * previous person's session on the device) is never tracked either: nothing is sent and what was held is dropped.
+ */
+export function useAnalyticsAuth(isAuthenticating: boolean, token: string | null, user: AuthUser | null): void {
+  const id = user?.id;
+  const telegramId = user?.telegram_id;
   const role = user?.role;
   const storeId = user?.store_id;
   useEffect(() => {
     // While signing in, the stored user may be someone else's (a new launch): nothing is decided until it is done
-    const allowed = isAuthenticating || role === undefined ? null : isTrackedUser({ role, store_id: storeId ?? null });
-    setAnalyticsAuth({ token: isAuthenticating ? null : token, allowed });
-  }, [isAuthenticating, token, role, storeId]);
+    if (isAuthenticating || role === undefined || id === undefined) {
+      setAnalyticsAuth({ token: null, allowed: null, userId: null });
+      return;
+    }
+    const launchUser = getTelegramUser();
+    const sameTelegramUser = !launchUser || String(launchUser.id) === String(telegramId);
+    const allowed = sameTelegramUser && isTrackedUser({ role, store_id: storeId ?? null });
+    setAnalyticsAuth({ token, allowed, userId: id });
+  }, [isAuthenticating, token, id, telegramId, role, storeId]);
 }
 
 /**

@@ -15,7 +15,7 @@ import type { BranchSummary, StoreListItem } from '../types';
 import { MainButtonHost } from '../components/ui/MainButtonHost';
 import Cart from './Cart';
 
-// Wave P analytics in the cart: cart_view once, checkout_start per "Buyurtma berish", checkout_error with a code (never
+// Wave P analytics in the cart: cart_view once, checkout_start per "Buyurtma berish" that is sent, checkout_error with a code (never
 // the server's text), order_placed with the order's uuid after the 2xx, payment_redirect before the payment page opens.
 // None of it changes what POST /orders sends or when.
 
@@ -133,6 +133,24 @@ describe('Cart analytics', () => {
     expect(tracked().map(([name]) => name)).toEqual(['checkout_start', 'checkout_error']);
     expect(tracked()[1]).toEqual(['checkout_error', { store_id: 7, props: { code: 'item_unavailable' } }]);
     expect(JSON.stringify(tracked())).not.toContain('Lavash');
+  });
+
+  it('sends no checkout_start for a press the app itself refuses (nothing went to the server), only checkout_error', async () => {
+    // A pickup order from a store with no active branch: the press is refused before POST /orders
+    STORE.branches = [];
+    try {
+      post.mockResolvedValue({ data: { success: true, data: {} } });
+      await renderCart();
+      fireEvent.click(screen.getByRole('button', { name: /Olib ketish/ }));
+      await flush();
+      vi.mocked(track).mockClear();
+      fireEvent.click(orderButton());
+      await flush();
+      expect(post).not.toHaveBeenCalled();
+      expect(tracked()).toEqual([['checkout_error', { store_id: 7, props: { code: 'store_closed' } }]]);
+    } finally {
+      STORE.branches = [BRANCH];
+    }
   });
 
   it('sends checkout_error network when the connection dropped', async () => {

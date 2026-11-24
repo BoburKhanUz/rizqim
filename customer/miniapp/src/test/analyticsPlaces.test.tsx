@@ -15,7 +15,7 @@ vi.mock('../lib/telegram', () => ({
   hapticFeedback: vi.fn(),
   getInitData: () => '',
   getTelegramUser: () => undefined,
-  tg: { initDataUnsafe: { start_param: 'c_tg_ads_1' }, platform: 'ios' },
+  tg: { initData: 'query_id=AAH&auth_date=1&hash=abc', initDataUnsafe: { start_param: 'c_tg_ads_1' }, platform: 'ios' },
 }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock('../lib/analytics', () => ({ track: vi.fn(), setAnalyticsAuth: vi.fn(), trackAppOpen: vi.fn() }));
@@ -60,15 +60,16 @@ describe('the launch', () => {
     signInAs('customer');
     render(<App />);
     expect(await screen.findByText('Katalog sahifasi')).toBeInTheDocument();
-    expect(trackAppOpen).toHaveBeenCalledWith('c_tg_ads_1');
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'token', allowed: true });
+    // The launch data goes along only to tell a relaunch from a reload (the client keeps a short hash of it)
+    expect(trackAppOpen).toHaveBeenCalledWith('c_tg_ads_1', 'query_id=AAH&auth_date=1&hash=abc');
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'token', allowed: true, userId: useAuthStore.getState().user?.id });
   });
 
   it('marks staff as never tracked', async () => {
     signInAs('owner');
     render(<App />);
     expect(await screen.findByText('Analitika sahifasi')).toBeInTheDocument();
-    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'token', allowed: false });
+    expect(setAnalyticsAuth).toHaveBeenLastCalledWith({ token: 'token', allowed: false, userId: useAuthStore.getState().user?.id });
   });
 });
 

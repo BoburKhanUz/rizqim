@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, expect, it } from 'vitest';
-import { checkoutErrorCode, describeOrderFailure } from './orderErrors';
+import { checkoutErrorCode, checkoutErrorCodeOfQuote, describeOrderFailure } from './orderErrors';
 
 function failure(status: number, body: unknown): AxiosError {
   const response = { status, data: body, statusText: '', headers: {}, config: {} } as AxiosResponse;
@@ -83,5 +83,15 @@ describe('checkoutErrorCode', () => {
     ['anything else', failure(422, { message: 'The given data was invalid.', errors: { notes: ['The notes field must be a string.'] } }), 'validation'],
   ])('%s', (_label, error, code) => {
     expect(checkoutErrorCode(error)).toBe(code);
+  });
+});
+
+describe('checkoutErrorCodeOfQuote', () => {
+  it('names a refused or failed quote, and nothing while it is still being asked (a wait, not an error)', () => {
+    expect(checkoutErrorCodeOfQuote({ status: 'loading' })).toBeNull();
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'outside_zone' })).toBe('out_of_zone');
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'branch_closed' })).toBe('store_closed');
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'something_new' })).toBe('out_of_zone');
+    expect(checkoutErrorCodeOfQuote({ status: 'error' })).toBe('network');
   });
 });

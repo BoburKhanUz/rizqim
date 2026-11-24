@@ -29,7 +29,7 @@ import { toOrderModifiers } from '../lib/modifiers';
 import { toOrderCombo } from '../lib/combo';
 import { createCheckoutAttempt, newIdempotencyKey } from '../lib/idempotency';
 import { currentLines } from '../lib/cartPricing';
-import { checkoutErrorCode, checkoutErrorCodeOfReason, describeOrderFailure } from '../lib/orderErrors';
+import { checkoutErrorCode, checkoutErrorCodeOfQuote, describeOrderFailure } from '../lib/orderErrors';
 import { track, type CheckoutErrorCode } from '../lib/analytics';
 import { useTrackOnce } from '../hooks/useAnalytics';
 import { useAddToCart } from '../hooks/useAddToCart';
@@ -458,18 +458,9 @@ export default function Cart() {
     // One order per press: a second tap (or a second MainButton event) while the first is being sent is dropped
     if (items.length === 0 || orderingRef.current) return;
 
-    // Analytics (wave P): "Buyurtma berish" was pressed; a refusal is told by its kind only. A push to a queue: it never
-    // waits on anything and never fails the order
+    // Analytics (wave P): a refusal is told by its kind only; checkout_start below once the press passed every check
+    // here and the order is really sent. A push to a queue: it never waits on anything and never fails the order
     const analyticsStoreId = Number(items[0].storeId);
-    track('checkout_start', {
-      store_id: analyticsStoreId,
-      props: {
-        items: cartPieces,
-        value: subtotal,
-        ...(effectivePaymentMethod ? { payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod } : {}),
-        ...(deliveryMethod ? { order_type: deliveryMethod } : {}),
-      },
-    });
     const checkoutError = (code: CheckoutErrorCode) => track('checkout_error', { store_id: analyticsStoreId, props: { code } });
 
     if (isStoreLocked) {
@@ -497,7 +488,9 @@ export default function Cart() {
       return;
     }
     if (deliveryMethod === 'delivery' && isQuoteBlocking) {
-      checkoutError(quote.status === 'refused' ? (checkoutErrorCodeOfReason(quote.reason) ?? 'out_of_zone') : quote.status === 'error' ? 'network' : 'validation');
+      // Still being asked for: a wait, not an error
+      const quoteError = checkoutErrorCodeOfQuote(quote);
+      if (quoteError) checkoutError(quoteError);
       hapticFeedback('error');
       void showAlert(quote.status === 'refused' ? quote.message : quote.status === 'error'
         ? "Yetkazib berish narxini hisoblab bo'lmadi. Qayta urinib ko'ring."
@@ -545,6 +538,15 @@ export default function Cart() {
     hapticFeedback('success');
     orderingRef.current = true;
     setIsOrdering(true);
+    track('checkout_start', {
+      store_id: analyticsStoreId,
+      props: {
+        items: cartPieces,
+        value: subtotal,
+        payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod,
+        order_type: deliveryMethod,
+      },
+    });
 
     try {
       const payload = {

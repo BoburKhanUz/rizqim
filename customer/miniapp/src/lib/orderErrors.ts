@@ -123,6 +123,16 @@ export function checkoutErrorCodeOfReason(reason: string | undefined): CheckoutE
   }
 }
 
+/**
+ * The analytics code of a delivery quote that stops the order: refused (by its reason) or failed. A quote still being
+ * asked for is a wait, not an error: null.
+ */
+export function checkoutErrorCodeOfQuote(quote: { status: string; reason?: string }): CheckoutErrorCode | null {
+  if (quote.status === 'refused') return checkoutErrorCodeOfReason(quote.reason) ?? 'out_of_zone';
+  if (quote.status === 'error') return 'network';
+  return null;
+}
+
 // ...and of a failed POST /orders: only the kind of failure, never the server's text.
 export function checkoutErrorCode(error: unknown): CheckoutErrorCode {
   const response = isAxiosError<ApiErrorBody>(error) ? error.response : undefined;
