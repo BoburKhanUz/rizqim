@@ -23,8 +23,15 @@ export const MOCK_TELEGRAM_ID_KEY = 'mock_telegram_id';
 // When each Telegram user's storage was last opened on this device ({ "<telegram id>": epoch ms })
 export const LAST_USED_KEY = 'user-storage-last-used';
 
+// When each account was first seen unused for UNUSED_STORAGE_TTL_MS ({ "<telegram id>": epoch ms }): it is removed only
+// when a launch at least PRUNE_CONFIRM_MS later sees it unused again (see pruneUnusedStorage)
+export const EXPIRING_KEY = 'user-storage-expiring';
+
 // The storage of an account that has not opened the app on this device for this long is removed
 export const UNUSED_STORAGE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+// How far apart (by the dates recorded on the device) the two launches that see an account unused must be
+export const PRUNE_CONFIRM_MS = 24 * 60 * 60 * 1000;
 
 const USER_KEY = new RegExp(`^(${USER_STORE_NAMES.join('|')}):(.+)$`);
 
@@ -66,70 +73,131 @@ export function userStorageKey(name: string, telegramId: string): string {
   return `${name}:${telegramId}`;
 }
 
-function readJson(storage: Storage, key: string): unknown {
+// Each storage call on its own: a storage that throws (full, blocked, broken) fails that one call, never the next
+function attempt<T>(run: () => T, fallback: T): T {
   try {
-    const raw = storage.getItem(key);
-    return raw === null ? null : JSON.parse(raw);
+    return run();
   } catch {
-    return null;
+    return fallback;
   }
 }
 
-// The Telegram user a legacy (un-namespaced) auth store belongs to, or null when it holds no user (signed out, empty)
-function legacyOwner(storage: Storage): string | null {
-  const stored = readJson(storage, 'auth-storage') as { state?: { user?: { telegram_id?: unknown } | null } } | null;
+function parse(raw: string | null): unknown {
+  return raw === null ? null : attempt(() => JSON.parse(raw) as unknown, null);
+}
+
+function readJson(storage: Storage, key: string): unknown {
+  return parse(attempt(() => storage.getItem(key), null));
+}
+
+// The Telegram user a saved session (auth store) belongs to, or null when it holds no user (signed out, empty, broken)
+function sessionOwner(raw: string | null): string | null {
+  const stored = parse(raw) as { state?: { user?: { telegram_id?: unknown } | null } } | null;
   const owner = stored?.state?.user?.telegram_id;
   return owner === undefined || owner === null || String(owner) === '' ? null : String(owner);
 }
 
-// The stores as the app saved them before per-user storage ("auth-storage", "cart-storage", "address-storage"). They
-// move to the current user only when the saved session is provably theirs (its user has their telegram_id). Otherwise
-// (another user's, or no user at all, so the owner is unknown) they are removed without being shown to anyone.
-export function migrateLegacyStores(storage: Storage, telegramId: string): void {
-  if (!USER_STORE_NAMES.some((name) => storage.getItem(name) !== null)) return;
-  const isOwn = legacyOwner(storage) === telegramId;
-  for (const name of USER_STORE_NAMES) {
-    const legacy = storage.getItem(name);
-    if (legacy === null) continue;
-    const key = userStorageKey(name, telegramId);
-    // Already saved per user (written by a newer version of the app): that copy is the current one
-    if (isOwn && storage.getItem(key) === null) storage.setItem(key, legacy);
-    storage.removeItem(name);
+// A saved auth store holds a session (or a part of one): a token, a user or the signed-in flag
+function holdsSession(raw: string | null): boolean {
+  const state = (parse(raw) as { state?: { token?: unknown; user?: unknown; isAuthenticated?: unknown } } | null)?.state;
+  return Boolean(state && (state.token || state.user || state.isAuthenticated));
+}
+
+// The stores as the app saved them before per-user storage ("auth-storage", "cart-storage", "address-storage").
+//  - The cart and the addresses are always removed, never shown or moved: the old app did not clear them when the
+//    account changed, so they may be someone else's than the session's user (and the product had no real users yet).
+//  - The session names its own user: it moves to that user's storage ("auth-storage:<its telegram_id>"), whoever has
+//    the app open now, unless that storage already holds a session (a newer version wrote it: that one is current).
+//    A session with no user (signed out) is removed.
+// Every step stands on its own against a storage that throws (full, private mode): each key is removed whether or not
+// anything else (the copy included) worked. What a failed removal leaves can never become anyone's: no store reads the
+// legacy keys, and the next launch removes the cart and addresses again and moves the session to the same owner again.
+export function migrateLegacyStores(storage: Storage): void {
+  for (const name of ['cart-storage', 'address-storage']) attempt(() => storage.removeItem(name), undefined);
+  const legacy = attempt(() => storage.getItem('auth-storage'), null);
+  if (legacy === null) return;
+  const owner = sessionOwner(legacy);
+  if (owner !== null) {
+    const key = userStorageKey('auth-storage', owner);
+    if (!holdsSession(attempt(() => storage.getItem(key), null))) attempt(() => storage.setItem(key, legacy), undefined);
   }
+  attempt(() => storage.removeItem('auth-storage'), undefined);
+}
+
+function readStamps(storage: Storage, key: string): Record<string, number> {
+  const recorded = readJson(storage, key);
+  const stamps: Record<string, number> = {};
+  if (recorded && typeof recorded === 'object') {
+    for (const [owner, at] of Object.entries(recorded as Record<string, unknown>)) {
+      if (typeof at === 'number' && Number.isFinite(at)) stamps[owner] = at;
+    }
+  }
+  return stamps;
 }
 
 // Notes that this user opened the app now, and removes the storage of accounts that have not opened it on this device
-// for UNUSED_STORAGE_TTL_MS (a storage that has no date yet is dated now, so it is removed only after that much time).
+// for UNUSED_STORAGE_TTL_MS. The device clock can be wrong, so:
+//  - a date later than now (recorded by a clock that was ahead) is brought back to now;
+//  - a launch whose clock is earlier than the newest recorded date (the clock was set back) prunes nothing;
+//  - an account is removed only when it is seen unused on two launches at least PRUNE_CONFIRM_MS apart by the dates
+//    recorded here (the first sighting is noted under EXPIRING_KEY): one launch with a clock set far ahead marks the
+//    others, but removes nobody, and a launch with the right time then finds them in use again and drops the marks;
+//  - the current user is never removed, and a storage that has no date yet is dated now.
 export function pruneUnusedStorage(storage: Storage, telegramId: string, now: number): void {
-  const recorded = readJson(storage, LAST_USED_KEY);
-  const lastUsed: Record<string, number> = recorded && typeof recorded === 'object' ? { ...(recorded as Record<string, number>) } : {};
+  const lastUsed = readStamps(storage, LAST_USED_KEY);
+  const expiring = readStamps(storage, EXPIRING_KEY);
+  const newest = Math.max(-Infinity, ...Object.values(lastUsed), ...Object.values(expiring));
+  const clockSetBack = newest > now;
+  for (const stamps of [lastUsed, expiring]) {
+    for (const [owner, at] of Object.entries(stamps)) if (at > now) stamps[owner] = now;
+  }
+
   const owners = new Set<string>();
-  for (let i = 0; i < storage.length; i++) {
-    const match = USER_KEY.exec(storage.key(i) ?? '');
+  const count = attempt(() => storage.length, 0);
+  for (let i = 0; i < count; i++) {
+    const match = USER_KEY.exec(attempt(() => storage.key(i), null) ?? '');
     if (match) owners.add(match[2]);
   }
   for (const owner of owners) {
-    if (typeof lastUsed[owner] !== 'number') lastUsed[owner] = now;
+    if (lastUsed[owner] === undefined) lastUsed[owner] = now;
   }
   lastUsed[telegramId] = now;
-  for (const [owner, at] of Object.entries(lastUsed)) {
-    if (owner === telegramId || now - at <= UNUSED_STORAGE_TTL_MS) continue;
-    for (const name of USER_STORE_NAMES) storage.removeItem(userStorageKey(name, owner));
+  delete expiring[telegramId];
+
+  const removed: string[] = [];
+  if (!clockSetBack) {
+    for (const [owner, at] of Object.entries(lastUsed)) {
+      if (owner === telegramId) continue;
+      if (now - at <= UNUSED_STORAGE_TTL_MS) {
+        delete expiring[owner];
+      } else if (expiring[owner] === undefined) {
+        expiring[owner] = now;
+      } else if (now - expiring[owner] >= PRUNE_CONFIRM_MS) {
+        removed.push(owner);
+      }
+    }
+  }
+
+  // The dates first: if they cannot be written (a full storage), nothing is removed on the strength of them
+  for (const owner of removed) {
     delete lastUsed[owner];
+    delete expiring[owner];
   }
   storage.setItem(LAST_USED_KEY, JSON.stringify(lastUsed));
+  if (Object.keys(expiring).length > 0) storage.setItem(EXPIRING_KEY, JSON.stringify(expiring));
+  else storage.removeItem(EXPIRING_KEY);
+  for (const owner of removed) {
+    for (const name of USER_STORE_NAMES) attempt(() => storage.removeItem(userStorageKey(name, owner)), undefined);
+  }
 }
 
 // Gets the device's storage ready for this page load, before any store reads it: the legacy keys, the last-used date,
-// the unused accounts. With no Telegram user nothing on the device is read or changed.
+// the unused accounts. With no Telegram user nothing on the device is read or changed. Each step on its own: a storage
+// that throws in one (full, private mode) does not stop the other, and the stores still work (they just start empty).
 export function prepareUserStorage(storage: Storage | null, telegramId: string | null, now: number = Date.now()): void {
   if (!storage || telegramId === null) return;
-  try {
-    migrateLegacyStores(storage, telegramId);
-    pruneUnusedStorage(storage, telegramId, now);
-  } catch {
-    // A full or blocked storage: the stores still work, they just start empty
-  }
+  attempt(() => migrateLegacyStores(storage), undefined);
+  attempt(() => pruneUnusedStorage(storage, telegramId, now), undefined);
 }
 
 function memoryStorage(): StateStorage {

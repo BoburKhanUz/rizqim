@@ -191,7 +191,7 @@ function usePrefetchCustomerPages(enabled: boolean) {
 }
 
 function AppContent() {
-  const { isAuthenticating, error, isAuthenticated, token, user } = useTelegramAuth();
+  const { isAuthenticating, error, reopen, isAuthenticated, token, user } = useTelegramAuth();
   const location = useLocation();
   // Analytics (wave P): the launch opens the session (app_open once per launch, with the kind of Telegram's
   // start_param; the launch data only tells a relaunch from a reload). Before any page's effect, so the first event of
@@ -223,7 +223,7 @@ function AppContent() {
   if (error && !isAuthenticated) {
     return (
       <>
-        <ErrorFallback error={error} />
+        <ErrorFallback error={error} reopen={reopen} />
         <AuthDebugger error={error} token={token} user={user} isAuthenticated={isAuthenticated} />
       </>
     );

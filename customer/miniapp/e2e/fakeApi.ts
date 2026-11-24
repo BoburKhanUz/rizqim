@@ -185,6 +185,16 @@ function telegramIdOf(initData: unknown): string {
   }
 }
 
+// The backend refuses initData older than this (backend/app/Actions/Auth/ValidateTelegramInitDataAction.php)
+export const INIT_DATA_MAX_AGE_S = 600
+
+// The auth_date (epoch seconds) of an initData query string, null when there is none
+function authDateOf(initData: unknown): number | null {
+  if (typeof initData !== 'string') return null
+  const value = Number(new URLSearchParams(initData).get('auth_date') ?? NaN)
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
 // A deterministic uuid, so a test can name an order by its first eight characters (the list shows them as "#AAAAAAAA")
 export const uuidOf = (n: number): string => `e2e${String(n).padStart(5, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`
 
@@ -285,6 +295,12 @@ export class FakeApi {
   private sessions = new Map<string, ApiUser>()
   /** Set to make POST /auth/telegram answer with this status (a 500, a 429) instead of signing in; null signs in. */
   loginFailureStatus: number | null = null
+  /**
+   * The server's clock (epoch ms). Like the backend (ValidateTelegramInitDataAction), POST /auth/telegram refuses with a
+   * 401 initData without an auth_date or with one more than INIT_DATA_MAX_AGE_S older than this clock. Move it ahead
+   * (`api.now = () => Date.now() + 11 * 60_000`) to make the launch of a page as old as that.
+   */
+  now: () => number = () => Date.now()
   private tokenCounter = 0
   private orderCounter = 100
   /** The Idempotency-Key of every order that was placed, oldest first. */
@@ -438,6 +454,8 @@ export class FakeApi {
 
   // POST /auth/telegram
   private login(body: Record<string, unknown> | null): ApiReply {
+    const authDate = authDateOf(body?.initData)
+    if (authDate === null || this.now() / 1000 - authDate > INIT_DATA_MAX_AGE_S) return fail(401, 'Invalid Telegram authentication data.')
     if (this.loginFailureStatus !== null) return fail(this.loginFailureStatus, 'Server Error')
     const token = `token-${++this.tokenCounter}`
     this.validTokens.add(token)

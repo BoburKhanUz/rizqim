@@ -217,45 +217,66 @@ test.describe('data saved before per-user storage (legacy keys)', () => {
     version: 0,
   })
 
-  test('the owner of the stored session gets all of it moved into their own storage', async ({ page, api }) => {
+  // The old app never cleared the cart and the addresses when the account changed: whose they are is unknown, so they
+  // are removed, never shown. The saved session names its user: it moves to that user's own storage.
+  test("the stored session moves to its owner's storage; the cart and the addresses are removed", async ({ page, api }) => {
     api.addSession('own-token', api.user)
     const seed = { 'auth-storage': legacyAuth(api.user, 'own-token'), 'cart-storage': legacyCart('Ali: ofis'), 'address-storage': addressStore(B_OFFICE) }
     await seedOnce(page, seed)
 
     await page.goto('/profile')
 
-    await expect(page.getByText(B_OFFICE.address)).toBeVisible()
+    await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
+    await expect(page.getByText(B_OFFICE.address)).toHaveCount(0)
     // The session was used as it was (no new sign-in), and nothing is left under the old keys
     expect(api.callsTo('POST', '/auth/telegram')).toHaveLength(0)
     expect(api.callsTo('GET', '/user').length).toBeGreaterThan(0)
     expect(api.callsTo('GET', '/user').every((call) => call.authorization === 'Bearer own-token')).toBe(true)
     const stored = await allStorage(page)
     for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
-    expect(await readStored(page, userStorageKey('cart-storage'))).toMatchObject({ specialInstructions: 'Ali: ofis', checkoutAttempt: { key: 'old-key' } })
-    expect(await readStored(page, userStorageKey('address-storage'))).toMatchObject({ addresses: [B_OFFICE] })
+    expect(JSON.stringify(stored)).not.toMatch(/Ali: ofis|old-key|Chilonzor 9/)
   })
 
-  for (const [name, owner] of [['another Telegram user', makeUserA()], ['nobody (already signed out)', null]] as const) {
-    test(`a stored session of ${name} is removed with its cart and addresses, never shown`, async ({ page, api }) => {
-      if (owner) api.addSession('token-of-A', owner)
-      await seedOnce(page, {
-        'auth-storage': legacyAuth(owner, owner ? 'token-of-A' : null),
-        'cart-storage': legacyCart('Aziza: domofon 42'),
-        'address-storage': addressStore(A_HOME),
-      })
-
-      await page.goto('/profile')
-
-      await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
-      await expect(page.getByText(A_TRACES)).toHaveCount(0)
-      expect(api.calls.filter((call) => call.authorization === 'Bearer token-of-A')).toEqual([])
-      const stored = await allStorage(page)
-      for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
-      expect(JSON.stringify(stored)).not.toMatch(A_TRACES)
-      expect(JSON.stringify(stored)).not.toContain('token-of-A')
-      expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID } })
+  test('a stored session of another Telegram user moves to their storage, never shown; the cart and the addresses are removed', async ({ page, api }) => {
+    api.addSession('token-of-A', makeUserA())
+    await seedOnce(page, {
+      'auth-storage': legacyAuth(makeUserA(), 'token-of-A'),
+      'cart-storage': legacyCart('Aziza: domofon 42'),
+      'address-storage': addressStore(A_HOME),
     })
-  }
+
+    await page.goto('/profile')
+
+    await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
+    await expect(page.getByText(A_TRACES)).toHaveCount(0)
+    expect(api.calls.filter((call) => call.authorization === 'Bearer token-of-A')).toEqual([])
+    const stored = await allStorage(page)
+    for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
+    // A's session waits in A's own storage, and only there
+    expect(await readStored(page, userStorageKey('auth-storage', A_ID))).toMatchObject({ token: 'token-of-A', user: { telegram_id: A_ID } })
+    for (const [key, value] of Object.entries(stored)) {
+      if (key !== userStorageKey('auth-storage', A_ID)) expect(value, key).not.toMatch(A_TRACES)
+    }
+    expect(JSON.stringify(stored)).not.toMatch(/domofon|Yunusobod|old-key/)
+    expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID } })
+  })
+
+  test('a stored session of nobody (already signed out) is removed with the cart and the addresses', async ({ page, api }) => {
+    expect(api.user.telegram_id).toBe(TELEGRAM_ID) // the fake backend (and the Telegram launch) of this test
+    await seedOnce(page, {
+      'auth-storage': legacyAuth(null, null),
+      'cart-storage': legacyCart('Aziza: domofon 42'),
+      'address-storage': addressStore(A_HOME),
+    })
+
+    await page.goto('/profile')
+
+    await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
+    const stored = await allStorage(page)
+    for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
+    expect(JSON.stringify(stored)).not.toMatch(A_TRACES)
+    expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID } })
+  })
 })
 
 // A production build opened with no Telegram user (a link opened in Telegram's in-app browser, which may share the
@@ -343,3 +364,67 @@ for (const [name, path, role] of [['a customer screen (axios)', '/orders', 'cust
     await expect.poll(() => readStored(page, userStorageKey('auth-storage'))).toMatchObject({ isAuthenticated: true })
   })
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The backend accepts a launch's initData for 10 minutes only, and a reload keeps the same initData: once a launch is
+// older than that, no sign-in of this page can succeed. The fake's clock (api.now) is moved ahead to age the launch.
+const ELEVEN_MINUTES = 11 * 60_000
+
+test('a stale launch and a dead token: signed out to "close and reopen", with no request loop', async ({ page, api }) => {
+  api.addOrder({ status: 'new' })
+  api.now = () => Date.now() + ELEVEN_MINUTES
+  await seedOnce(page, {
+    [userStorageKey('auth-storage')]: JSON.stringify({ state: { token: 'dead-token', user: api.user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }),
+  })
+
+  await page.goto('/orders')
+
+  const alert = page.getByRole('alert')
+  await expect(alert.getByText('Kirish muddati tugadi')).toBeVisible()
+  await expect(alert.getByRole('button', { name: 'Ilovani yopish' })).toBeVisible()
+  // No reload that could not work
+  await expect(alert.getByRole('button', { name: 'Qayta urinish' })).toHaveCount(0)
+  expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ token: null, isAuthenticated: false })
+
+  // The launch data was tried once at most, and nothing keeps asking
+  const settled = api.calls.length
+  await page.waitForTimeout(3_000)
+  expect(api.calls.length).toBe(settled)
+  expect(api.callsTo('POST', '/auth/telegram').length).toBeLessThanOrEqual(1)
+
+  // "Close" closes the Mini App (Telegram's WebApp.close), to be opened again with fresh launch data
+  await page.evaluate(() => {
+    const app = (window as unknown as { Telegram: { WebApp: { close: () => void } } }).Telegram.WebApp
+    app.close = () => {
+      ;(window as unknown as { __closed?: boolean }).__closed = true
+    }
+  })
+  await alert.getByRole('button', { name: 'Ilovani yopish' }).click()
+  expect(await page.evaluate(() => (window as unknown as { __closed?: boolean }).__closed)).toBe(true)
+})
+
+test('a deep link whose re-sign-in is refused (401) keeps the valid stored session of the same person', async ({ page, api }) => {
+  const order = api.addOrder({ status: 'new' })
+  api.addSession('own-token', api.user)
+  api.now = () => Date.now() + ELEVEN_MINUTES
+  await page.addInitScript(({ key, user }) => {
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, JSON.stringify({ state: { token: 'own-token', user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }))
+    }
+    const launchKey = '__telegram__initParams'
+    const params = JSON.parse(sessionStorage.getItem(launchKey) ?? '{}') as { tgWebAppData?: string }
+    if (params.tgWebAppData && !params.tgWebAppData.includes('start_param=')) {
+      params.tgWebAppData += '&start_param=store_e2e'
+      sessionStorage.setItem(launchKey, JSON.stringify(params))
+    }
+  }, { key: userStorageKey('auth-storage'), user: api.user })
+
+  await page.goto('/orders')
+
+  const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
+  await expect(active.getByText(`#${order.short_code}`, { exact: true })).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  expect(api.callsTo('POST', '/auth/telegram').map((call) => call.status)).toEqual([401])
+  expect(api.callsTo('GET', '/orders').every((call) => call.authorization === 'Bearer own-token')).toBe(true)
+  expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ token: 'own-token', isAuthenticated: true })
+})

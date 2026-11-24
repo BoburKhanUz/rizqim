@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { isAxiosError } from 'axios';
-import { logApiError, sanitizeError } from '../lib/apiError';
+import { sanitizeError } from '../lib/apiError';
+import { isLaunchTooOld } from '../lib/launch';
 import {
   clearForeignSession,
   currentTelegramId,
@@ -12,9 +13,16 @@ import {
   useSessionStatus,
 } from '../lib/session';
 import { getInitData } from '../lib/telegram';
+import { signInWithTelegram } from '../lib/telegramSignIn';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
-import type { ApiResponse, AuthPayload, LoginPayload } from '../types';
+import type { ApiResponse, AuthPayload } from '../types';
+
+// The token a request went out with (services/api.ts records it on the request config); `fallback` when not recorded
+function tokenSentWith(response: unknown, fallback: string | null): string | null {
+  const config = (response as { config?: { _authToken?: string | null } } | null)?.config;
+  return config && '_authToken' in config ? config._authToken ?? null : fallback;
+}
 
 export const useTelegramAuth = () => {
   const { token, isAuthenticated, user: storedUser } = useAuthStore();
@@ -23,13 +31,15 @@ export const useTelegramAuth = () => {
   const foreign = isForeignSession({ token, isAuthenticated, user: storedUser });
   const isAuthenticating = useSessionStatus((status) => status.signingIn);
   const error = useSessionStatus((status) => status.error);
+  // The launch data is too old to sign in with: the error screen asks to close and reopen the app (lib/launch.ts)
+  const reopen = useSessionStatus((status) => status.reopen);
   // Bumped by signInAgain (lib/session.ts): sign in again with initData
   const attempt = useSessionStatus((status) => status.attempt);
 
   // The sign-in runs at launch, with the state the store was restored to, and again whenever a new one is asked for
   useEffect(() => {
     let stale = false; // a newer sign-in (or an unmount) took over: this one changes nothing any more
-    const setStatus = (status: { signingIn?: boolean; error?: string | null }) => {
+    const setStatus = (status: { signingIn?: boolean; error?: string | null; reopen?: boolean }) => {
       if (!stale) useSessionStatus.setState(status);
     };
 
@@ -52,12 +62,16 @@ export const useTelegramAuth = () => {
       // 3. Already authenticated (Persist check) - Instant 0-second UI launch!
       // Only bypass if there is NO start_param. What is left in the store belongs to the user who has the app open
       // (a foreign session was dropped above, lib/session.ts).
-      const isSessionValid = launchState.isAuthenticated && launchState.token;
+      const storedToken = launchState.isAuthenticated && launchState.token ? launchState.token : null;
 
-      if (isSessionValid && !startParam) {
+      if (storedToken && !startParam) {
         setStatus({ signingIn: false, error: null });
         // Silently verify user session in the background and refresh local store settings
         api.get<ApiResponse<AuthPayload>>('/user').then((res) => {
+          // Only for the token it was sent with: the 401 handler may have renewed the token meanwhile, or the app was
+          // signed out; an answer about an earlier session is never written over the current one
+          const sentWith = tokenSentWith(res, storedToken);
+          if (!sentWith || useAuthStore.getState().token !== sentWith) return;
           if (res.data?.success && res.data?.data) {
             const freshData = res.data.data;
             if (!isCurrentTelegramUser(freshData.user)) {
@@ -66,11 +80,7 @@ export const useTelegramAuth = () => {
               signInAgain();
               return;
             }
-            // The 401 handler may have renewed the token meanwhile (or logged out): never write the captured, stale one back
-            const currentToken = useAuthStore.getState().token;
-            if (currentToken) {
-              setAuth(currentToken, freshData.user, freshData.store, freshData.sms_verification_required);
-            }
+            setAuth(sentWith, freshData.user, freshData.store, freshData.sms_verification_required);
             console.log('Background session refreshed with fresh store settings.');
           }
         }).catch((e) => {
@@ -83,7 +93,7 @@ export const useTelegramAuth = () => {
         return; // Valid session
       }
 
-      // 3. Authenticate with Backend
+      // 4. Authenticate with Backend
       let initData = getInitData();
 
       if (initData) {
@@ -113,44 +123,20 @@ export const useTelegramAuth = () => {
         return;
       }
 
-      try {
-        setStatus({ signingIn: true, error: null });
+      setStatus({ signingIn: true, error: null, reopen: false });
+      // POST /api/v1/auth/telegram, shared with the 401 handler of services/api.ts: one sign-in at a time
+      const outcome = await signInWithTelegram(initData, startParam || null);
+      if (stale) return;
 
-        // POST /api/v1/auth/telegram
-        const botUsername = import.meta.env.VITE_BOT_USERNAME || 'rizqimbot';
-        const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || null;
-
-        const response = await api.post<ApiResponse<LoginPayload>>('/auth/telegram', {
-          initData: initData,
-          bot_username: botUsername,
-          start_param: startParam,
-        }, { timeout: 10000 }); // 10 seconds timeout
-        if (stale) return;
-
-        if (response.data?.success && response.data?.data) {
-          const authData = response.data.data;
-          if (!isCurrentTelegramUser(authData.user)) {
-            // The answer is for another Telegram account than the one that has the app open: never stored or used
-            setStatus({ error: 'Authentication failed: the account does not match this Telegram user.' });
-            return;
-          }
-          setAuth(authData.token, authData.user, authData.store, authData.sms_verification_required);
-          console.log('Successfully Authenticated via Telegram!');
-        } else {
-          setStatus({ error: 'Authentication failed: Invalid response format.' });
-        }
-      } catch (err) {
-        const axiosError = isAxiosError<{ message?: string }>(err) ? err : null;
-        // Status + message only: the raw axios error embeds the request body (initData) in err.config
-        logApiError('Auth Error:', err);
-        if (axiosError?.code === 'ECONNABORTED') {
-          setStatus({ error: 'Connection timeout. Please check your internet connection.' });
-        } else {
-          setStatus({ error: axiosError?.response?.data?.message || 'Failed to authenticate with backend.' });
-        }
-      } finally {
-        setStatus({ signingIn: false });
+      if (outcome.ok) {
+        setStatus({ signingIn: false, error: null, reopen: false });
+        return;
       }
+      // A deep link re-signs in although a valid session of this same person is stored: whatever the failure (offline, a
+      // 5xx, or a 401 because the launch data is too old), that session stays and the app opens with it. Its token is
+      // only dropped when the server refuses that token itself (the 401 handler of services/api.ts).
+      const kept = storedToken !== null && useAuthStore.getState().token === storedToken;
+      setStatus({ signingIn: false, error: outcome.error, reopen: !kept && (outcome.launchExpired || isLaunchTooOld()) });
     };
 
     authenticateWithTelegram();
@@ -162,6 +148,7 @@ export const useTelegramAuth = () => {
   return {
     isAuthenticating,
     error,
+    reopen,
     isAuthenticated: isAuthenticated && !foreign,
     token: foreign ? null : token,
     user: foreign ? null : storedUser,

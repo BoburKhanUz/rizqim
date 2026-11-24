@@ -6,10 +6,12 @@ import { FakeApi, TELEGRAM_ID } from './fakeApi'
 export { expect }
 
 // What Telegram hands the Mini App on launch (the tgWebAppData launch parameter, an initData query string).
-// The backend is the only one that verifies the hash, and here the backend is the fake.
-export function buildInitData(telegramId: string = TELEGRAM_ID, firstName = 'Ali'): string {
+// The backend is the only one that verifies the hash, and here the backend is the fake. auth_date is when Telegram
+// opened the app (epoch seconds): now, unless a test asks for an older launch (the fake refuses one over 10 minutes old,
+// as the backend does).
+export function buildInitData(telegramId: string = TELEGRAM_ID, firstName = 'Ali', authDate: number = Math.floor(Date.now() / 1000)): string {
   const user = { id: Number(telegramId), first_name: firstName, username: `user_${telegramId}`, language_code: 'uz' }
-  return `query_id=E2E&user=${encodeURIComponent(JSON.stringify(user))}&auth_date=1790000000&hash=e2e`
+  return `query_id=E2E&user=${encodeURIComponent(JSON.stringify(user))}&auth_date=${authDate}&hash=e2e`
 }
 
 // Where the SDK looks for the launch parameters (per tab: sessionStorage)

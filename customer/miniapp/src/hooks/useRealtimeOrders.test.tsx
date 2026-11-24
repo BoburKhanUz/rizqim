@@ -831,3 +831,47 @@ describe('useRealtimeOrders: fix round 2 (relevance and pacing)', () => {
     expect(invalidate.mock.calls.filter(([filters]) => (filters as { queryKey?: string[] }).queryKey?.[0] === 'notifications')).toHaveLength(1);
   });
 });
+
+// A session stored for another Telegram user than the one who has the app open (lib/session.ts) never opens that user's
+// channels, and no channel authorization is ever signed with its token.
+describe('useRealtimeOrders: a session of another Telegram user', () => {
+  const openAs = (telegramId: number) =>
+    Object.defineProperty(window, 'Telegram', { configurable: true, value: { WebApp: { initDataUnsafe: { user: { id: telegramId } } } } });
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'Telegram');
+  });
+
+  it('never subscribes to its channels', async () => {
+    signIn(); // the tests' Telegram account (555000111)
+    openAs(7100001);
+
+    renderHook(() => useRealtimeOrders(), { wrapper });
+    await settle();
+
+    expect(echoInstances).toHaveLength(0);
+    expect(useRealtimeStore.getState().connected).toBe(false);
+  });
+
+  it('a channel authorization asked once the session became foreign carries no token, and the socket is closed', async () => {
+    signIn();
+    renderHook(() => useRealtimeOrders(), { wrapper });
+    await settle();
+    expect(echoInstances).toHaveLength(1);
+    const echo = latestEcho();
+    const headers = () => (echo.options.channelAuthorization as { headersProvider: () => Record<string, string> }).headersProvider();
+    expect(headers()).toMatchObject({ Authorization: 'Bearer token-1' });
+
+    // Another Telegram account has the app open now
+    openAs(7100001);
+    let asked: Record<string, string> = {};
+    act(() => {
+      asked = headers();
+    });
+    await settle();
+
+    expect(asked.Authorization).toBeUndefined();
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(echo.disconnected).toBe(true);
+    expect(echoInstances).toHaveLength(1);
+  });
+});

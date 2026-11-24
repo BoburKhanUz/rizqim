@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from '../store/authStore';
+import { isLaunchTooOld } from './launch';
 import { queryClient } from './queryClient';
 import { revisions } from './revisions';
 import { launchTelegramId, MOCK_TELEGRAM_ID_KEY } from './userStorage';
@@ -47,17 +48,22 @@ export function isForeignSession(state: SessionState = useAuthStore.getState()):
 // --- Signing in and out --------------------------------------------------------------------------------------------
 
 export const SIGNED_OUT_ERROR = 'Session expired: please sign in again.';
+// The launch's Telegram data is too old to sign in with (lib/launch.ts)
+export const LAUNCH_EXPIRED_ERROR = 'The Telegram launch data has expired: close the app and open it again.';
 
 interface SessionStatus {
   // A sign-in is running (the app shows its loader)
   signingIn: boolean;
-  // Why the app is signed out (the app shows the sign-in error screen with retry); null: no error
+  // Why the app is signed out (the app shows the sign-in error screen); null: no error
   error: string | null;
+  // No sign-in of this page can succeed (the launch data is too old, lib/launch.ts): the error screen asks to close the
+  // app and open it again instead of offering a reload, which keeps the same launch data
+  reopen: boolean;
   // Bumped to ask useTelegramAuth for a new sign-in with initData
   attempt: number;
 }
 
-const INITIAL_STATUS: SessionStatus = { signingIn: true, error: null, attempt: 0 };
+const INITIAL_STATUS: SessionStatus = { signingIn: true, error: null, reopen: false, attempt: 0 };
 
 // The state of the sign-in, shared by useTelegramAuth (which runs it and shows it) and everything that ends a session
 export const useSessionStatus = create<SessionStatus>()(() => ({ ...INITIAL_STATUS }));
@@ -76,20 +82,22 @@ export function clearSession(): void {
 }
 
 // Every sign-out goes through here: the session and its caches are dropped, and the app shows the sign-in error screen
-// with retry (never screens that are silently signed out).
+// (never screens that are silently signed out): with a reload retry, or, when this launch's data is too old to sign in
+// again, with "close the app and open it again".
 export function signOut(reason: string = SIGNED_OUT_ERROR): void {
   clearSession();
-  useSessionStatus.setState({ signingIn: false, error: reason });
+  useSessionStatus.setState({ signingIn: false, error: reason, reopen: isLaunchTooOld() });
 }
 
 // The stored session stopped matching the Telegram user (say, the backend unlinked its telegram_id and a refresh
 // brought that in): it is dropped, with its caches, and the user signs in again with initData (useTelegramAuth); if
-// that fails, the sign-in error screen. A sign-in that is already running is not started twice.
+// that fails, the sign-in error screen. A sign-in that is already running is not started twice (and the 401 handler
+// joins the same one, lib/telegramSignIn.ts).
 export function signInAgain(): void {
   const status = useSessionStatus.getState();
   clearSession();
   if (status.signingIn) return;
-  useSessionStatus.setState({ signingIn: true, error: null, attempt: status.attempt + 1 });
+  useSessionStatus.setState({ signingIn: true, error: null, reopen: false, attempt: status.attempt + 1 });
 }
 
 // Drops a stored session that does not belong to the Telegram user who has the app open (the cart and addresses stay)

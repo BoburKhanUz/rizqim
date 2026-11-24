@@ -337,7 +337,8 @@ describe('when the session cannot be renewed', () => {
     });
 
     it('tries again once the cooldown has passed', async () => {
-      handler = (config) => (isLogin(config) ? { status: 401 } : { status: 401 });
+      // A login endpoint that was down (a 401 would mean the launch data is refused for good: never posted again)
+      handler = (config) => (isLogin(config) ? { status: 503 } : { status: 401 });
       await expect(api.get('/orders')).rejects.toBeDefined();
 
       vi.setSystemTime(new Date('2026-10-18T10:00:31Z'));
@@ -411,5 +412,109 @@ describe('errors that are not an expired token', () => {
     expect(requests).toHaveLength(1);
     expect(useAuthStore.getState().token).toBe(OLD_TOKEN);
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+});
+
+// The backend accepts a launch's initData for 10 minutes only. A 401 to POST /auth/telegram means it refused this
+// launch's data: no sign-in of this page can succeed, so it is never posted again, and the sign-out asks to close and
+// reopen the app (lib/launch.ts) instead of a reload that keeps the same data.
+describe('launch data the server refuses (too old)', () => {
+  it('a dead token and refused launch data: signed out to "close and reopen", and the login is never posted again', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-18T10:00:00Z'));
+    const session = await import('../lib/session');
+    session.useSessionStatus.setState({ signingIn: false, error: null, reopen: false, attempt: 0 });
+    handler = (config) => (isLogin(config) ? { status: 401, data: { message: 'Invalid Telegram authentication data.' } } : { status: 401 });
+
+    await expect(api.get('/orders')).rejects.toMatchObject({ response: { status: 401 } });
+    expect(session.useSessionStatus.getState()).toMatchObject({ signingIn: false, error: session.SIGNED_OUT_ERROR, reopen: true });
+
+    // Long after the cool-down, with a session again (say, from another tab): the same launch data is not tried again
+    vi.setSystemTime(new Date('2026-10-18T10:05:00Z'));
+    useAuthStore.getState().setAuth(OLD_TOKEN, makeUser(), makeStore(), false);
+    await expect(api.get('/orders')).rejects.toMatchObject({ response: { status: 401 } });
+    await expect(api.get('/notifications')).rejects.toMatchObject({ response: { status: 401 } });
+
+    expect(loginCount()).toBe(1);
+    expect(session.useSessionStatus.getState().reopen).toBe(true);
+  });
+
+  it('launch data older than 9 minutes by its auth_date: a sign-out asks to reopen even when the login was down', async () => {
+    const session = await import('../lib/session');
+    const authDate = Math.floor(Date.now() / 1000) - 9 * 60 - 30;
+    Object.defineProperty(window, 'Telegram', { configurable: true, value: { WebApp: { initData: `auth_date=${authDate}&hash=x`, initDataUnsafe: { user: { id: 555000111 } } } } });
+    try {
+      handler = (config) => (isLogin(config) ? { status: 503 } : { status: 401 });
+
+      await expect(api.get('/orders')).rejects.toBeDefined();
+
+      expect(session.useSessionStatus.getState()).toMatchObject({ signingIn: false, reopen: true });
+    } finally {
+      Reflect.deleteProperty(window, 'Telegram');
+    }
+  });
+
+  it('a fresh launch whose login was down: the reload retry, not "reopen"', async () => {
+    const session = await import('../lib/session');
+    handler = (config) => (isLogin(config) ? { status: 503 } : { status: 401 });
+
+    await expect(api.get('/orders')).rejects.toBeDefined();
+
+    expect(session.useSessionStatus.getState()).toMatchObject({ signingIn: false, reopen: false });
+  });
+});
+
+// The 401 handler and useTelegramAuth share one sign-in (lib/telegramSignIn.ts): after signInAgain or a sign-out, a
+// request that went without a token and got a 401 joins the sign-in that is running instead of posting a second one,
+// so its failure can never show the error screen while the other attempt succeeds.
+describe('one sign-in at a time, across the hook and the 401 handler', () => {
+  it("a 401 while the hook's sign-in runs joins it: one POST, and the request is replayed with its token", async () => {
+    const { signInWithTelegram } = await import('../lib/telegramSignIn');
+    const session = await import('../lib/session');
+    let releaseLogin: (reply: FakeReply) => void = () => {};
+    const loginGate = new Promise<FakeReply>((resolve) => {
+      releaseLogin = resolve;
+    });
+    handler = (config) => {
+      if (isLogin(config)) return loginGate;
+      return bearer(config) === `Bearer ${NEW_TOKEN}` ? { status: 200, data: { ok: true } } : { status: 401 };
+    };
+    session.signInAgain(); // the session is dropped, the hook signs in again
+    const hookSignIn = signInWithTelegram(INIT_DATA, null);
+
+    const request = api.get('/orders'); // goes out without a token, 401
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(loginCount()).toBe(1);
+    releaseLogin(loginReply());
+
+    await expect(hookSignIn).resolves.toMatchObject({ ok: true, token: NEW_TOKEN });
+    await expect(request).resolves.toMatchObject({ data: { ok: true } });
+    expect(loginCount()).toBe(1);
+    expect(session.useSessionStatus.getState().error).toBeNull();
+    expect(useAuthStore.getState().token).toBe(NEW_TOKEN);
+  });
+
+  it('a 401 right after a failed sign-in of the hook does not post again within the cool-down', async () => {
+    const { signInWithTelegram } = await import('../lib/telegramSignIn');
+    handler = (config) => (isLogin(config) ? { status: 503 } : { status: 401 });
+    useAuthStore.getState().logout();
+    await expect(signInWithTelegram(INIT_DATA, null)).resolves.toMatchObject({ ok: false });
+
+    await expect(api.get('/orders')).rejects.toBeDefined();
+
+    expect(loginCount()).toBe(1);
+  });
+
+  it('a successful re-sign-in clears an error an earlier attempt left on the sign-in status', async () => {
+    const session = await import('../lib/session');
+    session.useSessionStatus.setState({ signingIn: false, error: 'Connection timeout.', reopen: false, attempt: 0 });
+    handler = (config) => {
+      if (isLogin(config)) return loginReply();
+      return bearer(config) === `Bearer ${NEW_TOKEN}` ? { status: 200, data: {} } : { status: 401 };
+    };
+
+    await api.get('/orders');
+
+    expect(session.useSessionStatus.getState().error).toBeNull();
   });
 });

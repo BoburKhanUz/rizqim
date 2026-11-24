@@ -1,12 +1,14 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { queryClient } from '../lib/queryClient';
 import { revisions } from '../lib/revisions';
-import { useSessionStatus } from '../lib/session';
+import { signInAgain, useSessionStatus } from '../lib/session';
 import { getInitData, getTelegramUser } from '../lib/telegram';
+import { resetSignIn } from '../lib/telegramSignIn';
 import { TEST_TELEGRAM_ID } from '../test/telegramId';
 import api from '../services/api';
+import { authClient } from '../services/authClient';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
@@ -21,34 +23,41 @@ vi.mock('../lib/telegram', () => ({
   getTelegramUser: vi.fn(() => ({ id: 7100001, first_name: 'Aziz' })),
   tg: { initDataUnsafe: {} },
 }));
-vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
-
-const post = vi.mocked(api.post);
+vi.mock('../services/api', () => ({ default: { get: vi.fn() } }));
+// The sign-in goes out on the plain client (no interceptors), shared with the 401 handler (lib/telegramSignIn.ts). The
+// test setup already loaded it (through services/staffApi.ts), so its one instance is spied on rather than mocked (in
+// beforeEach: the config restores spies before every test).
+const post = vi.fn<typeof authClient.post>();
 const get = vi.mocked(api.get);
 
 // The Telegram user who has the app open (the same one lib/telegram's getTelegramUser mock reports)
 const CURRENT_TELEGRAM_ID = 7100001;
 
-function launchInTelegram(startParam?: string, telegramId: number | null = CURRENT_TELEGRAM_ID) {
+// `initData`: what window.Telegram.WebApp.initData holds (its auth_date tells how old the launch is)
+function launchInTelegram(startParam?: string, telegramId: number | null = CURRENT_TELEGRAM_ID, initData?: string) {
   const user = telegramId === null ? undefined : { id: telegramId, first_name: 'Aziz' };
   vi.mocked(getTelegramUser).mockReturnValue(user as ReturnType<typeof getTelegramUser>);
   Object.defineProperty(window, 'Telegram', {
     configurable: true,
-    value: { WebApp: { initDataUnsafe: { ...(startParam ? { start_param: startParam } : {}), ...(user ? { user } : {}) } } },
+    value: { WebApp: { ...(initData ? { initData } : {}), initDataUnsafe: { ...(startParam ? { start_param: startParam } : {}), ...(user ? { user } : {}) } } },
   });
 }
 
+const loginAnswer = (store: unknown) => ({
+  data: {
+    success: true,
+    message: 'Authenticated successfully.',
+    data: { token: 'fresh-token', user: makeUser({ telegram_id: '7100001', role: 'customer', store_id: null }), store, sms_verification_required: false },
+  },
+});
+
 function answerLogin(store: unknown) {
-  post.mockResolvedValue({
-    data: {
-      success: true,
-      message: 'Authenticated successfully.',
-      data: { token: 'fresh-token', user: makeUser({ telegram_id: '7100001', role: 'customer', store_id: null }), store, sms_verification_required: false },
-    },
-  });
+  post.mockResolvedValue(loginAnswer(store));
 }
 
 beforeEach(() => {
+  resetSignIn();
+  vi.spyOn(authClient, 'post').mockImplementation((...args) => post(...args));
   post.mockReset();
   get.mockReset();
   vi.mocked(getInitData).mockReturnValue('query_id=AAH&user=%7B%7D&hash=abc');
@@ -188,7 +197,7 @@ describe('useTelegramAuth: a stored session whose user is not the current Telegr
     seedSessionOf(A_TELEGRAM_ID);
     launchInTelegram();
     let answer: (value: unknown) => void = () => {};
-    post.mockReturnValue(new Promise((resolve) => { answer = resolve; }) as ReturnType<typeof api.post>);
+    post.mockReturnValue(new Promise((resolve) => { answer = resolve; }) as ReturnType<typeof authClient.post>);
 
     const { result, seen } = renderAuth();
     expect(seen[0]).toMatchObject({ isAuthenticated: false, token: null, user: null });
@@ -372,5 +381,147 @@ describe('useTelegramAuth: no Telegram user (opened outside Telegram)', () => {
     expect(initData).toContain('mock_data=true');
     expect(JSON.parse(new URLSearchParams(initData).get('user') ?? '{}')).toMatchObject({ id: Number(TEST_TELEGRAM_ID) });
     expect(result.current).toMatchObject({ isAuthenticated: true, token: 'mock-token' });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The backend accepts a launch's initData for 10 minutes only, and a reload keeps the same initData. A sign-in that
+// cannot succeed because the launch is too old asks to close the app and open it again (WebApp.close()), never to reload.
+const DEEP_LINK = 'store_0b5c1f8e-0000-4000-8000-000000000000';
+const initDataAged = (seconds: number) => `query_id=AAH&user=%7B%7D&auth_date=${Math.floor(Date.now() / 1000) - seconds}&hash=abc`;
+
+describe('useTelegramAuth: launch data too old to sign in', () => {
+  it('the server refuses the launch data (401): the "close and reopen" screen', async () => {
+    launchInTelegram();
+    post.mockRejectedValue(httpError(401, 'Invalid Telegram authentication data.'));
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    expect(result.current).toMatchObject({ isAuthenticated: false, reopen: true });
+    expect(result.current.error).toBeTruthy();
+  });
+
+  it('the launch is older than 9 minutes by its auth_date: a failure asks to reopen as well', async () => {
+    launchInTelegram(undefined, CURRENT_TELEGRAM_ID, initDataAged(9 * 60 + 30));
+    post.mockRejectedValue(httpError(500));
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    expect(result.current).toMatchObject({ isAuthenticated: false, reopen: true });
+  });
+
+  it.each(FAILURES)('a fresh launch that fails with %s keeps the reload retry', async (_name, makeError) => {
+    launchInTelegram(undefined, CURRENT_TELEGRAM_ID, initDataAged(60));
+    post.mockRejectedValue(makeError());
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    expect(result.current).toMatchObject({ isAuthenticated: false, reopen: false });
+    expect(result.current.error).toBeTruthy();
+  });
+
+  it('once refused, the same launch data is never posted again (a later sign-in asks to reopen at once)', async () => {
+    launchInTelegram();
+    post.mockRejectedValue(httpError(401, 'Invalid Telegram authentication data.'));
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    act(() => signInAgain());
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(result.current).toMatchObject({ isAuthenticated: false, reopen: true });
+  });
+
+  it.each([
+    ['a 401 (the launch data is too old)', () => httpError(401, 'Invalid Telegram authentication data.')],
+    ...FAILURES,
+  ])('a deep link with a valid stored session of the same person: %s falls back to that session', async (_name, makeError) => {
+    seedSessionOf(String(CURRENT_TELEGRAM_ID), 'own-token');
+    launchInTelegram(DEEP_LINK);
+    post.mockRejectedValue(makeError());
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+
+    expect(result.current).toMatchObject({ isAuthenticated: true, token: 'own-token' });
+    expect(useAuthStore.getState().token).toBe('own-token');
+    expect(JSON.stringify({ ...localStorage })).toContain('own-token');
+    expectCartAndAddressesKept();
+  });
+});
+
+describe('useTelegramAuth: the background GET /user', () => {
+  it('an answer that comes back after the token changed is not applied', async () => {
+    seedSessionOf(String(CURRENT_TELEGRAM_ID), 'own-token');
+    let answer: (value: unknown) => void = () => {};
+    get.mockReturnValue(new Promise((resolve) => { answer = resolve; }) as ReturnType<typeof api.get>);
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/user'));
+    // Meanwhile the session was renewed (the 401 handler signed in again)
+    act(() => useAuthStore.getState().setAuth('renewed-token', makeUser({ telegram_id: String(CURRENT_TELEGRAM_ID), name: 'Renewed' }), null, false));
+    answer({ config: { _authToken: 'own-token' }, data: { success: true, data: { user: makeUser({ telegram_id: String(CURRENT_TELEGRAM_ID), name: 'Stale answer' }), store: makeStore({ name: 'Stale' }), sms_verification_required: true } } });
+    await act(async () => {});
+
+    expect(useAuthStore.getState()).toMatchObject({ token: 'renewed-token', user: { name: 'Renewed' }, store: null, smsVerificationRequired: false });
+    expect(result.current.token).toBe('renewed-token');
+  });
+
+  it('an answer for the token it was sent with is applied', async () => {
+    seedSessionOf(String(CURRENT_TELEGRAM_ID), 'own-token');
+    get.mockResolvedValue({ config: { _authToken: 'own-token' }, data: { success: true, data: { user: makeUser({ telegram_id: String(CURRENT_TELEGRAM_ID), name: 'Fresh' }), store: null, sms_verification_required: false } } });
+
+    renderAuth();
+    await waitFor(() => expect(useAuthStore.getState().user?.name).toBe('Fresh'));
+    expect(useAuthStore.getState().token).toBe('own-token');
+  });
+});
+
+describe('useTelegramAuth: one sign-in at a time', () => {
+  it('signInAgain while a sign-in is running does not start a second one', async () => {
+    launchInTelegram();
+    let answer: (value: unknown) => void = () => {};
+    post.mockReturnValue(new Promise((resolve) => { answer = resolve; }) as ReturnType<typeof authClient.post>);
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    act(() => signInAgain());
+    act(() => signInAgain());
+    await act(async () => {});
+    expect(post).toHaveBeenCalledTimes(1);
+
+    answer(loginAnswer(null));
+    await waitFor(() => expect(result.current.isAuthenticating).toBe(false));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(result.current).toMatchObject({ isAuthenticated: true, token: 'fresh-token', error: null });
+  });
+
+  it('a sign-in that ends after the hook is gone (unmount: the effect is stale) changes nothing', async () => {
+    launchInTelegram();
+    let fail: (error: unknown) => void = () => {};
+    post.mockReturnValue(new Promise((_resolve, reject) => { fail = reject; }) as ReturnType<typeof authClient.post>);
+
+    const { unmount } = renderAuth();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    unmount();
+    fail(httpError(500));
+    await act(async () => {});
+
+    expect(useSessionStatus.getState()).toMatchObject({ signingIn: true, error: null });
+  });
+
+  it('a successful sign-in clears an error an earlier attempt left', async () => {
+    useSessionStatus.setState({ signingIn: false, error: 'Connection timeout.', reopen: false });
+    seedSessionOf(String(CURRENT_TELEGRAM_ID), 'own-token');
+    launchInTelegram(DEEP_LINK);
+    answerLogin(null);
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.token).toBe('fresh-token'));
+    expect(useSessionStatus.getState().error).toBeNull();
   });
 });
