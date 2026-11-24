@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { userPersistStorage } from '../lib/userStorage';
 import { isInventedPoint } from '../features/address/coordinates';
 
 export interface Address {
@@ -62,7 +63,8 @@ export const useAddressStore = create<AddressState>()(
       })),
     }),
     {
-      name: 'address-storage',
+      name: 'address-storage', // per Telegram user (lib/userStorage.ts)
+      storage: userPersistStorage<AddressState>(),
       version: STORE_VERSION,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AddressState> | undefined;

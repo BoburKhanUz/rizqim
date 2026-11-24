@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { userStorageKey } from '../lib/userStorage';
+import { TEST_TELEGRAM_ID } from '../test/telegramId';
 import { createCheckoutAttempt } from '../lib/idempotency';
 import { cartAttemptStorage, cartLineId, cartLineTotal, quantityOfVariant, useCartStore, type CartItem, type CartModifier } from './cartStore';
 
@@ -176,11 +178,14 @@ describe('clearCart / replaceCart / special instructions', () => {
   });
 });
 
+// Saved under the key of the Telegram user who has the app open (lib/userStorage.ts)
+const CART_KEY = userStorageKey('cart-storage', TEST_TELEGRAM_ID);
+
 describe('persistence', () => {
   it('saves the cart to localStorage so it survives a reload', () => {
     cart().addItem({ ...burger, quantity: 2 }, { name: 'Evos', address: 'Chilonzor 5' });
 
-    const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
+    const saved = JSON.parse(localStorage.getItem(CART_KEY) ?? 'null');
     expect(saved.state.items).toEqual([{ ...burger, quantity: 2 }]);
     expect(saved.state.storeName).toBe('Evos');
   });
@@ -189,7 +194,7 @@ describe('persistence', () => {
     cart().addItem(burger, { name: 'Evos', address: 'Chilonzor 5' });
     const key = createCheckoutAttempt(() => 'key-1', cartAttemptStorage).keyFor({ items: [1] });
 
-    const saved = JSON.parse(localStorage.getItem('cart-storage') ?? 'null');
+    const saved = JSON.parse(localStorage.getItem(CART_KEY) ?? 'null');
     expect(saved.state.checkoutAttempt).toEqual({ key, fingerprint: '{"items":[1]}' });
     // The cart page opened again (a new attempt object): the same body keeps the key
     expect(createCheckoutAttempt(() => 'key-2', cartAttemptStorage).keyFor({ items: [1] })).toBe('key-1');

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { userPersistStorage } from '../lib/userStorage';
 import { comboDelta, type CartComboPart } from '../lib/combo';
 import { lineTotal } from '../lib/linePrice';
 import { addQuantities, isMeasuredUnit, roundQuantity } from '../lib/quantity';
@@ -199,7 +200,8 @@ export const useCartStore = create<CartState>()(
       },
     }),
     {
-      name: 'cart-storage',
+      name: 'cart-storage', // per Telegram user (lib/userStorage.ts)
+      storage: userPersistStorage<CartState>(),
     }
   )
 );

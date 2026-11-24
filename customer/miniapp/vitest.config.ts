@@ -6,7 +6,8 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: 'jsdom',
-      setupFiles: ['./src/test/setup.ts'],
+      // launch.ts first: it chooses the tests' Telegram account before any app module (and its storage) is loaded
+      setupFiles: ['./src/test/launch.ts', './src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
       css: false,
       // Every test starts from clean mocks, spies and fake timers
