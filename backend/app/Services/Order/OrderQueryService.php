@@ -158,12 +158,14 @@ class OrderQueryService
     }
 
     /**
-     * Wave P (receipts): whether the user's list is their own orders as a buyer (everyone but a courier, an owner and a
-     * manager), whose items then carry `seller` and `receipts` (App\Domain\Receipts\CustomerOrderReceipts).
+     * Wave P (receipts): whether the user's list is their own orders as a buyer (the customer role only), whose items
+     * then carry `seller` and `receipts` (App\Domain\Receipts\CustomerOrderReceipts). Floor staff (cashier, waiter,
+     * cook, hostess) also list "their own" orders, but those are the till orders they rang up: no customer extras.
      */
     public function listsOwnOrders(User $user): bool
     {
-        return !in_array($user->role, [UserRole::COURIER, UserRole::OWNER, UserRole::MANAGER], true);
+        // A user created without a role is a customer (users.role defaults to it; the model may not have read it back)
+        return ($user->role ?? UserRole::CUSTOMER) === UserRole::CUSTOMER;
     }
 
     /**

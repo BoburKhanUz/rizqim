@@ -33,13 +33,16 @@ use Illuminate\Support\Facades\DB;
  * the UzQR check SendUzQrReceiptLink::allowedLink); any other value is dropped and the receipt is `unavailable`.
  *
  * Tenancy: the receipts are read for the given orders only (the caller's own) and must be of the order's store.
- * Advance and credit receipts and non-fiscal (sandbox) ones are left out. A fixed number of queries per list.
+ * Advance and credit receipts and non-fiscal (sandbox) ones are left out. A fixed number of queries per list (per
+ * 1 000 orders).
  */
 final class CustomerOrderReceipts
 {
     public const READY = 'ready';
     public const PENDING = 'pending';
     public const UNAVAILABLE = 'unavailable';
+
+    private const CHUNK = 1000;
 
     /**
      * Sets `seller` and `receipts` on each order as (serialized) relations: the list stays a list of orders, and
@@ -49,10 +52,18 @@ final class CustomerOrderReceipts
      */
     public function attach(Collection $orders): void
     {
-        if ($orders->isEmpty()) {
-            return;
+        // The legacy GET /orders list is unbounded: its order ids are bound in chunks, well under PostgreSQL's
+        // 65 535 bind parameters (a fixed number of queries per chunk)
+        foreach ($orders->values()->chunk(self::CHUNK) as $chunk) {
+            $this->attachChunk($chunk->values());
         }
+    }
 
+    /**
+     * @param  Collection<int, Order>  $orders
+     */
+    private function attachChunk(Collection $orders): void
+    {
         $stores = $this->storesWithoutSnapshot($orders);
         $receipts = $this->receiptsOf($orders);
         $payments = Payment::query()

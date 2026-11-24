@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\CustomerReceipts;
 
+use App\Domain\Receipts\SellerDetails;
 use App\Models\AuditLog;
 use App\Models\Store;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,13 +72,23 @@ class SellerDetailsTest extends TestCase
     {
         $this->fillLegal($this->store, ['tin' => null, 'legal_address' => null, 'complaint_contact' => null, 'legal_name' => null]);
 
+        $before = $this->catalogStore()['seller'];
         $this->assertSame([
             'legal_name' => null,
             'tin' => '999888777',
             'legal_address' => null,
             'phone' => '+998901112233',
             'complaint_contact' => null,
-        ], $this->catalogStore()['seller']);
+        ], $before);
+
+        // A 14-digit JShShIR (a sole proprietor's personal ID) is never published: the 9-digit STIR or nothing
+        // (stores.tin holds 9 characters; the older free-form tax_number may hold one)
+        DB::table('stores')->where('id', $this->store->id)->update(['tin' => null, 'tax_number' => '41234567890123']);
+        $this->assertNull($this->catalogStore()['seller']['tin']);
+        $this->assertNull(SellerDetails::of($this->store->fresh())['tin']);
+        // An order snapshot that holds one is not shown either
+        $this->assertNull(SellerDetails::fromSnapshot(['tin' => '31234567890123'])['tin']);
+        $this->assertSame('305123456', SellerDetails::fromSnapshot(['tin' => '305123456'])['tin']);
     }
 
     public function test_the_seller_follows_a_change_of_the_store(): void

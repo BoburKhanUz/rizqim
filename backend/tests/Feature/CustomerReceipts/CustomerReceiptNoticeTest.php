@@ -14,6 +14,7 @@ use App\Models\OrderBill;
 use App\Models\Payment;
 use App\Services\Payment\Fiscal\OnlineFiscalRecorder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\Feature\OrderLifecycleFixtures;
@@ -135,6 +136,26 @@ class CustomerReceiptNoticeTest extends TestCase
         $this->assertCount(2, $messages);
         $this->assertStringContainsString('qaytarish cheki tayyor', $messages[1]['text']);
         $this->assertSame(self::REFUND_URL, json_decode($messages[1]['reply_markup'], true)['inline_keyboard'][0][0]['url']);
+    }
+
+    public function test_the_notice_waits_for_the_commit_and_is_dropped_on_a_rollback(): void
+    {
+        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'payme']);
+
+        DB::transaction(function () use ($order) {
+            $this->receipt($order);
+            $this->assertSame([], $this->receiptMessages());
+        });
+        $this->assertCount(1, $this->receiptMessages());
+
+        try {
+            DB::transaction(function () use ($order) {
+                $this->receipt($order, ['type' => 'refund', 'qr_url' => self::REFUND_URL]);
+                throw new \RuntimeException('rolled back');
+            });
+        } catch (\RuntimeException) {
+        }
+        $this->assertCount(1, $this->receiptMessages());
     }
 
     public function test_a_pending_pos_receipt_is_announced_when_it_is_issued(): void

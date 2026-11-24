@@ -1013,8 +1013,8 @@ Iste'molchilar qonuni 28-1-modda (sotuvchi nomi, manzili, shikoyat tartibi shart
 
 **Sotuvchi (`seller`).** Faqat shu maydonlar: `{legal_name, tin, legal_address, phone, complaint_contact}`
 (`App\Domain\Receipts\SellerDetails`). `legal_name` RIZQIM kiritadi (ariza tekshiruvi), `tin` — `stores.tin`, bo'lmasa
-`tax_number` (9 yoki 14 raqam bo'lsagina), `legal_address` va `complaint_contact` — ega kiritadi, `phone` — do'kon
-telefoni, bo'lmasa filialniki. Bo'sh maydon `null`, Mini App uni ko'rsatmaydi.
+`tax_number` (faqat 9 raqamli STIR; 14 raqamli JShShIR — YaTT shaxsiy raqami — hech qachon chiqmaydi, `null`),
+`legal_address` va `complaint_contact` — ega kiritadi, `phone` — do'kon telefoni, bo'lmasa filialniki. Bo'sh maydon `null`, Mini App uni ko'rsatmaydi.
 - `GET /catalog?store_id=` (mijoz menyusi): `store.seller`. Xom ustunlar (`legal_name`, `tax_number`, `legal_address`,
   `complaint_contact`, `bank_account`) do'kon JSON'ida yo'q (`Store::INTERNAL_ATTRIBUTES`).
 - `orders.seller_snapshot` (jsonb): buyurtma berilganda (`CreateOrderAction`) sotuvchi nusxasi. Tarixda o'sha paytdagi
@@ -1024,7 +1024,8 @@ telefoni, bo'lmasa filialniki. Bo'sh maydon `null`, Mini App uni ko'rsatmaydi.
   niqoblanadi). Hamkor panelida: Sozlamalar → Do'kon → "Sotuvchi ma'lumotlari".
 
 **Buyurtma cheklari (`receipts`).** `GET /orders` (barcha scope'lar) mijozning **o'z** buyurtmalarida `seller` va
-`receipts` qaytaradi (`App\Domain\Receipts\CustomerOrderReceipts`); xodim ro'yxatlarida ular yo'q.
+`receipts` qaytaradi (`App\Domain\Receipts\CustomerOrderReceipts`), faqat `customer` roli uchun; xodim ro'yxatlarida
+(kassir, ofitsiant, oshpaz, hostes o'zi urgan kassa buyurtmalari ham) ular yo'q.
 
 ```json
 "receipts": [
@@ -1041,12 +1042,18 @@ telefoni, bo'lmasa filialniki. Bo'sh maydon `null`, Mini App uni ko'rsatmaydi.
   Ichki sabab, muammo kodi, provayder javobi hech qachon chiqmaydi.
 - `url` faqat `https` va `qr_payments.uzqr.receipt_hosts` (`UZQR_RECEIPT_HOSTS`, standart `ofd.soliq.uz`) xostida, login,
   port va bo'sh joysiz (`SendUzQrReceiptLink::allowedLink`). Boshqa havola tashlab yuboriladi, chek `unavailable`.
-- So'rovlar soni buyurtmalar soniga bog'liq emas (do'konlar, cheklar, kassa qaytarishlari, to'lovlar: bittadan).
+- So'rovlar soni buyurtmalar soniga bog'liq emas (do'konlar, cheklar, kassa qaytarishlari, to'lovlar: bittadan; scope'siz
+  uzun ro'yxatda har 1 000 buyurtmaga bittadan).
+- Mini App havolani o'zi ham faqat `ofd.soliq.uz` xostida ochadi (xost unda qattiq yozilgan): server ro'yxatiga yangi
+  xost qo'shilsa, Mini App yangilanmaguncha bunday chekni tugma emas, "Chekni restorandan so'rang" deb ko'rsatadi
+  (xavfsiz tomonga).
 
 **Telegram xabari.** Sotuv yoki qaytarish cheki `issued` bo'lganda (`FiscalReceipt` saqlanishi,
-`CustomerReceiptsServiceProvider`) commit'dan keyin `SendCustomerReceiptNotice` navbatga qo'yiladi:
+`CustomerReceiptsServiceProvider`) commit'dan keyin `SendCustomerReceiptNotice` navbatga qo'yiladi. Navbatga qo'yish
+xatosi (Redis ishlamayapti) faqat `report()` qilinadi va chaqiruvchiga (masalan Payme SetFiscalData) hech qachon
+chiqmaydi; bunda `customer_notified_at` belgilanmaydi, xabar yo'qoladi, chek Mini App tarixida baribir ko'rinadi:
 - sotuv chekida `orders.fiscalized_by` bo'sh bo'lsa to'ldiriladi: `payment_provider` (Payme/Click/Paylov) yoki
-  `venue_pos` (kassa);
+  `venue_pos` (kassa); bu yozuv eng yaxshi urinish (xabar ishi yo'qolsa yoki yiqilsa bo'sh qoladi);
 - buyurtma mijoziga (faqat `telegram`/`mobile` kanal; POS buyurtmasining `user_id` — kassir) bitta xabar: "Buyurtma
   #… fiskal cheki tayyor" yoki "qaytarish cheki", "🧾 Chekni ochish" URL tugmasi va Mini App tugmasi. Telegram'i yo'q,
   bloklangan yoki "Buyurtma holati" Telegram xabarini o'chirgan mijozga yuborilmaydi; havola ruxsat etilgan xostda

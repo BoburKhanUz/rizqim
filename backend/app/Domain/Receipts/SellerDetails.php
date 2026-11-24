@@ -11,8 +11,9 @@ use App\Models\Store;
  *
  * Exactly these fields reach a customer (the public store payload's `seller`, an order's `seller` and its
  * orders.seller_snapshot): legal name (set by RIZQIM when the store is admitted), STIR (`tin`, else the older
- * `tax_number`), legal address and complaint contact (the owner's), phone (the store's, else the branch's). An empty
- * value is null; the Mini App leaves a missing field out.
+ * `tax_number`; 9 digits only, never a sole proprietor's personal 14-digit JShShIR), legal address and complaint
+ * contact (the owner's), phone (the store's, else the branch's). An empty value is null; the Mini App leaves a
+ * missing field out.
  */
 final class SellerDetails
 {
@@ -60,12 +61,13 @@ final class SellerDetails
     }
 
     /**
-     * A STIR (9 digits) or a JShShIR (14 digits) as stored; anything else is not shown.
+     * A STIR (9 digits) as stored; anything else is not shown. A 14-digit JShShIR (PINFL) is a sole proprietor's
+     * personal ID: it never reaches the public payload, an order's `seller` or a snapshot read back.
      */
     private static function tin(mixed $value): ?string
     {
         $value = self::text($value);
 
-        return $value !== null && preg_match('/^\d{9}(\d{5})?$/', $value) === 1 ? $value : null;
+        return $value !== null && preg_match('/^\d{9}$/', $value) === 1 ? $value : null;
     }
 }

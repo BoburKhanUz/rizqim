@@ -5,6 +5,7 @@ namespace Tests\Feature\CustomerReceipts;
 use App\Domain\Fiscal\FiscalReceiptLock;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Models\FiscalReceipt;
 use App\Models\Order;
 use App\Models\OrderBill;
@@ -254,6 +255,26 @@ class CustomerOrderReceiptsTest extends TestCase
         $this->assertArrayNotHasKey('seller_snapshot', $row);
     }
 
+    public function test_floor_staff_get_no_customer_extras_on_the_till_orders_they_rang_up(): void
+    {
+        foreach ([UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::HOSTESS] as $role) {
+            $staff = User::create(['name' => 'Xodim ' . $role->value, 'telegram_id' => 'staff-' . $role->value, 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'role' => $role]);
+            $order = $this->makeOrder(OrderStatus::DELIVERED, ['user_id' => $staff->id, 'channel' => 'pos_hall', 'order_type' => 'dine_in', 'payment_method' => 'card']);
+            $this->receipt($order);
+
+            foreach ([[], ['scope' => 'active'], ['scope' => 'history']] as $query) {
+                $row = collect($this->list($staff, $query)->json('data'))->firstWhere('uuid', $order->uuid);
+                if ($row === null) {
+                    continue;
+                }
+                $this->assertArrayNotHasKey('receipts', $row, $role->value);
+                $this->assertArrayNotHasKey('seller', $row, $role->value);
+            }
+            // The legacy list does show the till order (a staff member's own orders)
+            $this->assertNotNull(collect($this->list($staff)->json('data'))->firstWhere('uuid', $order->uuid), $role->value);
+        }
+    }
+
     public function test_receipts_cost_a_fixed_number_of_queries(): void
     {
         $make = function (int $count) {
@@ -282,5 +303,25 @@ class CustomerOrderReceiptsTest extends TestCase
         $make(8);
 
         $this->assertSame($few, $count());
+    }
+
+    public function test_a_long_legacy_list_binds_its_order_ids_in_chunks(): void
+    {
+        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'payme']);
+        $this->receipt($order);
+        // 2 500 orders (the last one real), bound 1 000 ids at a time (the receipts query binds a chunk's ids twice);
+        // unchunked, a customer's very long list would grow past PostgreSQL's 65 535 bind parameters
+        $orders = collect(range(1, 2499))->map(fn (int $i) => (new Order)->forceFill(['id' => 10_000_000 + $i, 'store_id' => $this->store->id, 'seller_snapshot' => null]))
+            ->push($order->fresh());
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(\App\Domain\Receipts\CustomerOrderReceipts::class)->attach($orders);
+        $bindings = array_map(fn (array $query) => count($query['bindings']), DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(2 * 1000 + 50, max($bindings));
+        $this->assertSame(['sale'], array_column($orders->last()->getRelation('receipts')->all(), 'type'));
+        $this->assertNotNull($orders->last()->getRelation('seller'));
     }
 }
