@@ -158,6 +158,15 @@ class OrderQueryService
     }
 
     /**
+     * Wave P (receipts): whether the user's list is their own orders as a buyer (everyone but a courier, an owner and a
+     * manager), whose items then carry `seller` and `receipts` (App\Domain\Receipts\CustomerOrderReceipts).
+     */
+    public function listsOwnOrders(User $user): bool
+    {
+        return !in_array($user->role, [UserRole::COURIER, UserRole::OWNER, UserRole::MANAGER], true);
+    }
+
+    /**
      * The orders this user may list, with the relations their app shows (eager loaded: a fixed number of queries
      * however many orders there are). Every scope shares it, so items have the same shape everywhere.
      *

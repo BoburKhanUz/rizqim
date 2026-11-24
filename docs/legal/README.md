@@ -83,10 +83,15 @@ ular ishga tushsa matnga qo'shing.
   rasmiylashtirilishi va soliq oqibatlari (QQS, kim sotuvchi) tekshirilishi kerak. Sahifada "RIZQIM to'lov tashkiloti
   emas, pul shartnoma asosida restoranga o'tkaziladi" deb yozilgan.
 - **Fiskal chek mijozga yetkazilishi.** O'RQ-792 23-moddasi elektron chekni xaridorning telefoniga, e-pochtasiga yoki
-  shaxsiy kabinetiga yuborishni talab qiladi. Mini App hozir chek havolasini ko'rsatmaydi; sahifada "to'lov tizimi
-  ilovasida yoki so'rov bo'yicha" deb yozilgan. Mini App'ga chek havolasini qo'shish tavsiya etiladi.
-- **Restoran haqida ma'lumot** (iste'molchilar qonuni 28-1-modda): Mini App'da restoran nomi va manzili bor, lekin
-  yuridik nomi va shikoyat tartibi ko'rsatilmaydi. Restoran sahifasiga yuridik nomi va STIR qo'shish tavsiya etiladi.
+  shaxsiy kabinetiga yuborishni talab qiladi. **Wave P dan qoplangan:** Mini App'dagi buyurtma sahifasi va tarixida
+  "Fiskal chek" va "Qaytarish cheki" tugmalari ofd.soliq.uz havolasini ochadi (shaxsiy kabinet), chek ro'yxatga
+  olinganda Telegram bot havolani tugma bilan yuboradi (`docs/API.md`, "Mijozga chek va sotuvchi ma'lumoti"). Qolgani:
+  Click qaytarish cheki hali so'ralmaydi; restoran boshqa kassada urgan chek RIZQIM'da ko'rinmaydi; e-pochta va
+  PDF keyingi bosqichda. Sahifadagi "to'lov tizimi ilovasida yoki so'rov bo'yicha" matnini yangilash kerak.
+- **Restoran haqida ma'lumot** (iste'molchilar qonuni 28-1-modda). **Wave P dan qoplangan:** restoran sahifasida va
+  to'lovdan oldin "Sotuvchi" bloki: yuridik nomi, STIR, yuridik manzil, telefon, shikoyat tartibi (ilovadagi
+  "Shikoyatlar" bo'limi va restoranning shikoyat aloqasi); buyurtmada o'sha paytdagi sotuvchi nusxasi. Yuridik manzil
+  va shikoyat aloqasini ega hamkor panelida to'ldiradi; bo'sh maydon ko'rsatilmaydi.
 - **Harakatlar jurnali arxivi muddatsiz saqlanadi** (`docs/OPERATIONS.md` 20-bo'lim). O'RQ-547 10-moddasi muddatni
   maqsad bilan cheklaydi: arxiv uchun aniq muddat (masalan, da'vo muddati) belgilash tavsiya etiladi.
 - **Telegram orqali transchegaraviy uzatish** subyekt roziligiga asoslangan (15-modda). Vazirlar Mahkamasi adekvat

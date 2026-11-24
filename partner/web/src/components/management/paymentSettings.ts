@@ -97,6 +97,9 @@ export interface SettingsDraft {
   description: string;
   address: string;
   locationUrl: string;
+  // Wave P (receipts): the seller's details customers see (null: a backend that does not send them, left out of the request)
+  legalAddress: string | null;
+  complaintContact: string | null;
   isOpen: boolean;
   minOrder: string;
   deliveryFee: string;
@@ -119,6 +122,8 @@ export function draftFromSettings(settings: StoreSettings): SettingsDraft {
     description: settings.description ?? '',
     address: settings.address ?? '',
     locationUrl: settings.location_url ?? '',
+    legalAddress: settings.legal_address === undefined ? null : (settings.legal_address ?? ''),
+    complaintContact: settings.complaint_contact === undefined ? null : (settings.complaint_contact ?? ''),
     isOpen: settings.is_open,
     minOrder: String(settings.min_order_amount ?? 0),
     deliveryFee: String(payment.delivery_fee ?? 0),
@@ -164,6 +169,9 @@ export function inputFromDraft(settings: StoreSettings, draft: SettingsDraft, nu
     description: draft.description.trim() || null,
     address: draft.address.trim() || null,
     location_url: draft.locationUrl.trim() || null,
+    // Wave P (receipts): sent only when the server sent them (an empty one clears it)
+    ...(draft.legalAddress !== null ? { legal_address: draft.legalAddress.trim() || null } : {}),
+    ...(draft.complaintContact !== null ? { complaint_contact: draft.complaintContact.trim() || null } : {}),
     is_open: draft.isOpen,
     min_order_amount: numbers.minOrder,
     payment_settings: {

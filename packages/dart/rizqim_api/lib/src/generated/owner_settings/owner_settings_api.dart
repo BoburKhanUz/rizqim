@@ -38,6 +38,10 @@ abstract class OwnerSettingsApi {
   ///
   /// P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as.
   /// PUT /owner/fiscal/settings takes them; left out = kept.
+  ///
+  /// Wave P (receipts): optional `legal_address` and `complaint_contact` (the seller's details customers see; left out =.
+  /// kept, empty = cleared); a change is written to the audit log (`store.seller_details_updated`). `legal_name` is.
+  /// not taken here.
   @POST('/v1/owner/settings')
   Future<PostV1OwnerSettingsResponse> ownerSettingsUpdate({
     @Body() required V1OwnerSettingsRequestBody body,

@@ -16,7 +16,9 @@ export class FakeStoreSettings {
   store: Record<string, unknown> = {
     id: 1, name: 'Osh markazi', timezone: 'Asia/Tashkent', logo: null, logo_url: null, banner: null, banner_url: null, description: 'Eng yaxshi osh',
     phone: '+998712000000', address: 'Amir Temur 1', location_url: null, is_open: true, min_order_amount: 30000, status: 'active', is_order_locked: false,
-    tin: null, tax_regime: null, telegram: { group_link: null, group_linked: false },
+    tin: '305123456', tax_regime: 'turnover', telegram: { group_link: null, group_linked: false },
+    // Wave P (receipts): the seller's details; the legal name is RIZQIM's (never taken from the owner)
+    legal_name: '"Osh markazi" MChJ', legal_address: null, complaint_contact: null,
     fiscal_settings: { enabled: false, driver: 'none', active_driver: 'none', charges: {}, sandbox: { latency_ms: 0, fail_attempts: 0, failure_rate: 0, reject: false }, deposit_refund_receipt: null, retained_deposit_receipt: null },
   }
   accountType: 'own_account' | 'platform_account' = 'own_account'
@@ -71,7 +73,13 @@ export class FakeStoreSettings {
       }
       this.payment[provider] = current
     }
-    for (const key of ['name', 'timezone', 'phone', 'description', 'address', 'location_url', 'is_open', 'min_order_amount', 'logo', 'banner'] as const) if (body && key in body) this.store[key] = body[key]
+    for (const key of ['legal_address', 'complaint_contact'] as const) {
+      const value = body?.[key]
+      if (typeof value === 'string' && value.length > (key === 'legal_address' ? 500 : 255)) {
+        return fail(422, 'Xato', { [key]: [key === 'legal_address' ? "Yuridik manzil ko'pi bilan 500 belgi bo'lishi mumkin." : "Shikoyat uchun aloqa ko'pi bilan 255 belgi bo'lishi mumkin."] })
+      }
+    }
+    for (const key of ['name', 'timezone', 'phone', 'description', 'address', 'location_url', 'is_open', 'min_order_amount', 'logo', 'banner', 'legal_address', 'complaint_contact'] as const) if (body && key in body) this.store[key] = body[key]
     return ok(null, { message: "Do'kon sozlamalari muvaffaqiyatli yangilandi." })
   }
 

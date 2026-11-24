@@ -35,6 +35,9 @@ Data197 _$Data197FromJson(Map<String, dynamic> json) => Data197(
   taxRegime: json['tax_regime'] == null
       ? null
       : TaxRegime.fromJson(json['tax_regime'] as String?),
+  legalName: json['legal_name'] as String?,
+  legalAddress: json['legal_address'] as String?,
+  complaintContact: json['complaint_contact'] as String?,
   telegram: Telegram.fromJson(json['telegram'] as Map<String, dynamic>),
   fiscalSettings: FiscalSettings4.fromJson(
     json['fiscal_settings'] as Map<String, dynamic>,
@@ -62,6 +65,9 @@ Map<String, dynamic> _$Data197ToJson(Data197 instance) => <String, dynamic>{
   'allowed_methods': instance.allowedMethods,
   'tin': instance.tin,
   'tax_regime': instance.taxRegime,
+  'legal_name': instance.legalName,
+  'legal_address': instance.legalAddress,
+  'complaint_contact': instance.complaintContact,
   'telegram': instance.telegram,
   'fiscal_settings': instance.fiscalSettings,
 };

@@ -5,7 +5,7 @@ import { hapticFeedback } from '../lib/telegram';
 import { isTelegramHost, selectionChanged } from '../lib/twa';
 import { EmptyState, IconButton, InlineError, ProductImage, cx } from '../components/ui';
 import api from '../services/api';
-import { ArrowLeft, Clock, MessageSquare, Plus, Star } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Clock, MessageSquare, Plus, Star, Store as StoreIcon } from 'lucide-react';
 import ProductSheet from '../components/ProductSheet';
 import { FavoriteButton } from '../components/catalog/FavoriteButton';
 import { QuantityStepper } from '../components/catalog/QuantityStepper';
@@ -20,6 +20,9 @@ import { formatQuantity, isMeasuredUnit, unitLabel } from '../lib/quantity';
 import { formatDate, formatMoney } from '../lib/format';
 import { getProductBasePrice, getStoreInfo, needsProductSheet } from '../lib/catalog';
 import { isAcceptingOrders, NOT_ACCEPTING_TEXT } from '../lib/marketplace';
+import { hasSellerDetails } from '../lib/receipts';
+import { SellerInfo } from '../components/SellerInfo';
+import { useLanguageStore } from '../store/languageStore';
 import type { ApiResponse, BranchAvailability, Category, Product, StoreCatalog, StoreCatalogStore } from '../types';
 
 const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
@@ -29,6 +32,7 @@ export default function StoreDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { items: cartItems, removeItem, updateQuantity } = useCartStore();
+  const { t } = useLanguageStore();
 
   const [store, setStore] = useState<StoreCatalogStore | null>(null);
   const [catalogAvailability, setCatalogAvailability] = useState<BranchAvailability[] | undefined>(undefined);
@@ -247,6 +251,20 @@ export default function StoreDetail() {
                 </div>
               )}
             </dl>
+          )}
+          {/* Wave P: who sells the food (consumer law art. 28-1), opened on demand */}
+          {hasSellerDetails(store.seller) && (
+            <details className="group border-t border-line pt-1" data-testid="store-seller">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-footnote focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden">
+                <StoreIcon aria-hidden="true" className="size-4 shrink-0 text-brand" />
+                <span className="min-w-0 flex-1 truncate text-fg">
+                  <span className="text-fg-muted">{t('sellerTitle')}</span>
+                  {store.seller.legal_name ? <span className="font-bold">: {store.seller.legal_name}</span> : null}
+                </span>
+                <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-fg-muted transition-transform group-open:rotate-180" />
+              </summary>
+              <SellerInfo seller={store.seller} withTitle={false} showOperator className="mt-1" />
+            </details>
           )}
         </section>
 

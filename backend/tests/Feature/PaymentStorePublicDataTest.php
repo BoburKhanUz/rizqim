@@ -81,10 +81,15 @@ class PaymentStorePublicDataTest extends TestCase
         $this->assertPublicStore($catalog->json('data.store'));
 
         foreach ([$list, $catalog] as $response) {
-            foreach (['LEGAL-NAME-1', 'TAX-NUMBER-1', 'BANK-ACCOUNT-1', 'MODERATION-NOTE-1', '-100777'] as $value) {
+            foreach (['TAX-NUMBER-1', 'BANK-ACCOUNT-1', 'MODERATION-NOTE-1', '-100777'] as $value) {
                 $this->assertStringNotContainsString($value, $response->getContent());
             }
         }
+        // Wave P (receipts): the legal name reaches customers on the store's menu, inside `seller` only (consumer law
+        // art. 28-1); never on the store list. A tax number that is not a STIR is not shown.
+        $this->assertStringNotContainsString('LEGAL-NAME-1', $list->getContent());
+        $this->assertSame('LEGAL-NAME-1', $catalog->json('data.store.seller.legal_name'));
+        $this->assertNull($catalog->json('data.store.seller.tin'));
     }
 
     public function test_staff_user_payload_drops_internal_fields(): void

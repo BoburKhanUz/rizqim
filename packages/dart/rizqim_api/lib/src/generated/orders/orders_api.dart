@@ -31,6 +31,11 @@ abstract class OrdersApi {
   /// says more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:.
   /// send `meta.next_cursor` back as `cursor` until it is null.
   ///
+  /// Wave P (receipts): a customer's own orders also carry `seller` ({legal_name, tin, legal_address, phone,.
+  /// complaint_contact}: the seller when the order was placed, or the store's current details for an older order).
+  /// and `receipts` (list of {uuid, type: sale|refund, status: ready|pending|unavailable, provider, url, issued_at};.
+  /// `url` only ever an https ofd.soliq.uz link). Staff lists do not.
+  ///
   /// [scope] - Omit for the full legacy list.
   ///
   /// [perPage] - Only with `scope=history`: page size, 1-50 (larger values are capped at 50).

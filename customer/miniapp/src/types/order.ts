@@ -1,5 +1,5 @@
 import type { Amount, Decimal } from './api';
-import type { BranchSummary } from './store';
+import type { BranchSummary, StoreSeller } from './store';
 import type { Category, MenuUnit, Product, ProductVariant } from './catalog';
 import type { ApiUser } from './user';
 
@@ -142,6 +142,23 @@ export interface Order {
   manager?: ApiUser | null;
   branch?: BranchSummary | null;
   status_histories?: OrderStatusHistory[];
+  // Wave P (receipts), the customer's own orders only: the seller when the order was placed and its fiscal receipts
+  seller?: StoreSeller | null;
+  receipts?: OrderReceipt[];
+}
+
+// Wave P (receipts): a sale or refund receipt of the order (App\Domain\Receipts\CustomerOrderReceipts). `ready`
+// carries `url` (always an https ofd.soliq.uz link); `pending` is being registered; `unavailable` (refused, blocked or
+// no usable link): the customer asks the restaurant. `uuid` is null for a state read from the payment.
+export type OrderReceiptStatus = 'ready' | 'pending' | 'unavailable';
+
+export interface OrderReceipt {
+  uuid: string | null;
+  type: 'sale' | 'refund';
+  status: OrderReceiptStatus;
+  provider: string | null;
+  url: string | null;
+  issued_at: string | null;
 }
 
 // GET /orders?scope=active: the non-terminal orders, newest first. `truncated` when there are more than the cap.

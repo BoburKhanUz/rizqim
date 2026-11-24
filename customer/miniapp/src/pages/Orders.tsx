@@ -7,6 +7,8 @@ import { useLanguageStore } from '../store/languageStore';
 import { useAuthStore } from '../store/authStore';
 import { CustomerCancelDialog } from '../components/CancelDialogs';
 import { LoadMoreOrders, TruncatedOrdersNotice } from '../components/OrderListParts';
+import { OrderReceipts } from '../components/OrderReceipts';
+import { SellerInfo } from '../components/SellerInfo';
 import { Button, Card, Dialog, EmptyState, InlineError, PageHeader, Section, StatusBadge, buttonClasses, cx } from '../components/ui';
 import { getCancelErrorMessage, getCustomerCancelReasonLabel, isCancellableByCustomer } from '../lib/cancelReasons';
 import { hapticFeedback } from '../lib/telegram';
@@ -282,12 +284,17 @@ export default function Orders() {
               </div>
             </dl>
 
+            {/* Wave P: the fiscal receipts (sale, refund) and who sold the order */}
+            <OrderReceipts receipts={order.receipts} />
+
             {order.notes && (
               <div className="flex items-start gap-2 rounded-control bg-brand-soft p-3 text-footnote text-brand-soft-fg">
                 <MessageSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                 <span className="select-text break-words">"{order.notes}"</span>
               </div>
             )}
+
+            <SellerInfo seller={order.seller} />
 
             {/* Complaint, cancel and rating */}
             <div className="flex flex-wrap gap-2">
