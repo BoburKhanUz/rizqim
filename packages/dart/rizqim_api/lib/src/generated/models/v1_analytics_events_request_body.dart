@@ -21,14 +21,14 @@ class V1AnalyticsEventsRequestBody {
   factory V1AnalyticsEventsRequestBody.fromJson(Map<String, Object?> json) =>
       _$V1AnalyticsEventsRequestBodyFromJson(json);
 
-  /// The Mini App session (UUID).
+  /// The Mini App session (UUID, not the nil UUID).
   @JsonKey(name: 'session_id')
   final String sessionId;
 
-  /// Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else is stored as unknown).
+  /// Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else, of any type, is stored as unknown).
   final String platform;
 
-  /// The Mini App build, e.g. 1.4.2 (at most 16 of [0-9A-Za-z._+-], otherwise not kept).
+  /// The Mini App build: a release number (1.4.2, 1.4.2+57) or a 7-12 digit lowercase git hash (VITE_SENTRY_RELEASE); anything else is not kept (never refused).
   @JsonKey(name: 'app_version')
   final String? appVersion;
 

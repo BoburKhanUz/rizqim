@@ -51,13 +51,16 @@ class AnalyticsEventsPartitionTest extends TestCase
         $this->assertSame('RANGE (received_at)', DB::selectOne("SELECT pg_get_partkeydef('analytics_events'::regclass) AS d")->d);
         $indexes = collect(DB::select("SELECT indexdef FROM pg_indexes WHERE tablename = 'analytics_events'"))->pluck('indexdef')->implode("\n");
         $this->assertStringContainsString('USING brin (received_at)', $indexes);
-        $this->assertStringContainsString('USING btree (session_id)', $indexes);
+        // The replay lookup (session, uid; user_id filtered) without a time window, and the order_placed check
+        $this->assertStringContainsString('USING btree (session_id, event_uid)', $indexes);
+        $this->assertStringContainsString('USING btree (order_id) WHERE (order_id IS NOT NULL)', $indexes);
+        $this->assertStringNotContainsString('USING btree (session_id)', $indexes);
         // No foreign key on a partitioned journal (M3 rule) and no row-level security (NOT_UNDER_RLS: MIXED)
         $this->assertSame(0, (int) DB::selectOne("SELECT count(*) AS n FROM pg_constraint WHERE conrelid = 'analytics_events'::regclass AND contype = 'f'")->n);
         $this->assertFalse((bool) DB::selectOne("SELECT relrowsecurity AS r FROM pg_class WHERE oid = 'analytics_events'::regclass")->r);
         // A month ensure attaches gets the parent's indexes
         $month = PartitionManager::monthName('analytics_events', $current);
-        $this->assertSame(2, (int) DB::selectOne('SELECT count(*) AS n FROM pg_indexes WHERE tablename = ? AND indexdef NOT LIKE ?', [$month, '%_pkey%'])->n);
+        $this->assertSame(3, (int) DB::selectOne('SELECT count(*) AS n FROM pg_indexes WHERE tablename = ? AND indexdef NOT LIKE ?', [$month, '%_pkey%'])->n);
     }
 
     public function test_ensure_attaches_new_months_and_the_archive_drops_the_expired_ones_without_a_copy(): void

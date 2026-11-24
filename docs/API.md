@@ -228,7 +228,7 @@ Umumiy: kirgan foydalanuvchiga daqiqasiga 300 ta (`api`). Oshsa 429 va `Retry-Af
 | Geokodlash | 30/daq |
 | Hududlar / narx so'rovi (ochiq) | IP bo'yicha 120/daq / 60/daq |
 | Real-time obuna (`/broadcasting/auth`) | 60/daq |
-| Mini App statistikasi (`POST /analytics/events`, umumiy `api` limitidan tashqari) | foydalanuvchi va sessiya bo'yicha 20/daq, IP bo'yicha 120/daq, sutkasiga 3 000 hodisa ("Analitika hodisalari" bo'limi) |
+| Mini App statistikasi (`POST /analytics/events`, umumiy `api` limitidan tashqari) | foydalanuvchi va sessiya bo'yicha 20/daq, IP bo'yicha 600/daq, sutkasiga 3 000 hodisa va 50 ta yangi sessiya; oldida nginx limiti ("Analitika hodisalari" bo'limi) |
 | Qurilmalar, xodim PIN/rol, jurnal | 60/daq, 30/daq, 60/daq |
 
 `/health` va webhooklar cheklovsiz.
@@ -5524,15 +5524,19 @@ Kod: `App\Domain\Analytics\{AnalyticsEvent, EventIngestor, StartParam, Analytics
 `App\Http\Controllers\Api\V1\Analytics\EventController`, jadval `analytics_events`.
 
 **Yoqish.** Standart **o'chiq** (`ANALYTICS_ENABLED`, `config('analytics.enabled')`): o'chiq bo'lsa endpoint `202`
-qaytaradi, lekin bazaga ham, limit hisobiga ham hech narsa yozilmaydi. Maxfiylik siyosatining yangi matni (reja,
+qaytaradi (`accepted: 0`), jadvalga hech narsa yozilmaydi va o'qilmaydi, kunlik hisoblagichlar (hodisa byudjeti, sessiyalar
+soni) o'zgarmaydi. So'rov limitlari (foydalanuvchi, sessiya, IP bo'yicha daqiqalik hisoblagichlar, kesh/Redis'da) esa
+kontrollerdan oldin ishlaydi va o'chiq holatda ham har so'rovni sanaydi. Maxfiylik siyosatining yangi matni (reja,
 9-bo'lim) e'lon qilingandan keyingina yoqiladi.
 
 ### `POST /analytics/events`
 
 Faqat kirgan foydalanuvchi tokeni bilan (`auth:sanctum`, Telegram imzosi tekshirilgan mijoz). Tenant yo'nalishi emas va
 umumiy `api` limitiga **kirmaydi**: o'zining `analytics-events` limiti bor, shuning uchun statistika hech qachon
-buyurtma yoki to'lov so'rovlarining limitini yemaydi. Javob hech qanday ETag'ni o'zgartirmaydi (RevisionMap `NONE`),
-navbat yoki kesh ishlatmaydi (faqat limit hisoblagichi), bitta `INSERT`.
+buyurtma yoki to'lov so'rovlarining limitini yemaydi. Serverda o'z nginx `location`i va o'z kichik php-fpm puli bor
+(`analytics`, [OPERATIONS.md](OPERATIONS.md) 14-bo'lim): statistika oqimi buyurtma beradigan ishchilarni hech qachon
+egallamaydi; yuklama paytida paket `503` bilan yo'qolishi mumkin. Javob hech qanday ETag'ni o'zgartirmaydi (RevisionMap
+`NONE`), navbat ishlatmaydi, keshga faqat limit hisoblagichlarini yozadi, bitta `INSERT`.
 
 So'rov tanasi (≤ 32 KB, JSON):
 
@@ -5551,9 +5555,9 @@ So'rov tanasi (≤ 32 KB, JSON):
 
 | Maydon | Qoida |
 |---|---|
-| `session_id` | majburiy, UUID. Mini App ishga tushganda yaratadi (`sessionStorage`), 30 daqiqa hodisasiz o'tsa yangisi |
-| `platform` | majburiy, `Telegram.WebApp.platform`: `ios`, `android` (`android_x`), `tdesktop` (`unigram`), `macos`, `web` (`webk`, `webz`), `weba`; boshqasi `unknown` bo'lib saqlanadi |
-| `app_version` | ixtiyoriy, ≤ 16 belgi `[0-9A-Za-z._+-]`; boshqacha bo'lsa saqlanmaydi (so'rov rad etilmaydi) |
+| `session_id` | majburiy, UUID (nol UUID `00000000-0000-0000-0000-000000000000` emas). Mini App ishga tushganda yaratadi (`sessionStorage`), 30 daqiqa hodisasiz o'tsa yangisi. Sessiya foydalanuvchiniki: boshqa foydalanuvchi o'sha `session_id` ni yuborsa, bu uning o'z sessiyasi bo'ladi |
+| `platform` | majburiy, `Telegram.WebApp.platform`: `ios`, `android` (`android_x`), `tdesktop` (`unigram`), `macos`, `web` (`webk`, `webz`), `weba`; boshqasi (har qanday tur va uzunlikda) `unknown` bo'lib saqlanadi |
+| `app_version` | ixtiyoriy. Faqat versiya shaklida saqlanadi: `1.4.2`, `2.10`, `1.4.2+57` (`^\d{1,3}(\.\d{1,4}){1,3}(\+\d{1,8})?$`) yoki 7–12 xonali kichik harfli git hash (kamida bitta harf bilan; Mini App build'ining `VITE_SENTRY_RELEASE` i — commit'ning 12 belgisi), ≤ 16 belgi. Boshqa har qanday qiymat (masalan telefon raqami, matn, son) saqlanmaydi; so'rov rad etilmaydi |
 | `start_param` | ixtiyoriy, ≤ 512. Faqat **turi** saqlanadi (`app_open.props.start_kind`), xom qiymat hech qachon |
 | `events` | majburiy, 1–50 ta. Har biri: `uid` (UUID, qayta yuborilganda o'sha), `name`, `at` (mijoz vaqti, epoch **millisekund**, butun son), kerak bo'lsa `store_id` / `product_id` / `category_id` (butun son) va `props` |
 
@@ -5565,24 +5569,31 @@ Boshqa yuqori darajadagi maydon (masalan `user_id`, `search_text`) — `422`.
 |---|---|---|
 | `202` | tana to'g'ri tuzilgan (har doim, hodisalarning bir qismi tashlangan bo'lsa ham) | `{success: true, message: "", data: {accepted, dropped}}` — qaysi hodisa tashlangani aytilmaydi |
 | `401` | token yo'q yoki ishlamaydi (bloklangan hisob ham) | standart |
-| `413` | tana 32 KB dan katta (o'qilmaydi) | `data.reason = "payload_too_large"` |
-| `422` | konvert noto'g'ri: `session_id` UUID emas, `platform` yo'q, `events` ro'yxat emas / bo'sh / 50 tadan ko'p, noma'lum maydon | `data.reason = "validation"` |
-| `429` | limit (pastda) | `Retry-After` |
+| `413` | tana 32 KB dan katta. Serverda nginx uni PHP'ga yetkazmasdan rad etadi (`Content-Length` bo'yicha tana o'qilmaydi; `chunked` tana 32 KB ga yetganda to'xtatiladi). nginx'siz (lokal `artisan serve`) kontroller ham `413` beradi, lekin Laravel tanani o'qib, JSON'ni ochib bo'lgandan keyin | `data.reason = "payload_too_large"` |
+| `422` | konvert noto'g'ri: `session_id` yo'q, UUID emas yoki nol UUID, `platform` yo'q, `events` ro'yxat emas / bo'sh / 50 tadan ko'p, `start_param` satr emas yoki 512 dan uzun, noma'lum maydon | `data.reason = "validation"` |
+| `503` | nginx: statistika puli band (`error: "server_busy"`, `Retry-After`) | — |
+| `429` | limit (pastda; nginx'niki `error: "too_many_requests"`) | `Retry-After` |
 
 **Jim tashlanadi** (`dropped` ga qo'shiladi, `202`):
 - noma'lum `name`, ro'yxatda yo'q hodisa maydoni yoki `props` kaliti, qoidaga mos kelmagan qiymat (son o'rniga satr,
   ro'yxatda yo'q `payment_method` va h.k.), majburiy id yoki prop yo'q;
 - `at` 24 soatdan eski (kelajakdagisi `qabul vaqti + 5 daqiqa` ga qisqartiriladi);
-- `order_placed` — buyurtma topilmasa yoki u shu foydalanuvchining mijoz buyurtmasi bo'lmasa (`orders.user_id` = token
-  egasi, kanal `telegram`/`mobile`);
+- `order_placed` — buyurtma topilmasa, u shu foydalanuvchining mijoz buyurtmasi bo'lmasa (`orders.user_id` = token
+  egasi, kanal `telegram`/`mobile`, o'chirilmagan), paket kelishidan 24 soatdan oldin yaratilgan bo'lsa yoki shu buyurtmaning
+  `order_placed` i allaqachon saqlangan bo'lsa (paket ichida yoki oldingi paketda, boshqa sessiyada ham): har buyurtmaga
+  ko'pi bilan bitta yozuv;
 - **xodim va jamoa hisoblari**: roli `customer` bo'lmagan, do'konga biriktirilgan yoki RIZQIM jamoasi hisobi — butun
   paket (`accepted: 0`), ega o'z menyusini ko'rib raqamni shishirmaydi (reja, 7-bo'lim 9-savol);
-- kunlik limitdan oshgan qism.
+- kunlik limitdan oshgan qism;
+- foydalanuvchining sutkadagi yangi sessiyalari limitdan (50) oshgandan keyingi sessiyalarning hamma paketlari.
 
-**Takrorlash (idempotentlik).** Hodisa = `(session_id, uid)`. Paket ichidagi takror va qayta yuborilgan paket (javob
-yetib kelmay `keepalive` bilan qayta yuborilgan) **bir marta** saqlanadi va javobda `accepted` sifatida sanaladi: klient
-bir xil javob oladi. Tekshiruv va yozish sessiya bo'yicha advisory lock ostida, shuning uchun bir vaqtda kelgan ikki
-nusxa ham bitta yozuv beradi.
+**Takrorlash (idempotentlik).** Hodisa = token egasi + `(session_id, uid)`. Paket ichidagi takror va qayta yuborilgan paket
+(javob yetib kelmay `keepalive` bilan qayta yuborilgan) **bir marta** saqlanadi va javobda `accepted` sifatida sanaladi:
+klient bir xil javob oladi. Qidiruvda vaqt oynasi yo'q: mijoz soati oldinda bo'lsa ham, qayta yuborilgan paket (bazada
+saqlanish muddati ichida) qachon kelmasin taniladi. Boshqa foydalanuvchi o'sha `(session_id, uid)` ni yuborsa, bu uning o'z
+hodisasi (o'z sessiyasida saqlanadi), birinchi foydalanuvchining yozuviga tegmaydi. Tekshiruv va yozish (foydalanuvchi,
+sessiya) bo'yicha advisory lock ostidagi qisqa tranzaksiyada, shuning uchun bir vaqtda kelgan ikki nusxa ham bitta yozuv
+beradi.
 
 **Kirishdan oldingi hodisalar.** Endpoint tokensiz hech narsa qabul qilmaydi (`401`). Mini App kirish tugaguncha
 hodisalarni xotirada ushlab turadi va keyin o'sha `session_id` bilan yuboradi: ular token egasining `user_id` si bilan,
@@ -5594,10 +5605,13 @@ o'z `at` vaqti bilan yoziladi. `user_id` hech qachon tanadan olinmaydi.
 |---|---|
 | foydalanuvchi bo'yicha | 20 so'rov/daq |
 | sessiya bo'yicha | 20 so'rov/daq |
-| IP bo'yicha | 120 so'rov/daq — kalit IP'ning ilova kaliti bilan HMAC'i, IP o'zi hech qayerda saqlanmaydi |
-| foydalanuvchiga sutkasiga | 3 000 hodisa (saqlangan hodisalar sanaladi; to'lsa paketning sig'gani olinadi, keyingisi `429`) |
+| IP bo'yicha | 600 so'rov/daq (mobil operator NAT'i ortida ko'p mijoz bitta IP'da) — kalit IP'ning ilova kaliti bilan HMAC'i, IP o'zi hech qayerda saqlanmaydi |
+| foydalanuvchiga sutkasiga | 3 000 hodisa (saqlangan hodisalar sanaladi; to'lsa paketning sig'gani olinadi, keyingisi `429`). Avval butun paket hisobga yoziladi, sig'magani qaytariladi: bir foydalanuvchining ikki sessiyasidan bir vaqtda kelgan paketlar ham limitdan oshmaydi |
+| foydalanuvchiga sutkasiga | 50 ta yangi `session_id` (`sessions_per_day`); undan keyingi sessiyalar jim tashlanadi (`202`, `dropped`) — bitta hisob minglab bir hodisali sessiya bilan restoran voronkasini buzmasin. Faqat keshda, SQL yo'q |
 
 Limitlar shu tartibda tekshiriladi va o'tgan har biri sanaladi (rad etilgan so'rov ham oldingi limitlarni sarflaydi).
+Ulardan oldin serverdagi nginx'ning o'z, qo'polroq limitlari bor: bir mijoz (IP + token raqami) daqiqasiga 30 + 10, bir IP
+600 + 100 (`429`), bir vaqtda ishlayotganlar soni (`503`); [OPERATIONS.md](OPERATIONS.md) 14-bo'lim.
 
 ### Hodisalar ro'yxati
 
@@ -5610,7 +5624,7 @@ majburiy); "props" — ruxsat etilgan kalitlar, boshqasi hodisani tashlaydi.
 | 2 | `store_view` | restoran sahifasi ochildi | `store_id*` | — |
 | 3 | `category_view` | restoran ichida bo'lim tanlandi | `store_id*`, `category_id*` | — (`category_id` `props` ga yoziladi) |
 | 4 | `product_view` | taom kartasi ochildi | `store_id*`, `product_id*` | — |
-| 5 | `add_to_cart` | savatga qo'shildi | `store_id*`, `product_id*` | `qty` (0 < son ≤ 10 000, og'irlik uchun kasr) |
+| 5 | `add_to_cart` | savatga qo'shildi | `store_id*`, `product_id*` | `qty` (og'irlik uchun kasr; avval 3 xonagacha yaxlitlanadi, keyin 0 < son ≤ 10 000: `0.0001` tashlanadi) |
 | 6 | `cart_view` | savat ochildi | `store_id*` | `items` (0–100 000 butun), `value` (savat summasi, so'm, 0–10¹⁰) |
 | 7 | `checkout_start` | savatda "Buyurtma berish" | `store_id*` | `items`, `value`, `payment_method` (`cash`, `click`, `payme`, `uzum`, `paynet`, `paylov`, `keshbek`), `order_type` (`delivery`, `pickup`, `dine_in`) |
 | 8 | `checkout_error` | buyurtma berishda xato | `store_id*` | `code*` (`out_of_zone`, `min_order`, `store_closed`, `item_unavailable`, `validation`, `payment`, `network`) |
@@ -5631,7 +5645,7 @@ majburiy); "props" — ruxsat etilgan kalitlar, boshqasi hodisani tashlaydi.
 qidiruv yoki boshqa erkin matn, buyurtma uuid'i.
 
 **Muddat.** Jadval `received_at` oyi bo'yicha bo'lingan (DEFAULT bo'lak bor: ulanmagan oy yozuvi ham yiqilmaydi, so'rov
-hech qachon DDL qilmaydi). Bazada **3 oy** (joriy oy bilan, `ANALYTICS_EVENTS_MONTHS`), keyin bo'lak arxivsiz o'chiriladi
-(`db:partitions:archive`, [OPERATIONS.md](OPERATIONS.md) 20-bo'lim). Kunlik yig'indilar (16-qadam) shaxssiz va muddatsiz.
+hech qachon DDL qilmaydi). Bazada **joriy oy va undan oldingi ikki oy** (`ANALYTICS_EVENTS_MONTHS`, 3); oy shu oynadan
+chiqqan kunning kechasi bo'lak arxivsiz o'chiriladi (`db:partitions:archive`, [OPERATIONS.md](OPERATIONS.md) 20-bo'lim). Kunlik yig'indilar (16-qadam) shaxssiz va muddatsiz.
 RLS: `store_id` bo'sh bo'lishi mumkin va jadvalni hech bir restoran o'qimaydi (`TenantRlsInventoryTest::NOT_UNDER_RLS`,
 `MIXED`); restoran o'z voronkasini 16-qadamdagi RLS ostidagi kunlik jadvallardan ko'radi.

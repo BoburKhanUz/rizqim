@@ -97,7 +97,7 @@ class PartitionsOwnerRoleTest extends TestCase
 
         $this->withEnv(['DB_OWNER_USERNAME' => null, 'DB_OWNER_PASSWORD' => null], function () {
             $this->artisan('db:partitions:ensure')
-                ->expectsOutputToContain("jadvallar egasi emas (audit_logs, fiscal_receipts, notification_logs). Bu ish jadvallar egasi roli bilan bajariladi: scheduler konteyneriga DB_OWNER_USERNAME va DB_OWNER_PASSWORD bering")
+                ->expectsOutputToContain("jadvallar egasi emas (analytics_events, audit_logs, fiscal_receipts, notification_logs). Bu ish jadvallar egasi roli bilan bajariladi: scheduler konteyneriga DB_OWNER_USERNAME va DB_OWNER_PASSWORD bering")
                 ->assertFailed();
             $this->artisan('db:partitions:archive')->expectsOutputToContain("XATO: bo'limlarga tegilmadi")->assertFailed();
 

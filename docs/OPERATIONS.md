@@ -371,11 +371,11 @@ turgan so'rov shundan keyin xato oladi. Staging: 15 / 5 / 20.
 Hisob (production, `max_connections = 100`):
 - Postgres'ga: `PGBOUNCER_MAX_DB_CONNECTIONS` (30) + to'g'ridan-to'g'ri (~15: queue 1, queue-reports 1, scheduler va u
   ishga tushirgan buyruqlar ≤ 6, reverb 1, backup 1, migratsiya 1, qo'lda `psql`/`artisan` 3–4) + 3 superuser zaxirasi = **48 < 100**.
-- php-fpm tomoni: har konteynerda `FPM_CRITICAL_CHILDREN + FPM_MARKET_CHILDREN + FPM_DEFAULT_CHILDREN` (standart 4+4+4 = 12)
-  ulanish; konteynerlar soni × 12 ≤ `PGBOUNCER_MAX_CLIENT_CONN` (1000). Ishchilarni ko'paytirish uchun `max_connections` ni
-  oshirish shart emas, lekin **ishchilarni erkin qo'shib bo'lmaydi**: uchala php-fpm puli PgBouncer'ning bitta pulini
+- php-fpm tomoni: har konteynerda `FPM_CRITICAL_CHILDREN + FPM_MARKET_CHILDREN + FPM_DEFAULT_CHILDREN + FPM_ANALYTICS_CHILDREN`
+  (standart 4+4+4+2 = 14) ulanish; konteynerlar soni × 14 ≤ `PGBOUNCER_MAX_CLIENT_CONN` (1000). Ishchilarni ko'paytirish uchun `max_connections` ni
+  oshirish shart emas, lekin **ishchilarni erkin qo'shib bo'lmaydi**: to'rttala php-fpm puli PgBouncer'ning bitta pulini
   (`PGBOUNCER_POOL_SIZE` ta server ulanishi) bo'lishadi. Har ishchiga bir vaqtda ko'pi bilan bitta ulanish kerak, shuning
-  uchun **konteynerlar soni × (uchala pul ishchilari yig'indisi) ≤ `PGBOUNCER_POOL_SIZE`** bo'lishi shart: aks holda bazada
+  uchun **konteynerlar soni × (to'rttala pul ishchilari yig'indisi) ≤ `PGBOUNCER_POOL_SIZE`** bo'lishi shart: aks holda bazada
   sekinlashgan bozor so'rovlari barcha ulanishlarni olib, kassa so'rovi bo'sh ulanish kutib qoladi (sinovda pul 4, ishchilar
   12: kassaning `/health` i 9 s kutdi; pul 12: 0,05 s). Backend konteyneri ishga tushganda buni o'zi tekshiradi
   (`backend/docker/pools.sh`; compose `PGBOUNCER_POOL_SIZE` ni backend'ga ham beradi) va shart buzilsa ishga tushmaydi. Bir
@@ -441,14 +441,15 @@ urinish o'tadi). Hozircha o'zgartirilmadi; shikoyat bo'lsa IP chegarasini ovqatx
 ## 14. PHP-FPM pullari: kassa bozor yukidan ajratilgan (M1)
 
 **Nima uchun.** Avval kassa ham, Mini App ham bitta php-fpm pulida edi: 250 mijozlik bozor to'lqini kassa so'rovlarining
-p95 ini 0,16 s dan 9 s ga chiqardi (`docs/scale/RESULTS.md`, 3-topilma). Endi `backend` konteynerida uchta pul bor va nginx
+p95 ini 0,16 s dan 9 s ga chiqardi (`docs/scale/RESULTS.md`, 3-topilma). Endi `backend` konteynerida to'rtta pul bor va nginx
 (`backend/docker/nginx.conf`) so'rovni yo'liga qarab yuboradi:
 
 | Pul | Yo'llar (`/api/v1/...`) | Ishchilar | Cheklov |
 |---|---|---|---|
 | `critical` | `pos/*`, `staff/*` (buyurtmalar doskasi, oshxona chiptalari), `terminal*`, `devices/pair`, `devices/{uuid}/staff-session` (PIN), `auth/refresh`, `payments/click/webhook`, `payments/payme/webhook`, `health`; `/health`, `/up`; POS ilovasining (`X-Rizqim-App` + Sanctum token) aynan kassa shaklidagi so'rovlari: `catalog?channel=pos_hall` / `pos_takeaway` (+ `branch_id`, `store_id`) va `catalog/availability?store_id=...&branch_id=...` | `FPM_CRITICAL_CHILDREN` (4), `static`: doim tayyor | hech qanday nginx cheklovi yo'q |
 | `market` | Mini App mijoz ekranlarining **o'qish** (GET) so'rovlari: `stores` (ro'yxat), `stores/{id}/zones`, `catalog` (mijoz), `catalog/availability` (`branch_id` siz), `orders` (o'z buyurtmalari), `notifications`, `addresses`, `locations`, `geocode/*`, `complaints` | `FPM_MARKET_CHILDREN` (4), `ondemand`, `nice` 10 | ha (pastda) |
-| `default` | qolgan hammasi: `owner/*` (hamkor panel), `admin/*`, `auth/*` (Mini App kirishi `auth/telegram` ham), `user`, `me/*`, `features`, `devices`, `couriers`, `reports/*`, `promo/validate`, `store-applications`, `telegram/webhook`, `/api/broadcasting/auth`, Mini App statistikasi `analytics/events` (tanali POST; foydalanuvchi, sessiya va IP bo'yicha Laravel limiti), yuqoridagi mijoz yo'llarining **yozuvlari** (POST/PUT/DELETE: buyurtma berish `POST /orders`, bekor qilish, baho, manzil, shikoyat); buyurtma berish kutadigan o'qishlar: `delivery/quote`, `stores/{id}/branches/{id}/pickup-slots`, savatning do'koni `stores?for=checkout`; `pos_*` kanal yoki `branch_id` aytilgan, lekin kassa shaklida bo'lmagan `catalog*` so'rovlari | `FPM_DEFAULT_CHILDREN` (4), `ondemand`, `nice` 5 | yo'q |
+| `default` | qolgan hammasi: `owner/*` (hamkor panel), `admin/*`, `auth/*` (Mini App kirishi `auth/telegram` ham), `user`, `me/*`, `features`, `devices`, `couriers`, `reports/*`, `promo/validate`, `store-applications`, `telegram/webhook`, `/api/broadcasting/auth`, yuqoridagi mijoz yo'llarining **yozuvlari** (POST/PUT/DELETE: buyurtma berish `POST /orders`, bekor qilish, baho, manzil, shikoyat); buyurtma berish kutadigan o'qishlar: `delivery/quote`, `stores/{id}/branches/{id}/pickup-slots`, savatning do'koni `stores?for=checkout`; `pos_*` kanal yoki `branch_id` aytilgan, lekin kassa shaklida bo'lmagan `catalog*` so'rovlari | `FPM_DEFAULT_CHILDREN` (4), `ondemand`, `nice` 5 | yo'q |
+| `analytics` | faqat Mini App statistikasi `POST analytics/events` (oxiridagi `/` bilan ham; P to'lqini, 2-qadam): nginx'da o'z `location`i | `FPM_ANALYTICS_CHILDREN` (2), `ondemand`, `nice` 15, navbat `FPM_ANALYTICS_BACKLOG` (8) | ha (pastda): tana ≤ 32 KB, limitlar, qisqa kutish |
 
 Fiskal callback yo'q (cheklar tashqariga yuboriladi), shuning uchun alohida qator yo'q. Ro'yxatdagi hech bir yo'lga mos kelmagan
 so'rov `default` ga tushadi; `tests/Feature/FpmPoolRoutingTest.php` esa har bir ro'yxatga olingan marshrutni nginx'dagi
@@ -475,6 +476,20 @@ POS kanali yoki filial aytilgan boshqa har qanday shakl `default` ga boradi (hec
 qo'shsa ham rad etilmaydi). Usulni almashtirish (`X-HTTP-Method-Override`, `_method`) GET/HEAD ga ruxsat etilmaydi
 (`bootstrap/app.php`), shuning uchun POST hech qachon GET marshruti sifatida xizmat qilmaydi.
 
+**Statistika puli (`analytics`) nima uchun alohida.** Avval `analytics/events` `default` pulida, buyurtma berish bilan bir
+joyda edi: statistika paketlari oqimi (yoki bitta yomon niyatli mijoz) buyurtma beradigan ishchilarni egallashi mumkin edi,
+nginx esa 16 MB gacha tanani o'tkazib yuborardi va Laravel JSON'ni kontrollerning 413 tekshiruvidan oldin o'qib chiqardi.
+Endi bu yo'l nginx'ning alohida `location`ida va o'z kichik pulida: (1) tana 32 KB dan katta bo'lsa (`Content-Length` yoki
+`chunked`) nginx PHP'ga yetkazmasdan **413** qaytaradi (tana kontrollerdagi bilan bir xil JSON: `payload_too_large`); (2) tanani
+nginx o'zi to'liq o'qiydi, keyin ishchi oladi (sekin mijoz ishchini ushlab turmaydi; `client_body_timeout 5s`); (3) limitlar:
+bir vaqtda `NGINX_ANALYTICS_MAX_INFLIGHT` (ishchilar × 4 = 8; bir IP yarmi, bir mijoz chorak qismi) dan ko'p bo'lsa **503**, bir
+mijoz (IP + token raqami) daqiqasiga `NGINX_ANALYTICS_RATE` (30) + `NGINX_ANALYTICS_BURST` (10), bir IP daqiqasiga
+`NGINX_ANALYTICS_IP_RATE` (600) + `NGINX_ANALYTICS_IP_BURST` (100) dan oshsa **429**, ikkalasida `Retry-After`; (4)
+`fastcgi_connect_timeout 2s`, `fastcgi_read_timeout 10s`. Pul to'lsa statistika paketi yo'qoladi (ilova qayta yuboradi yoki
+tashlaydi) — bu qabul qilingan narx; buyurtma berish sekinlashmaydi. Laravel'ning o'z limitlari (foydalanuvchi va sessiya
+20/daq, IP 600/daq, kunlik byudjet; `docs/API.md`, «Analitika hodisalari») shundan keyin ishlaydi. `pools.sh` bozordagi
+qoidalarni bu pulga ham qo'llaydi (bitta mijoz/IP pulni to'ldira olmaydi; in-flight ≤ ishchilar + navbat).
+
 **Bozor cheklovlari** (faqat `market` puliga; `critical` va `default` ga hech qachon):
 - butun pul: bir vaqtda PHP'dagi bozor so'rovlari `NGINX_MARKET_MAX_INFLIGHT` dan (standart ishchilar × 4 = 16) oshsa, nginx darhol
   **503** + `Retry-After: 2` qaytaradi (soniyalab navbatda kutmaydi);
@@ -497,10 +512,10 @@ qo'shsa ham rad etilmaydi). Usulni almashtirish (`X-HTTP-Method-Override`, `_met
 - `FPM_MARKET_BACKLOG` (32) — market pulining `listen.backlog` i; `FPM_MARKET_PRIORITY` (10) va `FPM_DEFAULT_PRIORITY` (5) —
   ishchilarning `nice` qiymati: protsessor yetmaganda kassa ishchilari oldin oladi.
 
-**O'lchamlarni tanlash.** Har ishchi ~30–50 MB xotira (opcache umumiy). Standart 4+4+4 = 12 ishchi (avval 5): ~0,5 GB.
+**O'lchamlarni tanlash.** Har ishchi ~30–50 MB xotira (opcache umumiy). Standart 4+4+4+2 = 14 ishchi (avval 5): ~0,5–0,7 GB.
 `critical` ni filialdagi bir vaqtda ishlaydigan kassa+oshxona ekranlari soniga qarab (har 10–15 qurilmaga ~1 ishchi; ular
 ko'pincha 50–150 ms li qisqa so'rovlar), `market` ni protsessor yadrolariga qarab (yadro × 1–2) tanlang. Bazaga ulanishlar
-hisobi (konteynerlar × 12 ishchi): 12-bo'lim.
+hisobi (konteynerlar × 14 ishchi): 12-bo'lim. `analytics` ni oshirishga odatda hojat yo'q (har paket bitta `INSERT`).
 
 **Kuzatish.** `docker compose logs backend`:
 - php-fpm kirish logi har so'rovni pul nomi bilan yozadi: `market 172.18.0.5 - ... "GET /api/v1/stores" 200 85.2 ms`;
@@ -509,6 +524,8 @@ hisobi (konteynerlar × 12 ishchi): 12-bo'lim.
 - nginx'da `limiting connections by zone "rizqim_market_all"` — bozor 503 berdi; `"rizqim_market_client"` / `"rizqim_market_ip"` —
   bitta mijoz / IP o'z ulushidan oshdi; `limiting requests ... "rizqim_market_rate"` (`"rizqim_market_ip_rate"`) — bir mijoz (IP)
   429 oldi. Bular ko'p va doimiy bo'lsa, `FPM_MARKET_CHILDREN`/`NGINX_MARKET_MAX_INFLIGHT` ni (protsessor yetsa) oshiring.
+- `"rizqim_analytics_*"` zonalari — statistika paketlari rad etildi (yo'qotilsa ham bo'ladi); `client intended to send too
+  large body` — 32 KB dan katta statistika tanasi (413).
 O'zgartirish: `backend/.env` da qiymat, so'ng `docker compose up -d backend`. Qaytarish: qatorni o'chiring (standart qaytadi).
 Yuk sinovi haqiqiy konfiguratsiya bilan: `SERVER=fpm scripts/scale-test/server.sh start` (`scripts/scale-test/README.md`).
 
@@ -743,7 +760,16 @@ CI dagi kichik sinov bazasida natija: tiklash 2 s, yo'qotish oynasi 61 s edi. **
 | `audit_logs` | 7 oy | `ARCHIVE_AUDIT_MONTHS` | faylga olinadi, S3 da tasdiqlangach bazadan o'chadi; arxiv fayli **hech qachon o'chirilmaydi** |
 | `fiscal_receipts` | 13 oy | `ARCHIVE_FISCAL_MONTHS` | xuddi shunday (arxiv fayli hech qachon o'chirilmaydi) |
 | `notification_logs` | 6 oy | `ARCHIVE_NOTIFICATION_MONTHS` | arxivlanmaydi, o'chiriladi (eski xabarnomalar kerak emas) |
-| `analytics_events` (P to'lqini, 2-qadam) | 3 oy | `ANALYTICS_EVENTS_MONTHS` | arxivlanmaydi, o'chiriladi (Mini App harakatlari; maxfiylik siyosatidagi muddat shu sozlamaga mos bo'lishi shart). Bo'laklar faqat shu oynadan boshlab yaratiladi (`PARTITIONS_FIRST_MONTH` unga tegmaydi) |
+| `analytics_events` (P to'lqini, 2-qadam) | 3 oy: joriy oy va undan oldingi ikkitasi | `ANALYTICS_EVENTS_MONTHS` | arxivlanmaydi, o'chiriladi: oy shu oynadan chiqqan kunning kechasi (`db:partitions:archive`, 03:40) bazadan o'chadi, ya'ni eng eski yozuv taxminan 3 oy, eng ko'pi bilan 3 oy + 1 kun turadi (Mini App harakatlari; maxfiylik siyosatidagi muddat shu sozlamaga mos bo'lishi shart). Bo'laklar faqat shu oynadan boshlab yaratiladi (`PARTITIONS_FIRST_MONTH` unga tegmaydi) |
+
+**`analytics_events` haqida ikki ogohlantirish.** (1) Kod orqaga qaytarilsa-yu, migratsiya qaytarilmasa (`migrate:rollback`
+qilinmasa), jadval bazada qoladi, lekin `config/partitions.php` dagi yozuvi yo'qoladi: **uni hech narsa o'chirmaydi** —
+saqlash muddati to'xtaydi. Unda maxfiylik siyosatidagi muddatga rioya qilish uchun migratsiyani ham qaytaring
+(`php artisan migrate:rollback --path=database/migrations/2026_12_08_100000_create_analytics_events_table.php`, jadvalni oylari bilan o'chiradi) yoki eski oylarni qo'lda o'chiring. (2) Scheduler
+uzoq to'xtab qolgan bo'lsa, oylar ulanmagani uchun yozuvlar «zaxira» (DEFAULT) bo'lakka tushadi; keyingi
+`db:partitions:ensure` ularni o'z oyiga ko'chirayotganda jadvalni qulflaydi va shu vaqt ichida **statistika yozuvi
+to'xtaydi** (`POST /analytics/events` kutadi yoki nginx'ning qisqa kutish vaqtidan keyin yo'qoladi; buyurtmalarga ta'sir
+qilmaydi). DEFAULT katta bo'lsa (`db:partitions:status`), `ensure` ni tinch vaqtda qo'lda ishga tushiring.
 
 Qolgan ixtiyoriy sozlamalar (standart qiymatlar yaxshi; `backend/.env.example` da izoh sifatida turibdi, kerak bo'lsa `backend/.env` ga ko'chiring): `PARTITIONS_FIRST_MONTH` (2026-01, migratsiya yaratadigan birinchi oy), `PARTITIONS_INLINE_MAX_ROWS` (200000, undan katta jadval onlayn ko'chiriladi, pastga qarang), `PARTITIONS_LOCK_TIMEOUT` (2s), `PARTITIONS_DETACH_LOCK_TIMEOUT` (3s), `ARCHIVE_ALLOW_LOCAL_ONLY` (standart o'chiq, pastga qarang). O'zgartirgandan keyin: `docker compose up -d --force-recreate backend queue queue-reports scheduler`.
 

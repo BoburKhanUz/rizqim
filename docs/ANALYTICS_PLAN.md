@@ -382,7 +382,7 @@ bilan tekshiriladi).
 | 1 | Maxfiylik siyosati (uz, ru) va `docs/legal/README.md` matni; hodisalar ro'yxati hujjati (`docs/API.md` bo'limi) | — | past | 1 + ega/yurist | IT |
 | 2 | Backend: `analytics_events` (oylik bo'laklar), `POST /api/v1/analytics/events`, limitlar, RevisionMap, RLS inventari | 1 | o'rta | **2** (PII) | IT |
 | 3 | Mini App: `lib/analytics.ts`, sessiya, hodisalar (ochildi, restoran, taom, savat, buyurtmaga o'tish, xato, buyurtma) | 2 | past | 1 | IT |
-| 4 | Kampaniyalar: `campaigns`, `user_attributions`, `pending_attributions`, `StartParam` tahlilchisi, kirish va bot `/start` ga ulash, admin CRUD va havolalar | 2 | o'rta | **2** (kirish yo'li) | IT |
+| 4 | Kampaniyalar: `campaigns`, `user_attributions`, `pending_attributions`, `StartParam` tahlilchisi, kirish va bot `/start` ga ulash, admin CRUD va havolalar. `start_param` Telegram'ning imzolangan initData'sidan olinsin (kirishda server tekshiradi), mijoz yuborgan qiymatga ishonilmasin: 2-qadamdagi `POST /analytics/events` uni tanadan oladi, ya'ni hozircha mijoz istalgan `start_kind` ni da'vo qila oladi | 2 | o'rta | **2** (kirish yo'li) | IT |
 | 5 | Sayt: `POST /api/v1/landing/visits`, `landing_daily_visits`, nginx joyi, `utm` → `start=c_`, ariza `utm` ustunlari; restoran yopiq vaqti jurnali `store_availability_events` | 4 | past | 1 | IT |
 | 6 | Xatolar backend: `client_error_reports` (bo'laklar), `client_error_groups`, ikki endpoint, tozalash, Monitoring API va ogohlantirish | — | o'rta | **2** (PII) | IT |
 | 7 | Xatolar: hamkor paneli va boshqaruv markazi (`error.tsx`, `global-error.tsx`, oyna ushlagichlari) + Monitoring ekrani | 6 | past | 1 | IT |
@@ -394,7 +394,7 @@ bilan tekshiriladi).
 | 13 | Mijoz yig'indilari: `store_customer_stats`, `store_cohort_stats`, `platform_customer_stats`, `platform_cohort_stats`, ishlar va orqaga to'ldirish | — | o'rta | **2** (PII, RLS) | HB |
 | 14 | Restoran mijoz hisobotlari: `GET /owner/reports/customers`, `/cohorts` + hamkor paneli "Mijozlar" + Mini App bloki | 13 | o'rta | **2** (PII) | HB |
 | 15 | RIZQIM mijoz hisobotlari: `GET /admin/metrics/customers`, `/cohorts` + Ko'rsatkichlar → "Mijozlar" | 13 | past | 1 | HB |
-| 16 | Voronka: yig'ish ishi, `analytics_funnel_daily`, `analytics_product_daily`, admin "Voronka", restoran "Voronka" va "Menyu konversiyasi" | 3, 13 | o'rta | 1 | HB |
+| 16 | Voronka: yig'ish ishi, `analytics_funnel_daily`, `analytics_product_daily`, admin "Voronka", restoran "Voronka" va "Menyu konversiyasi". `analytics_events` dagi `store_id`/`product_id` mijoz yuborgan, tekshirilmagan qiymat: yig'ish haqiqiy `stores`/`products` ga join qilsin (mahsulot shu do'konniki bo'lsin), sessiyalar bilan birga alohida foydalanuvchilarni ham sanasin (sessiya = `(user_id, session_id)`), `order_placed` ni `order_id` bo'yicha bittaga keltirsin | 3, 13 | o'rta | 1 | HB |
 | 17 | Kampaniya va do'st taklifi hisobotlari: `campaign_daily_stats`, Marketing ekranlari, eksport | 4, 5, 13 | o'rta | **2** (ledger pul) | HB |
 | 18 | Keshbek hisoboti (`keshbek_daily_snapshots`) va promo samaradorligi (yangi mijozlar) | 13 | o'rta | **2** (pul) | HB |
 | 19 | Bekor qilishlar va xizmat sifati: `GET /owner/reports/cancellations`, `/quality` + ekranlar | 9 | past | 1 | HB |
@@ -704,20 +704,30 @@ resumed), `source varchar(16)` (owner, admin, schedule, credit_lock), `at timest
 
 `POST /api/v1/analytics/events` (route in `routes/api.php`, group `auth:sanctum`, **not** `tenant`):
 
-- Body ≤ 32 KB (`Content-Length` check + nginx `client_max_body_size` stays default 1m — enforce in the controller):
+- Body ≤ 32 KB: refused by nginx before PHP (`backend/docker/nginx.conf`, the route's own `location` with
+  `client_max_body_size 32k`, its own small php-fpm pool `analytics` and nginx limits, so it never takes a worker of the
+  default pool where checkout runs); the controller's own check is a backstop for a setup without that nginx:
   `{session_id, app_version, platform, start_param?, events: [{uid, name, at, store_id?, product_id?, category_id?, props?}]}`,
   1–50 events.
 - 202 `{accepted, dropped}` always for well-formed bodies (never tells which event was dropped); 422 only on a malformed
   envelope; 429 on limits.
-- Rate limits (`RateLimiter::for('analytics-events')`): 20 requests/min and 3 000 events/day per user; per IP 120/min.
+- Rate limits (`RateLimiter::for('analytics-events')`): 20 requests/min per user and per session, 600/min per IP (carrier
+  NAT); per user and day 3 000 stored events (spent atomically before the INSERT, the rest given back) and 50 new
+  session ids (`sessions_per_day`, a marker per (user, session) and a counter in the limiter's cache; a session past the
+  cap is dropped whole).
 - Drop silently: `config('analytics.enabled') = false`; user role ≠ customer; blocked user (`blocked_at`); unknown event
   name or props key; `store_id`/`product_id` not integers; events older than 24 h.
-- `order_placed`: resolve `order_uuid` → `orders.id` WHERE `user_id` = token user (one indexed query per batch); unknown
-  → dropped.
+- `order_placed`: resolve `order_uuid` → `orders.id` WHERE `user_id` = token user, customer channel, not deleted, created
+  within the 24 h before `received_at` (one indexed query per batch); unknown → dropped. At most one row per order: a
+  second one in the batch, or one whose order already has a stored row (partial index on `order_id`, read between the
+  order's `created_at` and now, under a per-user advisory lock), is dropped.
+- Idempotency: an event is (user_id, session_id, event_uid); the replay lookup has no `received_at` window (index on
+  (session_id, event_uid), one probe per month), so a client clock that ran ahead cannot escape it.
 - `start_param`: parsed by `App\Domain\Analytics\StartParam` (`c_<code>`, `s_<store>`, referral, invite, unknown); raw
   param never stored; `campaign_id` resolved via a 60 s in-process+Cache map of active codes.
-- One `INSERT` of all rows (`DB::table('analytics_events')->insert`), outside any transaction; RevisionMap NONE so no
-  ChangeRevision touch. No queue, no Redis write except the rate limiter.
+- One `INSERT` of all rows (`DB::table('analytics_events')->insert`) in a short transaction with the replay lookup, under
+  a transaction-scoped advisory lock of (user, session) (and, for a batch with `order_placed`, the user's order lock
+  first); RevisionMap NONE so no ChangeRevision touch. No queue, no Redis write except the limiter's counters.
 - Privacy: no IP, no User-Agent, no Telegram ID, no free text stored.
 
 Mini App client `customer/miniapp/src/lib/analytics.ts` (no dependency, ≤ 1.5 KB gz): in-memory queue (max 200),
@@ -762,7 +772,7 @@ chunk to stay under it). Times Asia/Tashkent, jittered off :00.
 
 | Job | Schedule | Reads | Writes |
 |---|---|---|---|
-| `AggregateFunnelJob(date)` | today every 15 min (`*/15`, offset 7); 00:37 for D-1, D-2 | the day's `analytics_events` partition range + orders of linked order_ids | `analytics_funnel_daily`, `analytics_product_daily` |
+| `AggregateFunnelJob(date)` | today every 15 min (`*/15`, offset 7); 00:37 for D-1, D-2 | the day's `analytics_events` partition range + orders of linked order_ids. `store_id`/`product_id` there are unverified client input: join to real `stores`/`products` (the product of that store), count distinct users as well as sessions (a session is `(user_id, session_id)`), de-duplicate `order_placed` by `order_id` | `analytics_funnel_daily`, `analytics_product_daily` |
 | `RefreshCustomerStatsJob(store)` | 01:13 nightly for stores with orders created/changed in the last 2 days (by `orders(store_id, created_at, id)` over 35 days); Sunday 02:17 all stores | orders of the store (35 days incremental / all for weekly) | `store_customer_stats`, `store_cohort_stats` (last 24 months) |
 | `RefreshPlatformCustomerStatsJob` | 01:43 nightly, chunks of 5 000 users with recent orders (`orders(user_id, created_at, id)`) | orders, `user_attributions`, `users.referred_by` | `platform_customer_stats`, `platform_cohort_stats` |
 | `RefreshCampaignStatsJob(date)` | hourly at :23 for today; 00:53 for last 35 days | events, `user_attributions`, orders, ledger by order_id | `campaign_daily_stats` |

@@ -37672,7 +37672,7 @@
         "/v1/analytics/events": {
             "post": {
                 "operationId": "event.store",
-                "description": "A signed-in customer's batch of 1-50 events of the session (`session_id`, a UUID the app makes at launch and\nrenews after 30 minutes without events). Each event: `uid` (UUID, the same on a retry), `name` (the list in\ndocs/API.md), `at` (client time, milliseconds since the epoch), the ids the event is about (`store_id`,\n`product_id`, `category_id`, integers) and its allowlisted `props`. Answers 202 with how many events were\naccepted and dropped, never which: an event off the allowlist, older than 24 hours, or an `order_placed` of an\norder that is not the caller's is dropped; staff and RIZQIM team accounts' events are all dropped. A replayed\nevent (same `session_id` and `uid`) is accepted and not stored twice. 422 only for a malformed envelope (unknown\ntop-level field, more than 50 events), 413 for a body over 32 KB, 429 over a limit (`Retry-After`).\nNothing identifying is stored beyond the token's user id: no IP address, User-Agent, raw start_param or text.",
+                "description": "A signed-in customer's batch of 1-50 events of the session (`session_id`, a UUID the app makes at launch and\nrenews after 30 minutes without events). Each event: `uid` (UUID, the same on a retry), `name` (the list in\ndocs/API.md), `at` (client time, milliseconds since the epoch), the ids the event is about (`store_id`,\n`product_id`, `category_id`, integers) and its allowlisted `props`. Answers 202 with how many events were\naccepted and dropped, never which: an event off the allowlist, older than 24 hours, an `order_placed` of an\norder that is not the caller's recent (24 h) customer order or that already has one, and every batch of a\nsession past the user's daily session cap are dropped; staff and RIZQIM team accounts' events are all dropped. A replayed\nevent (same `session_id` and `uid` from the same user) is accepted and not stored twice. 422 only for a malformed\nenvelope (no or a nil `session_id`, no `platform`, unknown top-level field, more than 50 events), 413 for a body\nover 32 KB (nginx refuses it before PHP), 429 over a limit (`Retry-After`).\nNothing identifying is stored beyond the token's user id: no IP address, User-Agent, raw start_param or text.",
                 "summary": "Send a batch of Mini App events",
                 "tags": [
                     "Analytics"
@@ -37687,15 +37687,15 @@
                                     "session_id": {
                                         "type": "string",
                                         "format": "uuid",
-                                        "description": "The Mini App session (UUID)."
+                                        "description": "The Mini App session (UUID, not the nil UUID)."
                                     },
                                     "platform": {
                                         "type": "string",
-                                        "description": "Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else is stored as unknown)."
+                                        "description": "Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else, of any type, is stored as unknown)."
                                     },
                                     "app_version": {
                                         "type": "string",
-                                        "description": "The Mini App build, e.g. 1.4.2 (at most 16 of [0-9A-Za-z._+-], otherwise not kept)."
+                                        "description": "The Mini App build: a release number (1.4.2, 1.4.2+57) or a 7-12 digit lowercase git hash (VITE_SENTRY_RELEASE); anything else is not kept (never refused)."
                                     },
                                     "start_param": {
                                         "type": "string",

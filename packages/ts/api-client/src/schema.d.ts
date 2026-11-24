@@ -4096,10 +4096,12 @@ export interface paths {
          *     renews after 30 minutes without events). Each event: `uid` (UUID, the same on a retry), `name` (the list in
          *     docs/API.md), `at` (client time, milliseconds since the epoch), the ids the event is about (`store_id`,
          *     `product_id`, `category_id`, integers) and its allowlisted `props`. Answers 202 with how many events were
-         *     accepted and dropped, never which: an event off the allowlist, older than 24 hours, or an `order_placed` of an
-         *     order that is not the caller's is dropped; staff and RIZQIM team accounts' events are all dropped. A replayed
-         *     event (same `session_id` and `uid`) is accepted and not stored twice. 422 only for a malformed envelope (unknown
-         *     top-level field, more than 50 events), 413 for a body over 32 KB, 429 over a limit (`Retry-After`).
+         *     accepted and dropped, never which: an event off the allowlist, older than 24 hours, an `order_placed` of an
+         *     order that is not the caller's recent (24 h) customer order or that already has one, and every batch of a
+         *     session past the user's daily session cap are dropped; staff and RIZQIM team accounts' events are all dropped. A replayed
+         *     event (same `session_id` and `uid` from the same user) is accepted and not stored twice. 422 only for a malformed
+         *     envelope (no or a nil `session_id`, no `platform`, unknown top-level field, more than 50 events), 413 for a body
+         *     over 32 KB (nginx refuses it before PHP), 429 over a limit (`Retry-After`).
          *     Nothing identifying is stored beyond the token's user id: no IP address, User-Agent, raw start_param or text.
          */
         post: operations["event.store"];
@@ -26695,12 +26697,12 @@ export interface operations {
                 "application/json": {
                     /**
                      * Format: uuid
-                     * @description The Mini App session (UUID).
+                     * @description The Mini App session (UUID, not the nil UUID).
                      */
                     session_id: string;
-                    /** @description Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else is stored as unknown). */
+                    /** @description Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else, of any type, is stored as unknown). */
                     platform: string;
-                    /** @description The Mini App build, e.g. 1.4.2 (at most 16 of [0-9A-Za-z._+-], otherwise not kept). */
+                    /** @description The Mini App build: a release number (1.4.2, 1.4.2+57) or a 7-12 digit lowercase git hash (VITE_SENTRY_RELEASE); anything else is not kept (never refused). */
                     app_version?: string;
                     /** @description Telegram's start_param of this launch: only its kind is kept (campaign, referral, store, invite, none, unknown). */
                     start_param?: string;

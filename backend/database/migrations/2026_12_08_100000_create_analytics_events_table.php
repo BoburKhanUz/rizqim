@@ -49,8 +49,13 @@ return new class extends Migration
             ) PARTITION BY RANGE (received_at)
             SQL);
         DB::statement('CREATE INDEX analytics_events_received_at_brin ON analytics_events USING brin (received_at)');
-        // The ingestion's replay check (session_id + event_uid over the last day) and the funnel's per-session reads
-        DB::statement('CREATE INDEX analytics_events_session_id_index ON analytics_events (session_id)');
+        // The ingestion's replay check: (session_id, event_uid) of the caller (user_id filtered on the few rows found),
+        // with no received_at bound, so a client clock that ran ahead cannot get a replay past it; one index probe per
+        // month (and DEFAULT). Also the funnel's per-session reads (its leading column)
+        DB::statement('CREATE INDEX analytics_events_session_id_event_uid_index ON analytics_events (session_id, event_uid)');
+        // order_placed: one row per order. The ingestion's "already stored?" check (order_id, from received_at of the
+        // order's creation on) and the step 16 join to orders; only order_placed rows carry an order_id, so it stays tiny
+        DB::statement('CREATE INDEX analytics_events_order_id_index ON analytics_events (order_id) WHERE order_id IS NOT NULL');
 
         app(PartitionManager::class)->ensure('analytics_events');
     }
