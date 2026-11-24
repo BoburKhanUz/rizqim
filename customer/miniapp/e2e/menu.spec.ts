@@ -19,6 +19,18 @@ async function openCart(page: Page) {
   await expect(page.getByRole('heading', { name: 'Savat', level: 1 })).toBeVisible()
 }
 
+// From "Buyurtma qabul qilindi!" to the order's details in "Buyurtmalarim". The tap is a router transition into a lazily
+// loaded page: until its chunk is in, React keeps the success screen up, and that screen shows "#<code>" too. So the
+// code is looked for in the orders list only, never on whatever screen is still up.
+async function openPlacedOrder(page: Page, shortCode: string | null): Promise<Locator> {
+  expect(shortCode).toBeTruthy()
+  await page.getByRole('link', { name: 'Buyurtmani kuzatish' }).click()
+  const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
+  await active.getByText(`#${shortCode}`, { exact: true }).click()
+  await expect(active.getByRole('button', { name: `#${shortCode}: Yig'ish` })).toHaveAttribute('aria-expanded', 'true')
+  return active
+}
+
 async function chooseSauce(page: Page, name: string) {
   const sheet = page.getByRole('dialog', { name: 'Burger' })
   await sheet.getByRole('radio', { name: new RegExp(name) }).click()
@@ -70,9 +82,8 @@ test.describe('modifiers', () => {
     expect(api.orders[0].total_price).toBe('55000.00')
 
     // The order history shows the choice
-    await page.getByRole('link', { name: 'Buyurtmani kuzatish' }).click()
-    await page.getByText(`#${api.orders[0].short_code}`, { exact: true }).click()
-    await expect(page.getByText('Pishloqli', { exact: true })).toBeVisible()
+    const order = await openPlacedOrder(page, api.orders[0].short_code)
+    await expect(order.getByText('Pishloqli', { exact: true })).toBeVisible()
   })
 
   test('the same dish with another choice is another line of the cart', async ({ page, api }) => {
@@ -141,9 +152,8 @@ test.describe('sold by weight', () => {
     expect(api.callsTo('POST', '/orders')[0].body).toMatchObject({ items: [{ variant_id: 'b0000000-0000-4000-8000-000000000004', quantity: 1.5 }] })
     expect(api.orders[0].total_price).toBe('50000.00')
 
-    await page.getByRole('link', { name: 'Buyurtmani kuzatish' }).click()
-    await page.getByText(`#${api.orders[0].short_code}`, { exact: true }).click()
-    await expect(page.getByText('1,5' + NBSP + 'kg', { exact: true })).toBeVisible()
+    const order = await openPlacedOrder(page, api.orders[0].short_code)
+    await expect(order.getByText('1,5' + NBSP + 'kg', { exact: true })).toBeVisible()
   })
 })
 
