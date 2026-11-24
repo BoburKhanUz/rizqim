@@ -12,6 +12,7 @@ use App\Models\ModifierGroup;
 use App\Models\NotificationLog;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\Payment\PaymeCashbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -241,6 +242,21 @@ class RevisionHooksTest extends TestCase
         $before = $this->tokens();
         $device->update(['name' => 'Kassa 2']);
         $this->assertMoved($before, ['branch'], 'device rename');
+    }
+
+    public function test_a_payme_digest_repair_touches_nothing_but_a_payment_settings_save_does(): void
+    {
+        // stores.payme_key_digest is hidden from every body (Store::$hidden): repairing it alone moves no token
+        $before = $this->tokens();
+        DB::table('stores')->where('id', $this->store->id)->update(['payme_key_digest' => PaymeCashbox::digest('stale-key')]);
+        PaymeCashbox::recomputeAll();
+        $this->assertNotSame(PaymeCashbox::digest('stale-key'), DB::table('stores')->where('id', $this->store->id)->value('payme_key_digest'), 'the recompute repaired it');
+        $this->assertMoved($before, [], 'digest repair');
+
+        $before = $this->tokens();
+        $this->store->refresh()->update(['payment_settings' => ['payme' => ['enabled' => true, 'merchant_id' => 'pm-rev', 'secret_key' => 'rev-key-' . Str::random(8)]]]);
+        $this->assertSame(PaymeCashbox::digest($this->store->payment_settings['payme']['secret_key']), DB::table('stores')->where('id', $this->store->id)->value('payme_key_digest'));
+        $this->assertNotSame($before['store'], $this->revisions->store($this->store->id), 'a payment settings save (with its digest) touches the store');
     }
 
     public function test_a_touch_waits_for_the_commit_and_a_rolled_back_write_touches_nothing(): void

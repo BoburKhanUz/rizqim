@@ -265,6 +265,11 @@ final class PaymeCashbox
      * deadlock) is always rolled back to the savepoint, so the caller's transaction is left usable. Laravel's nested
      * DB::transaction() does not do the latter for a deadlock (it rethrows a DeadlockException without rolling back
      * to the savepoint, leaving the caller's transaction aborted), hence the savepoint handled here.
+     *
+     * Only DB::statement() on the hooked connection, like every other SET LOCAL in app/ (ConcurrentIndex,
+     * PartitionManager::withLockRetry, FiscalReceiptLock): never the raw PDO, which RevisionMapCoverageTest refuses
+     * outside its allowlist. The interval is written into the statement as a literal (SET takes no bindings), which
+     * is why it must be a plain interval (lockTimeoutLiteral). The update in $work is a query-builder write.
      */
     private static function withLockTimeout(string $lockTimeout, \Closure $work): mixed
     {
@@ -273,21 +278,21 @@ final class PaymeCashbox
         if ($db->getDriverName() !== 'pgsql') {
             return $db->transaction(fn () => $work());
         }
-        $set = 'SET LOCAL lock_timeout = ';
         if ($db->transactionLevel() === 0) {
-            return $db->transaction(function () use ($db, $set, $lockTimeout, $work) {
-                $db->statement($set . $db->getPdo()->quote($lockTimeout));
+            return $db->transaction(function () use ($db, $lockTimeout, $work) {
+                $db->statement('SET LOCAL lock_timeout = ' . self::lockTimeoutLiteral($lockTimeout));
 
                 return $work();
             });
         }
 
-        $before = (string) $db->selectOne("SELECT current_setting('lock_timeout') AS value")->value;
+        // The caller's own value (current_setting prints it as a plain interval: `0`, `7s`, `1500ms`, `1min`)
+        $before = self::lockTimeoutLiteral((string) $db->selectOne("SELECT current_setting('lock_timeout') AS value")->value);
         $db->statement('SAVEPOINT payme_cashbox_lock_timeout');
         try {
-            $db->statement($set . $db->getPdo()->quote($lockTimeout));
+            $db->statement('SET LOCAL lock_timeout = ' . self::lockTimeoutLiteral($lockTimeout));
             $result = $work();
-            $db->statement($set . $db->getPdo()->quote($before));
+            $db->statement('SET LOCAL lock_timeout = ' . $before);
             $db->statement('RELEASE SAVEPOINT payme_cashbox_lock_timeout');
 
             return $result;
@@ -303,8 +308,16 @@ final class PaymeCashbox
     /** A lock_timeout is a plain interval (`5s`, `500ms`, `1min`, `0`): it is written into the SET statement. */
     private static function assertLockTimeout(string $lockTimeout): void
     {
-        if (preg_match('/^[0-9]{1,9}(us|ms|s|min|h)?$/', $lockTimeout) !== 1) {
+        if (preg_match('/^[0-9]{1,9}(us|ms|s|min|h|d)?$/', $lockTimeout) !== 1) {
             throw new \InvalidArgumentException("Not a lock_timeout: {$lockTimeout}");
         }
+    }
+
+    /** The quoted SQL literal of a checked lock_timeout (digits and a unit only, so nothing to escape). */
+    private static function lockTimeoutLiteral(string $lockTimeout): string
+    {
+        self::assertLockTimeout($lockTimeout);
+
+        return "'{$lockTimeout}'";
     }
 }
