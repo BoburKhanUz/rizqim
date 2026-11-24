@@ -24,6 +24,8 @@ class V1OwnerSettingsRequestBody {
     this.address,
     this.locationUrl,
     this.minOrderAmount,
+    this.legalAddress,
+    this.complaintContact,
     this.tin,
     this.taxRegime,
     this.fiscalSettings,
@@ -46,6 +48,14 @@ class V1OwnerSettingsRequestBody {
   final bool isOpen;
   @JsonKey(name: 'min_order_amount')
   final num? minOrderAmount;
+
+  /// Wave P: yuridik manzil (mijozga "Sotuvchi" blokida ko'rinadi), ko'pi bilan 500 belgi.
+  @JsonKey(name: 'legal_address')
+  final String? legalAddress;
+
+  /// Wave P: shikoyat uchun aloqa (telefon yoki Telegram), ko'pi bilan 255 belgi.
+  @JsonKey(name: 'complaint_contact')
+  final String? complaintContact;
 
   /// P3-11: STIR, 9 ta raqam.
   final String? tin;

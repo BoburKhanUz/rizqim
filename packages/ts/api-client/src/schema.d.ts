@@ -4669,6 +4669,11 @@ export interface paths {
          *     app versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`
          *     says more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:
          *     send `meta.next_cursor` back as `cursor` until it is null.
+         *
+         *     Wave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a
+         *     9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the
+         *     store's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:
+         *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.
          */
         get: operations["order.index"];
         put?: never;
@@ -8225,6 +8230,10 @@ export interface paths {
          *
          *     P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
          *     PUT /owner/fiscal/settings takes them; left out = kept.
+         *
+         *     Wave P (receipts): optional `legal_address` and `complaint_contact` (the seller's details customers see; left out =
+         *     kept, empty = cleared); a change is written to the audit log (`store.seller_details_updated`). `legal_name` is
+         *     not taken here.
          */
         post: operations["ownerSettings.update"];
         delete?: never;
@@ -39749,6 +39758,9 @@ export interface operations {
                             tin: string | null;
                             /** @enum {string|null} */
                             tax_regime: "vat" | "vat_simplified" | "turnover" | null;
+                            legal_name: string | null;
+                            legal_address: string | null;
+                            complaint_contact: string | null;
                             telegram: {
                                 group_link: string | null;
                                 group_linked: boolean;
@@ -39818,6 +39830,10 @@ export interface operations {
                     location_url?: string | null;
                     is_open: boolean;
                     min_order_amount?: number | null;
+                    /** @description Wave P: yuridik manzil (mijozga "Sotuvchi" blokida ko'rinadi), ko'pi bilan 500 belgi. */
+                    legal_address?: string | null;
+                    /** @description Wave P: shikoyat uchun aloqa (telefon yoki Telegram), ko'pi bilan 255 belgi. */
+                    complaint_contact?: string | null;
                     /** @description P3-11: STIR, 9 ta raqam. */
                     tin?: string | null;
                     /**

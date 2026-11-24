@@ -91,7 +91,7 @@ describe('payment settings', () => {
     payment_settings: { uzum: { enabled: true, available: false }, working_hours: {} },
     payment_account_type: 'platform_account' as const, status: 'active' as const, is_order_locked: false, allowed_methods: [],
     // Fiscal fields (P3-11): the payment form never reads them
-    tin: null, tax_regime: null, fiscal_settings: {} as StoreSettings['fiscal_settings'],
+    tin: null, tax_regime: null, legal_name: null, legal_address: null, complaint_contact: null, fiscal_settings: {} as StoreSettings['fiscal_settings'],
     telegram: { group_link: null, group_linked: false },
   };
 

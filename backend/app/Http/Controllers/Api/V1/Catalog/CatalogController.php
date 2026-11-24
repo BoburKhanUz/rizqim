@@ -239,7 +239,8 @@ class CatalogController extends Controller
         $categories = $childCategories->merge($parentCategories)->sortBy('sort_order')->values();
 
         $payload = [
-            'store' => $store,
+            // Wave P (receipts): with the seller's details (App\Domain\Receipts\SellerDetails), as the read model
+            'store' => $store->toArray() + ['seller' => \App\Domain\Receipts\SellerDetails::of($store, $store->branches->first()?->phone)],
             'categories' => $categories,
             'products' => $products,
             // P1-21: what is unavailable on each branch now (stop-list, sold-out batches); GET /catalog/availability

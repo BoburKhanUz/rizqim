@@ -13,6 +13,7 @@ import type {
   Product,
   Store,
   StoreListItem,
+  StoreSeller,
   UserRole,
 } from '../src/types'
 
@@ -126,6 +127,14 @@ export const uuidOf = (n: number): string => `e2e${String(n).padStart(5, '0')}-0
 export class FakeApi {
   user: ApiUser = makeUser({ telegram_id: TELEGRAM_ID, name: 'Ali Valiyev', phone: '+998901234567' })
   readonly store: Store = makeStore({ min_order: 0, delivery_fee: 12000, address: 'Toshkent, Chilonzor' })
+  /** Wave P (receipts): who sells the food, as GET /catalog?store_id= sends it (`store.seller`); null: none filled. */
+  seller: StoreSeller | null = {
+    legal_name: '"Lazzat Burger" MChJ',
+    tin: '305123456',
+    legal_address: "Toshkent sh., Chilonzor t., Bunyodkor ko'chasi 1",
+    phone: '+998712001020',
+    complaint_contact: '@lazzat_support',
+  }
   readonly products: Product[] = [
     makeProduct({
       id: 1,
@@ -398,7 +407,7 @@ export class FakeApi {
     }
     if (query.store_id !== this.store.uuid && query.store_id !== String(this.store.id)) return fail(404, 'Do\'kon topilmadi.')
     return ok({
-      store: { ...this.store, branches: [BRANCH], ratings: [], accepting_orders: this.acceptingOrders },
+      store: { ...this.store, branches: [BRANCH], ratings: [], accepting_orders: this.acceptingOrders, seller: this.seller },
       categories: [CATEGORY],
       products: this.products,
       availability: this.availabilityBranches(),
@@ -625,6 +634,9 @@ export class FakeApi {
       notes: typeof body.notes === 'string' ? body.notes : null,
       pickup_at: typeof body.pickup_at === 'string' ? body.pickup_at : null,
       items,
+      // Wave P (receipts): the seller as it was when the order was placed; no receipt yet
+      seller: this.seller,
+      receipts: [],
       created_at: new Date().toISOString(), // the newest of all
     })
     return reply(201, { success: true, message: 'Order created successfully.', data: { order_uuid: order.uuid, order_number: order.short_code, status: order.status, payment_url: null } })

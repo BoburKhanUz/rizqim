@@ -460,6 +460,8 @@ class CreateOrderAction
                 'packaging_lines' => $packaging['lines'] !== [] ? $packaging['lines'] : null,
                 'pickup_at' => $pickup['pickup_at'] ?? null,
                 'kitchen_fire_at' => $pickup['kitchen_fire_at'] ?? null,
+                // Wave P (receipts): the seller as it is now, for the customer's history (consumer law art. 28-1)
+                'seller_snapshot' => \App\Domain\Receipts\SellerDetails::of($store, $branch->phone),
             ]);
 
             // Create initial payment log for consistent transaction records

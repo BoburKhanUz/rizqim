@@ -1005,6 +1005,66 @@ Testlar: `tests/Feature/OnlineFiscal/*` — hujjatdagi so'rov va javob namunalar
 idempotentligi va auth, Click ishining muvaffaqiyati, xatosi va qayta urinishi, MXIK va STIR yo'qligi, haqiqiy fiskal
 yadro bilan to'liq sikl.
 
+## Mijozga chek va sotuvchi ma'lumoti (wave P)
+
+Iste'molchilar qonuni 28-1-modda (sotuvchi nomi, manzili, shikoyat tartibi shartnomadan oldin), O'RQ-792 23-modda va VM
+943 1a-ilova 8-band (elektron chek havolasi xaridorga, "shaxsiy kabinet"ga). Tadqiqot:
+`docs/research/reports/Mijozga chek va sotuvchi ma'lumoti.md`. PDF va e-pochta bu bosqichda yo'q.
+
+**Sotuvchi (`seller`).** Faqat shu maydonlar: `{legal_name, tin, legal_address, phone, complaint_contact}`
+(`App\Domain\Receipts\SellerDetails`). `legal_name` RIZQIM kiritadi (ariza tekshiruvi), `tin` — `stores.tin`, bo'lmasa
+`tax_number` (faqat 9 raqamli STIR; 14 raqamli JShShIR — YaTT shaxsiy raqami — hech qachon chiqmaydi, `null`),
+`legal_address` va `complaint_contact` — ega kiritadi, `phone` — do'kon telefoni, bo'lmasa filialniki. Bo'sh maydon `null`, Mini App uni ko'rsatmaydi.
+- `GET /catalog?store_id=` (mijoz menyusi): `store.seller`. Xom ustunlar (`legal_name`, `tax_number`, `legal_address`,
+  `complaint_contact`, `bank_account`) do'kon JSON'ida yo'q (`Store::INTERNAL_ATTRIBUTES`).
+- `orders.seller_snapshot` (jsonb): buyurtma berilganda (`CreateOrderAction`) sotuvchi nusxasi. Tarixda o'sha paytdagi
+  sotuvchi ko'rinadi; nusxasi yo'q eski buyurtmada do'konning hozirgi ma'lumoti. Ustun JSON'da yashirin.
+- `GET/POST /owner/settings` (ega): `legal_name` (faqat o'qiladi), `legal_address` (≤ 500), `complaint_contact` (≤ 255).
+  Yuborilmagan maydon saqlanadi, bo'sh — tozalanadi. O'zgarish jurnalga `store.seller_details_updated` (telefon
+  niqoblanadi). Hamkor panelida: Sozlamalar → Do'kon → "Sotuvchi ma'lumotlari".
+
+**Buyurtma cheklari (`receipts`).** `GET /orders` (barcha scope'lar) mijozning **o'z** buyurtmalarida `seller` va
+`receipts` qaytaradi (`App\Domain\Receipts\CustomerOrderReceipts`), faqat `customer` roli uchun; xodim ro'yxatlarida
+(kassir, ofitsiant, oshpaz, hostes o'zi urgan kassa buyurtmalari ham) ular yo'q.
+
+```json
+"receipts": [
+  {"uuid": "…", "type": "sale", "status": "ready", "provider": "payme", "url": "https://ofd.soliq.uz/epi?t=…", "issued_at": "2026-11-24T12:00:00+05:00"},
+  {"uuid": null, "type": "refund", "status": "unavailable", "provider": "paylov", "url": null, "issued_at": null}
+]
+```
+
+- Manba: `fiscal_receipts` — `subject_type = order` (Payme, Click, Paylov), buyurtma hisoblari (`order_bill`, kassa) va
+  ularning `pos_refund` qaytarishlari (`original_receipt_id` orqali). Faqat `sale` va `refund`, `non_fiscal = false`,
+  faqat buyurtma do'konining cheklari. Chek hali yozilmagan onlayn to'lov `payload.fiscal` holatidan (`pending` → `pending`,
+  `blocked`/`failed` → `unavailable`; Paylov `refund_status`, Payme rad etilgan `cancel_data`).
+- `status`: `ready` (`url` bor), `pending` ("Chek tayyorlanmoqda"), `unavailable` ("Chekni restorandan so'rang").
+  Ichki sabab, muammo kodi, provayder javobi hech qachon chiqmaydi.
+- `url` faqat `https` va `qr_payments.uzqr.receipt_hosts` (`UZQR_RECEIPT_HOSTS`, standart `ofd.soliq.uz`) xostida, login,
+  port va bo'sh joysiz (`SendUzQrReceiptLink::allowedLink`). Boshqa havola tashlab yuboriladi, chek `unavailable`.
+- So'rovlar soni buyurtmalar soniga bog'liq emas (do'konlar, cheklar, kassa qaytarishlari, to'lovlar: bittadan; scope'siz
+  uzun ro'yxatda har 1 000 buyurtmaga bittadan).
+- Mini App havolani o'zi ham faqat `ofd.soliq.uz` xostida ochadi (xost unda qattiq yozilgan): server ro'yxatiga yangi
+  xost qo'shilsa, Mini App yangilanmaguncha bunday chekni tugma emas, "Chekni restorandan so'rang" deb ko'rsatadi
+  (xavfsiz tomonga).
+
+**Telegram xabari.** Sotuv yoki qaytarish cheki `issued` bo'lganda (`FiscalReceipt` saqlanishi,
+`CustomerReceiptsServiceProvider`) commit'dan keyin `SendCustomerReceiptNotice` navbatga qo'yiladi. Navbatga qo'yish
+xatosi (Redis ishlamayapti) faqat `report()` qilinadi va chaqiruvchiga (masalan Payme SetFiscalData) hech qachon
+chiqmaydi; bunda `customer_notified_at` belgilanmaydi, xabar yo'qoladi, chek Mini App tarixida baribir ko'rinadi:
+- sotuv chekida `orders.fiscalized_by` bo'sh bo'lsa to'ldiriladi: `payment_provider` (Payme/Click/Paylov) yoki
+  `venue_pos` (kassa); bu yozuv eng yaxshi urinish (xabar ishi yo'qolsa yoki yiqilsa bo'sh qoladi);
+- buyurtma mijoziga (faqat `telegram`/`mobile` kanal; POS buyurtmasining `user_id` — kassir) bitta xabar: "Buyurtma
+  #… fiskal cheki tayyor" yoki "qaytarish cheki", "🧾 Chekni ochish" URL tugmasi va Mini App tugmasi. Telegram'i yo'q,
+  bloklangan yoki "Buyurtma holati" Telegram xabarini o'chirgan mijozga yuborilmaydi; havola ruxsat etilgan xostda
+  bo'lmasa ham yuborilmaydi.
+- Ikki marta yuborilmaydi: `fiscal_receipts.customer_notified_at` xabar navbatga qo'yilishidan oldin atomik band
+  qilinadi (takroriy SetFiscalData, qayta ishlangan ish, qayta saqlash).
+
+Testlar: `tests/Feature/CustomerReceipts/*`. Mini App: `src/lib/receipts.test.ts`, `Orders.receipts.test.tsx`,
+`StoreDetail.seller.test.tsx`, `Cart.seller.test.tsx`, `e2e/customer-receipts.spec.ts`. Hamkor paneli:
+`SettingsView.seller.test.tsx`, `e2e/settings.spec.ts`.
+
 ## Bron, avans va nasiya (P3-17)
 
 Kassa va web panel uchun bron daftari, oldindan buyurtma, avans (bo'nak) va nasiya hisoblari (tadqiqot hisoboti

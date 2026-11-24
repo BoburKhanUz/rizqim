@@ -60,3 +60,29 @@ test('no Paylov keys while RIZQIM has Paylov switched off, nor for a store on th
   await expect(page.getByLabel('Paylov Merchant ID')).toHaveCount(0)
   await expect(page.getByText(WEBHOOK)).toHaveCount(0)
 })
+
+// Wave P (receipts): the seller's details customers see before ordering. The owner fills the legal address and the
+// complaint contact; the legal name and the STIR are shown as they are stored.
+test("the seller's details: legal name and STIR shown, legal address and complaint contact saved", async ({ page, api, signIn, reverb }) => {
+  void reverb
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openSignedIn(page, signIn, '/settings')
+  const section = page.getByRole('region', { name: "Sotuvchi ma'lumotlari" })
+  await expect(section.getByText('"Osh markazi" MChJ')).toBeVisible()
+  await expect(section.getByText('305123456')).toBeVisible()
+
+  await section.getByLabel('Yuridik manzil').fill("Toshkent sh., Mirobod t., Amir Temur ko'chasi 1")
+  await section.getByLabel('Shikoyat uchun aloqa').fill('@osh_markazi')
+  await section.scrollIntoViewIfNeeded()
+  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/partner-settings-seller.png`, fullPage: false })
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click()
+  await expect(page.getByText('Sozlamalar saqlandi.')).toBeVisible()
+
+  const sent = api.callsTo('POST', '/v1/owner/settings')[0]?.body as Record<string, unknown>
+  expect(sent.legal_address).toBe("Toshkent sh., Mirobod t., Amir Temur ko'chasi 1")
+  expect(sent.complaint_contact).toBe('@osh_markazi')
+  expect(sent).not.toHaveProperty('legal_name')
+
+  await page.reload()
+  await expect(page.getByRole('region', { name: "Sotuvchi ma'lumotlari" }).getByLabel('Yuridik manzil')).toHaveValue("Toshkent sh., Mirobod t., Amir Temur ko'chasi 1")
+})

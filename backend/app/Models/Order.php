@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \App\Enums\PaymentStatus $payment_status
  * @property \App\Enums\OrderType $order_type
  * @property array<string, mixed>|null $shipping_address
+ * @property array<string, mixed>|null $seller_snapshot Wave P: App\Domain\Receipts\SellerDetails when placed
  * @property numeric-string $subtotal
  * @property numeric-string $delivery_price
  * @property numeric-string $discount
@@ -108,7 +109,7 @@ class Order extends Model
         'discount_value', 'discount_reason', 'discount_by', 'commission_channel', 'commission_rate', 'fiscalized_by',
         'pickup_status', 'pickup_ready_at', 'pickup_called_at', 'pickup_call_count', 'pickup_handed_at',
         'table_label', 'assembled_at', 'assembled_by', 'packaging_amount', 'packaging_lines', 'pickup_at',
-        'kitchen_fire_at', 'kitchen_fired_at', 'promo_note', 'banquet_amount', 'banquet_lines',
+        'kitchen_fire_at', 'kitchen_fired_at', 'promo_note', 'banquet_amount', 'banquet_lines', 'seller_snapshot',
     ];
     
     protected static function boot()
@@ -131,7 +132,7 @@ class Order extends Model
 
     // Wave P review: the platform's review of a store-initiated provider refund is internal (control centre only: the
     // admin order card reads it explicitly); never serialized into the customer's, the store's or the POS order JSON
-    protected $hidden = ['store_refund_review_at'];
+    protected $hidden = ['store_refund_review_at', 'seller_snapshot'];
 
     /** The column default, so an order just created reads its channel like one loaded back (P1-21). */
     protected $attributes = [
@@ -145,6 +146,8 @@ class Order extends Model
             'payment_status' => \App\Enums\PaymentStatus::class,
             'order_type' => \App\Enums\OrderType::class,
             'shipping_address' => 'array',
+            // Wave P (receipts): the seller when the order was placed; the customer gets it as `seller` (hidden here)
+            'seller_snapshot' => 'array',
             'subtotal' => 'decimal:2',
             'delivery_price' => 'decimal:2',
             'discount' => 'decimal:2',

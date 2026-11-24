@@ -130,6 +130,8 @@ final class StoreMenu
         $offline = $store->getAttribute('marketplace_offline_minutes');
         $array = $store->toArray();
         unset($array['marketplace_offline_minutes']);
+        // Wave P (receipts): who sells the food (consumer law art. 28-1), only these fields
+        $array['seller'] = \App\Domain\Receipts\SellerDetails::of($store, $store->branches->first()?->phone);
 
         return [
             'found' => true,

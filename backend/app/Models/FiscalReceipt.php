@@ -51,6 +51,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $sold_at P3-31: when an offline sale happened (the device's clock)
  * @property string|null $lease_token Review P3-35: the attempt registering it now
  * @property \Illuminate\Support\Carbon|null $leased_until
+ * @property \Illuminate\Support\Carbon|null $customer_notified_at Wave P: the customer was sent the link
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read FiscalReceipt|null $originalReceipt
@@ -68,10 +69,10 @@ class FiscalReceipt extends Model
         'idempotency_key', 'subject_type', 'subject_id', 'tax_regime', 'total', 'vat_total', 'lines', 'payments',
         'original_receipt_id', 'non_fiscal', 'fiscal_sign', 'receipt_number', 'qr_url', 'terminal_id',
         'provider_payload', 'error', 'attempts', 'next_attempt_at', 'issued_at', 'created_at', 'updated_at',
-        'sold_at', 'lease_token', 'leased_until',
+        'sold_at', 'lease_token', 'leased_until', 'customer_notified_at',
     ];
 
-    protected $hidden = ['provider_payload', 'lease_token'];
+    protected $hidden = ['provider_payload', 'lease_token', 'customer_notified_at'];
 
     protected $attributes = [
         'status' => 'pending',
@@ -109,6 +110,8 @@ class FiscalReceipt extends Model
             'sold_at' => 'datetime',
             // Review P3-35: the attempt registering it holds it until then
             'leased_until' => 'datetime',
+            // Wave P (receipts): when the order's customer was sent its link (SendCustomerReceiptNotice)
+            'customer_notified_at' => 'datetime',
         ];
     }
 

@@ -33,7 +33,7 @@ final class ReadModelCache
     private const DOWN_BACKOFF_SECONDS = 5;
 
     /** Bump when the shape of a document changes (a deploy's config:cache does the same by itself) */
-    private const SCHEMA = 'm2.2';
+    private const SCHEMA = 'm2.3'; // wave P (receipts): the store document carries `seller`
 
     private float $downUntil = 0.0;
 

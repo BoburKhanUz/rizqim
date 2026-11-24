@@ -36,6 +36,9 @@ class Data197 {
     required this.allowedMethods,
     required this.tin,
     required this.taxRegime,
+    required this.legalName,
+    required this.legalAddress,
+    required this.complaintContact,
     required this.telegram,
     required this.fiscalSettings,
   });
@@ -73,6 +76,12 @@ class Data197 {
   final String? tin;
   @JsonKey(name: 'tax_regime')
   final TaxRegime? taxRegime;
+  @JsonKey(name: 'legal_name')
+  final String? legalName;
+  @JsonKey(name: 'legal_address')
+  final String? legalAddress;
+  @JsonKey(name: 'complaint_contact')
+  final String? complaintContact;
   final Telegram telegram;
   @JsonKey(name: 'fiscal_settings')
   final FiscalSettings4 fiscalSettings;

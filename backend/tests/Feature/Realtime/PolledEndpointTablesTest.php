@@ -51,7 +51,11 @@ class PolledEndpointTablesTest extends TestCase
         'GET /pos/waitlist' => ['branches', 'stores', 'pos_waitlist_entries', 'dining_tables', 'halls', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
         'GET /pos/bill-print-requests' => ['branches', 'stores', 'pos_bill_print_requests', 'orders', 'order_bills', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
         'GET /staff/orders/{uuid}' => ['order_status_histories', 'product_variants', 'products', 'branches', 'stores', 'orders', 'order_items', 'order_assignments', 'store_subscriptions', 'tariff_plans', 'features', 'settings', 'role_permission_overrides', 'dining_tables', 'halls', 'users'],
-        'GET /orders' => ['orders', 'order_items', 'stores', 'branches', 'store_ratings', 'complaints', 'order_refund_requests'],
+        // Wave P (receipts): a customer's orders carry `receipts` (fiscal_receipts, through its bills: order_bills, and the
+        // payment's fiscal state: payments). payments and order_bills move the customer's token through their order;
+        // a receipt that becomes issued moves it in SendCustomerReceiptNotice (fiscal_receipts' own rule is the branch),
+        // and a pending or failed one is written with its bill (BillFiscalizer) or its payment (OnlineFiscalRecorder)
+        'GET /orders' => ['orders', 'order_items', 'stores', 'branches', 'store_ratings', 'complaints', 'order_refund_requests', 'fiscal_receipts', 'order_bills', 'payments'],
         'GET /notifications' => ['notification_logs', 'orders', 'stores'],
         // M2-2: the KDS ingredient stop panel (polled every 60 s)
         'GET /owner/ingredients' => ['ingredients', 'stop_list_entries', 'branches', 'stores', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],

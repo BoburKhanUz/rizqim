@@ -16,6 +16,8 @@ return [
     App\Domain\Pos\Menu\PosMenuServiceProvider::class,
     // P3-11: fiscal receipts (FiscalIssuer, FiscalLineBuilder, FiscalReadiness)
     App\Providers\FiscalServiceProvider::class,
+    // Wave P (receipts): a registered receipt's Telegram message to the order's customer (SendCustomerReceiptNotice)
+    App\Domain\Receipts\CustomerReceiptsServiceProvider::class,
     // P3-17: bookings, deposits, customer accounts (AdvanceLedger, CustomerAccountLedger)
     App\Providers\PosBookingServiceProvider::class,
     // P3-12: POS hall orders (PosOrderOpener), halls and tables
