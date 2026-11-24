@@ -97,6 +97,39 @@ describe('the request interceptor', () => {
     expect(requests).toEqual([expect.objectContaining({ url: '/orders', authorization: `Bearer ${OLD_TOKEN}` })]);
   });
 
+  it('never sends a token stored for another Telegram user: it is dropped and the request goes without it', async () => {
+    // makeUser() is Telegram user 555000111; the app is open for 7100001
+    Object.defineProperty(window, 'Telegram', { configurable: true, value: { WebApp: { initDataUnsafe: { user: { id: 7100001 } } } } });
+    try {
+      await api.get('/stores');
+
+      expect(requests[0].authorization).toBeUndefined();
+      expect(useAuthStore.getState()).toMatchObject({ token: null, user: null, isAuthenticated: false });
+      expect(localStorage.getItem('auth-storage')).not.toContain(OLD_TOKEN);
+    } finally {
+      Reflect.deleteProperty(window, 'Telegram');
+    }
+  });
+
+  it('a re-sign-in answered for another Telegram account is not used', async () => {
+    Object.defineProperty(window, 'Telegram', { configurable: true, value: { WebApp: { initDataUnsafe: { user: { id: 555000111 } } } } });
+    try {
+      handler = (config) => {
+        if (!isLogin(config)) return { status: 401, data: { message: 'Unauthenticated.' } };
+        const reply = loginReply();
+        (reply.data as { data: { user: { telegram_id: string } } }).data.user.telegram_id = '999';
+        return reply;
+      };
+
+      await expect(api.get('/orders')).rejects.toMatchObject({ response: { status: 401 } });
+
+      expect(requests.filter((r) => r.authorization === `Bearer ${NEW_TOKEN}`)).toEqual([]);
+      expect(useAuthStore.getState().token).toBeNull();
+    } finally {
+      Reflect.deleteProperty(window, 'Telegram');
+    }
+  });
+
   it('sends no Authorization header when nobody is signed in', async () => {
     useAuthStore.getState().logout();
     await api.get('/stores');

@@ -213,6 +213,10 @@ export class FakeApi {
   unhandled: string[] = []
 
   private validTokens = new Set<string>()
+  /** Tokens of other accounts (addSession): a request carrying one is answered as that account. */
+  private sessions = new Map<string, ApiUser>()
+  /** Set to make POST /auth/telegram answer with this status (a 500, a 429) instead of signing in; null signs in. */
+  loginFailureStatus: number | null = null
   private tokenCounter = 0
   private orderCounter = 100
   /** The Idempotency-Key of every order that was placed, oldest first. */
@@ -265,6 +269,12 @@ export class FakeApi {
     return order
   }
 
+  /** A valid token of another account (say, the previous Telegram user of the device): its requests are answered as `user`. */
+  addSession(token: string, user: ApiUser): void {
+    this.validTokens.add(token)
+    this.sessions.set(token, user)
+  }
+
   /** Makes every token issued so far invalid, like an expired or pruned one. */
   expireTokens(): void {
     this.validTokens.clear()
@@ -278,9 +288,16 @@ export class FakeApi {
   handle(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null = null): ApiReply {
     const call: ApiCall = { method, path, query, body, authorization, idempotencyKey, status: 0 }
     this.calls.push(call)
-    const result = this.route(method, path, query, body, authorization, idempotencyKey)
-    call.status = result.status
-    return result
+    const other = this.sessions.get(authorization?.replace(/^Bearer /, '') ?? '')
+    const own = this.user
+    if (other) this.user = other
+    try {
+      const result = this.route(method, path, query, body, authorization, idempotencyKey)
+      call.status = result.status
+      return result
+    } finally {
+      this.user = own
+    }
   }
 
   /** Wave M2: what GET /realtime says. Real-time is off in these tests (no Reverb key in the build, none here). */
@@ -341,6 +358,7 @@ export class FakeApi {
 
   // POST /auth/telegram
   private login(): ApiReply {
+    if (this.loginFailureStatus !== null) return fail(this.loginFailureStatus, 'Server Error')
     const token = `token-${++this.tokenCounter}`
     this.validTokens.add(token)
     return ok({ token, user: this.user, store: this.userStore(), sms_verification_required: false })

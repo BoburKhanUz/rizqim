@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { logApiError, sanitizeError } from '../lib/apiError';
-import { getInitData, getTelegramUser } from '../lib/telegram';
+import { dropForeignSession, dropStoredSession, isForeignSession, MOCK_TELEGRAM_ID_KEY } from '../lib/session';
+import { getInitData } from '../lib/telegram';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
 import type { ApiResponse, AuthPayload, LoginPayload } from '../types';
 
 export const useTelegramAuth = () => {
   const { token, isAuthenticated, user: storedUser } = useAuthStore();
+  // A session stored for another Telegram user is never handed out, not even for the one render before the effect
+  // below drops it (main.tsx already drops it before the first render; this covers anything that mounts the hook)
+  const foreign = isForeignSession({ token, isAuthenticated, user: storedUser });
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // The sign-in below runs once, with the state the store was restored to at launch
   useEffect(() => {
+    // The device's storage is shared by every Telegram account on it: a session (and cart, addresses, caches) stored
+    // for another user is dropped before anything is requested, then the current user signs in below. If that fails,
+    // the app stays signed out on the sign-in error screen.
+    dropForeignSession();
     const launchState = useAuthStore.getState();
     const { setAuth, logout } = launchState;
 
@@ -28,10 +36,9 @@ export const useTelegramAuth = () => {
       const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
       
       // 3. Already authenticated (Persist check) - Instant 0-second UI launch!
-      // Only bypass if there is NO start_param and stored user telegram_id matches real TG user if inside TG.
-      const realTgUser = getTelegramUser();
-      const isSessionValid = launchState.isAuthenticated && launchState.token
-        && (!realTgUser || String(launchState.user?.telegram_id) === String(realTgUser.id));
+      // Only bypass if there is NO start_param. What is left in the store belongs to the user who has the app open
+      // (a foreign session was dropped above, lib/session.ts).
+      const isSessionValid = launchState.isAuthenticated && launchState.token;
 
       if (isSessionValid && !startParam) {
         setIsAuthenticating(false);
@@ -60,20 +67,20 @@ export const useTelegramAuth = () => {
       let initData = getInitData();
 
       if (initData) {
-        localStorage.removeItem('mock_telegram_id');
+        localStorage.removeItem(MOCK_TELEGRAM_ID_KEY);
         localStorage.removeItem('mock_telegram_username');
         localStorage.removeItem('mock_first_name');
       } else if (import.meta.env.DEV) {
         // Developer Mock Bypass: dev server only (stripped from production builds).
         // Only used when NO initData is present (not running inside Telegram).
         console.log('Using mock credentials override...');
-        let mockId = localStorage.getItem('mock_telegram_id');
+        let mockId = localStorage.getItem(MOCK_TELEGRAM_ID_KEY);
         const mockUsername = localStorage.getItem('mock_telegram_username');
         const mockFirstName = localStorage.getItem('mock_first_name') || 'Mijoz Test';
 
         if (!mockId) {
           mockId = String(Math.floor(10000000 + Math.random() * 90000000));
-          localStorage.setItem('mock_telegram_id', mockId);
+          localStorage.setItem(MOCK_TELEGRAM_ID_KEY, mockId);
         }
         const mockUser = {
           id: parseInt(mockId),
@@ -108,6 +115,12 @@ export const useTelegramAuth = () => {
         if (response.data?.success && response.data?.data) {
           const authData = response.data.data;
           setAuth(authData.token, authData.user, authData.store, authData.sms_verification_required);
+          if (isForeignSession()) {
+            // The answer is for another Telegram account than the one that has the app open: never used
+            dropStoredSession();
+            setError('Authentication failed: the account does not match this Telegram user.');
+            return;
+          }
           console.log('Successfully Authenticated via Telegram!');
         } else {
           setError('Authentication failed: Invalid response format.');
@@ -129,5 +142,11 @@ export const useTelegramAuth = () => {
     authenticateWithTelegram();
   }, []);
 
-  return { isAuthenticating, error, isAuthenticated, token, user: storedUser };
+  return {
+    isAuthenticating,
+    error,
+    isAuthenticated: isAuthenticated && !foreign,
+    token: foreign ? null : token,
+    user: foreign ? null : storedUser,
+  };
 };

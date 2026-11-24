@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { getInitData, tg } from '../lib/telegram';
 import { noteResponseRevision } from '@rizqim/staff';
 import { revisions } from '../lib/revisions';
+import { dropStoredSession, isForeignSession, sessionToken } from '../lib/session';
 import type { ApiResponse, LoginPayload } from '../types';
 
 
@@ -28,7 +29,8 @@ type AuthAwareRequestConfig = InternalAxiosRequestConfig & {
 // Request Interceptor to attach token
 api.interceptors.request.use(
   (config) => {
-    const token = useAuthStore.getState().token;
+    // Never a session stored for another Telegram user (lib/session.ts): it is dropped and the request goes without one
+    const token = sessionToken();
     (config as AuthAwareRequestConfig)._authToken = token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -60,6 +62,11 @@ async function requestFreshToken(): Promise<string | null> {
     const data = res.data?.data;
     if (res.data?.success && data?.token) {
       useAuthStore.getState().setAuth(data.token, data.user, data.store, data.sms_verification_required);
+      // The answer is for another Telegram account than the one that has the app open: not used
+      if (isForeignSession()) {
+        dropStoredSession();
+        return null;
+      }
       return data.token;
     }
   } catch {
@@ -87,7 +94,7 @@ function reauthenticate(): Promise<string | null> {
 // token that request carried. Shared by this client's interceptor below and by the fetch the staff screens' API layer
 // (@rizqim/staff, services/staffApi.ts) is given, so there is one re-authentication, one cool-down, for both.
 export function recoverToken(sentWith: string | null): Promise<string | null> {
-  const currentToken = useAuthStore.getState().token;
+  const currentToken = sessionToken();
   if (currentToken && currentToken !== sentWith) {
     // Another request already renewed the token while this one was in flight
     return Promise.resolve(currentToken);

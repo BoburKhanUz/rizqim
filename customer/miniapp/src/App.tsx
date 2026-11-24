@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { initTelegramApp } from './lib/telegram';
 import { startTelegramChrome } from './lib/twa';
 import { useTelegramAuth } from './hooks/useTelegramAuth';
@@ -172,15 +173,6 @@ export const OnlyTelegramBlocker = () => {
     </div>
   );
 };
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5,
-    },
-  },
-});
 
 // Customers are likely to open these next from the catalog: fetch them once the app is idle so the tap is instant.
 function usePrefetchCustomerPages(enabled: boolean) {
