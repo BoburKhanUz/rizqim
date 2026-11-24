@@ -8,11 +8,11 @@ part of 'data141.dart';
 
 Data141 _$Data141FromJson(Map<String, dynamic> json) => Data141(
   reservePercent: json['reserve_percent'] as String,
-  osh: Osh2.fromJson(json['osh'] as Map<String, dynamic>),
+  osh: Osh.fromJson(json['osh'] as Map<String, dynamic>),
   portionWeights: (json['portion_weights'] as List<dynamic>)
-      .map((e) => PortionWeights2.fromJson(e as Map<String, dynamic>))
+      .map((e) => PortionWeights.fromJson(e as Map<String, dynamic>))
       .toList(),
-  mxik: Mxik2.fromJson(json['mxik'] as Map<String, dynamic>),
+  mxik: Mxik.fromJson(json['mxik'] as Map<String, dynamic>),
   contractTemplate: json['contract_template'] as String,
   contractTemplateIsDefault: json['contract_template_is_default'] as bool,
   contractPlaceholders: (json['contract_placeholders'] as List<dynamic>)

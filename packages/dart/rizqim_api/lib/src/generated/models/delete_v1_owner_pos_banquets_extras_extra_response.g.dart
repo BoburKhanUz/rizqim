@@ -12,7 +12,7 @@ _$DeleteV1OwnerPosBanquetsExtrasExtraResponseFromJson(
 ) => DeleteV1OwnerPosBanquetsExtrasExtraResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data136.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data137.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$DeleteV1OwnerPosBanquetsExtrasExtraResponseToJson(

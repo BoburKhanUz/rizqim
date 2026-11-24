@@ -11,7 +11,7 @@ PutV1OwnerProductBrandsResponse _$PutV1OwnerProductBrandsResponseFromJson(
 ) => PutV1OwnerProductBrandsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data181.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data182.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerProductBrandsResponseToJson(

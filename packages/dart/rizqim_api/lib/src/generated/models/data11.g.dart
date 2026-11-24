@@ -7,23 +7,33 @@ part of 'data11.dart';
 // **************************************************************************
 
 Data11 _$Data11FromJson(Map<String, dynamic> json) => Data11(
-  token: json['token'] as String,
-  syncKey: json['sync_key'] == null
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
       ? null
-      : SyncKey.fromJson(json['sync_key'] as Map<String, dynamic>),
-  device: Device8.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
-      ? null
-      : Branch2.fromJson(json['branch'] as Map<String, dynamic>),
+      : User6.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data11ToJson(Data11 instance) => <String, dynamic>{
-  'token': instance.token,
-  'sync_key': instance.syncKey,
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

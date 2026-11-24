@@ -246,6 +246,8 @@ final class RevisionMap
         'alert_rules' => [[self::NONE, 'RIZQIM team monitoring rules']],
         'alerts' => [[self::NONE, 'RIZQIM team monitoring alerts (admin screens are not revision-scoped)']],
         'audit_logs' => [[self::NONE, 'append-only audit log']],
+        // Wave P step 2 (docs/ANALYTICS_PLAN.md A.2, 5): an ingestion moves no ETag; only the aggregation jobs read it
+        'analytics_events' => [[self::NONE, 'raw analytics events; no screen polls them']],
         'cache' => [[self::NONE, 'framework cache table']],
         'cache_locks' => [[self::NONE, 'framework cache locks']],
         'pos_app_releases' => [[self::NONE, 'RIZQIM team app release registry (control centre, not revision-scoped); tills read it from GET /terminal every 6 h']],

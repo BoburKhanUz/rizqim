@@ -7,11 +7,23 @@ part of 'data138.dart';
 // **************************************************************************
 
 Data138 _$Data138FromJson(Map<String, dynamic> json) => Data138(
-  halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  price: json['price'] as String,
+  pricing: json['pricing'] as String,
+  pricingLabel: json['pricing_label'] as String,
+  isActive: json['is_active'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data138ToJson(Data138 instance) => <String, dynamic>{
-  'halls': instance.halls,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'price': instance.price,
+  'pricing': instance.pricing,
+  'pricing_label': instance.pricingLabel,
+  'is_active': instance.isActive,
+  'sort_order': instance.sortOrder,
 };

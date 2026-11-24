@@ -14,7 +14,7 @@ Data49 _$Data49FromJson(Map<String, dynamic> json) => Data49(
   pickupMaxDaysAhead: (json['pickup_max_days_ahead'] as num).toInt(),
   pickupPrepMinutes: (json['pickup_prep_minutes'] as num).toInt(),
   roundTheClock: json['round_the_clock'] as bool,
-  openingHours: OpeningHours2.fromJson(
+  openingHours: OpeningHours.fromJson(
     json['opening_hours'] as Map<String, dynamic>,
   ),
   updatedAt: json['updated_at'] as String?,

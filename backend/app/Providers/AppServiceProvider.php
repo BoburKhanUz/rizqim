@@ -118,6 +118,10 @@ class AppServiceProvider extends ServiceProvider
         // P6-34 (review P6W3 S2): the Mini App's public pickup times (cached per branch and minute)
         RateLimiter::for('pickup-slots', fn (Request $request) => Limit::perMinute(30)->by('ip:' . $request->ip()));
 
+        // Wave P step 2: POST /analytics/events, per user, per session and per IP address (an HMAC of it, never the
+        // address itself) a minute; the per-user daily event budget is EventIngestor's (App\Domain\Analytics\AnalyticsLimits)
+        RateLimiter::for('analytics-events', fn (Request $request) => \App\Domain\Analytics\AnalyticsLimits::forRequest($request));
+
         // P2-12: CSV report downloads from the partner web panel (streamed, but a period's orders are read in full)
         RateLimiter::for('report-csv', fn (Request $request) => [
             Limit::perMinute(6)->by('minute:' . $byUser($request)),

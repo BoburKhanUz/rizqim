@@ -4,54 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'business_day.dart';
+import 'days2.dart';
+
 part 'data44.g.dart';
 
 @JsonSerializable()
 class Data44 {
   const Data44({
-    required this.id,
     required this.branchId,
-    required this.name,
-    required this.basis,
-    required this.basisLabel,
-    required this.categoryId,
-    required this.productId,
-    required this.quantity,
-    required this.unitPrice,
-    required this.mxik,
-    required this.packageCode,
-    required this.unit,
-    required this.orderTypes,
-    required this.isActive,
-    required this.sortOrder,
+    required this.businessDay,
+    required this.days,
   });
 
   factory Data44.fromJson(Map<String, Object?> json) => _$Data44FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String name;
-  final String basis;
-  @JsonKey(name: 'basis_label')
-  final String basisLabel;
-  @JsonKey(name: 'category_id')
-  final int? categoryId;
-  @JsonKey(name: 'product_id')
-  final int? productId;
-  final int quantity;
-  @JsonKey(name: 'unit_price')
-  final String unitPrice;
-  final String? mxik;
-  @JsonKey(name: 'package_code')
-  final String? packageCode;
-  final String unit;
-  @JsonKey(name: 'order_types')
-  final List<String> orderTypes;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
+  @JsonKey(name: 'business_day')
+  final BusinessDay businessDay;
+  final List<Days2> days;
 
   Map<String, Object?> toJson() => _$Data44ToJson(this);
 }

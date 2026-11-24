@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event6.dart';
-import 'summary8.dart';
-import 'rows10.dart';
-import 'entries7.dart';
-import 'cancellation4.dart';
+import 'event5.dart';
+import 'summary7.dart';
+import 'rows8.dart';
+import 'entries6.dart';
+import 'cancellation3.dart';
 
 part 'data240.g.dart';
 
@@ -25,11 +25,11 @@ class Data240 {
   factory Data240.fromJson(Map<String, Object?> json) =>
       _$Data240FromJson(json);
 
-  final Event6 event;
-  final Summary8 summary;
-  final List<Rows10> rows;
-  final List<Entries7> entries;
-  final Cancellation4? cancellation;
+  final Event5 event;
+  final Summary7 summary;
+  final List<Rows8> rows;
+  final List<Entries6> entries;
+  final Cancellation3? cancellation;
 
   Map<String, Object?> toJson() => _$Data240ToJson(this);
 }

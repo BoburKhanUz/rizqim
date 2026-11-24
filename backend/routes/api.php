@@ -151,6 +151,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/features', [\App\Http\Controllers\Api\V1\FeatureController::class, 'index']);
     });
 
+    // Wave P step 2 (docs/ANALYTICS_PLAN.md A.4): the Mini App's analytics batches. A signed-in customer only, not a
+    // tenant route, and outside the `api` group's shared limit: its own limiter, so analytics never spends the budget
+    // of an order or payment call (and an analytics 429 never reaches them)
+    Route::post('/analytics/events', [\App\Http\Controllers\Api\V1\Analytics\EventController::class, 'store'])->middleware(['auth:sanctum', 'throttle:analytics-events']);
+
     // Decoupled Billing Webhooks (server-to-server: no auth; a generous per-IP limit that a provider's bursts never reach)
     Route::post('/payments/click/webhook', [\App\Http\Controllers\Api\V1\Payment\ClickWebhookController::class, 'handle'])->middleware('throttle:payment-webhooks');
     Route::post('/payments/payme/webhook', [\App\Http\Controllers\Api\V1\Payment\PaymeWebhookController::class, 'handle'])->middleware('throttle:payment-webhooks');

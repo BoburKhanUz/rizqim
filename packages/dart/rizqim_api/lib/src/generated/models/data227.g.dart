@@ -7,25 +7,21 @@ part of 'data227.dart';
 // **************************************************************************
 
 Data227 _$Data227FromJson(Map<String, dynamic> json) => Data227(
-  packages: (json['packages'] as List<dynamic>)
-      .map((e) => Packages2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  extras: (json['extras'] as List<dynamic>)
-      .map((e) => Extras3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  slots: Slots7.fromJson(json['slots'] as Map<String, dynamic>),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls6.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  settings: Settings6.fromJson(json['settings'] as Map<String, dynamic>),
-  eventTypes: (json['event_types'] as List<dynamic>)
-      .map((e) => EventTypes2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Halls5.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data227ToJson(Data227 instance) => <String, dynamic>{
-  'packages': instance.packages,
-  'extras': instance.extras,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'slots': instance.slots,
   'halls': instance.halls,
-  'settings': instance.settings,
-  'event_types': instance.eventTypes,
 };

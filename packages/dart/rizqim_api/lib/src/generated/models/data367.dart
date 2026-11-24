@@ -4,34 +4,31 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'poll_seconds.dart';
-import 'reverb.dart';
+import 'type10.dart';
 
 part 'data367.g.dart';
 
 @JsonSerializable()
 class Data367 {
   const Data367({
-    required this.status,
-    required this.live,
-    required this.heartbeatSeconds,
-    required this.silenceSeconds,
-    required this.pollSeconds,
-    required this.reverb,
+    required this.id,
+    required this.code,
+    required this.type,
+    required this.amount,
+    required this.discountAmount,
+    required this.description,
   });
 
   factory Data367.fromJson(Map<String, Object?> json) =>
       _$Data367FromJson(json);
 
-  final String status;
-  final bool live;
-  @JsonKey(name: 'heartbeat_seconds')
-  final int heartbeatSeconds;
-  @JsonKey(name: 'silence_seconds')
-  final int silenceSeconds;
-  @JsonKey(name: 'poll_seconds')
-  final PollSeconds pollSeconds;
-  final Reverb? reverb;
+  final int id;
+  final String code;
+  final Type10 type;
+  final num amount;
+  @JsonKey(name: 'discount_amount')
+  final num? discountAmount;
+  final String description;
 
   Map<String, Object?> toJson() => _$Data367ToJson(this);
 }

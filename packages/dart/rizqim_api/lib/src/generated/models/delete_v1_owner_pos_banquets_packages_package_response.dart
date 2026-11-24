@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data144.dart';
+import 'data145.dart';
 
 part 'delete_v1_owner_pos_banquets_packages_package_response.g.dart';
 
@@ -22,7 +22,7 @@ class DeleteV1OwnerPosBanquetsPackagesPackageResponse {
 
   final bool success;
   final String message;
-  final Data144 data;
+  final Data145 data;
 
   Map<String, Object?> toJson() =>
       _$DeleteV1OwnerPosBanquetsPackagesPackageResponseToJson(this);

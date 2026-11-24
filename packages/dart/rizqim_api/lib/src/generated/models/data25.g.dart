@@ -7,35 +7,41 @@ part of 'data25.dart';
 // **************************************************************************
 
 Data25 _$Data25FromJson(Map<String, dynamic> json) => Data25(
-  id: (json['id'] as num).toInt(),
-  action: json['action'] as String,
-  actor: json['actor'] == null
-      ? null
-      : Actor.fromJson(json['actor'] as Map<String, dynamic>),
-  device: json['device'] == null
-      ? null
-      : Device9.fromJson(json['device'] as Map<String, dynamic>),
-  subjectType: json['subject_type'] as String?,
-  subjectId: (json['subject_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  before: json['before'] as Map<String, dynamic>?,
-  after: json['after'] as Map<String, dynamic>?,
-  meta: json['meta'] as Map<String, dynamic>?,
-  ip: json['ip'] as String?,
-  createdAt: json['created_at'] as String,
+  period: Period.fromJson(json['period'] as String?),
+  summary: Summary.fromJson(json['summary'] as Map<String, dynamic>),
+  byStatus: Map<String, int>.from(json['by_status'] as Map),
+  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
+      .map((e) => ByPaymentMethod.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byOrderType: (json['by_order_type'] as List<dynamic>)
+      .map((e) => ByOrderType.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byChannel: (json['by_channel'] as List<dynamic>)
+      .map((e) => ByChannel.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  topProducts: (json['top_products'] as List<dynamic>)
+      .map((e) => TopProducts.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  couriers: (json['couriers'] as List<dynamic>)
+      .map((e) => Couriers.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  times: Times.fromJson(json['times'] as Map<String, dynamic>),
+  daily: (json['daily'] as List<dynamic>)
+      .map((e) => Daily.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  generatedAt: json['generated_at'] as String,
 );
 
 Map<String, dynamic> _$Data25ToJson(Data25 instance) => <String, dynamic>{
-  'id': instance.id,
-  'action': instance.action,
-  'actor': instance.actor,
-  'device': instance.device,
-  'subject_type': instance.subjectType,
-  'subject_id': instance.subjectId,
-  'branch_id': instance.branchId,
-  'before': instance.before,
-  'after': instance.after,
-  'meta': instance.meta,
-  'ip': instance.ip,
-  'created_at': instance.createdAt,
+  'period': instance.period,
+  'summary': instance.summary,
+  'by_status': instance.byStatus,
+  'by_payment_method': instance.byPaymentMethod,
+  'by_order_type': instance.byOrderType,
+  'by_channel': instance.byChannel,
+  'top_products': instance.topProducts,
+  'couriers': instance.couriers,
+  'times': instance.times,
+  'daily': instance.daily,
+  'generated_at': instance.generatedAt,
 };

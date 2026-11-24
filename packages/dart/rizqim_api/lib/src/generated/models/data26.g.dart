@@ -7,19 +7,35 @@ part of 'data26.dart';
 // **************************************************************************
 
 Data26 _$Data26FromJson(Map<String, dynamic> json) => Data26(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data25.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
+  id: (json['id'] as num).toInt(),
+  action: json['action'] as String,
+  actor: json['actor'] == null
+      ? null
+      : Actor.fromJson(json['actor'] as Map<String, dynamic>),
+  device: json['device'] == null
+      ? null
+      : Device9.fromJson(json['device'] as Map<String, dynamic>),
+  subjectType: json['subject_type'] as String?,
+  subjectId: (json['subject_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  before: json['before'] as Map<String, dynamic>?,
+  after: json['after'] as Map<String, dynamic>?,
+  meta: json['meta'] as Map<String, dynamic>?,
+  ip: json['ip'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data26ToJson(Data26 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
+  'id': instance.id,
+  'action': instance.action,
+  'actor': instance.actor,
+  'device': instance.device,
+  'subject_type': instance.subjectType,
+  'subject_id': instance.subjectId,
+  'branch_id': instance.branchId,
+  'before': instance.before,
+  'after': instance.after,
+  'meta': instance.meta,
+  'ip': instance.ip,
+  'created_at': instance.createdAt,
 };

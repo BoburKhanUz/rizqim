@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data46.dart';
+import 'data47.dart';
 
 part 'put_v1_owner_branches_branch_packaging_rules_rule_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerBranchesBranchPackagingRulesRuleResponse {
 
   final bool success;
   final String message;
-  final Data46 data;
+  final Data47 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerBranchesBranchPackagingRulesRuleResponseToJson(this);

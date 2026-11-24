@@ -90,6 +90,10 @@
             "description": "Restoran bo'yicha feature flaglar (Superadmin > Feature flaglar)."
         },
         {
+            "name": "Analytics",
+            "description": "Mini App statistikasi: o'z serverimizga yuboriladigan hodisalar (P to'lqini, 2-qadam)."
+        },
+        {
             "name": "Webhooks",
             "description": "Tashqi xizmatlar chaqiradigan server-to-server endpointlar (Click, Payme, Telegram). Ilovalar ularni chaqirmaydi; javob formati provayderning protokoli."
         },
@@ -37663,6 +37667,142 @@
                         "admin": []
                     }
                 ]
+            }
+        },
+        "/v1/analytics/events": {
+            "post": {
+                "operationId": "event.store",
+                "description": "A signed-in customer's batch of 1-50 events of the session (`session_id`, a UUID the app makes at launch and\nrenews after 30 minutes without events). Each event: `uid` (UUID, the same on a retry), `name` (the list in\ndocs/API.md), `at` (client time, milliseconds since the epoch), the ids the event is about (`store_id`,\n`product_id`, `category_id`, integers) and its allowlisted `props`. Answers 202 with how many events were\naccepted and dropped, never which: an event off the allowlist, older than 24 hours, or an `order_placed` of an\norder that is not the caller's is dropped; staff and RIZQIM team accounts' events are all dropped. A replayed\nevent (same `session_id` and `uid`) is accepted and not stored twice. 422 only for a malformed envelope (unknown\ntop-level field, more than 50 events), 413 for a body over 32 KB, 429 over a limit (`Retry-After`).\nNothing identifying is stored beyond the token's user id: no IP address, User-Agent, raw start_param or text.",
+                "summary": "Send a batch of Mini App events",
+                "tags": [
+                    "Analytics"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "The Mini App session (UUID)."
+                                    },
+                                    "platform": {
+                                        "type": "string",
+                                        "description": "Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else is stored as unknown)."
+                                    },
+                                    "app_version": {
+                                        "type": "string",
+                                        "description": "The Mini App build, e.g. 1.4.2 (at most 16 of [0-9A-Za-z._+-], otherwise not kept)."
+                                    },
+                                    "start_param": {
+                                        "type": "string",
+                                        "description": "Telegram's start_param of this launch: only its kind is kept (campaign, referral, store, invite, none, unknown)."
+                                    },
+                                    "events": {
+                                        "type": "array",
+                                        "description": "1-50 events: {uid, name, at, store_id?, product_id?, category_id?, props?}.",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "uid": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "at": {
+                                                    "type": "integer"
+                                                },
+                                                "store_id": {
+                                                    "type": "integer"
+                                                },
+                                                "product_id": {
+                                                    "type": "integer"
+                                                },
+                                                "category_id": {
+                                                    "type": "integer"
+                                                },
+                                                "props": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                }
+                                            },
+                                            "required": [
+                                                "uid",
+                                                "name",
+                                                "at"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "session_id",
+                                    "platform",
+                                    "events"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Accepted and dropped counts.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "accepted": {
+                                                    "type": "integer"
+                                                },
+                                                "dropped": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "accepted",
+                                                "dropped"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "The body is over 32 KB.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
             }
         },
         "/v1/auth/logout": {

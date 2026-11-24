@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data64.dart';
+import 'data65.dart';
 
 part 'put_v1_owner_combos_id_response.g.dart';
 
@@ -21,7 +21,7 @@ class PutV1OwnerCombosIdResponse {
 
   final bool success;
   final String message;
-  final Data64 data;
+  final Data65 data;
 
   Map<String, Object?> toJson() => _$PutV1OwnerCombosIdResponseToJson(this);
 }

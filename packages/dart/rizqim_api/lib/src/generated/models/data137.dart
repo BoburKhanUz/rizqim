@@ -8,31 +8,12 @@ part 'data137.g.dart';
 
 @JsonSerializable()
 class Data137 {
-  const Data137({
-    required this.id,
-    required this.uuid,
-    required this.name,
-    required this.price,
-    required this.pricing,
-    required this.pricingLabel,
-    required this.isActive,
-    required this.sortOrder,
-  });
+  const Data137({required this.deleted});
 
   factory Data137.fromJson(Map<String, Object?> json) =>
       _$Data137FromJson(json);
 
-  final int id;
-  final String uuid;
-  final String name;
-  final String price;
-  final String pricing;
-  @JsonKey(name: 'pricing_label')
-  final String pricingLabel;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
+  final bool deleted;
 
   Map<String, Object?> toJson() => _$Data137ToJson(this);
 }

@@ -6,16 +6,10 @@ part of 'data382.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data382 _$Data382FromJson(Map<String, dynamic> json) => Data382(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
-);
+Data382 _$Data382FromJson(Map<String, dynamic> json) =>
+    Data382(key: json['key'] as String, kid: (json['kid'] as num).toInt());
 
 Map<String, dynamic> _$Data382ToJson(Data382 instance) => <String, dynamic>{
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'key': instance.key,
+  'kid': instance.kid,
 };

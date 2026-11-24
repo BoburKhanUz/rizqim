@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'osh2.dart';
-import 'portion_weights2.dart';
-import 'mxik2.dart';
+import 'osh.dart';
+import 'portion_weights.dart';
+import 'mxik.dart';
 
 part 'data141.g.dart';
 
@@ -28,10 +28,10 @@ class Data141 {
 
   @JsonKey(name: 'reserve_percent')
   final String reservePercent;
-  final Osh2 osh;
+  final Osh osh;
   @JsonKey(name: 'portion_weights')
-  final List<PortionWeights2> portionWeights;
-  final Mxik2 mxik;
+  final List<PortionWeights> portionWeights;
+  final Mxik mxik;
   @JsonKey(name: 'contract_template')
   final String contractTemplate;
   @JsonKey(name: 'contract_template_is_default')

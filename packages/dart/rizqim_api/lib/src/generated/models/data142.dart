@@ -4,18 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'packages.dart';
+import 'osh2.dart';
+import 'portion_weights2.dart';
+import 'mxik2.dart';
 
 part 'data142.g.dart';
 
 @JsonSerializable()
 class Data142 {
-  const Data142({required this.packages});
+  const Data142({
+    required this.reservePercent,
+    required this.osh,
+    required this.portionWeights,
+    required this.mxik,
+    required this.contractTemplate,
+    required this.contractTemplateIsDefault,
+    required this.contractPlaceholders,
+    required this.version,
+  });
 
   factory Data142.fromJson(Map<String, Object?> json) =>
       _$Data142FromJson(json);
 
-  final List<Packages> packages;
+  @JsonKey(name: 'reserve_percent')
+  final String reservePercent;
+  final Osh2 osh;
+  @JsonKey(name: 'portion_weights')
+  final List<PortionWeights2> portionWeights;
+  final Mxik2 mxik;
+  @JsonKey(name: 'contract_template')
+  final String contractTemplate;
+  @JsonKey(name: 'contract_template_is_default')
+  final bool contractTemplateIsDefault;
+  @JsonKey(name: 'contract_placeholders')
+  final List<String> contractPlaceholders;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data142ToJson(this);
 }

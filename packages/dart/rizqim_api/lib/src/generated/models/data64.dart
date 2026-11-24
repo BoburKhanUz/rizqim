@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'slots3.dart';
+import 'slots2.dart';
 
 part 'data64.g.dart';
 
@@ -31,7 +31,7 @@ class Data64 {
   final List<String> prices;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  final List<Slots3> slots;
+  final List<Slots2> slots;
 
   Map<String, Object?> toJson() => _$Data64ToJson(this);
 }

@@ -25,18 +25,18 @@ final class PartitionManager
     private const RETRY_STATES = ['55P03', '40P01', '57014'];
 
     /**
-     * @return array<string, array{column: string, online_months: int, archive: bool}>
+     * @return array<string, array{column: string, online_months: int, archive: bool, only_online_months?: bool}>
      */
     public static function tables(): array
     {
-        /** @var array<string, array{column: string, online_months: int, archive: bool}> $tables */
+        /** @var array<string, array{column: string, online_months: int, archive: bool, only_online_months?: bool}> $tables */
         $tables = config('partitions.tables', []);
 
         return $tables;
     }
 
     /**
-     * @return array{column: string, online_months: int, archive: bool}
+     * @return array{column: string, online_months: int, archive: bool, only_online_months?: bool}
      */
     public static function table(string $table): array
     {
@@ -181,9 +181,13 @@ final class PartitionManager
         }
 
         // From first_month (archived months are skipped below); months before it only when DEFAULT holds their rows:
-        // never a run of empty months back to one old row
+        // never a run of empty months back to one old row. A table with only_online_months starts at its online window
+        // instead (a month older than it would only be dropped by the next archive run)
         $current = self::monthStart(now());
         $start = min(self::firstMonth(), $current);
+        if (self::table($base)['only_online_months'] ?? false) {
+            $start = $current->subMonths(max(1, self::table($base)['online_months']) - 1);
+        }
         $end = $current->addMonths((int) config('partitions.months_ahead', 3));
 
         $wanted = [];
@@ -306,6 +310,29 @@ final class PartitionManager
             fn (object $row) => CarbonImmutable::parse($row->m, 'UTC'),
             DB::select(sprintf("SELECT DISTINCT to_char(date_trunc('month', %s), 'YYYY-MM-DD') AS m FROM %s", $column, $default)),
         );
+    }
+
+    /**
+     * Drops a partitioned table of config partitions.tables that is not archived (archive => false: its rows are worth
+     * nothing once dropped), for a migration's down(): the parent with every attached month and DEFAULT, any month
+     * table left detached by an interrupted archive run, and the catalogue rows of its dropped months. Refused for an
+     * archived table: its detached months wait for a verified copy.
+     */
+    public function dropTable(string $base): void
+    {
+        if (self::table($base)['archive']) {
+            throw new RuntimeException("{$base}: arxivlanadigan jadval, uni bu yo'l bilan o'chirib bo'lmaydi");
+        }
+        DB::transaction(function () use ($base) {
+            DB::statement(sprintf('DROP TABLE IF EXISTS %s', $base));
+            $leftovers = DB::select("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relkind = 'r' AND c.relname ~ ?", ['^' . $base . '_([0-9]{4}_[0-9]{2}|default)$']);
+            foreach ($leftovers as $row) {
+                DB::statement(sprintf('DROP TABLE %s', $row->relname));
+            }
+            if ($this->exists('partition_archives')) {
+                DB::table('partition_archives')->where('table_name', $base)->delete();
+            }
+        });
     }
 
     /**

@@ -11,7 +11,7 @@ GetV1PosPickupSlotsResponse _$GetV1PosPickupSlotsResponseFromJson(
 ) => GetV1PosPickupSlotsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data335.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data336.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosPickupSlotsResponseToJson(

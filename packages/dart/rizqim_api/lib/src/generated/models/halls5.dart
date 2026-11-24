@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'events2.dart';
+import 'events3.dart';
 
 part 'halls5.g.dart';
 
@@ -23,7 +23,7 @@ class Halls5 {
   final String name;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  final List<Events2> events;
+  final List<Events3> events;
 
   Map<String, Object?> toJson() => _$Halls5ToJson(this);
 }

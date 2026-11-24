@@ -11,7 +11,7 @@ GetV1OwnerKdsTargetsResponse _$GetV1OwnerKdsTargetsResponseFromJson(
 ) => GetV1OwnerKdsTargetsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data114.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data115.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerKdsTargetsResponseToJson(

@@ -4,7 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user8.dart';
+import 'sync_key.dart';
+import 'device8.dart';
+import 'store.dart';
+import 'branch2.dart';
 
 part 'data12.g.dart';
 
@@ -12,18 +15,20 @@ part 'data12.g.dart';
 class Data12 {
   const Data12({
     required this.token,
-    required this.expiresAt,
-    required this.user,
-    required this.permissions,
+    required this.syncKey,
+    required this.device,
+    required this.store,
+    required this.branch,
   });
 
   factory Data12.fromJson(Map<String, Object?> json) => _$Data12FromJson(json);
 
   final String token;
-  @JsonKey(name: 'expires_at')
-  final String expiresAt;
-  final User8 user;
-  final List<String> permissions;
+  @JsonKey(name: 'sync_key')
+  final SyncKey? syncKey;
+  final Device8 device;
+  final Store? store;
+  final Branch2? branch;
 
   Map<String, Object?> toJson() => _$Data12ToJson(this);
 }

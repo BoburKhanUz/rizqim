@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data47.dart';
+import 'data48.dart';
 
 part 'delete_v1_owner_branches_branch_packaging_rules_rule_response.g.dart';
 
@@ -22,7 +22,7 @@ class DeleteV1OwnerBranchesBranchPackagingRulesRuleResponse {
 
   final bool success;
   final String message;
-  final Data47 data;
+  final Data48 data;
 
   Map<String, Object?> toJson() =>
       _$DeleteV1OwnerBranchesBranchPackagingRulesRuleResponseToJson(this);

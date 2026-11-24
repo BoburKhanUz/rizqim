@@ -95,6 +95,9 @@ class RevisionMapCoverageTest extends TestCase
             // M3 A2: written only by the fiscal_receipts trigger, read only by FiscalService (no screen shows it); the
             // receipt row itself is BRANCH-tracked
             'fiscal_receipt_keys',
+            // Wave P step 2: raw Mini App analytics events (store_id = the store the event was about); read only by the
+            // aggregation jobs, never by a polled or live screen, and an ingestion must move no ETag
+            'analytics_events',
         ];
         foreach (RevisionMap::TABLES as $table => $rules) {
             if ($rules[0][0] !== RevisionMap::NONE) {

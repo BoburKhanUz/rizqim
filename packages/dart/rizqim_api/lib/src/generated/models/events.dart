@@ -4,107 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls2.dart';
-
 part 'events.g.dart';
 
 @JsonSerializable()
 class Events {
   const Events({
-    required this.eventType,
-    required this.branchId,
-    required this.eventDate,
-    required this.slot,
-    required this.slotLabel,
-    required this.startTime,
-    required this.endTime,
-    required this.startsAt,
-    required this.endsAt,
-    required this.hallIds,
-    required this.halls,
-    required this.uuid,
-    required this.eventTypeLabel,
-    required this.status,
-    required this.statusLabel,
-    required this.title,
-    required this.customerName,
-    required this.customerPhone,
-    required this.guestsGuaranteed,
-    required this.guestsMinimum,
-    required this.guestsActual,
-    required this.overdue,
-    required this.packageId,
-    required this.packageName,
-    required this.total,
-    required this.paidTotal,
-    required this.paid,
-    required this.refunded,
-    required this.outstanding,
-    required this.holdExpiresAt,
-    required this.frozen,
-    required this.contractNo,
-    required this.version,
-    required this.guestsBilled,
+    required this.uid,
+    required this.name,
+    required this.at,
+    this.storeId,
+    this.productId,
+    this.categoryId,
+    this.props,
   });
 
   factory Events.fromJson(Map<String, Object?> json) => _$EventsFromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'event_date')
-  final String eventDate;
-  final String slot;
-  @JsonKey(name: 'slot_label')
-  final String slotLabel;
-  @JsonKey(name: 'start_time')
-  final String startTime;
-  @JsonKey(name: 'end_time')
-  final String endTime;
-  @JsonKey(name: 'starts_at')
-  final String startsAt;
-  @JsonKey(name: 'ends_at')
-  final String endsAt;
-  @JsonKey(name: 'hall_ids')
-  final List<int> hallIds;
-  final List<Halls2> halls;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final String? title;
-  @JsonKey(name: 'customer_name')
-  final String customerName;
-  @JsonKey(name: 'customer_phone')
-  final String? customerPhone;
-  @JsonKey(name: 'guests_guaranteed')
-  final int guestsGuaranteed;
-  @JsonKey(name: 'guests_minimum')
-  final int guestsMinimum;
-  @JsonKey(name: 'guests_actual')
-  final int? guestsActual;
-  @JsonKey(name: 'guests_billed')
-  final int guestsBilled;
-  @JsonKey(name: 'package_id')
-  final int? packageId;
-  @JsonKey(name: 'package_name')
-  final String? packageName;
-  final String total;
-  @JsonKey(name: 'paid_total')
-  final String paidTotal;
-  final String paid;
-  final String refunded;
-  final String outstanding;
-  @JsonKey(name: 'hold_expires_at')
-  final String? holdExpiresAt;
-  final bool frozen;
-  @JsonKey(name: 'contract_no')
-  final String? contractNo;
-  final int version;
-  final bool overdue;
+  final String uid;
+  final String name;
+  final int at;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  @JsonKey(name: 'category_id')
+  final int? categoryId;
+  final Map<String, dynamic>? props;
 
   Map<String, Object?> toJson() => _$EventsToJson(this);
 }

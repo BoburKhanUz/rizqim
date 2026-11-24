@@ -19,17 +19,17 @@ Data177 _$Data177FromJson(Map<String, dynamic> json) => Data177(
   statusLabel: json['status_label'] as String,
   branch: json['branch'] == null
       ? null
-      : Branch12.fromJson(json['branch'] as Map<String, dynamic>),
-  sale: Sale4.fromJson(json['sale'] as Map<String, dynamic>),
-  buyer: Buyer4.fromJson(json['buyer'] as Map<String, dynamic>),
+      : Branch11.fromJson(json['branch'] as Map<String, dynamic>),
+  sale: Sale3.fromJson(json['sale'] as Map<String, dynamic>),
+  buyer: Buyer3.fromJson(json['buyer'] as Map<String, dynamic>),
   note: json['note'] as String?,
-  fiscal: Fiscal7.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal6.fromJson(json['fiscal'] as Map<String, dynamic>),
   blocked: json['blocked'] == null
       ? null
-      : Blocked5.fromJson(json['blocked'] as Map<String, dynamic>),
+      : Blocked4.fromJson(json['blocked'] as Map<String, dynamic>),
   print: json['print'] == null
       ? null
-      : Print4.fromJson(json['print'] as Map<String, dynamic>),
+      : Print3.fromJson(json['print'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 

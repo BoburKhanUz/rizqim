@@ -72,7 +72,7 @@ class MonitoringServerStatusTest extends TestCase
         $this->assertGreaterThan(0, $data['postgres']['connections']['max']);
         $this->assertSame('ok', $data['partitions']['status']);
         $this->assertGreaterThanOrEqual(2, $data['partitions']['months_ahead']);
-        $this->assertSame(['audit_logs', 'fiscal_receipts', 'notification_logs'], array_column($data['partitions']['tables'], 'table'));
+        $this->assertSame(['audit_logs', 'fiscal_receipts', 'notification_logs', 'analytics_events'], array_column($data['partitions']['tables'], 'table'));
         $this->assertNull($data['redis']['memory'], 'Redis is not used in tests');
         $this->assertNull($data['queue']['worker']['last_heartbeat_age_seconds']);
         $this->assertSame(180, $data['queue']['worker']['max_age_seconds']);
@@ -198,7 +198,7 @@ class MonitoringServerStatusTest extends TestCase
         $this->assertStringContainsString("OK: buyurtma: oxirgisi #{$order->id} o'qildi", $output);
         $this->assertStringContainsString('OK: fiskal chek: oxirgisi', $output);
         $this->assertStringContainsString('OK: audit jurnali: oxirgi yozuv', $output);
-        $this->assertStringContainsString("OK: jurnallarning oylik bo'limlari: audit_logs, fiscal_receipts, notification_logs joyida", $output);
+        $this->assertStringContainsString("OK: jurnallarning oylik bo'limlari: audit_logs, fiscal_receipts, notification_logs, analytics_events joyida", $output);
         $this->assertStringContainsString('OK: audit himoyasi', $output);
         $this->assertStringNotContainsString('XATO', $output);
         $this->assertSame(0, $writes, 'the smoke check never writes');

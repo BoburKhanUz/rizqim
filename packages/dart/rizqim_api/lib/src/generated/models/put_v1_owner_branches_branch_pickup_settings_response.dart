@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data49.dart';
+import 'data50.dart';
 
 part 'put_v1_owner_branches_branch_pickup_settings_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerBranchesBranchPickupSettingsResponse {
 
   final bool success;
   final String message;
-  final Data49 data;
+  final Data50 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerBranchesBranchPickupSettingsResponseToJson(this);

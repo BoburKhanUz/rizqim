@@ -10,12 +10,12 @@ Data114 _$Data114FromJson(Map<String, dynamic> json) => Data114(
   branchId: (json['branch_id'] as num).toInt(),
   enabled: json['enabled'] as bool,
   expoScope: json['expo_scope'] as String,
-  limits: Limits2.fromJson(json['limits'] as Map<String, dynamic>),
+  limits: Limits.fromJson(json['limits'] as Map<String, dynamic>),
   stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Stations.fromJson(e as Map<String, dynamic>))
       .toList(),
   products: (json['products'] as List<dynamic>)
-      .map((e) => Products5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Products4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

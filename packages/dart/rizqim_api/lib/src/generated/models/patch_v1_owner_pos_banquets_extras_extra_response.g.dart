@@ -12,7 +12,7 @@ _$PatchV1OwnerPosBanquetsExtrasExtraResponseFromJson(
 ) => PatchV1OwnerPosBanquetsExtrasExtraResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data137.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data138.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerPosBanquetsExtrasExtraResponseToJson(

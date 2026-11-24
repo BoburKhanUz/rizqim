@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'unsigned_tills2.dart';
+import 'unsigned_tills.dart';
 
 part 'data163.g.dart';
 
@@ -23,7 +23,7 @@ class Data163 {
   @JsonKey(name: 'signing_tills')
   final int signingTills;
   @JsonKey(name: 'unsigned_tills')
-  final List<UnsignedTills2> unsignedTills;
+  final List<UnsignedTills> unsignedTills;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

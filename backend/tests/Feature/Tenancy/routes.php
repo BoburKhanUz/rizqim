@@ -899,6 +899,7 @@ $notTenant = [
     'POST api/v1/complaints' => 'customer: H2, agent F (ComplaintController)',
     'POST api/v1/complaints/{id}/escalate' => 'customer: H2, agent F (ComplaintController)',
     'POST api/v1/stores/{id}/rate' => 'customer: H1, agent F (StoreRatingController)',
+    'POST api/v1/analytics/events' => "customer: the caller's own Mini App events about any store; writes only analytics_events (no store reads it) and order_placed resolves the caller's own orders only (EventIngestor)",
 ];
 
 return [

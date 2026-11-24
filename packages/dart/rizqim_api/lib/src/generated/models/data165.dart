@@ -2,42 +2,47 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
 
+import 'dart:io';
+
 import 'package:json_annotation/json_annotation.dart';
 
-import 'totals2.dart';
-import 'by_day.dart';
-import 'by_staff2.dart';
-import 'staff.dart';
+import 'file.dart';
+import 'device10.dart';
+import 'totals.dart';
+import 'results.dart';
+import 'skipped.dart';
+import 'warnings.dart';
 
 part 'data165.g.dart';
 
 @JsonSerializable()
 class Data165 {
   const Data165({
-    required this.branchId,
-    required this.from,
-    required this.to,
+    required this.serverTime,
+    required this.complete,
+    required this.stoppedReason,
+    required this.file,
+    required this.device,
     required this.totals,
-    required this.byDay,
-    required this.byStaff,
-    required this.undistributed,
-    required this.staff,
+    required this.results,
+    required this.skipped,
+    required this.warnings,
   });
 
   factory Data165.fromJson(Map<String, Object?> json) =>
       _$Data165FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final Totals2 totals;
-  @JsonKey(name: 'by_day')
-  final List<ByDay> byDay;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff2> byStaff;
-  final String undistributed;
-  final List<Staff> staff;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  final bool complete;
+  @JsonKey(name: 'stopped_reason')
+  final String? stoppedReason;
+  final File file;
+  final Device10 device;
+  final Totals totals;
+  final List<Results> results;
+  final List<Skipped> skipped;
+  final List<Warnings> warnings;
 
   Map<String, Object?> toJson() => _$Data165ToJson(this);
 }

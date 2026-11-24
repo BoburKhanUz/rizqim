@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'schedule_template2.dart';
-import 'cancellation_rules2.dart';
+import 'schedule_template.dart';
+import 'cancellation_rules.dart';
 
 part 'data147.g.dart';
 
@@ -23,9 +23,9 @@ class Data147 {
       _$Data147FromJson(json);
 
   @JsonKey(name: 'schedule_template')
-  final List<ScheduleTemplate2> scheduleTemplate;
+  final List<ScheduleTemplate> scheduleTemplate;
   @JsonKey(name: 'cancellation_rules')
-  final List<CancellationRules2> cancellationRules;
+  final List<CancellationRules> cancellationRules;
   @JsonKey(name: 'reminder_days')
   final List<int> reminderDays;
   @JsonKey(name: 'overdue_reminders')

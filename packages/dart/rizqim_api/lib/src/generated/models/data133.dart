@@ -4,24 +4,27 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'role3.dart';
+import 'roles.dart';
+import 'permissions.dart';
 
 part 'data133.g.dart';
 
 @JsonSerializable()
 class Data133 {
   const Data133({
-    required this.role,
-    required this.permission,
-    required this.allowed,
+    required this.roles,
+    required this.permissions,
+    required this.matrix,
+    required this.defaults,
   });
 
   factory Data133.fromJson(Map<String, Object?> json) =>
       _$Data133FromJson(json);
 
-  final Role3 role;
-  final String permission;
-  final bool allowed;
+  final List<Roles> roles;
+  final List<Permissions> permissions;
+  final Map<String, Map<String, bool>> matrix;
+  final Map<String, Map<String, bool>> defaults;
 
   Map<String, Object?> toJson() => _$Data133ToJson(this);
 }

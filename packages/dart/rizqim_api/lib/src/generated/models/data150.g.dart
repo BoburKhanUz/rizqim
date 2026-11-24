@@ -7,7 +7,7 @@ part of 'data150.dart';
 // **************************************************************************
 
 Data150 _$Data150FromJson(Map<String, dynamic> json) => Data150(
-  slots: Slots5.fromJson(json['slots'] as Map<String, dynamic>),
+  slots: Slots4.fromJson(json['slots'] as Map<String, dynamic>),
   holdHours: (json['hold_hours'] as num).toInt(),
   guestWarningThresholds: (json['guest_warning_thresholds'] as List<dynamic>)
       .map((e) => (e as num).toInt())

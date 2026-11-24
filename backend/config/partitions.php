@@ -50,5 +50,15 @@ return [
             // Old notifications are worthless: detached and dropped without an archive
             'archive' => false,
         ],
+        // Wave P step 2 (docs/ANALYTICS_PLAN.md A.3, section 7 question 1): raw Mini App events, kept 3 months (counting
+        // the current one), then dropped without an archive; the daily aggregates of step 16 keep the numbers
+        'analytics_events' => [
+            'column' => 'received_at',
+            'online_months' => (int) env('ANALYTICS_EVENTS_MONTHS', 3),
+            'archive' => false,
+            // Months before the online window are never created (first_month does not apply): a new table has no old
+            // rows, and an empty month made only to be dropped the same night is noise
+            'only_online_months' => true,
+        ],
     ],
 ];

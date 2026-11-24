@@ -110,6 +110,9 @@ class TenantRlsInventoryTest extends TestCase
         'subscription_invoices' => self::PLATFORM,
         // nullable store_id
         'alerts' => self::PLATFORM,
+        // Wave P step 2 (docs/ANALYTICS_PLAN.md A.2): raw Mini App events of customers, written by the unbound ingestion
+        // endpoint and read only by the aggregation jobs; a store sees its funnel through the RLS daily tables
+        'analytics_events' => self::MIXED,
         'devices' => self::MIXED,
         'promo_codes' => self::MIXED,
         'promos' => self::MIXED,

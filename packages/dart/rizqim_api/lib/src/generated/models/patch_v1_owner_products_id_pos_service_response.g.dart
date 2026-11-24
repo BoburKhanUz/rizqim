@@ -11,7 +11,7 @@ _$PatchV1OwnerProductsIdPosServiceResponseFromJson(Map<String, dynamic> json) =>
     PatchV1OwnerProductsIdPosServiceResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data185.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data186.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1OwnerProductsIdPosServiceResponseToJson(

@@ -137,6 +137,8 @@ class FpmPoolRoutingTest extends TestCase
             'Mini App sign-in' => ['POST', '/api/v1/auth/telegram', '', '', '', 'fpm_default'],
             'promo check at checkout' => ['POST', '/api/v1/promo/validate', '', '', $customer, 'fpm_default'],
             'own account (cashback balance)' => ['GET', '/api/v1/user', '', '', $customer, 'fpm_default'],
+            // Wave P step 2: a write with a body (the market location refuses bodies), never the critical pool
+            'Mini App analytics batch' => ['POST', '/api/v1/analytics/events', '', '', $customer, 'fpm_default'],
             'owner panel' => ['GET', '/api/v1/owner/reports/sales', '', '', $customer, 'fpm_default'],
             'admin' => ['GET', '/api/v1/admin/stores', '', '', '', 'fpm_default'],
             'unknown API path' => ['GET', '/api/v1/no-such-thing', '', '', '', 'fpm_default'],

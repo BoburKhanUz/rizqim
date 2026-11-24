@@ -8,10 +8,10 @@ part of 'data147.dart';
 
 Data147 _$Data147FromJson(Map<String, dynamic> json) => Data147(
   scheduleTemplate: (json['schedule_template'] as List<dynamic>)
-      .map((e) => ScheduleTemplate2.fromJson(e as Map<String, dynamic>))
+      .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
       .toList(),
   cancellationRules: (json['cancellation_rules'] as List<dynamic>)
-      .map((e) => CancellationRules2.fromJson(e as Map<String, dynamic>))
+      .map((e) => CancellationRules.fromJson(e as Map<String, dynamic>))
       .toList(),
   reminderDays: (json['reminder_days'] as List<dynamic>)
       .map((e) => (e as num).toInt())

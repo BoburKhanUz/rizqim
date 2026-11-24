@@ -14,9 +14,9 @@ Data105 _$Data105FromJson(Map<String, dynamic> json) => Data105(
   isActive: json['is_active'] as bool,
   serviceFee: json['service_fee'] == null
       ? null
-      : ServiceFee2.fromJson(json['service_fee'] as Map<String, dynamic>),
+      : ServiceFee.fromJson(json['service_fee'] as Map<String, dynamic>),
   tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Tables2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'write_offs.dart';
+import 'modules.dart';
 
 part 'data32.g.dart';
 
@@ -12,21 +12,16 @@ part 'data32.g.dart';
 class Data32 {
   const Data32({
     required this.branchId,
-    required this.from,
-    required this.to,
-    required this.reasons,
-    required this.writeOffs,
+    required this.modules,
+    required this.plans,
   });
 
   factory Data32.fromJson(Map<String, Object?> json) => _$Data32FromJson(json);
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String from;
-  final String to;
-  final List<dynamic> reasons;
-  @JsonKey(name: 'write_offs')
-  final List<WriteOffs> writeOffs;
+  final Modules modules;
+  final List<List<dynamic>> plans;
 
   Map<String, Object?> toJson() => _$Data32ToJson(this);
 }

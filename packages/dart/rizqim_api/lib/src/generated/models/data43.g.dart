@@ -7,17 +7,39 @@ part of 'data43.dart';
 // **************************************************************************
 
 Data43 _$Data43FromJson(Map<String, dynamic> json) => Data43(
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDay: BusinessDay.fromJson(
-    json['business_day'] as Map<String, dynamic>,
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  address: json['address'] as String?,
+  regionId: (json['region_id'] as num?)?.toInt(),
+  districtId: (json['district_id'] as num?)?.toInt(),
+  latitude: json['latitude'] as num?,
+  longitude: json['longitude'] as num?,
+  radiusKm: json['radius_km'] as num,
+  status: json['status'] as String,
+  isActive: json['is_active'] as bool,
+  workingHours: WorkingHours2.fromJson(
+    json['working_hours'] as Map<String, dynamic>,
   ),
-  days: (json['days'] as List<dynamic>)
-      .map((e) => Days2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  isOpenNow: json['is_open_now'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data43ToJson(Data43 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'business_day': instance.businessDay,
-  'days': instance.days,
+  'id': instance.id,
+  'name': instance.name,
+  'phone': instance.phone,
+  'address': instance.address,
+  'region_id': instance.regionId,
+  'district_id': instance.districtId,
+  'latitude': instance.latitude,
+  'longitude': instance.longitude,
+  'radius_km': instance.radiusKm,
+  'status': instance.status,
+  'is_active': instance.isActive,
+  'working_hours': instance.workingHours,
+  'is_open_now': instance.isOpenNow,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hub2.dart';
-import 'candidates2.dart';
+import 'hub.dart';
+import 'candidates.dart';
 
 part 'data155.g.dart';
 
@@ -30,8 +30,8 @@ class Data155 {
   @JsonKey(name: 'rotated_at')
   final String? rotatedAt;
   final int port;
-  final Hub2? hub;
-  final List<Candidates2> candidates;
+  final Hub? hub;
+  final List<Candidates> candidates;
 
   Map<String, Object?> toJson() => _$Data155ToJson(this);
 }

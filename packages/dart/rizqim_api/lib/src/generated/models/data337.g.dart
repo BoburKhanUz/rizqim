@@ -7,7 +7,7 @@ part of 'data337.dart';
 // **************************************************************************
 
 Data337 _$Data337FromJson(Map<String, dynamic> json) =>
-    Data337(qr: Qr5.fromJson(json['qr'] as Map<String, dynamic>));
+    Data337(qr: Qr4.fromJson(json['qr'] as Map<String, dynamic>));
 
 Map<String, dynamic> _$Data337ToJson(Data337 instance) => <String, dynamic>{
   'qr': instance.qr,

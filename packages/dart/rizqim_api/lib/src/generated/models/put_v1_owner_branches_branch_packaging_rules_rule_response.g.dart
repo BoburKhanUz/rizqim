@@ -12,7 +12,7 @@ _$PutV1OwnerBranchesBranchPackagingRulesRuleResponseFromJson(
 ) => PutV1OwnerBranchesBranchPackagingRulesRuleResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data46.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data47.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerBranchesBranchPackagingRulesRuleResponseToJson(

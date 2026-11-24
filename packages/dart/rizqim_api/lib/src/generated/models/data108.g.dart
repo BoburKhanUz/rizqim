@@ -7,13 +7,25 @@ part of 'data108.dart';
 // **************************************************************************
 
 Data108 _$Data108FromJson(Map<String, dynamic> json) => Data108(
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  ingredients: (json['ingredients'] as List<dynamic>)
-      .map((e) => e as String)
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
+      ? null
+      : ServiceFee3.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data108ToJson(Data108 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'ingredients': instance.ingredients,
+  'name': instance.name,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

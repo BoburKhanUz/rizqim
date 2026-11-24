@@ -4,26 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'items.dart';
+import 'pagination.dart';
+
 part 'data23.g.dart';
 
 @JsonSerializable()
 class Data23 {
   const Data23({
-    required this.orderUuid,
-    required this.orderNumber,
-    required this.status,
-    required this.paymentUrl,
+    required this.items,
+    required this.unreadCount,
+    required this.pagination,
   });
 
   factory Data23.fromJson(Map<String, Object?> json) => _$Data23FromJson(json);
 
-  @JsonKey(name: 'order_uuid')
-  final String orderUuid;
-  @JsonKey(name: 'order_number')
-  final String? orderNumber;
-  final String status;
-  @JsonKey(name: 'payment_url')
-  final dynamic paymentUrl;
+  final List<Items> items;
+  @JsonKey(name: 'unread_count')
+  final int unreadCount;
+  final Pagination pagination;
 
   Map<String, Object?> toJson() => _$Data23ToJson(this);
 }

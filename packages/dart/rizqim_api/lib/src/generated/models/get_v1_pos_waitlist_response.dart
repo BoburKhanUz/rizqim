@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data360.dart';
+import 'data361.dart';
 
 part 'get_v1_pos_waitlist_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosWaitlistResponse {
 
   final bool success;
   final String message;
-  final Data360 data;
+  final Data361 data;
 
   Map<String, Object?> toJson() => _$GetV1PosWaitlistResponseToJson(this);
 }

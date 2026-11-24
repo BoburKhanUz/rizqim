@@ -16,7 +16,7 @@ Data14 _$Data14FromJson(Map<String, dynamic> json) => Data14(
   branchId: (json['branch_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User10.fromJson(json['user'] as Map<String, dynamic>),
+      : User9.fromJson(json['user'] as Map<String, dynamic>),
   hasPushToken: json['has_push_token'] as bool,
   lastSeenAt: json['last_seen_at'] as String?,
   revokedAt: json['revoked_at'] as String?,

@@ -4,55 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'by_status.dart';
-import 'overdue.dart';
-import 'rows.dart';
+import 'schedule_template2.dart';
+import 'cancellation_rules2.dart';
 
 part 'data148.g.dart';
 
 @JsonSerializable()
 class Data148 {
   const Data148({
-    required this.from,
-    required this.to,
-    required this.branchId,
-    required this.events,
-    required this.cancelled,
-    required this.byStatus,
-    required this.guests,
-    required this.total,
-    required this.received,
-    required this.paid,
-    required this.outstanding,
-    required this.overdue,
-    required this.retained,
-    required this.refunded,
-    required this.transferPending,
-    required this.rows,
+    required this.scheduleTemplate,
+    required this.cancellationRules,
+    required this.reminderDays,
+    required this.overdueReminders,
+    required this.version,
   });
 
   factory Data148.fromJson(Map<String, Object?> json) =>
       _$Data148FromJson(json);
 
-  final String from;
-  final String to;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final int events;
-  final int cancelled;
-  @JsonKey(name: 'by_status')
-  final List<ByStatus> byStatus;
-  final int guests;
-  final String total;
-  final String received;
-  final String paid;
-  final String outstanding;
-  final Overdue overdue;
-  final String retained;
-  final String refunded;
-  @JsonKey(name: 'transfer_pending')
-  final String transferPending;
-  final List<Rows> rows;
+  @JsonKey(name: 'schedule_template')
+  final List<ScheduleTemplate2> scheduleTemplate;
+  @JsonKey(name: 'cancellation_rules')
+  final List<CancellationRules2> cancellationRules;
+  @JsonKey(name: 'reminder_days')
+  final List<int> reminderDays;
+  @JsonKey(name: 'overdue_reminders')
+  final bool overdueReminders;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data148ToJson(this);
 }
