@@ -108,7 +108,7 @@ for (const [p, src] of Object.entries(html)) {
   for (const m of src.matchAll(/\sfor="([^"]+)"/g)) if (!ids[p].has(m[1])) err(`${p}: label for=${m[1]} missing`);
   // config keys
   const get = (path) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), cfg);
-  for (const m of src.matchAll(/data-cfg(?:-href|-show|-host|-i18n)?="([^"]+)"/g)) if (get(m[1]) === undefined) err(`${p}: config key ${m[1]} missing in site.config.js`);
+  for (const m of src.matchAll(/data-cfg(?:-href|-show|-host|-i18n|-mailto)?="([^"]+)"/g)) if (get(m[1]) === undefined) err(`${p}: config key ${m[1]} missing in site.config.js`);
   for (const m of src.matchAll(/data-faq-ans="([^"]+)"/g)) if (!cfg.faq || !(m[1] in cfg.faq)) err(`${p}: faq answer key ${m[1]} not in config faq`);
   for (const m of src.matchAll(/data-tariff="([^"]+)"/g)) if (!(m[1] in (cfg.tariffs || {}))) err(`${p}: tariff key ${m[1]} not in config`);
   if (!/<img\b[^>]*\balt=/.test(src) && /<img\b/.test(src)) err(`${p}: img without alt`);

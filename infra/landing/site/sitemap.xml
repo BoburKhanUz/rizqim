@@ -2,4 +2,6 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url><loc>https://rizqim.uz/</loc><xhtml:link rel="alternate" hreflang="uz" href="https://rizqim.uz/"/><xhtml:link rel="alternate" hreflang="ru" href="https://rizqim.uz/?lang=ru"/></url>
   <url><loc>https://rizqim.uz/hamkor</loc><xhtml:link rel="alternate" hreflang="uz" href="https://rizqim.uz/hamkor"/><xhtml:link rel="alternate" hreflang="ru" href="https://rizqim.uz/hamkor?lang=ru"/></url>
+  <url><loc>https://rizqim.uz/maxfiylik</loc><xhtml:link rel="alternate" hreflang="uz" href="https://rizqim.uz/maxfiylik"/><xhtml:link rel="alternate" hreflang="ru" href="https://rizqim.uz/maxfiylik?lang=ru"/></url>
+  <url><loc>https://rizqim.uz/shartlar</loc><xhtml:link rel="alternate" hreflang="uz" href="https://rizqim.uz/shartlar"/><xhtml:link rel="alternate" hreflang="ru" href="https://rizqim.uz/shartlar?lang=ru"/></url>
 </urlset>
