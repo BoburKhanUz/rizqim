@@ -12,7 +12,7 @@ _$DeleteV1OwnerBranchesBranchPackagingRulesRuleResponseFromJson(
 ) => DeleteV1OwnerBranchesBranchPackagingRulesRuleResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data47.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data48.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic>

@@ -4,46 +4,53 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'actor.dart';
-import 'device9.dart';
+import 'period.dart';
+import 'summary.dart';
+import 'by_payment_method.dart';
+import 'by_order_type.dart';
+import 'by_channel.dart';
+import 'top_products.dart';
+import 'couriers.dart';
+import 'times.dart';
+import 'daily.dart';
 
 part 'data25.g.dart';
 
 @JsonSerializable()
 class Data25 {
   const Data25({
-    required this.id,
-    required this.action,
-    required this.actor,
-    required this.device,
-    required this.subjectType,
-    required this.subjectId,
-    required this.branchId,
-    required this.before,
-    required this.after,
-    required this.meta,
-    required this.ip,
-    required this.createdAt,
+    required this.period,
+    required this.summary,
+    required this.byStatus,
+    required this.byPaymentMethod,
+    required this.byOrderType,
+    required this.byChannel,
+    required this.topProducts,
+    required this.couriers,
+    required this.times,
+    required this.daily,
+    required this.generatedAt,
   });
 
   factory Data25.fromJson(Map<String, Object?> json) => _$Data25FromJson(json);
 
-  final int id;
-  final String action;
-  final Actor? actor;
-  final Device9? device;
-  @JsonKey(name: 'subject_type')
-  final String? subjectType;
-  @JsonKey(name: 'subject_id')
-  final int? subjectId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Map<String, dynamic>? before;
-  final Map<String, dynamic>? after;
-  final Map<String, dynamic>? meta;
-  final String? ip;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  final Period period;
+  final Summary summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType> byOrderType;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel> byChannel;
+  @JsonKey(name: 'top_products')
+  final List<TopProducts> topProducts;
+  final List<Couriers> couriers;
+  final Times times;
+  final List<Daily> daily;
+  @JsonKey(name: 'generated_at')
+  final String generatedAt;
 
   Map<String, Object?> toJson() => _$Data25ToJson(this);
 }

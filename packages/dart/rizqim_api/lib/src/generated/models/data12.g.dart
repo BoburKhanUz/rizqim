@@ -8,16 +8,22 @@ part of 'data12.dart';
 
 Data12 _$Data12FromJson(Map<String, dynamic> json) => Data12(
   token: json['token'] as String,
-  expiresAt: json['expires_at'] as String,
-  user: User8.fromJson(json['user'] as Map<String, dynamic>),
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  syncKey: json['sync_key'] == null
+      ? null
+      : SyncKey.fromJson(json['sync_key'] as Map<String, dynamic>),
+  device: Device8.fromJson(json['device'] as Map<String, dynamic>),
+  store: json['store'] == null
+      ? null
+      : Store.fromJson(json['store'] as Map<String, dynamic>),
+  branch: json['branch'] == null
+      ? null
+      : Branch2.fromJson(json['branch'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data12ToJson(Data12 instance) => <String, dynamic>{
   'token': instance.token,
-  'expires_at': instance.expiresAt,
-  'user': instance.user,
-  'permissions': instance.permissions,
+  'sync_key': instance.syncKey,
+  'device': instance.device,
+  'store': instance.store,
+  'branch': instance.branch,
 };

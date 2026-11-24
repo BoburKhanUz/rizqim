@@ -11,7 +11,7 @@ GetV1OwnerBrandsResponse _$GetV1OwnerBrandsResponseFromJson(
 ) => GetV1OwnerBrandsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data59.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data60.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerBrandsResponseToJson(

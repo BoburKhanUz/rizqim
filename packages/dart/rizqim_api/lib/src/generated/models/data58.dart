@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings2.dart';
+import 'pos_settings.dart';
 
 part 'data58.g.dart';
 
@@ -25,7 +25,7 @@ class Data58 {
   @JsonKey(name: 'business_day_starts_at')
   final String businessDayStartsAt;
   @JsonKey(name: 'pos_settings')
-  final PosSettings2 posSettings;
+  final PosSettings posSettings;
 
   Map<String, Object?> toJson() => _$Data58ToJson(this);
 }

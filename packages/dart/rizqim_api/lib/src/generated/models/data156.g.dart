@@ -13,9 +13,9 @@ Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
   port: (json['port'] as num).toInt(),
   hub: json['hub'] == null
       ? null
-      : Hub3.fromJson(json['hub'] as Map<String, dynamic>),
+      : Hub2.fromJson(json['hub'] as Map<String, dynamic>),
   candidates: (json['candidates'] as List<dynamic>)
-      .map((e) => Candidates3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Candidates2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -4,18 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'qrs.dart';
-
 part 'data258.g.dart';
 
 @JsonSerializable()
 class Data258 {
-  const Data258({required this.qrs});
+  const Data258({
+    required this.requestId,
+    required this.printerId,
+    required this.targetDevice,
+  });
 
   factory Data258.fromJson(Map<String, Object?> json) =>
       _$Data258FromJson(json);
 
-  final List<Qrs> qrs;
+  @JsonKey(name: 'request_id')
+  final String requestId;
+  @JsonKey(name: 'printer_id')
+  final int? printerId;
+  @JsonKey(name: 'target_device')
+  final String? targetDevice;
 
   Map<String, Object?> toJson() => _$Data258ToJson(this);
 }

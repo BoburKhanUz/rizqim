@@ -7,11 +7,13 @@ part of 'data134.dart';
 // **************************************************************************
 
 Data134 _$Data134FromJson(Map<String, dynamic> json) => Data134(
-  extras: (json['extras'] as List<dynamic>)
-      .map((e) => Extras.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  role: Role3.fromJson(json['role'] as String),
+  permission: json['permission'] as String,
+  allowed: json['allowed'] as bool,
 );
 
 Map<String, dynamic> _$Data134ToJson(Data134 instance) => <String, dynamic>{
-  'extras': instance.extras,
+  'role': instance.role,
+  'permission': instance.permission,
+  'allowed': instance.allowed,
 };

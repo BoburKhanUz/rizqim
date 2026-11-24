@@ -4082,6 +4082,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a batch of Mini App events
+         * @description A signed-in customer's batch of 1-50 events of the session (`session_id`, a UUID the app makes at launch and
+         *     renews after 30 minutes without events). Each event: `uid` (UUID, the same on a retry), `name` (the list in
+         *     docs/API.md), `at` (client time, milliseconds since the epoch), the ids the event is about (`store_id`,
+         *     `product_id`, `category_id`, integers) and its allowlisted `props`. Answers 202 with how many events were
+         *     accepted and dropped, never which: an event off the allowlist, older than 24 hours, an `order_placed` of an
+         *     order that is not the caller's recent (24 h) customer order or that already has one, and every batch of a
+         *     session past the user's daily session cap are dropped; staff and RIZQIM team accounts' events are all dropped. A replayed
+         *     event (same `session_id` and `uid` from the same user) is accepted and not stored twice. 422 only for a malformed
+         *     envelope (no or a nil `session_id`, no `platform`, unknown top-level field, more than 50 events), 413 for a body
+         *     over 32 KB (nginx refuses it before PHP), 429 over a limit (`Retry-After`).
+         *     Nothing identifying is stored beyond the token's user id: no IP address, User-Agent, raw start_param or text.
+         */
+        post: operations["event.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -26646,6 +26676,72 @@ export interface operations {
             };
             /** @description Not blocked (not_blocked) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "event.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description The Mini App session (UUID, not the nil UUID).
+                     */
+                    session_id: string;
+                    /** @description Telegram.WebApp.platform (ios, android, tdesktop, macos, web, weba...; anything else, of any type, is stored as unknown). */
+                    platform: string;
+                    /** @description The Mini App build: a release number (1.4.2, 1.4.2+57) or a 7-12 digit lowercase git hash (VITE_SENTRY_RELEASE); anything else is not kept (never refused). */
+                    app_version?: string;
+                    /** @description Telegram's start_param of this launch: only its kind is kept (campaign, referral, store, invite, none, unknown). */
+                    start_param?: string;
+                    /** @description 1-50 events: {uid, name, at, store_id?, product_id?, category_id?, props?}. */
+                    events: {
+                        uid: string;
+                        name: string;
+                        at: number;
+                        store_id?: number;
+                        product_id?: number;
+                        category_id?: number;
+                        props?: {
+                            [key: string]: unknown;
+                        };
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted and dropped counts. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            accepted: number;
+                            dropped: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description The body is over 32 KB. */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

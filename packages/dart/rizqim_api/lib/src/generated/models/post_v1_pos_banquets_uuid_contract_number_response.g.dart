@@ -12,7 +12,7 @@ _$PostV1PosBanquetsUuidContractNumberResponseFromJson(
 ) => PostV1PosBanquetsUuidContractNumberResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data235.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data236.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBanquetsUuidContractNumberResponseToJson(

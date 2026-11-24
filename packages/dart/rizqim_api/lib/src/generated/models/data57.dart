@@ -4,28 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings.dart';
-
 part 'data57.g.dart';
 
 @JsonSerializable()
 class Data57 {
   const Data57({
     required this.branchId,
-    required this.timezone,
-    required this.businessDayStartsAt,
-    required this.posSettings,
+    required this.configured,
+    required this.size,
+    required this.sizeLabel,
+    required this.widthMm,
+    required this.heightMm,
+    required this.scope,
+    required this.scopeLabel,
+    required this.categoryIds,
+    required this.perUnit,
+    required this.bagLabel,
+    required this.updatedAt,
   });
 
   factory Data57.fromJson(Map<String, Object?> json) => _$Data57FromJson(json);
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String timezone;
-  @JsonKey(name: 'business_day_starts_at')
-  final String businessDayStartsAt;
-  @JsonKey(name: 'pos_settings')
-  final PosSettings posSettings;
+  final bool configured;
+  final String size;
+  @JsonKey(name: 'size_label')
+  final String sizeLabel;
+  @JsonKey(name: 'width_mm')
+  final int widthMm;
+  @JsonKey(name: 'height_mm')
+  final int heightMm;
+  final String scope;
+  @JsonKey(name: 'scope_label')
+  final String scopeLabel;
+  @JsonKey(name: 'category_ids')
+  final List<int> categoryIds;
+  @JsonKey(name: 'per_unit')
+  final bool perUnit;
+  @JsonKey(name: 'bag_label')
+  final bool bagLabel;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data57ToJson(this);
 }

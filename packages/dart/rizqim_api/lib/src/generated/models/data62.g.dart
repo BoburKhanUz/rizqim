@@ -7,13 +7,13 @@ part of 'data62.dart';
 // **************************************************************************
 
 Data62 _$Data62FromJson(Map<String, dynamic> json) => Data62(
-  combos: (json['combos'] as List<dynamic>)
-      .map((e) => Combos.fromJson(e as Map<String, dynamic>))
+  rates: (json['rates'] as List<dynamic>)
+      .map((e) => Rates2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  fiscalMode: ComboFiscalMode.fromJson(json['fiscal_mode'] as String),
+  channels: json['channels'] as List<dynamic>,
 );
 
 Map<String, dynamic> _$Data62ToJson(Data62 instance) => <String, dynamic>{
-  'combos': instance.combos,
-  'fiscal_mode': instance.fiscalMode,
+  'rates': instance.rates,
+  'channels': instance.channels,
 };

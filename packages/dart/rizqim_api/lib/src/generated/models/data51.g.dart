@@ -7,39 +7,29 @@ part of 'data51.dart';
 // **************************************************************************
 
 Data51 _$Data51FromJson(Map<String, dynamic> json) => Data51(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  address: json['address'] as String?,
-  regionId: (json['region_id'] as num?)?.toInt(),
-  districtId: (json['district_id'] as num?)?.toInt(),
-  latitude: json['latitude'] as num?,
-  longitude: json['longitude'] as num?,
-  radiusKm: json['radius_km'] as num,
-  status: json['status'] as String,
-  isActive: json['is_active'] as bool,
-  workingHours: WorkingHours3.fromJson(
-    json['working_hours'] as Map<String, dynamic>,
-  ),
-  isOpenNow: json['is_open_now'] as bool,
-  createdAt: json['created_at'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  cardMode: json['card_mode'] == null
+      ? null
+      : CardMode.fromJson(json['card_mode'] as String?),
+  cardModeLabel: json['card_mode_label'] as String?,
+  checklist: (json['checklist'] as List<dynamic>)
+      .map((e) => Checklist.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  checklistComplete: json['checklist_complete'] as bool,
+  differenceThreshold: json['difference_threshold'] as String,
+  askBankTotal: json['ask_bank_total'] as bool,
+  sharedTerminal: json['shared_terminal'] as bool,
   updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data51ToJson(Data51 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'phone': instance.phone,
-  'address': instance.address,
-  'region_id': instance.regionId,
-  'district_id': instance.districtId,
-  'latitude': instance.latitude,
-  'longitude': instance.longitude,
-  'radius_km': instance.radiusKm,
-  'status': instance.status,
-  'is_active': instance.isActive,
-  'working_hours': instance.workingHours,
-  'is_open_now': instance.isOpenNow,
-  'created_at': instance.createdAt,
+  'branch_id': instance.branchId,
+  'card_mode': instance.cardMode,
+  'card_mode_label': instance.cardModeLabel,
+  'checklist': instance.checklist,
+  'checklist_complete': instance.checklistComplete,
+  'difference_threshold': instance.differenceThreshold,
+  'ask_bank_total': instance.askBankTotal,
+  'shared_terminal': instance.sharedTerminal,
   'updated_at': instance.updatedAt,
 };

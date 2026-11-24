@@ -7,19 +7,49 @@ part of 'data112.dart';
 // **************************************************************************
 
 Data112 _$Data112FromJson(Map<String, dynamic> json) => Data112(
-  currentPage: (json['current_page'] as num).toInt(),
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data111.fromJson(e as Map<String, dynamic>))
+  uuid: json['uuid'] as String,
+  number: json['number'] as String,
+  period: json['period'] as String,
+  periodStart: json['period_start'] as String,
+  periodEnd: json['period_end'] as String,
+  plan: json['plan'] == null
+      ? null
+      : Plan2.fromJson(json['plan'] as Map<String, dynamic>),
+  terminalsCount: (json['terminals_count'] as num).toInt(),
+  includedTerminals: (json['included_terminals'] as num).toInt(),
+  baseFee: json['base_fee'] as num,
+  feePerTerminal: json['fee_per_terminal'] as num,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
+  amount: json['amount'] as num,
+  kind: json['kind'] as String,
+  paidAmount: json['paid_amount'] as String,
+  status: json['status'] as String,
+  dueDate: json['due_date'] as String,
+  issuedAt: json['issued_at'] as String,
+  paidAt: json['paid_at'] as String?,
+  voidedAt: json['voided_at'] as String?,
 );
 
 Map<String, dynamic> _$Data112ToJson(Data112 instance) => <String, dynamic>{
-  'current_page': instance.currentPage,
-  'data': instance.data,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'last_page': instance.lastPage,
+  'uuid': instance.uuid,
+  'number': instance.number,
+  'period': instance.period,
+  'period_start': instance.periodStart,
+  'period_end': instance.periodEnd,
+  'plan': instance.plan,
+  'terminals_count': instance.terminalsCount,
+  'included_terminals': instance.includedTerminals,
+  'base_fee': instance.baseFee,
+  'fee_per_terminal': instance.feePerTerminal,
+  'lines': instance.lines,
+  'amount': instance.amount,
+  'kind': instance.kind,
+  'paid_amount': instance.paidAmount,
+  'status': instance.status,
+  'due_date': instance.dueDate,
+  'issued_at': instance.issuedAt,
+  'paid_at': instance.paidAt,
+  'voided_at': instance.voidedAt,
 };

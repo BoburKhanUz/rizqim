@@ -4,35 +4,100 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'channel6.dart';
-import 'branch18.dart';
-import 'category.dart';
-import 'products.dart';
-import 'availability.dart';
+import 'store2.dart';
+import 'branch17.dart';
+import 'device11.dart';
+import 'user23.dart';
+import 'stations10.dart';
+import 'station_routes.dart';
+import 'printers.dart';
+import 'staff20.dart';
+import 'halls11.dart';
+import 'tables5.dart';
+import 'shift.dart';
+import 'quick_items.dart';
+import 'offline2.dart';
+import 'terminal_flow.dart';
+import 'staff_pay.dart';
+import 'format2.dart';
+import 'tips7.dart';
+import 'entitlements.dart';
+import 'queue2.dart';
+import 'booking_rules.dart';
+import 'labels.dart';
+import 'takeaway.dart';
+import 'lan.dart';
+import 'banquet.dart';
 
 part 'data278.g.dart';
 
 @JsonSerializable()
 class Data278 {
   const Data278({
-    required this.channel,
+    required this.serverTime,
     required this.menuVersion,
+    required this.store,
     required this.branch,
-    required this.categories,
-    required this.products,
-    required this.availability,
+    required this.device,
+    required this.user,
+    required this.stations,
+    required this.stationRoutes,
+    required this.printers,
+    required this.staff,
+    required this.halls,
+    required this.tables,
+    required this.shift,
+    required this.quickItems,
+    required this.offline,
+    required this.terminalFlow,
+    required this.staffPay,
+    required this.format,
+    required this.tips,
+    required this.entitlements,
+    required this.queue,
+    required this.bookingRules,
+    required this.labels,
+    required this.takeaway,
+    required this.lan,
+    required this.banquet,
   });
 
   factory Data278.fromJson(Map<String, Object?> json) =>
       _$Data278FromJson(json);
 
-  final Channel6 channel;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
   @JsonKey(name: 'menu_version')
   final String menuVersion;
-  final Branch18 branch;
-  final List<Category> categories;
-  final List<Products> products;
-  final Availability availability;
+  final Store2 store;
+  final Branch17 branch;
+  final Device11? device;
+  final User23 user;
+  final List<Stations10> stations;
+  @JsonKey(name: 'station_routes')
+  final StationRoutes stationRoutes;
+  final List<Printers> printers;
+  final List<Staff20> staff;
+  final List<Halls11> halls;
+  final List<Tables5> tables;
+  final Shift? shift;
+  @JsonKey(name: 'quick_items')
+  final List<QuickItems> quickItems;
+  final Offline2 offline;
+  @JsonKey(name: 'terminal_flow')
+  final TerminalFlow? terminalFlow;
+  @JsonKey(name: 'staff_pay')
+  final StaffPay? staffPay;
+  final Format2 format;
+  final Tips7 tips;
+  final Entitlements entitlements;
+  final Queue2 queue;
+  @JsonKey(name: 'booking_rules')
+  final BookingRules? bookingRules;
+  final Labels? labels;
+  final Takeaway takeaway;
+  final Lan? lan;
+  final Banquet? banquet;
 
   Map<String, Object?> toJson() => _$Data278ToJson(this);
 }

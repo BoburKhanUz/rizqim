@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'limits3.dart';
-import 'stations3.dart';
-import 'products6.dart';
+import 'limits2.dart';
+import 'stations2.dart';
+import 'products5.dart';
 
 part 'data115.g.dart';
 
@@ -29,9 +29,9 @@ class Data115 {
   final bool enabled;
   @JsonKey(name: 'expo_scope')
   final String expoScope;
-  final Limits3 limits;
-  final List<Stations3> stations;
-  final List<Products6> products;
+  final Limits2 limits;
+  final List<Stations2> stations;
+  final List<Products5> products;
 
   Map<String, Object?> toJson() => _$Data115ToJson(this);
 }

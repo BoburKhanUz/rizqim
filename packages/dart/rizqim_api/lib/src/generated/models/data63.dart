@@ -4,34 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'slots2.dart';
+import 'combos.dart';
+import 'combo_fiscal_mode.dart';
 
 part 'data63.g.dart';
 
 @JsonSerializable()
 class Data63 {
-  const Data63({
-    required this.id,
-    required this.uuid,
-    required this.productId,
-    required this.productName,
-    required this.prices,
-    required this.isActive,
-    required this.slots,
-  });
+  const Data63({required this.combos, required this.fiscalMode});
 
   factory Data63.fromJson(Map<String, Object?> json) => _$Data63FromJson(json);
 
-  final int id;
-  final String uuid;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  final List<String> prices;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Slots2> slots;
+  final List<Combos> combos;
+  @JsonKey(name: 'fiscal_mode')
+  final ComboFiscalMode fiscalMode;
 
   Map<String, Object?> toJson() => _$Data63ToJson(this);
 }

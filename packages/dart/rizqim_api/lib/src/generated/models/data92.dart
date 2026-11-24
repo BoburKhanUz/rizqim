@@ -5,12 +5,12 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'source.dart';
-import 'shifts3.dart';
-import 'rizqim_breakdown2.dart';
-import 'transactions2.dart';
-import 'unmatched2.dart';
-import 'history2.dart';
-import 'entered_by2.dart';
+import 'shifts2.dart';
+import 'rizqim_breakdown.dart';
+import 'transactions.dart';
+import 'unmatched.dart';
+import 'history.dart';
+import 'entered_by.dart';
 
 part 'data92.g.dart';
 
@@ -64,7 +64,7 @@ class Data92 {
   /// The name has been replaced because it contains a keyword. Original name: `final`.
   @JsonKey(name: 'final')
   final bool finalValue;
-  final List<Shifts3> shifts;
+  final List<Shifts2> shifts;
   @JsonKey(name: 'bank_total')
   final String bankTotal;
   @JsonKey(name: 'bank_count')
@@ -74,17 +74,17 @@ class Data92 {
   @JsonKey(name: 'rizqim_count')
   final int? rizqimCount;
   @JsonKey(name: 'rizqim_breakdown')
-  final RizqimBreakdown2? rizqimBreakdown;
+  final RizqimBreakdown? rizqimBreakdown;
   final String? difference;
   final String? threshold;
   @JsonKey(name: 'over_threshold')
   final bool? overThreshold;
-  final List<Transactions2>? transactions;
-  final Unmatched2? unmatched;
-  final List<History2> history;
+  final List<Transactions>? transactions;
+  final Unmatched? unmatched;
+  final List<History> history;
   final String? note;
   @JsonKey(name: 'entered_by')
-  final EnteredBy2? enteredBy;
+  final EnteredBy? enteredBy;
   @JsonKey(name: 'alerted_at')
   final String? alertedAt;
   @JsonKey(name: 'created_at')

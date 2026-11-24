@@ -17,7 +17,7 @@ Data92 _$Data92FromJson(Map<String, dynamic> json) => Data92(
   shared: json['shared'] as bool,
   finalValue: json['final'] as bool,
   shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Shifts2.fromJson(e as Map<String, dynamic>))
       .toList(),
   bankTotal: json['bank_total'] as String,
   bankCount: (json['bank_count'] as num?)?.toInt(),
@@ -25,25 +25,25 @@ Data92 _$Data92FromJson(Map<String, dynamic> json) => Data92(
   rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
   rizqimBreakdown: json['rizqim_breakdown'] == null
       ? null
-      : RizqimBreakdown2.fromJson(
+      : RizqimBreakdown.fromJson(
           json['rizqim_breakdown'] as Map<String, dynamic>,
         ),
   difference: json['difference'] as String?,
   threshold: json['threshold'] as String?,
   overThreshold: json['over_threshold'] as bool?,
   transactions: (json['transactions'] as List<dynamic>?)
-      ?.map((e) => Transactions2.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Transactions.fromJson(e as Map<String, dynamic>))
       .toList(),
   unmatched: json['unmatched'] == null
       ? null
-      : Unmatched2.fromJson(json['unmatched'] as Map<String, dynamic>),
+      : Unmatched.fromJson(json['unmatched'] as Map<String, dynamic>),
   history: (json['history'] as List<dynamic>)
-      .map((e) => History2.fromJson(e as Map<String, dynamic>))
+      .map((e) => History.fromJson(e as Map<String, dynamic>))
       .toList(),
   note: json['note'] as String?,
   enteredBy: json['entered_by'] == null
       ? null
-      : EnteredBy2.fromJson(json['entered_by'] as Map<String, dynamic>),
+      : EnteredBy.fromJson(json['entered_by'] as Map<String, dynamic>),
   alertedAt: json['alerted_at'] as String?,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,

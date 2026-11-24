@@ -7,11 +7,13 @@ part of 'data170.dart';
 // **************************************************************************
 
 Data170 _$Data170FromJson(Map<String, dynamic> json) => Data170(
-  settings: Settings3.fromJson(json['settings'] as Map<String, dynamic>),
-  options: Options6.fromJson(json['options'] as Map<String, dynamic>),
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  truncated: json['truncated'] as bool,
 );
 
 Map<String, dynamic> _$Data170ToJson(Data170 instance) => <String, dynamic>{
-  'settings': instance.settings,
-  'options': instance.options,
+  'tips': instance.tips,
+  'truncated': instance.truncated,
 };

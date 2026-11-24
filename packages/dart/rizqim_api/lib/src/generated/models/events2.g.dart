@@ -20,7 +20,7 @@ Events2 _$Events2FromJson(Map<String, dynamic> json) => Events2(
       .map((e) => (e as num).toInt())
       .toList(),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
       .toList(),
   uuid: json['uuid'] as String,
   eventTypeLabel: json['event_type_label'] as String,

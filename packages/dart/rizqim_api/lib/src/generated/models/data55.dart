@@ -11,15 +11,18 @@ class Data55 {
   const Data55({
     required this.branchId,
     required this.configured,
-    required this.size,
-    required this.sizeLabel,
-    required this.widthMm,
-    required this.heightMm,
-    required this.scope,
-    required this.scopeLabel,
-    required this.categoryIds,
-    required this.perUnit,
-    required this.bagLabel,
+    required this.tableSlotMinutes,
+    required this.roomSlotMinutes,
+    required this.tapchanSlotMinutes,
+    required this.tableMinAdvanceMinutes,
+    required this.roomMinAdvanceMinutes,
+    required this.tapchanMinAdvanceMinutes,
+    required this.maxAdvanceDays,
+    required this.depositMode,
+    required this.depositModeLabel,
+    required this.depositAmount,
+    required this.depositFromGuests,
+    required this.depositRequiredToConfirm,
     required this.updatedAt,
   });
 
@@ -28,22 +31,30 @@ class Data55 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   final bool configured;
-  final String size;
-  @JsonKey(name: 'size_label')
-  final String sizeLabel;
-  @JsonKey(name: 'width_mm')
-  final int widthMm;
-  @JsonKey(name: 'height_mm')
-  final int heightMm;
-  final String scope;
-  @JsonKey(name: 'scope_label')
-  final String scopeLabel;
-  @JsonKey(name: 'category_ids')
-  final List<int> categoryIds;
-  @JsonKey(name: 'per_unit')
-  final bool perUnit;
-  @JsonKey(name: 'bag_label')
-  final bool bagLabel;
+  @JsonKey(name: 'table_slot_minutes')
+  final int tableSlotMinutes;
+  @JsonKey(name: 'room_slot_minutes')
+  final int? roomSlotMinutes;
+  @JsonKey(name: 'tapchan_slot_minutes')
+  final int? tapchanSlotMinutes;
+  @JsonKey(name: 'table_min_advance_minutes')
+  final int tableMinAdvanceMinutes;
+  @JsonKey(name: 'room_min_advance_minutes')
+  final int roomMinAdvanceMinutes;
+  @JsonKey(name: 'tapchan_min_advance_minutes')
+  final int tapchanMinAdvanceMinutes;
+  @JsonKey(name: 'max_advance_days')
+  final int? maxAdvanceDays;
+  @JsonKey(name: 'deposit_mode')
+  final String depositMode;
+  @JsonKey(name: 'deposit_mode_label')
+  final String depositModeLabel;
+  @JsonKey(name: 'deposit_amount')
+  final String depositAmount;
+  @JsonKey(name: 'deposit_from_guests')
+  final int depositFromGuests;
+  @JsonKey(name: 'deposit_required_to_confirm')
+  final bool depositRequiredToConfirm;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

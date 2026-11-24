@@ -11,7 +11,7 @@ GetV1PosBanquetsCatalogResponse _$GetV1PosBanquetsCatalogResponseFromJson(
 ) => GetV1PosBanquetsCatalogResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data227.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data228.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBanquetsCatalogResponseToJson(

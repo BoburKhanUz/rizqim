@@ -7,17 +7,17 @@ part of 'data240.dart';
 // **************************************************************************
 
 Data240 _$Data240FromJson(Map<String, dynamic> json) => Data240(
-  event: Event6.fromJson(json['event'] as Map<String, dynamic>),
-  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
+  event: Event5.fromJson(json['event'] as Map<String, dynamic>),
+  summary: Summary7.fromJson(json['summary'] as Map<String, dynamic>),
   rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows10.fromJson(e as Map<String, dynamic>))
+      .map((e) => Rows8.fromJson(e as Map<String, dynamic>))
       .toList(),
   entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries7.fromJson(e as Map<String, dynamic>))
+      .map((e) => Entries6.fromJson(e as Map<String, dynamic>))
       .toList(),
   cancellation: json['cancellation'] == null
       ? null
-      : Cancellation4.fromJson(json['cancellation'] as Map<String, dynamic>),
+      : Cancellation3.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data240ToJson(Data240 instance) => <String, dynamic>{

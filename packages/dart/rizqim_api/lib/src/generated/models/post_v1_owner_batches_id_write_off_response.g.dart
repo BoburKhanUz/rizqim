@@ -11,7 +11,7 @@ _$PostV1OwnerBatchesIdWriteOffResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerBatchesIdWriteOffResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data38.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data39.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerBatchesIdWriteOffResponseToJson(

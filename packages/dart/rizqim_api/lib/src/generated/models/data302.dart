@@ -4,98 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall4.dart';
-import 'table2.dart';
-import 'waiter5.dart';
-import 'queue3.dart';
-import 'pickup3.dart';
-import 'online.dart';
+import 'lan_role.dart';
+import 'hub5.dart';
+import 'devices4.dart';
 
 part 'data302.g.dart';
 
 @JsonSerializable()
 class Data302 {
   const Data302({
-    required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.channel,
-    required this.type,
+    required this.v,
     required this.branchId,
-    required this.version,
-    required this.hall,
-    required this.table,
-    required this.hallRef,
-    required this.tableRef,
-    required this.tableLabel,
-    required this.guestsCount,
-    required this.waiter,
-    required this.itemsCount,
-    required this.subtotal,
-    required this.totalPrice,
-    required this.paymentStatus,
-    required this.billLocked,
-    required this.billRequested,
-    required this.fiscalPending,
-    required this.bookingId,
-    required this.businessDate,
-    required this.queue,
-    required this.pickup,
-    required this.openedAt,
-    required this.closedAt,
-    required this.updatedAt,
-    required this.online,
+    required this.keyId,
+    required this.role,
+    required this.device,
+    required this.deviceKey,
+    required this.beaconKey,
+    required this.hub,
+    required this.hubSecret,
+    required this.devices,
+    required this.grant,
+    required this.clockWindowSeconds,
   });
 
   factory Data302.fromJson(Map<String, Object?> json) =>
       _$Data302FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String channel;
-  final String type;
+  final int v;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final int version;
-  final Hall4? hall;
-  final Table2? table;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'table_label')
-  final String? tableLabel;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final Waiter5? waiter;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  final String subtotal;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  @JsonKey(name: 'bill_locked')
-  final bool billLocked;
-  @JsonKey(name: 'bill_requested')
-  final bool billRequested;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final Queue3? queue;
-  final Pickup3? pickup;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final Online? online;
+  @JsonKey(name: 'key_id')
+  final int keyId;
+  final LanRole role;
+  final String device;
+  @JsonKey(name: 'device_key')
+  final String deviceKey;
+  @JsonKey(name: 'beacon_key')
+  final String beaconKey;
+  final Hub5 hub;
+  @JsonKey(name: 'hub_secret')
+  final String? hubSecret;
+  final List<Devices4>? devices;
+  final String? grant;
+  @JsonKey(name: 'clock_window_seconds')
+  final int clockWindowSeconds;
 
   Map<String, Object?> toJson() => _$Data302ToJson(this);
 }

@@ -8,28 +8,26 @@ part of 'data50.dart';
 
 Data50 _$Data50FromJson(Map<String, dynamic> json) => Data50(
   branchId: (json['branch_id'] as num).toInt(),
-  cardMode: json['card_mode'] == null
-      ? null
-      : CardMode.fromJson(json['card_mode'] as String?),
-  cardModeLabel: json['card_mode_label'] as String?,
-  checklist: (json['checklist'] as List<dynamic>)
-      .map((e) => Checklist.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  checklistComplete: json['checklist_complete'] as bool,
-  differenceThreshold: json['difference_threshold'] as String,
-  askBankTotal: json['ask_bank_total'] as bool,
-  sharedTerminal: json['shared_terminal'] as bool,
+  configured: json['configured'] as bool,
+  pickupMinLeadMinutes: (json['pickup_min_lead_minutes'] as num).toInt(),
+  pickupSlotMinutes: (json['pickup_slot_minutes'] as num).toInt(),
+  pickupMaxDaysAhead: (json['pickup_max_days_ahead'] as num).toInt(),
+  pickupPrepMinutes: (json['pickup_prep_minutes'] as num).toInt(),
+  roundTheClock: json['round_the_clock'] as bool,
+  openingHours: OpeningHours2.fromJson(
+    json['opening_hours'] as Map<String, dynamic>,
+  ),
   updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data50ToJson(Data50 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'card_mode': instance.cardMode,
-  'card_mode_label': instance.cardModeLabel,
-  'checklist': instance.checklist,
-  'checklist_complete': instance.checklistComplete,
-  'difference_threshold': instance.differenceThreshold,
-  'ask_bank_total': instance.askBankTotal,
-  'shared_terminal': instance.sharedTerminal,
+  'configured': instance.configured,
+  'pickup_min_lead_minutes': instance.pickupMinLeadMinutes,
+  'pickup_slot_minutes': instance.pickupSlotMinutes,
+  'pickup_max_days_ahead': instance.pickupMaxDaysAhead,
+  'pickup_prep_minutes': instance.pickupPrepMinutes,
+  'round_the_clock': instance.roundTheClock,
+  'opening_hours': instance.openingHours,
   'updated_at': instance.updatedAt,
 };

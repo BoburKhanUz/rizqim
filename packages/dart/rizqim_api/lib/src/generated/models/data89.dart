@@ -4,39 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order2.dart';
-
 part 'data89.g.dart';
 
 @JsonSerializable()
 class Data89 {
-  const Data89({
-    required this.id,
-    required this.type,
-    required this.amount,
-    required this.balanceBefore,
-    required this.balanceAfter,
-    required this.order,
-    required this.referenceId,
-    required this.notes,
-    required this.createdAt,
-  });
+  const Data89({required this.topupUuid, required this.paymentUrl});
 
   factory Data89.fromJson(Map<String, Object?> json) => _$Data89FromJson(json);
 
-  final int id;
-  final String type;
-  final String amount;
-  @JsonKey(name: 'balance_before')
-  final String balanceBefore;
-  @JsonKey(name: 'balance_after')
-  final String balanceAfter;
-  final Order2? order;
-  @JsonKey(name: 'reference_id')
-  final String? referenceId;
-  final String? notes;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  @JsonKey(name: 'topup_uuid')
+  final String topupUuid;
+  @JsonKey(name: 'payment_url')
+  final String paymentUrl;
 
   Map<String, Object?> toJson() => _$Data89ToJson(this);
 }

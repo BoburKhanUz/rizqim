@@ -7,21 +7,23 @@ part of 'data94.dart';
 // **************************************************************************
 
 Data94 _$Data94FromJson(Map<String, dynamic> json) => Data94(
-  enabled: json['enabled'] as bool,
-  tinSet: json['tin_set'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
-      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  smartKassa: json['smart_kassa'] as bool,
+  fiscalKassaId: json['fiscal_kassa_id'] as String?,
+  kassaStatus: json['kassa_status'] == null
+      ? null
+      : KassaStatus.fromJson(json['kassa_status'] as Map<String, dynamic>),
+  lastSeenAt: json['last_seen_at'] as String?,
 );
 
 Map<String, dynamic> _$Data94ToJson(Data94 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'tin_set': instance.tinSet,
-  'tax_regime': instance.taxRegime,
-  'products_missing_mxik': instance.productsMissingMxik,
-  'charges_missing_mxik': instance.chargesMissingMxik,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'branch_id': instance.branchId,
+  'smart_kassa': instance.smartKassa,
+  'fiscal_kassa_id': instance.fiscalKassaId,
+  'kassa_status': instance.kassaStatus,
+  'last_seen_at': instance.lastSeenAt,
 };

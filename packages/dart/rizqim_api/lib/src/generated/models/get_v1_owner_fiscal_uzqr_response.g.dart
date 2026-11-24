@@ -11,7 +11,7 @@ GetV1OwnerFiscalUzqrResponse _$GetV1OwnerFiscalUzqrResponseFromJson(
 ) => GetV1OwnerFiscalUzqrResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data102.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data103.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerFiscalUzqrResponseToJson(

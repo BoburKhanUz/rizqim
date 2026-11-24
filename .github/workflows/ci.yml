@@ -672,15 +672,18 @@ jobs:
           docker run --rm --entrypoint php rizqim-backend:ci -m | grep -qx uv
           test "$(docker run --rm --entrypoint php rizqim-backend:ci -r 'require "vendor/autoload.php"; echo get_class(React\EventLoop\Loop::get());')" = 'React\EventLoop\ExtUvLoop'
 
-      # Wave M1: the three php-fpm pools and nginx's routing/limits load in the real image (defaults and an override)
+      # Wave M1: the php-fpm pools (critical, market, default; wave P: analytics) and nginx's routing/limits load in the
+      # real image (defaults and an override)
       - name: Backend image php-fpm pools and nginx config are valid
         run: |
           docker run --rm --entrypoint rizqim-pools rizqim-backend:ci check
+          docker run --rm --entrypoint sh rizqim-backend:ci -c 'rizqim-pools check && grep -q "rizqim_analytics_all 8;" /etc/nginx/rizqim-pools-analytics.conf'
           docker run --rm --entrypoint sh -e FPM_MARKET_CHILDREN=2 rizqim-backend:ci -c 'rizqim-pools check && grep -q "rizqim_market_all 8;" /etc/nginx/rizqim-pools-limits.conf && grep -q "rizqim_market_client 2;" /etc/nginx/rizqim-pools-limits.conf'
-          docker run --rm --entrypoint rizqim-pools -e DB_POOLER=pgbouncer -e PGBOUNCER_POOL_SIZE=12 rizqim-backend:ci check
+          # 4 + 4 + 4 + 2 workers (critical, market, default, analytics)
+          docker run --rm --entrypoint rizqim-pools -e DB_POOLER=pgbouncer -e PGBOUNCER_POOL_SIZE=14 rizqim-backend:ci check
           # Fail closed (M1 review R2-6): a bad value, one client able to fill the market pool, more workers than
           # PgBouncer connections, TLS to the pooler: the entrypoint stops before supervisord starts anything
-          for bad in FPM_MARKET_CHILDREN=x NGINX_MARKET_CONN_PER_CLIENT=10 NGINX_MARKET_BURST=0 DB_SSLMODE=require PGBOUNCER_POOL_SIZE=11; do
+          for bad in FPM_MARKET_CHILDREN=x NGINX_MARKET_CONN_PER_CLIENT=10 NGINX_MARKET_BURST=0 DB_SSLMODE=require PGBOUNCER_POOL_SIZE=13 NGINX_ANALYTICS_CONN_PER_CLIENT=5; do
             rc=0; timeout 60 docker run --rm -e "$bad" -e DB_POOLER=pgbouncer rizqim-backend:ci supervisord -c /etc/supervisor/conf.d/supervisord.conf 2> /tmp/err.txt || rc=$?
             if [ "$rc" != 1 ] || ! grep -q '^pools.sh: ' /tmp/err.txt; then echo "not refused at start: $bad (exit $rc)" >&2; cat /tmp/err.txt >&2; exit 1; fi
           done

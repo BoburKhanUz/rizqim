@@ -7,15 +7,17 @@ part of 'data355.dart';
 // **************************************************************************
 
 Data355 _$Data355FromJson(Map<String, dynamic> json) => Data355(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  serviceState: json['service_state'] as String?,
-  serviceStateAt: json['service_state_at'] as String?,
+  serverTime: json['server_time'] as String,
+  device: Device24.fromJson(json['device'] as Map<String, dynamic>),
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  errorsCount: (json['errors_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data355ToJson(Data355 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'service_state': instance.serviceState,
-  'service_state_at': instance.serviceStateAt,
+  'server_time': instance.serverTime,
+  'device': instance.device,
+  'errors': instance.errors,
+  'errors_count': instance.errorsCount,
 };

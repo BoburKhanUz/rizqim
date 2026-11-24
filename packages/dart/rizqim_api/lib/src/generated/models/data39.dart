@@ -4,55 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'plan.dart';
-import 'current_period.dart';
-import 'devices.dart';
-import 'notice.dart';
+import 'write_off.dart';
+import 'batch.dart';
 
 part 'data39.g.dart';
 
 @JsonSerializable()
 class Data39 {
-  const Data39({
-    required this.plan,
-    required this.legacy,
-    required this.period,
-    required this.status,
-    required this.trialEndsAt,
-    required this.currentPeriod,
-    required this.termEndsAt,
-    required this.lockedSince,
-    required this.lockAt,
-    required this.settingsLocked,
-    required this.features,
-    required this.requiredPlans,
-    required this.devices,
-    required this.notice,
-  });
+  const Data39({required this.writeOff, required this.batch});
 
   factory Data39.fromJson(Map<String, Object?> json) => _$Data39FromJson(json);
 
-  final Plan? plan;
-  final bool legacy;
-  final String? period;
-  final String status;
-  @JsonKey(name: 'trial_ends_at')
-  final String? trialEndsAt;
-  @JsonKey(name: 'current_period')
-  final CurrentPeriod? currentPeriod;
-  @JsonKey(name: 'term_ends_at')
-  final String? termEndsAt;
-  @JsonKey(name: 'locked_since')
-  final String? lockedSince;
-  @JsonKey(name: 'lock_at')
-  final String? lockAt;
-  @JsonKey(name: 'settings_locked')
-  final bool settingsLocked;
-  final Map<String, bool> features;
-  @JsonKey(name: 'required_plans')
-  final Map<String, String?> requiredPlans;
-  final Devices devices;
-  final Notice? notice;
+  @JsonKey(name: 'write_off')
+  final WriteOff writeOff;
+  final Batch batch;
 
   Map<String, Object?> toJson() => _$Data39ToJson(this);
 }

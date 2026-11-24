@@ -96,17 +96,22 @@ PgBouncer `STARTUP_WAIT_SECONDS` (120) ichida javob bermasa, konteyner xato bila
 `ADMIN_BROADCAST_RATE_PER_SECOND` (5) va `ADMIN_BROADCAST_WAVE_SIZE` (20; ommaviy e'lon tezligi). Yangi migratsiyalar indekslarni
 `CONCURRENTLY` quradi (yozuvlar to'xtamaydi). Batafsil: [OPERATIONS.md](OPERATIONS.md), 13-bo'lim.
 
-**PHP-FPM pullari (M1, ixtiyoriy, `backend/.env`).** `backend` konteynerida uchta php-fpm puli: `critical` (kassa, oshxona
+**PHP-FPM pullari (M1, ixtiyoriy, `backend/.env`).** `backend` konteynerida to'rtta php-fpm puli: `critical` (kassa, oshxona
 ekrani, terminal, to'lov webhook'lari, salomatlik tekshiruvi), `market` (Mini App mijozining o'qish so'rovlari: cheklangan),
-`default` (panel, admin, mijozning buyurtma berishi va boshqa yozuvlari). nginx so'rovni yo'liga qarab yo'naltiradi. Standartlari
+`default` (panel, admin, mijozning buyurtma berishi va boshqa yozuvlari), `analytics` (faqat Mini App statistikasi
+`POST /analytics/events`: kichik, cheklangan, tana ≤ 32 KB). nginx so'rovni yo'liga qarab yo'naltiradi. Standartlari
 qavsda; sozlamasangiz shular ishlaydi: `FPM_CRITICAL_CHILDREN` (4), `FPM_MARKET_CHILDREN` (4), `FPM_DEFAULT_CHILDREN` (4),
 `FPM_MAX_REQUESTS` (500), `FPM_MARKET_BACKLOG` (32), `FPM_MARKET_PRIORITY` (10), `FPM_DEFAULT_PRIORITY` (5),
 `NGINX_MARKET_MAX_INFLIGHT` (`FPM_MARKET_CHILDREN` × 4), `NGINX_MARKET_RATE` (5 so'rov/s bir mijozga), `NGINX_MARKET_BURST` (20),
 `NGINX_MARKET_CONN_PER_CLIENT` (in-flight / 4), `NGINX_MARKET_IP_RATE` (50 so'rov/s bir IP ga), `NGINX_MARKET_IP_BURST` (100),
-`NGINX_MARKET_CONN_PER_IP` (in-flight / 2), `NGINX_RETRY_AFTER` (2 s). Noto'g'ri qiymat (son emas, chegaradan tashqari) yoki
+`NGINX_MARKET_CONN_PER_IP` (in-flight / 2), `NGINX_RETRY_AFTER` (2 s); statistika puli: `FPM_ANALYTICS_CHILDREN` (2),
+`FPM_ANALYTICS_BACKLOG` (8), `FPM_ANALYTICS_PRIORITY` (15), `NGINX_ANALYTICS_MAX_INFLIGHT` (ishchilar × 4),
+`NGINX_ANALYTICS_RATE` (30 so'rov/daq bir mijozga), `NGINX_ANALYTICS_BURST` (10), `NGINX_ANALYTICS_IP_RATE` (600/daq bir IP ga),
+`NGINX_ANALYTICS_IP_BURST` (100), `NGINX_ANALYTICS_CONN_PER_CLIENT` (in-flight / 4), `NGINX_ANALYTICS_CONN_PER_IP` (in-flight / 2). Noto'g'ri qiymat (son emas, chegaradan tashqari) yoki
 izolyatsiyani buzadigan juftlik (bitta mijoz bozor pulining yarmidan ko'pini, bitta IP hammasini egallay oladi; ishchilar
 `PGBOUNCER_POOL_SIZE` dan ko'p) bilan konteyner ishga tushmaydi (entrypoint supervisord'dan oldin `rizqim-pools check` qiladi)
-va logda sababi yoziladi. Avval bitta pul (5 ishchi) edi, endi standart 12 ishchi: konteynerga ~0,5 GB
+va logda sababi yoziladi. Avval bitta pul (5 ishchi) edi, endi standart 14 ishchi (4+4+4+2; `PGBOUNCER_POOL_SIZE` kamida 14
+bo'lsin, staging standarti 15): konteynerga ~0,5–0,7 GB
 xotira yetadi. Batafsil: [OPERATIONS.md](OPERATIONS.md), 14-bo'lim.
 
 **PHP sozlamalari (M2, ixtiyoriy, `backend/.env`).** Hech narsa sozlash shart emas. Image'da OPcache production rejimida

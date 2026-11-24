@@ -11,7 +11,7 @@ GetV1PosReleasesResponse _$GetV1PosReleasesResponseFromJson(
 ) => GetV1PosReleasesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data342.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data343.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosReleasesResponseToJson(

@@ -10,12 +10,14 @@ use Tests\TestCase;
 
 /**
  * Wave M1 workload isolation: backend/docker/nginx.conf sends each request to the php-fpm pool its path belongs to
- * (critical: tills, KDS, terminals, payment webhooks, health; market: Mini App customer reads; default: the rest).
+ * (critical: tills, KDS, terminals, payment webhooks, health; market: Mini App customer reads; analytics: the Mini App's
+ * analytics batches; default: the rest).
  * This test reads the two routing maps of that file and applies them to every registered route the way nginx does
  * (regexes in order, first match wins), so a new route prefix cannot silently land in a pool nobody chose for it:
  * it fails until the prefix is assigned in nginx.conf. It also pins the rules the owner relies on: a till route is
  * never in a limited pool, no write ever goes to the market pool, checkout never depends on a market read, a caller
- * cannot pick the critical pool by the query string, and one client cannot fill the market pool (M1 review R2).
+ * cannot pick the critical pool by the query string, one client cannot fill the market pool (M1 review R2), and the
+ * analytics batches never take a worker of the default pool where checkout runs (wave P step 2 review).
  */
 class FpmPoolRoutingTest extends TestCase
 {
@@ -137,6 +139,12 @@ class FpmPoolRoutingTest extends TestCase
             'Mini App sign-in' => ['POST', '/api/v1/auth/telegram', '', '', '', 'fpm_default'],
             'promo check at checkout' => ['POST', '/api/v1/promo/validate', '', '', $customer, 'fpm_default'],
             'own account (cashback balance)' => ['GET', '/api/v1/user', '', '', $customer, 'fpm_default'],
+            // Wave P step 2: its own small pool and location (a body cap of 32 KB, limits): never a worker of the
+            // default pool, where checkout runs, nor a market or critical one
+            'Mini App analytics batch' => ['POST', '/api/v1/analytics/events', '', '', $customer, 'fpm_analytics'],
+            'Mini App analytics batch, trailing slash (Laravel routes it the same)' => ['POST', '/api/v1/analytics/events/', '', '', $customer, 'fpm_analytics'],
+            'Mini App analytics, another method' => ['GET', '/api/v1/analytics/events', '', '', $customer, 'fpm_analytics'],
+            'Mini App analytics batch from a POS app' => ['POST', '/api/v1/analytics/events', '', 'cashier', $till, 'fpm_analytics'],
             'owner panel' => ['GET', '/api/v1/owner/reports/sales', '', '', $customer, 'fpm_default'],
             'admin' => ['GET', '/api/v1/admin/stores', '', '', '', 'fpm_default'],
             'unknown API path' => ['GET', '/api/v1/no-such-thing', '', '', '', 'fpm_default'],
@@ -231,12 +239,118 @@ class FpmPoolRoutingTest extends TestCase
             $this->assertStringContainsString($directive, $market);
         }
         $this->assertSame(1, substr_count($conf, 'include /etc/nginx/rizqim-pools-limits.conf;'), 'the limits are included once, in @rizqim_market');
+        $this->assertStringNotContainsString('rizqim-pools-analytics.conf', $market);
 
         $this->assertSame('0', $this->lookup('rizqim_has_body', ':'));
         $this->assertSame('0', $this->lookup('rizqim_has_body', '0:'));
         $this->assertSame('1', $this->lookup('rizqim_has_body', '100000:'));
         $this->assertSame('1', $this->lookup('rizqim_has_body', ':chunked'));
         $this->assertSame('1', $this->lookup('rizqim_has_body', '0:chunked'));
+    }
+
+    /**
+     * Wave P step 2 review: POST /api/v1/analytics/events has its own nginx location and php-fpm pool. nginx refuses a
+     * body over the controller's cap (32 KB) before any worker is taken or Laravel decodes it, buffers the body itself
+     * (a slow client holds no worker), limits per client, address and in flight, and gives up quickly on a busy pool:
+     * an analytics batch may be lost under load, a checkout worker is never taken.
+     */
+    public function test_analytics_batches_have_their_own_location_pool_and_limits(): void
+    {
+        $conf = $this->nginxConf();
+        $this->assertSame(1, preg_match('/^    location ~ (\S+) \{
+(.*?)^    \}/ms', $conf, $m), 'location ~ ... of the analytics route');
+        [, $regex, $location] = $m;
+        // The location and the path-class map name the same paths
+        $this->assertContains([$regex, 'analytics'], array_map(fn (array $e) => [ltrim($e[0], '~'), $e[1]], $this->maps()['rizqim_path_class']));
+        foreach (['/api/v1/analytics/events', '/api/v1/analytics/events/', '/api/v1/analytics/events//'] as $uri) {
+            $this->assertSame(1, preg_match('#'.$regex.'#', $uri), $uri);
+        }
+        foreach (['/api/v1/analytics/eventsx', '/api/v1/analytics', '/api/v1/analytics/events/1', '/x/api/v1/analytics/events'] as $uri) {
+            $this->assertSame(0, preg_match('#'.$regex.'#', $uri), $uri);
+        }
+
+        $cap = (int) config('analytics.limits.max_body_bytes');
+        $this->assertSame(32768, $cap);
+        foreach ([
+            'set $rizqim_analytics 1;',
+            'client_max_body_size 32k;',
+            'client_body_buffer_size 32k;',
+            'client_body_timeout 5s;',
+            'send_timeout 10s;',
+            'include /etc/nginx/rizqim-pools-analytics.conf;',
+            'error_page 413 @rizqim_too_large;',
+            'error_page 503 @rizqim_busy;',
+            'error_page 429 @rizqim_rate_limited;',
+            'fastcgi_pass fpm_analytics;',
+            'fastcgi_param SCRIPT_FILENAME $document_root/index.php;',
+            'fastcgi_param SCRIPT_NAME /index.php;',
+            'fastcgi_param REMOTE_ADDR $realip_remote_addr;',
+            'fastcgi_connect_timeout 2s;',
+            'fastcgi_send_timeout 5s;',
+            'fastcgi_read_timeout 10s;',
+        ] as $directive) {
+            $this->assertStringContainsString($directive, $location);
+        }
+        $this->assertStringNotContainsString('fastcgi_request_buffering off', $conf, 'nginx reads the whole body before a worker is taken');
+        $this->assertStringNotContainsString('rizqim-pools-limits.conf', $location);
+        $this->assertSame(1, substr_count($conf, 'include /etc/nginx/rizqim-pools-analytics.conf;'));
+        // Before the php location: nginx tries regex locations in order
+        $this->assertLessThan(strpos($conf, 'location ~ \.php$ {'), strpos($conf, 'location ~ '.$regex.' {'));
+
+        // nginx's own 413 has the controller's body
+        $this->assertSame(1, preg_match('/^    location @rizqim_too_large \{(.*?)^    \}/ms', $conf, $t));
+        $this->assertStringContainsString('return 413 \'{"success":false,"message":"So\\\'rov hajmi juda katta.","data":{"reason":"payload_too_large"}}\';', $t[1]);
+
+        // Its limit keys are empty (not counted) everywhere but the analytics location
+        foreach (['rizqim_analytics_client', 'rizqim_analytics_ip', 'rizqim_analytics_all'] as $key) {
+            $this->assertMatchesRegularExpression('/map \$rizqim_analytics \$'.$key.' \{\s*default\s+"";\s*1\s+[^;\s]+;\s*\}/', $conf);
+        }
+        $this->assertSame('', $this->lookup('rizqim_analytics_ip', ''));
+
+        // The rendered limits: per client and address (rate) and in flight (connections), 503/429 as the market's
+        $rendered = $this->rendered([]);
+        $this->assertStringContainsString('limit_conn rizqim_analytics_all 8;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_conn rizqim_analytics_ip 4;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_conn rizqim_analytics_client 2;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_req zone=rizqim_analytics_rate burst=10 nodelay;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_req zone=rizqim_analytics_ip_rate burst=100 nodelay;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_req_status 429;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('limit_conn_status 503;', $rendered['rizqim-pools-analytics.conf']);
+        $this->assertStringContainsString('rate=30r/m;', $rendered['rizqim-pools-http.conf']);
+        $this->assertStringContainsString('rate=600r/m;', $rendered['rizqim-pools-http.conf']);
+
+        // The pool: small, ondemand, nice'd below the market, a short listen queue
+        $fpm = (string) file_get_contents(base_path('docker/php-fpm.conf'));
+        $this->assertSame(1, preg_match('/^\[analytics\]\s*$(.*?)(?=^\[|\z)/ms', $fpm, $pool));
+        foreach (['pm = ondemand', 'pm.max_children = ${FPM_ANALYTICS_CHILDREN}', 'listen.backlog = ${FPM_ANALYTICS_BACKLOG}', 'process.priority = ${FPM_ANALYTICS_PRIORITY}', 'clear_env = no'] as $line) {
+            $this->assertStringContainsString($line, $pool[1]);
+        }
+        $env = $this->poolsEnv([]);
+        $this->assertSame('2', $env['FPM_ANALYTICS_CHILDREN']);
+        $this->assertGreaterThan((int) $env['FPM_MARKET_PRIORITY'], (int) $env['FPM_ANALYTICS_PRIORITY']);
+    }
+
+    /**
+     * @param  array<string, string>  $env
+     * @return array<string, string> file name => contents of what `pools.sh render` writes
+     */
+    private function rendered(array $env): array
+    {
+        $dir = sys_get_temp_dir().'/rizqim-pools-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        try {
+            $process = $this->poolsSh(['render', $dir], $env);
+            $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+            $out = [];
+            foreach (glob($dir.'/*') ?: [] as $file) {
+                $out[basename($file)] = (string) file_get_contents($file);
+                unlink($file);
+            }
+
+            return $out;
+        } finally {
+            rmdir($dir);
+        }
     }
 
     /** R2-1, R2-5, R2-6: pools.sh refuses a configuration where one client can fill the market pool */
@@ -248,6 +362,14 @@ class FpmPoolRoutingTest extends TestCase
         $this->assertLessThan($inflight, (int) $env['NGINX_MARKET_CONN_PER_IP']);
         $this->assertGreaterThanOrEqual((int) $env['NGINX_MARKET_CONN_PER_CLIENT'], (int) $env['NGINX_MARKET_CONN_PER_IP']);
         $this->assertGreaterThanOrEqual((int) $env['NGINX_MARKET_RATE'], (int) $env['NGINX_MARKET_IP_RATE']);
+
+        // The same rules for the analytics pool
+        $inflight = (int) $env['NGINX_ANALYTICS_MAX_INFLIGHT'];
+        $this->assertLessThanOrEqual(intdiv($inflight, 2), (int) $env['NGINX_ANALYTICS_CONN_PER_CLIENT']);
+        $this->assertLessThan($inflight, (int) $env['NGINX_ANALYTICS_CONN_PER_IP']);
+        $this->assertGreaterThanOrEqual((int) $env['NGINX_ANALYTICS_CONN_PER_CLIENT'], (int) $env['NGINX_ANALYTICS_CONN_PER_IP']);
+        $this->assertGreaterThanOrEqual((int) $env['NGINX_ANALYTICS_RATE'], (int) $env['NGINX_ANALYTICS_IP_RATE']);
+        $this->assertLessThanOrEqual((int) $env['FPM_ANALYTICS_CHILDREN'] + (int) $env['FPM_ANALYTICS_BACKLOG'], $inflight);
     }
 
     /** @return array<string, array{0: array<string, string>, 1: string}> */
@@ -263,6 +385,13 @@ class FpmPoolRoutingTest extends TestCase
             'burst 0 (nginx refuses burst=0)' => [['NGINX_MARKET_BURST' => '0'], 'NGINX_MARKET_BURST'],
             'not a number' => [['FPM_MARKET_CHILDREN' => 'x'], 'FPM_MARKET_CHILDREN'],
             'R2-5: more php-fpm workers than PgBouncer server connections' => [['DB_POOLER' => 'pgbouncer', 'PGBOUNCER_POOL_SIZE' => '11'], 'PGBOUNCER_POOL_SIZE'],
+            'the analytics workers count against PgBouncer too (4+4+4+2)' => [['DB_POOLER' => 'pgbouncer', 'PGBOUNCER_POOL_SIZE' => '13'], 'PGBOUNCER_POOL_SIZE'],
+            'analytics: in flight beyond its workers and their listen queue' => [['FPM_ANALYTICS_CHILDREN' => '1', 'FPM_ANALYTICS_BACKLOG' => '2', 'NGINX_ANALYTICS_MAX_INFLIGHT' => '8'], 'NGINX_ANALYTICS_MAX_INFLIGHT'],
+            'analytics: one client can fill its pool' => [['NGINX_ANALYTICS_MAX_INFLIGHT' => '8', 'NGINX_ANALYTICS_CONN_PER_CLIENT' => '5', 'NGINX_ANALYTICS_CONN_PER_IP' => '6'], 'NGINX_ANALYTICS_CONN_PER_CLIENT'],
+            'analytics: one address can fill its pool' => [['NGINX_ANALYTICS_MAX_INFLIGHT' => '8', 'NGINX_ANALYTICS_CONN_PER_IP' => '8'], 'NGINX_ANALYTICS_CONN_PER_IP'],
+            'analytics: address rate below a client\'s' => [['NGINX_ANALYTICS_RATE' => '60', 'NGINX_ANALYTICS_IP_RATE' => '30'], 'NGINX_ANALYTICS_IP_RATE'],
+            'analytics: burst 0' => [['NGINX_ANALYTICS_BURST' => '0'], 'NGINX_ANALYTICS_BURST'],
+            'analytics: no workers' => [['FPM_ANALYTICS_CHILDREN' => '0'], 'FPM_ANALYTICS_CHILDREN'],
             'R2-6: TLS to the pooler, which has none' => [['DB_POOLER' => 'pgbouncer', 'DB_SSLMODE' => 'require'], 'DB_SSLMODE'],
         ];
     }
@@ -278,7 +407,8 @@ class FpmPoolRoutingTest extends TestCase
 
     public function test_pools_sh_accepts_the_pooler_when_the_workers_fit(): void
     {
-        $this->assertSame(0, $this->poolsSh(['env'], ['DB_POOLER' => 'pgbouncer', 'PGBOUNCER_POOL_SIZE' => '12'])->getExitCode());
+        // critical + market + default + analytics = 4 + 4 + 4 + 2
+        $this->assertSame(0, $this->poolsSh(['env'], ['DB_POOLER' => 'pgbouncer', 'PGBOUNCER_POOL_SIZE' => '14'])->getExitCode());
         $this->assertSame(0, $this->poolsSh(['env'], ['DB_POOLER' => 'direct', 'PGBOUNCER_POOL_SIZE' => '1', 'DB_SSLMODE' => 'require'])->getExitCode());
         $this->assertSame(0, $this->poolsSh(['env'], ['DB_POOLER' => 'pgbouncer', 'DB_SSLMODE' => 'prefer'])->getExitCode());
     }
@@ -340,7 +470,7 @@ class FpmPoolRoutingTest extends TestCase
         return array_combine($m[1], $m[2]);
     }
 
-    public function test_only_the_market_pool_is_limited(): void
+    public function test_only_the_market_and_analytics_pools_are_limited(): void
     {
         $conf = $this->nginxConf();
         foreach (['rizqim_market_client', 'rizqim_market_ip', 'rizqim_market_all'] as $key) {
@@ -351,15 +481,21 @@ class FpmPoolRoutingTest extends TestCase
             );
         }
 
-        $pools = (string) file_get_contents(base_path('docker/pools.sh'));
-        preg_match_all('/^(limit_req|limit_conn)\s+(zone=)?(\S+)/m', $pools, $m);
-        $this->assertNotEmpty($m[3]);
-        foreach ($m[3] as $zone) {
-            $this->assertStringStartsWith('rizqim_market_', $zone);
+        // Each location's include names only its own zones; the zones are keyed by the (empty elsewhere) keys
+        $rendered = $this->rendered([]);
+        $this->assertSame(['rizqim-pools-analytics.conf', 'rizqim-pools-http.conf', 'rizqim-pools-limits.conf'], array_keys($rendered));
+        foreach (['rizqim-pools-limits.conf' => 'rizqim_market_', 'rizqim-pools-analytics.conf' => 'rizqim_analytics_'] as $file => $prefix) {
+            preg_match_all('/^(limit_req|limit_conn)\s+(zone=)?(\S+)/m', $rendered[$file], $m);
+            $this->assertNotEmpty($m[3]);
+            foreach ($m[3] as $zone) {
+                $this->assertStringStartsWith($prefix, $zone, $file);
+            }
         }
-        preg_match_all('/^limit_(req|conn)_zone\s+(\S+)/m', $pools, $m);
-        // pools.sh writes them from a heredoc, so the `$` is escaped there
-        $this->assertSame(['\\$rizqim_market_client', '\\$rizqim_market_ip', '\\$rizqim_market_client', '\\$rizqim_market_ip', '\\$rizqim_market_all'], $m[2]);
+        preg_match_all('/^limit_(req|conn)_zone\s+(\S+)/m', $rendered['rizqim-pools-http.conf'], $m);
+        $this->assertSame([
+            '$rizqim_market_client', '$rizqim_market_ip', '$rizqim_market_client', '$rizqim_market_ip', '$rizqim_market_all',
+            '$rizqim_analytics_client', '$rizqim_analytics_ip', '$rizqim_analytics_client', '$rizqim_analytics_ip', '$rizqim_analytics_all',
+        ], $m[2]);
     }
 
     public function test_nginx_upstreams_match_the_php_fpm_pools(): void
@@ -369,8 +505,8 @@ class FpmPoolRoutingTest extends TestCase
 
         $fpm = (string) file_get_contents(base_path('docker/php-fpm.conf'));
         preg_match_all('/^\[(\w+)\]\s*$/m', $fpm, $names);
-        $this->assertSame(['global', 'critical', 'market', 'default'], $names[1]);
-        foreach (['critical', 'market', 'default'] as $pool) {
+        $this->assertSame(['global', 'critical', 'market', 'default', 'analytics'], $names[1]);
+        foreach (['critical', 'market', 'default', 'analytics'] as $pool) {
             $this->assertMatchesRegularExpression(
                 '/^\['.$pool.'\][^\[]*^listen = '.preg_quote($upstreams['fpm_'.$pool], '/').'$/ms',
                 $fpm,

@@ -12,7 +12,7 @@ GetV1OwnerEmployeesResponse _$GetV1OwnerEmployeesResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data83.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data84.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

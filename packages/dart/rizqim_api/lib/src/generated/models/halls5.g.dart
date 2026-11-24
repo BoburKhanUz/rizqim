@@ -11,7 +11,7 @@ Halls5 _$Halls5FromJson(Map<String, dynamic> json) => Halls5(
   name: json['name'] as String,
   isActive: json['is_active'] as bool,
   events: (json['events'] as List<dynamic>)
-      .map((e) => Events2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Events3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

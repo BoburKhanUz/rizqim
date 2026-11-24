@@ -7,17 +7,11 @@ part of 'data139.dart';
 // **************************************************************************
 
 Data139 _$Data139FromJson(Map<String, dynamic> json) => Data139(
-  hallId: (json['hall_id'] as num).toInt(),
-  hallName: json['hall_name'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  rates: Rates5.fromJson(json['rates'] as Map<String, dynamic>),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data139ToJson(Data139 instance) => <String, dynamic>{
-  'hall_id': instance.hallId,
-  'hall_name': instance.hallName,
-  'branch_id': instance.branchId,
-  'is_active': instance.isActive,
-  'rates': instance.rates,
+  'halls': instance.halls,
 };

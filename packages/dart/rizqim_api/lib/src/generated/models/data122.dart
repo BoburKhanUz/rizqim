@@ -4,35 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'parts3.dart';
+import 'sets.dart';
 
 part 'data122.g.dart';
 
 @JsonSerializable()
 class Data122 {
-  const Data122({
-    required this.id,
-    required this.uuid,
-    required this.productId,
-    required this.productName,
-    required this.prices,
-    required this.isActive,
-    required this.parts,
-  });
+  const Data122({required this.sets});
 
   factory Data122.fromJson(Map<String, Object?> json) =>
       _$Data122FromJson(json);
 
-  final int id;
-  final String uuid;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  final List<String> prices;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Parts3> parts;
+  final List<Sets> sets;
 
   Map<String, Object?> toJson() => _$Data122ToJson(this);
 }

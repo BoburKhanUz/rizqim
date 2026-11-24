@@ -7,15 +7,27 @@ part of 'data6.dart';
 // **************************************************************************
 
 Data6 _$Data6FromJson(Map<String, dynamic> json) => Data6(
-  storeId: (json['store_id'] as num).toInt(),
-  branches: (json['branches'] as List<dynamic>)
-      .map((e) => Branches.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  generatedAt: json['generated_at'] as String?,
+  token: json['token'] as String,
+  user: json['user'],
+  store: json['store'] == null
+      ? null
+      : Store.fromJson(json['store'] as Map<String, dynamic>),
+  smsVerificationRequired: json['sms_verification_required'] as bool,
+  tokenExpiresAt: json['token_expires_at'] as String?,
+  refreshToken: json['refresh_token'] as String?,
+  refreshTokenExpiresAt: json['refresh_token_expires_at'] as String?,
+  device: json['device'] == null
+      ? null
+      : Device6.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data6ToJson(Data6 instance) => <String, dynamic>{
-  'store_id': instance.storeId,
-  'branches': instance.branches,
-  'generated_at': instance.generatedAt,
+  'token': instance.token,
+  'user': instance.user,
+  'store': instance.store,
+  'sms_verification_required': instance.smsVerificationRequired,
+  'token_expires_at': instance.tokenExpiresAt,
+  'refresh_token': instance.refreshToken,
+  'refresh_token_expires_at': instance.refreshTokenExpiresAt,
+  'device': instance.device,
 };

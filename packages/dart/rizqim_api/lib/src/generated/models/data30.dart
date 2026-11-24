@@ -8,39 +8,11 @@ part 'data30.g.dart';
 
 @JsonSerializable()
 class Data30 {
-  const Data30({
-    required this.id,
-    required this.branchId,
-    required this.hallId,
-    required this.productVariantId,
-    required this.productName,
-    required this.variantName,
-    required this.unit,
-    required this.quantityPerGuest,
-    required this.isActive,
-    required this.sortOrder,
-  });
+  const Data30({required this.id});
 
   factory Data30.fromJson(Map<String, Object?> json) => _$Data30FromJson(json);
 
   final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'product_variant_id')
-  final int productVariantId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String? unit;
-  @JsonKey(name: 'quantity_per_guest')
-  final num quantityPerGuest;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
 
   Map<String, Object?> toJson() => _$Data30ToJson(this);
 }

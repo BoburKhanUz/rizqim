@@ -7,19 +7,23 @@ part of 'data234.dart';
 // **************************************************************************
 
 Data234 _$Data234FromJson(Map<String, dynamic> json) => Data234(
-  contractNo: json['contract_no'] as String?,
-  text: json['text'] as String,
-  lines: (json['lines'] as List<dynamic>).map((e) => e as String).toList(),
-  fields: Map<String, String>.from(json['fields'] as Map),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings13.fromJson(e as Map<String, dynamic>))
+  event: Event.fromJson(json['event'] as Map<String, dynamic>),
+  summary: Summary5.fromJson(json['summary'] as Map<String, dynamic>),
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows5.fromJson(e as Map<String, dynamic>))
       .toList(),
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  cancellation: json['cancellation'] == null
+      ? null
+      : Cancellation.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data234ToJson(Data234 instance) => <String, dynamic>{
-  'contract_no': instance.contractNo,
-  'text': instance.text,
-  'lines': instance.lines,
-  'fields': instance.fields,
-  'warnings': instance.warnings,
+  'event': instance.event,
+  'summary': instance.summary,
+  'rows': instance.rows,
+  'entries': instance.entries,
+  'cancellation': instance.cancellation,
 };

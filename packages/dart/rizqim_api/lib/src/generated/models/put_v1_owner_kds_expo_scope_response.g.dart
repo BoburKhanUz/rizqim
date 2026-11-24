@@ -11,7 +11,7 @@ PutV1OwnerKdsExpoScopeResponse _$PutV1OwnerKdsExpoScopeResponseFromJson(
 ) => PutV1OwnerKdsExpoScopeResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data113.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data114.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerKdsExpoScopeResponseToJson(

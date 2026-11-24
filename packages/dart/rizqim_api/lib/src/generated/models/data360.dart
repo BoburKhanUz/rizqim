@@ -4,28 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'entries13.dart';
-import 'summary14.dart';
+import 'voucher2.dart';
+import 'entries12.dart';
 
 part 'data360.g.dart';
 
 @JsonSerializable()
 class Data360 {
-  const Data360({
-    required this.branchId,
-    required this.date,
-    required this.entries,
-    required this.summary,
-  });
+  const Data360({required this.voucher, required this.entries});
 
   factory Data360.fromJson(Map<String, Object?> json) =>
       _$Data360FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String date;
-  final List<Entries13> entries;
-  final Summary14 summary;
+  final Voucher2 voucher;
+  final List<Entries12> entries;
 
   Map<String, Object?> toJson() => _$Data360ToJson(this);
 }

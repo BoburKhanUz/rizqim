@@ -15,7 +15,7 @@ Data68 _$Data68FromJson(Map<String, dynamic> json) => Data68(
   productIds: Map<String, int>.from(json['product_ids'] as Map),
   previousDate: json['previous_date'] as String?,
   products: (json['products'] as List<dynamic>)
-      .map((e) => Products3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Products2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

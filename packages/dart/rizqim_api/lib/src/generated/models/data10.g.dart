@@ -16,7 +16,7 @@ Data10 _$Data10FromJson(Map<String, dynamic> json) => Data10(
   branchId: (json['branch_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User6.fromJson(json['user'] as Map<String, dynamic>),
+      : User5.fromJson(json['user'] as Map<String, dynamic>),
   hasPushToken: json['has_push_token'] as bool,
   lastSeenAt: json['last_seen_at'] as String?,
   revokedAt: json['revoked_at'] as String?,

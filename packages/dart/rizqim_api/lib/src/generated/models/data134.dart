@@ -4,18 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'extras.dart';
+import 'role3.dart';
 
 part 'data134.g.dart';
 
 @JsonSerializable()
 class Data134 {
-  const Data134({required this.extras});
+  const Data134({
+    required this.role,
+    required this.permission,
+    required this.allowed,
+  });
 
   factory Data134.fromJson(Map<String, Object?> json) =>
       _$Data134FromJson(json);
 
-  final List<Extras> extras;
+  final Role3 role;
+  final String permission;
+  final bool allowed;
 
   Map<String, Object?> toJson() => _$Data134ToJson(this);
 }

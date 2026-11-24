@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'slots5.dart';
+import 'slots4.dart';
 
 part 'data150.g.dart';
 
@@ -27,7 +27,7 @@ class Data150 {
   factory Data150.fromJson(Map<String, Object?> json) =>
       _$Data150FromJson(json);
 
-  final Slots5 slots;
+  final Slots4 slots;
   @JsonKey(name: 'hold_hours')
   final int holdHours;
   @JsonKey(name: 'guest_warning_thresholds')

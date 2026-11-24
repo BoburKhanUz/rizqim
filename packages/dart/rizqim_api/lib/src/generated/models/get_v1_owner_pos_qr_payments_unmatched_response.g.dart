@@ -11,7 +11,7 @@ _$GetV1OwnerPosQrPaymentsUnmatchedResponseFromJson(Map<String, dynamic> json) =>
     GetV1OwnerPosQrPaymentsUnmatchedResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data159.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data160.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1OwnerPosQrPaymentsUnmatchedResponseToJson(

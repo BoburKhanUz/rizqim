@@ -12,7 +12,7 @@ _$PutV1OwnerBranchesIdLabelSettingsResponseFromJson(
 ) => PutV1OwnerBranchesIdLabelSettingsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data56.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data57.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerBranchesIdLabelSettingsResponseToJson(

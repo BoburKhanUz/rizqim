@@ -7,25 +7,23 @@ part of 'data104.dart';
 // **************************************************************************
 
 Data104 _$Data104FromJson(Map<String, dynamic> json) => Data104(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  serviceFee: json['service_fee'] == null
-      ? null
-      : ServiceFee.fromJson(json['service_fee'] as Map<String, dynamic>),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  hasApiKey: json['has_api_key'] as bool,
+  apiKeyLast4: json['api_key_last4'] as String?,
+  apiKeySetAt: json['api_key_set_at'] as String?,
+  ready: json['ready'] as bool,
+  message: json['message'] as String?,
 );
 
 Map<String, dynamic> _$Data104ToJson(Data104 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
+  'uuid': instance.uuid,
   'name': instance.name,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'service_fee': instance.serviceFee,
-  'tables': instance.tables,
+  'branch_id': instance.branchId,
+  'has_api_key': instance.hasApiKey,
+  'api_key_last4': instance.apiKeyLast4,
+  'api_key_set_at': instance.apiKeySetAt,
+  'ready': instance.ready,
+  'message': instance.message,
 };

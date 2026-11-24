@@ -4,31 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'products_missing_mxik.dart';
+import 'kassa_status.dart';
 
 part 'data94.g.dart';
 
 @JsonSerializable()
 class Data94 {
   const Data94({
-    required this.enabled,
-    required this.tinSet,
-    required this.taxRegime,
-    required this.productsMissingMxik,
-    required this.chargesMissingMxik,
+    required this.uuid,
+    required this.name,
+    required this.branchId,
+    required this.smartKassa,
+    required this.fiscalKassaId,
+    required this.kassaStatus,
+    required this.lastSeenAt,
   });
 
   factory Data94.fromJson(Map<String, Object?> json) => _$Data94FromJson(json);
 
-  final bool enabled;
-  @JsonKey(name: 'tin_set')
-  final bool tinSet;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  @JsonKey(name: 'products_missing_mxik')
-  final List<ProductsMissingMxik> productsMissingMxik;
-  @JsonKey(name: 'charges_missing_mxik')
-  final List<String> chargesMissingMxik;
+  final String uuid;
+  final String? name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'smart_kassa')
+  final bool smartKassa;
+  @JsonKey(name: 'fiscal_kassa_id')
+  final String? fiscalKassaId;
+  @JsonKey(name: 'kassa_status')
+  final KassaStatus? kassaStatus;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
 
   Map<String, Object?> toJson() => _$Data94ToJson(this);
 }

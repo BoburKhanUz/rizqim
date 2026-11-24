@@ -11,7 +11,7 @@ _$PutV1OwnerFiscalUzqrTillsUuidResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerFiscalUzqrTillsUuidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data103.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data104.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerFiscalUzqrTillsUuidResponseToJson(

@@ -8,10 +8,24 @@ part of 'data69.dart';
 
 Data69 _$Data69FromJson(Map<String, dynamic> json) => Data69(
   branchId: (json['branch_id'] as num).toInt(),
-  productIds: json['product_ids'] as List<dynamic>,
+  date: json['date'] as String?,
+  businessDate: json['business_date'] as String,
+  enforced: json['enforced'] as bool,
+  setValue: json['set'] as bool,
+  productIds: Map<String, int>.from(json['product_ids'] as Map),
+  previousDate: json['previous_date'] as String?,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data69ToJson(Data69 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
+  'date': instance.date,
+  'business_date': instance.businessDate,
+  'enforced': instance.enforced,
+  'set': instance.setValue,
   'product_ids': instance.productIds,
+  'previous_date': instance.previousDate,
+  'products': instance.products,
 };

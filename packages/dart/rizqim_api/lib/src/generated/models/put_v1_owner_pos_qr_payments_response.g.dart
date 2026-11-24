@@ -11,7 +11,7 @@ PutV1OwnerPosQrPaymentsResponse _$PutV1OwnerPosQrPaymentsResponseFromJson(
 ) => PutV1OwnerPosQrPaymentsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data158.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data159.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerPosQrPaymentsResponseToJson(

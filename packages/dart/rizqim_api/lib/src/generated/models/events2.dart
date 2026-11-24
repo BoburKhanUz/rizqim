@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls4.dart';
+import 'halls2.dart';
 
 part 'events2.g.dart';
 
@@ -68,7 +68,7 @@ class Events2 {
   final String endsAt;
   @JsonKey(name: 'hall_ids')
   final List<int> hallIds;
-  final List<Halls4> halls;
+  final List<Halls2> halls;
   @JsonKey(name: 'event_type')
   final String eventType;
   @JsonKey(name: 'event_type_label')

@@ -6,7 +6,7 @@
 #     the critical / market / default pools, nginx's routing map and the market limits. [workers] is ignored: the
 #     pool sizes and limits are the FPM_* / NGINX_* variables of backend/docker/pools.sh (its defaults when unset).
 #     Needs nginx (with the realip module) and php8.3-fpm (`apt-get install nginx php8.3-fpm`); the generated
-#     configs live in cache/fpm, the logs in logs/. FPM_PORT_BASE (19000) moves the three pool ports (+0 +1 +2).
+#     configs live in cache/fpm, the logs in logs/. FPM_PORT_BASE (19000) moves the four pool ports (+0 +1 +2 +3).
 # shellcheck source=scripts/scale-test/env.sh
 source "$(dirname "$0")/env.sh"
 SERVER=${SERVER:-serve}
@@ -39,7 +39,7 @@ start_fpm() {
   mkdir -p "$FPM_DIR/tmp" && : > "$FPM_DIR/rizqim-headers.conf"
   eval "$(sh "$BACKEND/docker/pools.sh" env)"           # the same defaults/validation as the image
   sh "$BACKEND/docker/pools.sh" render "$FPM_DIR"
-  local ports="s#127\.0\.0\.1:9000#127.0.0.1:$base#; s#127\.0\.0\.1:9001#127.0.0.1:$((base + 1))#; s#127\.0\.0\.1:9002#127.0.0.1:$((base + 2))#"
+  local ports="s#127\.0\.0\.1:9000#127.0.0.1:$base#; s#127\.0\.0\.1:9001#127.0.0.1:$((base + 1))#; s#127\.0\.0\.1:9002#127.0.0.1:$((base + 2))#; s#127\.0\.0\.1:9003#127.0.0.1:$((base + 3))#"
   # The repo's server block; only paths, ports and the listen address are rewritten
   sed -e "$ports" -e "s#/etc/nginx/rizqim-#$FPM_DIR/rizqim-#g" -e "s#root /var/www/html/public;#root $BACKEND/public;#" \
       -e "s#listen 80;#listen 127.0.0.1:$APP_PORT;#" -e "s#include fastcgi_params;#include /etc/nginx/fastcgi_params;#" \
@@ -78,7 +78,7 @@ EOF
   nginx -t -q -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf" || exit 1
   PHP_INI_SCAN_DIR="$scan" "$FPM_BIN" -D -y "$FPM_DIR/php-fpm.conf" -R
   nginx -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf"
-  echo "fpm pools: critical=$FPM_CRITICAL_CHILDREN market=$FPM_MARKET_CHILDREN default=$FPM_DEFAULT_CHILDREN;" \
+  echo "fpm pools: critical=$FPM_CRITICAL_CHILDREN market=$FPM_MARKET_CHILDREN default=$FPM_DEFAULT_CHILDREN analytics=$FPM_ANALYTICS_CHILDREN;" \
     "market inflight=$NGINX_MARKET_MAX_INFLIGHT rate=${NGINX_MARKET_RATE}r/s burst=$NGINX_MARKET_BURST per client"
 }
 

@@ -7,24 +7,24 @@ part of 'data246.dart';
 // **************************************************************************
 
 Data246 _$Data246FromJson(Map<String, dynamic> json) => Data246(
-  event: Event12.fromJson(json['event'] as Map<String, dynamic>),
-  guests: Guests5.fromJson(json['guests'] as Map<String, dynamic>),
+  event: Event11.fromJson(json['event'] as Map<String, dynamic>),
+  guests: Guests4.fromJson(json['guests'] as Map<String, dynamic>),
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines25.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines24.fromJson(e as Map<String, dynamic>))
       .toList(),
   packageTotal: json['package_total'] as String,
   hallTotal: json['hall_total'] as String,
   extrasTotal: json['extras_total'] as String,
-  orders: Orders5.fromJson(json['orders'] as Map<String, dynamic>),
+  orders: Orders4.fromJson(json['orders'] as Map<String, dynamic>),
   total: json['total'] as String,
-  advances: Advances4.fromJson(json['advances'] as Map<String, dynamic>),
+  advances: Advances3.fromJson(json['advances'] as Map<String, dynamic>),
   due: json['due'] as String,
   excess: json['excess'] as String,
   settlement: json['settlement'] == null
       ? null
-      : Settlement6.fromJson(json['settlement'] as Map<String, dynamic>),
+      : Settlement5.fromJson(json['settlement'] as Map<String, dynamic>),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings20.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings19.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

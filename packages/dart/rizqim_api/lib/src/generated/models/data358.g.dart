@@ -8,48 +8,48 @@ part of 'data358.dart';
 
 Data358 _$Data358FromJson(Map<String, dynamic> json) => Data358(
   uuid: json['uuid'] as String,
-  code: json['code'] as String,
-  kind: json['kind'] as String,
-  faceValue: json['face_value'] as String,
-  balance: json['balance'] as String,
-  currency: json['currency'] as String,
-  validFrom: json['valid_from'] as String,
-  validUntil: json['valid_until'] as String?,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  branch: json['branch'] == null
+  method: json['method'] as String,
+  source: json['source'] as String?,
+  amount: json['amount'] as String,
+  originalAmount: json['original_amount'] as String,
+  mode: json['mode'] as String,
+  staff: json['staff'] == null
       ? null
-      : Branch20.fromJson(json['branch'] as Map<String, dynamic>),
-  sale: Sale5.fromJson(json['sale'] as Map<String, dynamic>),
-  buyer: Buyer5.fromJson(json['buyer'] as Map<String, dynamic>),
-  note: json['note'] as String?,
-  fiscal: Fiscal40.fromJson(json['fiscal'] as Map<String, dynamic>),
-  blocked: json['blocked'] == null
+      : Staff32.fromJson(json['staff'] as Map<String, dynamic>),
+  holders: (json['holders'] as List<dynamic>)
+      .map((e) => Holders12.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  businessDate: json['business_date'] as String,
+  orderUuid: json['order_uuid'] as String?,
+  billUuid: json['bill_uuid'] as String?,
+  paymentUuid: json['payment_uuid'] as String?,
+  shiftUuid: json['shift_uuid'] as String?,
+  recordedBy: json['recorded_by'] == null
       ? null
-      : Blocked6.fromJson(json['blocked'] as Map<String, dynamic>),
-  print: json['print'] == null
-      ? null
-      : Print5.fromJson(json['print'] as Map<String, dynamic>),
+      : RecordedBy12.fromJson(json['recorded_by'] as Map<String, dynamic>),
+  closed: json['closed'] as bool,
+  corrections: (json['corrections'] as List<dynamic>)
+      .map((e) => Corrections19.fromJson(e as Map<String, dynamic>))
+      .toList(),
   createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data358ToJson(Data358 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'code': instance.code,
-  'kind': instance.kind,
-  'face_value': instance.faceValue,
-  'balance': instance.balance,
-  'currency': instance.currency,
-  'valid_from': instance.validFrom,
-  'valid_until': instance.validUntil,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'branch': instance.branch,
-  'sale': instance.sale,
-  'buyer': instance.buyer,
-  'note': instance.note,
-  'fiscal': instance.fiscal,
-  'blocked': instance.blocked,
-  'print': instance.print,
+  'method': instance.method,
+  'source': instance.source,
+  'amount': instance.amount,
+  'original_amount': instance.originalAmount,
+  'mode': instance.mode,
+  'staff': instance.staff,
+  'holders': instance.holders,
+  'business_date': instance.businessDate,
+  'order_uuid': instance.orderUuid,
+  'bill_uuid': instance.billUuid,
+  'payment_uuid': instance.paymentUuid,
+  'shift_uuid': instance.shiftUuid,
+  'recorded_by': instance.recordedBy,
+  'closed': instance.closed,
+  'corrections': instance.corrections,
   'created_at': instance.createdAt,
 };

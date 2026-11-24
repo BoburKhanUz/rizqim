@@ -8,13 +8,11 @@ part 'data16.g.dart';
 
 @JsonSerializable()
 class Data16 {
-  const Data16({required this.address, required this.lat, required this.lng});
+  const Data16({required this.features});
 
   factory Data16.fromJson(Map<String, Object?> json) => _$Data16FromJson(json);
 
-  final String address;
-  final num lat;
-  final num lng;
+  final Map<String, bool> features;
 
   Map<String, Object?> toJson() => _$Data16ToJson(this);
 }

@@ -4,8 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'card_mode.dart';
-import 'checklist.dart';
+import 'opening_hours2.dart';
 
 part 'data50.g.dart';
 
@@ -13,13 +12,13 @@ part 'data50.g.dart';
 class Data50 {
   const Data50({
     required this.branchId,
-    required this.cardMode,
-    required this.cardModeLabel,
-    required this.checklist,
-    required this.checklistComplete,
-    required this.differenceThreshold,
-    required this.askBankTotal,
-    required this.sharedTerminal,
+    required this.configured,
+    required this.pickupMinLeadMinutes,
+    required this.pickupSlotMinutes,
+    required this.pickupMaxDaysAhead,
+    required this.pickupPrepMinutes,
+    required this.roundTheClock,
+    required this.openingHours,
     required this.updatedAt,
   });
 
@@ -27,19 +26,19 @@ class Data50 {
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'card_mode')
-  final CardMode? cardMode;
-  @JsonKey(name: 'card_mode_label')
-  final String? cardModeLabel;
-  final List<Checklist> checklist;
-  @JsonKey(name: 'checklist_complete')
-  final bool checklistComplete;
-  @JsonKey(name: 'difference_threshold')
-  final String differenceThreshold;
-  @JsonKey(name: 'ask_bank_total')
-  final bool askBankTotal;
-  @JsonKey(name: 'shared_terminal')
-  final bool sharedTerminal;
+  final bool configured;
+  @JsonKey(name: 'pickup_min_lead_minutes')
+  final int pickupMinLeadMinutes;
+  @JsonKey(name: 'pickup_slot_minutes')
+  final int pickupSlotMinutes;
+  @JsonKey(name: 'pickup_max_days_ahead')
+  final int pickupMaxDaysAhead;
+  @JsonKey(name: 'pickup_prep_minutes')
+  final int pickupPrepMinutes;
+  @JsonKey(name: 'round_the_clock')
+  final bool roundTheClock;
+  @JsonKey(name: 'opening_hours')
+  final OpeningHours2 openingHours;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

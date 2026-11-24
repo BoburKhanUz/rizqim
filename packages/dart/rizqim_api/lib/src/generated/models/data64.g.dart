@@ -14,7 +14,7 @@ Data64 _$Data64FromJson(Map<String, dynamic> json) => Data64(
   prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
   isActive: json['is_active'] as bool,
   slots: (json['slots'] as List<dynamic>)
-      .map((e) => Slots3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Slots2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

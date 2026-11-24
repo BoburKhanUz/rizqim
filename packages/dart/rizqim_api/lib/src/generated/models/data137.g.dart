@@ -6,24 +6,9 @@ part of 'data137.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data137 _$Data137FromJson(Map<String, dynamic> json) => Data137(
-  id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  price: json['price'] as String,
-  pricing: json['pricing'] as String,
-  pricingLabel: json['pricing_label'] as String,
-  isActive: json['is_active'] as bool,
-  sortOrder: (json['sort_order'] as num).toInt(),
-);
+Data137 _$Data137FromJson(Map<String, dynamic> json) =>
+    Data137(deleted: json['deleted'] as bool);
 
 Map<String, dynamic> _$Data137ToJson(Data137 instance) => <String, dynamic>{
-  'id': instance.id,
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'price': instance.price,
-  'pricing': instance.pricing,
-  'pricing_label': instance.pricingLabel,
-  'is_active': instance.isActive,
-  'sort_order': instance.sortOrder,
+  'deleted': instance.deleted,
 };

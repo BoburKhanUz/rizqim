@@ -4,32 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event4.dart';
-import 'summary6.dart';
-import 'rows7.dart';
-import 'entries5.dart';
-import 'cancellation2.dart';
+import 'event2.dart';
+import 'settlement2.dart';
 
 part 'data238.g.dart';
 
 @JsonSerializable()
 class Data238 {
-  const Data238({
-    required this.event,
-    required this.summary,
-    required this.rows,
-    required this.entries,
-    required this.cancellation,
-  });
+  const Data238({required this.event, required this.settlement});
 
   factory Data238.fromJson(Map<String, Object?> json) =>
       _$Data238FromJson(json);
 
-  final Event4 event;
-  final Summary6 summary;
-  final List<Rows7> rows;
-  final List<Entries5> entries;
-  final Cancellation2? cancellation;
+  final Event2 event;
+  final Settlement2 settlement;
 
   Map<String, Object?> toJson() => _$Data238ToJson(this);
 }

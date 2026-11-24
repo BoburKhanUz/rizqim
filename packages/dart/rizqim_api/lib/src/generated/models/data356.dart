@@ -4,32 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'summary13.dart';
-import 'tips16.dart';
-
 part 'data356.g.dart';
 
 @JsonSerializable()
 class Data356 {
   const Data356({
-    required this.shiftUuid,
-    required this.businessDate,
-    required this.ownOnly,
-    required this.summary,
-    required this.tips,
+    required this.id,
+    required this.name,
+    required this.serviceState,
+    required this.serviceStateAt,
   });
 
   factory Data356.fromJson(Map<String, Object?> json) =>
       _$Data356FromJson(json);
 
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'own_only')
-  final bool ownOnly;
-  final Summary13 summary;
-  final List<Tips16> tips;
+  final int id;
+  final String name;
+  @JsonKey(name: 'service_state')
+  final String? serviceState;
+  @JsonKey(name: 'service_state_at')
+  final String? serviceStateAt;
 
   Map<String, Object?> toJson() => _$Data356ToJson(this);
 }
