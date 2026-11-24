@@ -117,6 +117,59 @@ const EXTRAS_GROUP: ModifierGroup = {
 }
 
 const reply = (status: number, body: unknown): ApiReply => ({ status, body })
+
+// Wave P: the analytics allowlist of the server (App\Domain\Analytics\AnalyticsEvent::spec): ids (true = required) and
+// props (true = required) per event
+const ANALYTICS_ENVELOPE_KEYS = ['session_id', 'app_version', 'platform', 'start_param', 'events']
+const ANALYTICS_EVENT_KEYS = ['uid', 'name', 'at', 'store_id', 'product_id', 'category_id', 'props']
+export const ANALYTICS_SPEC: Record<string, { ids: Record<string, boolean>; props: Record<string, boolean> }> = {
+  app_open: { ids: {}, props: { start_kind: false, campaign_code: false } },
+  store_view: { ids: { store_id: true }, props: {} },
+  category_view: { ids: { store_id: true, category_id: true }, props: {} },
+  product_view: { ids: { store_id: true, product_id: true }, props: {} },
+  add_to_cart: { ids: { store_id: true, product_id: true }, props: { qty: false } },
+  cart_view: { ids: { store_id: true }, props: { items: false, value: false } },
+  checkout_start: { ids: { store_id: true }, props: { items: false, value: false, payment_method: false, order_type: false } },
+  checkout_error: { ids: { store_id: true }, props: { code: true } },
+  order_placed: { ids: {}, props: { order_uuid: true } },
+  payment_redirect: { ids: { store_id: true }, props: {} },
+  search: { ids: { store_id: false }, props: { results: false, length: false } },
+  promo_banner_click: { ids: { store_id: false }, props: { promo_id: false } },
+}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
+/** Why the real server would drop this event (null: it is taken). Value rules are checked by type only. */
+function analyticsEventProblem(event: unknown): string | null {
+  if (typeof event !== 'object' || event === null || Array.isArray(event)) return 'not an object'
+  const e = event as Record<string, unknown>
+  const extra = Object.keys(e).find((key) => !ANALYTICS_EVENT_KEYS.includes(key))
+  if (extra) return `unknown key ${extra}`
+  const spec = typeof e.name === 'string' ? ANALYTICS_SPEC[e.name] : undefined
+  if (!spec) return `unknown name ${String(e.name)}`
+  if (typeof e.uid !== 'string' || !UUID_RE.test(e.uid)) return 'uid'
+  if (!Number.isInteger(e.at) || (e.at as number) <= 0) return 'at'
+  for (const key of ['store_id', 'product_id', 'category_id']) {
+    const value = e[key]
+    if (value === undefined || value === null) {
+      if (spec.ids[key]) return `${e.name}: ${key} is required`
+      continue
+    }
+    if (!(key in spec.ids)) return `${e.name}: ${key} is not allowed`
+    if (!Number.isInteger(value) || (value as number) < 1) return `${e.name}: ${key} is not an id`
+  }
+  const props = e.props ?? {}
+  if (typeof props !== 'object' || props === null || Array.isArray(props)) return 'props'
+  for (const [key, value] of Object.entries(props)) {
+    if (!(key in spec.props)) return `${e.name}: prop ${key} is not allowed`
+    if (typeof value !== 'string' && typeof value !== 'number') return `${e.name}: prop ${key}`
+  }
+  for (const [key, required] of Object.entries(spec.props)) {
+    if (required && !(key in props)) return `${e.name}: prop ${key} is required`
+  }
+  if (JSON.stringify(props).length > 512) return 'props over 512 bytes'
+  return null
+}
 const ok = (data: unknown, extra: Record<string, unknown> = {}): ApiReply => reply(200, { success: true, message: '', data, ...extra })
 const fail = (status: number, message: string, errors?: Record<string, string[]>): ApiReply =>
   reply(status, errors ? { success: false, message, errors } : { success: false, message })
@@ -209,6 +262,10 @@ export class FakeApi {
   geocoderDown = false
 
   calls: ApiCall[] = []
+  /** Wave P: the analytics batches the app posted (POST /analytics/events) and the fake took (202), oldest first. */
+  analyticsBatches: Array<Record<string, unknown>> = []
+  /** Events of those batches the real server would drop (off its allowlist), with why. */
+  analyticsDropped: Array<{ event: unknown; problem: string }> = []
   /** Calls that matched no endpoint of the fake: a test fails when the app starts using one it does not know. */
   unhandled: string[] = []
 
@@ -322,6 +379,7 @@ export class FakeApi {
       return ok(this.pickupSlots ? { enabled: true, ...this.pickupSlots } : { enabled: false, min_lead_minutes: 0, slot_minutes: 15, slots: [] })
     }
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {}, idempotencyKey)
+    if (method === 'POST' && path === '/analytics/events') return this.analyticsEvents(body)
 
     const staffReply = this.staff.handle(method, path, query, body)
     if (staffReply) return staffReply
@@ -510,6 +568,37 @@ export class FakeApi {
       meets_min_order: subtotal === null ? null : subtotal >= this.zoneMinOrder,
       eta: { minutes: 40 },
     })
+  }
+
+  // Wave P: POST /analytics/events as the real endpoint takes it (EventController, EventIngestor): a malformed envelope
+  // (no or a nil session_id, no platform, an unknown top-level field, a start_param that is not a string of at most 512,
+  // not 1-50 events) is 422; an event off the allowlist (AnalyticsEvent::spec: an unknown name or key, a missing required
+  // id or prop, a wrong type) is dropped and counted in `dropped`, kept in analyticsDropped for the spec to see.
+  private analyticsEvents(body: Record<string, unknown> | null): ApiReply {
+    const events = body?.events
+    if (
+      !body ||
+      Object.keys(body).some((key) => !ANALYTICS_ENVELOPE_KEYS.includes(key)) ||
+      typeof body.session_id !== 'string' ||
+      !UUID_RE.test(body.session_id) ||
+      body.session_id === NIL_UUID ||
+      body.platform === undefined ||
+      body.platform === null ||
+      (body.start_param !== undefined && body.start_param !== null && (typeof body.start_param !== 'string' || body.start_param.length > 512)) ||
+      !Array.isArray(events) ||
+      events.length < 1 ||
+      events.length > 50
+    ) {
+      return reply(422, { success: false, message: 'The given data was invalid.', data: { reason: 'validation' } })
+    }
+    let accepted = 0
+    for (const event of events as unknown[]) {
+      const problem = analyticsEventProblem(event)
+      if (problem) this.analyticsDropped.push({ event, problem })
+      else accepted++
+    }
+    this.analyticsBatches.push(body)
+    return reply(202, { success: true, message: '', data: { accepted, dropped: events.length - accepted } })
   }
 
   // POST /orders

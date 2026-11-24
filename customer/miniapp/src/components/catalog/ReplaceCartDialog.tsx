@@ -1,4 +1,5 @@
 import { hapticFeedback } from '../../lib/telegram';
+import { trackAddToCart } from '../../hooks/useAnalytics';
 import { useCartStore, type PendingCartItem } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { Button, Dialog } from '../ui';
@@ -45,6 +46,7 @@ export function ReplaceCartDialog({ pending, onClose }: ReplaceCartDialogProps) 
             onClick={() => {
               if (pending) {
                 forceClearAndAdd(pending.item, pending.storeInfo);
+                trackAddToCart(pending.item);
                 hapticFeedback('success');
               }
               onClose();

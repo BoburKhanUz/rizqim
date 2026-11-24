@@ -43,6 +43,8 @@ ARG VITE_REVERB_PORT=443
 ARG VITE_REVERB_SCHEME=https
 # Hamkor web panel manzili: Mini App'da "Web panelda tahrirlash" havolasi shunga olib boradi (bo'sh = havolasiz matn)
 ARG VITE_PARTNER_WEB_URL=
+# Foydalanish statistikasi o'z serverimizga (true = yoqilgan; bo'sh = o'chiq). customer/miniapp/README.md "Analitika"
+ARG VITE_ANALYTICS_ENABLED=
 ENV VITE_BOT_USERNAME=$VITE_BOT_USERNAME
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_MAP_TILE_URL="$VITE_MAP_TILE_URL"
@@ -56,6 +58,7 @@ ENV VITE_REVERB_HOST="$VITE_REVERB_HOST"
 ENV VITE_REVERB_PORT="$VITE_REVERB_PORT"
 ENV VITE_REVERB_SCHEME="$VITE_REVERB_SCHEME"
 ENV VITE_PARTNER_WEB_URL="$VITE_PARTNER_WEB_URL"
+ENV VITE_ANALYTICS_ENABLED="$VITE_ANALYTICS_ENABLED"
 
 RUN npm run build
 

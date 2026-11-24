@@ -15,6 +15,9 @@
 #     PROD_VITE_BOT_USERNAME, PROD_VITE_PARTNER_WEB_URL, PROD_VITE_MAP_TILE_URL, PROD_VITE_MAP_ATTRIBUTION, PROD_VITE_SENTRY_DSN
 #     (staging uchun STAGING_VITE_*): Mini App obraziga yoziladi. Berilmasa: bot va panel manzili muhit standartiga
 #     (rizqimbot / rizqim_staging_bot, business.<domen>), qolganlari bo'sh.
+#     PROD_VITE_ANALYTICS_ENABLED (STAGING_VITE_ANALYTICS_ENABLED): faqat `true` bo'lsa Mini App statistika klientini
+#     yig'adi (customer/miniapp/README.md "Analitika"); yo'q yoki boshqa qiymat = o'chiq. O'zgartirgandan keyin qayta
+#     deploy kerak (build vaqtidagi qiymat). Serverdagi ANALYTICS_ENABLED esa ishlayotgan o'chirgich (alohida).
 #   Environment `production` (Settings -> Environments -> production; staging uchun `staging` da xuddi shu nomlar):
 #     Variables: SSH_HOST, SSH_USER, SSH_PORT (ixtiyoriy, standart 22)
 #     Secrets:   SSH_KEY (maxfiy kalit), SSH_KNOWN_HOSTS (SHART: server kaliti; yo'q bo'lsa deploy XATO bilan to'xtaydi)
@@ -73,6 +76,7 @@ jobs:
       vite_map_tile_url: ${{ steps.plan.outputs.vite_map_tile_url }}
       vite_map_attribution: ${{ steps.plan.outputs.vite_map_attribution }}
       vite_sentry_dsn: ${{ steps.plan.outputs.vite_sentry_dsn }}
+      vite_analytics_enabled: ${{ steps.plan.outputs.vite_analytics_enabled }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -93,11 +97,13 @@ jobs:
           V_STG_TILE: ${{ vars.STAGING_VITE_MAP_TILE_URL }}
           V_STG_ATTR: ${{ vars.STAGING_VITE_MAP_ATTRIBUTION }}
           V_STG_SENTRY: ${{ vars.STAGING_VITE_SENTRY_DSN }}
+          V_STG_ANALYTICS: ${{ vars.STAGING_VITE_ANALYTICS_ENABLED }}
           V_PROD_BOT: ${{ vars.PROD_VITE_BOT_USERNAME }}
           V_PROD_PARTNER: ${{ vars.PROD_VITE_PARTNER_WEB_URL }}
           V_PROD_TILE: ${{ vars.PROD_VITE_MAP_TILE_URL }}
           V_PROD_ATTR: ${{ vars.PROD_VITE_MAP_ATTRIBUTION }}
           V_PROD_SENTRY: ${{ vars.PROD_VITE_SENTRY_DSN }}
+          V_PROD_ANALYTICS: ${{ vars.PROD_VITE_ANALYTICS_ENABLED }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = push ]; then target=staging; else target="$INPUT_TARGET"; fi
@@ -114,12 +120,15 @@ jobs:
             [ "$EVENT" = workflow_dispatch ] || { echo "::error::production faqat qo'lda (workflow_dispatch)"; exit 1; }
             flag="$PROD_ENABLED"; flag_name=PROD_DEPLOY_ENABLED; domain="$PROD_DOMAIN"
             bot="${V_PROD_BOT:-rizqimbot}"; partner="${V_PROD_PARTNER:-https://business.$PROD_DOMAIN}"
-            tile="$V_PROD_TILE"; attr="$V_PROD_ATTR"; sentry="$V_PROD_SENTRY"
+            tile="$V_PROD_TILE"; attr="$V_PROD_ATTR"; sentry="$V_PROD_SENTRY"; analytics="$V_PROD_ANALYTICS"
           else
             flag="$STG_ENABLED"; flag_name=STAGING_DEPLOY_ENABLED; domain="$STAGING_DOMAIN"
             bot="${V_STG_BOT:-rizqim_staging_bot}"; partner="${V_STG_PARTNER:-https://business.$STAGING_DOMAIN}"
-            tile="$V_STG_TILE"; attr="$V_STG_ATTR"; sentry="$V_STG_SENTRY"
+            tile="$V_STG_TILE"; attr="$V_STG_ATTR"; sentry="$V_STG_SENTRY"; analytics="$V_STG_ANALYTICS"
           fi
+
+          # Mini App statistikasi: faqat aniq `true` yoqadi; yo'q yoki boshqa qiymat = o'chiq (build argumenti berilmaydi)
+          if [ "$analytics" != true ]; then analytics=""; fi
 
           if [ "$flag" = true ]; then
             enabled=true
@@ -153,6 +162,7 @@ jobs:
             echo "vite_map_tile_url=$tile"
             echo "vite_map_attribution=$attr"
             echo "vite_sentry_dsn=$sentry"
+            echo "vite_analytics_enabled=$analytics"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -217,6 +227,7 @@ jobs:
           V_TILE: ${{ needs.prepare.outputs.vite_map_tile_url }}
           V_ATTR: ${{ needs.prepare.outputs.vite_map_attribution }}
           V_SENTRY: ${{ needs.prepare.outputs.vite_sentry_dsn }}
+          V_ANALYTICS: ${{ needs.prepare.outputs.vite_analytics_enabled }}
         run: |
           set -euo pipefail
           reuse=false
@@ -243,6 +254,7 @@ jobs:
               [ -z "$V_TILE" ] || echo "VITE_MAP_TILE_URL=$V_TILE"
               [ -z "$V_ATTR" ] || echo "VITE_MAP_ATTRIBUTION=$V_ATTR"
               [ -z "$V_SENTRY" ] || echo "VITE_SENTRY_DSN=$V_SENTRY"
+              [ -z "$V_ANALYTICS" ] || echo "VITE_ANALYTICS_ENABLED=$V_ANALYTICS"
               echo 'EOF_BUILD_ARGS'
             } >> "$GITHUB_OUTPUT"
           fi

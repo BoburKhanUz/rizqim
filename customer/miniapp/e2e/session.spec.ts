@@ -21,8 +21,14 @@ test('an expired token is renewed once and the failed requests are replayed', as
   expect(rejected[0].authorization).toBe('Bearer stale-token')
   // ... then exactly one new sign-in happened ...
   expect(api.callsTo('POST', '/auth/telegram')).toHaveLength(1)
-  // ... and every refused request was repeated with the new token and went through
-  for (const call of rejected) {
+  // ... and every refused request was repeated with the new token and went through. An analytics batch (on in the e2e
+  // build) is not replayed by the axios interceptor: the analytics client waits for the renewed token and sends it again
+  // itself, answered 202
+  const analytics = rejected.filter((call) => call.path === '/analytics/events')
+  if (analytics.length > 0) {
+    await expect.poll(() => api.callsTo('POST', '/analytics/events').some((call) => call.status === 202 && call.authorization === 'Bearer token-1')).toBe(true)
+  }
+  for (const call of rejected.filter((other) => other.path !== '/analytics/events')) {
     const retry = api.calls.find(
       (other) => other.status === 200 && other.method === call.method && other.path === call.path && JSON.stringify(other.query) === JSON.stringify(call.query),
     )

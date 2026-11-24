@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, expect, it } from 'vitest';
-import { describeOrderFailure } from './orderErrors';
+import { checkoutErrorCode, checkoutErrorCodeOfQuote, describeOrderFailure } from './orderErrors';
 
 function failure(status: number, body: unknown): AxiosError {
   const response = { status, data: body, statusText: '', headers: {}, config: {} } as AxiosResponse;
@@ -65,5 +65,33 @@ describe('describeOrderFailure', () => {
 
   it('keeps an Uzbek server message it has no special case for', () => {
     expect(describeOrderFailure(failure(400, { message: "Eng kam buyurtma summasi: 30 000 UZS." })).message).toBe('Eng kam buyurtma summasi: 30 000 UZS.');
+  });
+});
+
+// Wave P: the code of the checkout_error analytics event (docs/API.md "Analitika hodisalari"), never the text
+describe('checkoutErrorCode', () => {
+  it.each([
+    ['no connection', new AxiosError('Network Error'), 'network'],
+    ['a server error', failure(500, { message: 'Server Error' }), 'network'],
+    ['too many requests', failure(429, { message: 'Too Many Attempts.' }), 'network'],
+    ['outside the zone', failure(422, { data: { reason: 'outside_zone' } }), 'out_of_zone'],
+    ['the old radius refusal', failure(400, { message: 'Uzr, siz kiritgan manzil ushbu restoranning yetkazib berish hududidan tashqarida joylashgan.', data: [] }), 'out_of_zone'],
+    ['the branch is closed', failure(422, { data: { reason: 'branch_closed' } }), 'store_closed'],
+    ['below the minimum', failure(422, { data: { reason: 'below_minimum_order', min_order_amount: '30000.00' } }), 'min_order'],
+    ['sold out', failure(422, { message: 'The given data was invalid.', errors: { items: ["Uzr, 'Lavash' hozir ushbu filialda mavjud emas (tugadi). Iltimos, savatni yangilang."] } }), 'item_unavailable'],
+    ['a payment method refused', failure(422, { message: 'x', errors: { payment_method: ["To'lov usuli o'chirilgan."] } }), 'payment'],
+    ['anything else', failure(422, { message: 'The given data was invalid.', errors: { notes: ['The notes field must be a string.'] } }), 'validation'],
+  ])('%s', (_label, error, code) => {
+    expect(checkoutErrorCode(error)).toBe(code);
+  });
+});
+
+describe('checkoutErrorCodeOfQuote', () => {
+  it('names a refused or failed quote, and nothing while it is still being asked (a wait, not an error)', () => {
+    expect(checkoutErrorCodeOfQuote({ status: 'loading' })).toBeNull();
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'outside_zone' })).toBe('out_of_zone');
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'branch_closed' })).toBe('store_closed');
+    expect(checkoutErrorCodeOfQuote({ status: 'refused', reason: 'something_new' })).toBe('out_of_zone');
+    expect(checkoutErrorCodeOfQuote({ status: 'error' })).toBe('network');
   });
 });
