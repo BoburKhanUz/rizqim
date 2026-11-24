@@ -10,11 +10,23 @@ use Illuminate\Support\Facades\DB;
  * payment settings of every store on each (unauthenticated) request.
  *
  * Every store carries `payme_key_digest`, a keyed SHA-256 of its own Payme cashbox key (payment_settings.payme
- * .secret_key), kept by the Store model whenever payment_settings is saved, NONE when it has none, NULL only for a row
- * written by code that predates the column (the migration 2026_12_09_100000 fills every row). A key is matched through
- * the index on that column; the few candidates are then checked against their decrypted key in constant time, so a
- * stale digest can never authorise anything. Stores whose digest is still NULL are checked too (none once migrated),
- * so a row the digest missed never drops a Payme call.
+ * .secret_key), kept by the Store model whenever payment_settings is saved, NONE when it has none, NULL for a row
+ * written by code that predates the column or whose settings could not be read. Third review M1: the digest is an
+ * index hint, never the source of truth. A key is matched through the index on that column and every candidate is
+ * checked against its decrypted key in constant time, so a stale digest can never authorise anything; and a digest
+ * left stale by code that does not keep it (a release before the column, after a code-only rollback, saving a store
+ * whose owner changed the key) never drops a Payme call either:
+ *  - stores whose digest is NULL are always checked too (none once the backfill has run);
+ *  - a call about a transaction id also checks the stores that hold that id (storesWithKey's $transactionId: at most
+ *    HOLDERS of them, found through the payments and pos_qr_payments indexes on (provider, provider_transaction_id),
+ *    and only those whose digest is not this key's), so an unknown key costs at most that many decryptions and only for
+ *    an id that exists — never a scan of every store;
+ *  - an account method (CheckPerformTransaction, CreateTransaction) is authorised by its order's own key, and that
+ *    store is then the request's (PaymeWebhookController::authorizeAccount, remember());
+ *  - a store found that way has its digest repaired (remember()), and `php artisan payments:payme-digests` recomputes
+ *    every digest (run at every deploy by the entrypoint, and by hand after a code rollback: docs/OPERATIONS.md).
+ * GetStatement names neither an account nor an id: for a store whose digest is stale it is answered -32504 until one
+ * of the calls above or the command has repaired it (Payme asks for the statement again; no money moves on it).
  *
  * The HMAC key is a fixed label, deliberately not APP_KEY: rotating APP_KEY (old keys kept in APP_PREVIOUS_KEYS for
  * the encrypted settings) must not silently orphan every store's cashbox. A Payme cashbox key is a random secret Payme
@@ -60,12 +72,14 @@ final class PaymeCashbox
 
     /**
      * The ids of the stores whose own Payme cashbox key this is (one cashbox may serve several stores of a chain, each
-     * saving the same key), in id order; [] for none.
+     * saving the same key), in id order; [] for none. With $transactionId (a call about that id), the stores that hold
+     * the id are checked too when their digest is not this key's (a stale digest, see the class comment).
      *
      * @return list<int>
      */
-    public static function storesWithKey(string $key): array
+    public static function storesWithKey(string $key, ?string $transactionId = null): array
     {
+        $key = trim($key);
         $digest = self::digest($key);
         if ($digest === self::NONE) {
             return [];
@@ -76,14 +90,163 @@ final class PaymeCashbox
             ->where(fn ($query) => $query->where('payme_key_digest', $digest)->orWhereNull('payme_key_digest'))
             ->whereNotNull('payment_settings')
             ->orderBy('id')
-            ->get(['id', 'payment_settings']);
+            ->get(['id', 'payment_settings', 'payme_key_digest']);
         foreach ($candidates as $store) {
-            $own = \App\Domain\Pos\QrPayments\Providers\StoreMerchant::credential($store, 'payme', 'secret_key');
-            if ($own !== null && hash_equals($own, trim($key))) {
+            if (self::holdsKey($store, $key)) {
                 $ids[] = (int) $store->id;
             }
         }
 
+        if ($transactionId !== null && $transactionId !== '') {
+            $holders = array_values(array_diff(self::holdersOf($transactionId), $ids));
+            if ($holders !== []) {
+                $stale = Store::query()->whereIn('id', $holders)
+                    ->whereNotNull('payme_key_digest')->where('payme_key_digest', '!=', $digest)
+                    ->whereNotNull('payment_settings')
+                    ->orderBy('id')
+                    ->get(['id', 'payment_settings', 'payme_key_digest']);
+                foreach ($stale as $store) {
+                    if (self::holdsKey($store, $key)) {
+                        $ids[] = (int) $store->id;
+                    }
+                }
+                sort($ids);
+            }
+        }
+
         return $ids;
+    }
+
+    /**
+     * The store's decrypted key is this one (constant time); its digest is then repaired when it is not this key's.
+     */
+    private static function holdsKey(Store $store, string $key): bool
+    {
+        try {
+            $own = \App\Domain\Pos\QrPayments\Providers\StoreMerchant::credential($store, 'payme', 'secret_key');
+        } catch (\Throwable) {
+            // Settings this install cannot decrypt (its digest is NULL: payments:payme-digests reports it): never the
+            // reason every other store's Payme call fails
+            return false;
+        }
+        if ($own === null || !hash_equals($own, $key)) {
+            return false;
+        }
+        if ($store->getAttribute('payme_key_digest') !== self::digest($key)) {
+            self::remember((int) $store->id, $key);
+        }
+
+        return true;
+    }
+
+    /** How many stores holding one transaction id are looked at, at most (an id is one per merchant account). */
+    private const HOLDERS = 8;
+
+    /**
+     * The stores whose own cashbox holds this Payme transaction id: a STORE-owned payment's, or a POS QR's.
+     *
+     * @return list<int>
+     */
+    private static function holdersOf(string $transactionId): array
+    {
+        $payments = DB::table('payments')->where('provider', 'payme')->where('provider_transaction_id', $transactionId)
+            ->where('merchant_scope', 'like', 'store:%')->limit(self::HOLDERS)->pluck('merchant_scope')
+            ->map(fn ($scope) => (int) substr((string) $scope, 6));
+        $qrs = DB::table('pos_qr_payments')->where('provider', \App\Domain\Pos\QrPayments\QrProvider::PAYME->value)
+            ->where('provider_transaction_id', $transactionId)->limit(self::HOLDERS)->pluck('store_id')->map(fn ($id) => (int) $id);
+
+        return array_slice(array_values(array_unique([...$payments->all(), ...$qrs->all()])), 0, self::HOLDERS);
+    }
+
+    /**
+     * Third review M1: the store's own Payme key is $key (the caller has just checked it against the decrypted
+     * settings): its digest is set to this key's when it is not. A single-row update of that column, waiting at most a
+     * second for a store row a ledger transaction holds; when it cannot be written now the request is still answered
+     * for the store (the caller has it), and the next call or `payments:payme-digests` writes it.
+     */
+    public static function remember(int $storeId, string $key): void
+    {
+        $digest = self::digest($key);
+        try {
+            DB::transaction(function () use ($storeId, $digest) {
+                if (DB::getDriverName() === 'pgsql') {
+                    DB::select("SELECT set_config('lock_timeout', '1s', true)");
+                }
+                $repaired = DB::table('stores')->where('id', $storeId)
+                    ->where(fn ($query) => $query->whereNull('payme_key_digest')->orWhere('payme_key_digest', '!=', $digest))
+                    ->update(['payme_key_digest' => $digest]);
+                if ($repaired > 0) {
+                    \Illuminate\Support\Facades\Log::warning('stores.payme_key_digest was stale and has been repaired', ['store_id' => $storeId]);
+                }
+            });
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('stores.payme_key_digest could not be repaired now', ['store_id' => $storeId, 'error' => get_class($e)]);
+        }
+    }
+
+    /**
+     * The digest of a stores.payment_settings value as stored (encrypted with APP_KEY, or plain JSON on an install that
+     * never encrypted it), or null when it cannot be read (third review L3: left NULL, so it is still matched and
+     * retried, never NONE).
+     */
+    public static function digestOfStored(mixed $stored): ?string
+    {
+        if ($stored === null || $stored === '') {
+            return self::NONE;
+        }
+        if (!is_string($stored)) {
+            return null;
+        }
+        try {
+            $plain = \Illuminate\Support\Facades\Crypt::decryptString($stored);
+        } catch (\Illuminate\Contracts\Encryption\DecryptException) {
+            $plain = $stored; // not encrypted (an install that never ran 2026_12_01_100000)
+        }
+        $settings = json_decode($plain, true);
+
+        return is_array($settings) ? self::digestOf($settings) : null;
+    }
+
+    /**
+     * Recomputes every store's digest from its settings (`payments:payme-digests`, and the migration's backfill):
+     * [stores read, digests changed, stores left without a current digest (settings that could not be read, left NULL;
+     * or a row a ledger transaction held, kept as it was)]. Store by store, each a
+     * single-row update of that column only, waiting at most $lockTimeout for a row a ledger transaction holds.
+     *
+     * @return array{0: int, 1: int, 2: int}
+     */
+    public static function recomputeAll(string $lockTimeout = '5s'): array
+    {
+        $read = $changed = $failed = 0;
+        DB::table('stores')->select(['id', 'payment_settings', 'payme_key_digest'])->orderBy('id')
+            ->chunkById(200, function ($stores) use (&$read, &$changed, &$failed, $lockTimeout) {
+                foreach ($stores as $store) {
+                    $read++;
+                    $digest = self::digestOfStored($store->payment_settings);
+                    if ($digest === null) {
+                        $failed++;
+                        \Illuminate\Support\Facades\Log::warning('stores.payme_key_digest left NULL: the payment settings could not be read', ['store_id' => $store->id]);
+                    }
+                    if ($digest === $store->payme_key_digest) {
+                        continue;
+                    }
+                    try {
+                        DB::transaction(function () use ($store, $digest, $lockTimeout, &$changed) {
+                            if (DB::getDriverName() === 'pgsql') {
+                                DB::select("SELECT set_config('lock_timeout', ?, true)", [$lockTimeout]);
+                            }
+                            // Only if the settings are still the ones read (a save meanwhile wrote its own digest)
+                            $changed += DB::table('stores')->where('id', $store->id)
+                                ->where('payment_settings', $store->payment_settings)
+                                ->update(['payme_key_digest' => $digest]);
+                        });
+                    } catch (\Throwable $e) {
+                        $failed += $digest === null ? 0 : 1;
+                        \Illuminate\Support\Facades\Log::warning('stores.payme_key_digest not recomputed for a store now', ['store_id' => $store->id, 'error' => get_class($e)]);
+                    }
+                }
+            });
+
+        return [$read, $changed, $failed];
     }
 }

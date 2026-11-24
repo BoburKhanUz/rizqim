@@ -217,10 +217,14 @@ class PaymentMerchantScopeTest extends TestCase
             $read[] = (int) $store->id;
         });
 
-        // A key no store has reads no store at all
+        // A key no store has reads no store at all, except (third review M1: a digest may be stale) the store that holds
+        // the transaction id a call names, never its chain's other stores or anyone else's
         $this->payme('GetStatement', ['from' => 1, 'to' => 1764000000001], 'nobody-' . Str::random(24))->assertJsonPath('error.code', -32504);
-        $this->payme('CheckTransaction', ['id' => 'stmt-1'], 'nobody-' . Str::random(24))->assertJsonPath('error.code', -32504);
+        $this->payme('CheckTransaction', ['id' => 'nobody-has-it'], 'nobody-' . Str::random(24))->assertJsonPath('error.code', -32504);
         $this->assertSame([], $read);
+        $this->payme('CheckTransaction', ['id' => 'stmt-1'], 'nobody-' . Str::random(24))->assertJsonPath('error.code', -32504);
+        $this->assertSame([(int) $chain->id], $read);
+        $read = [];
 
         // A store's key reads the stores of its cashbox only
         $rows = $this->payme('GetStatement', ['from' => 1, 'to' => 1764000000001], $this->stores['x']['payme'])->json('result.transactions');

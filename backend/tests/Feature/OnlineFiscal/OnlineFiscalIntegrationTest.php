@@ -138,4 +138,45 @@ class OnlineFiscalIntegrationTest extends TestCase
         $this->assertSame(['payme', '800031554082', '121', 'EP000000000025'], [$receipt->provider, $receipt->fiscal_sign, $receipt->receipt_number, $receipt->terminal_id]);
         $this->assertSame($receipt->uuid, Payment::where('provider_transaction_id', '61396aaed8b87a4c215ae556')->first()->payload['fiscal']['receipt_uuid']);
     }
+
+    /**
+     * Security review F5 / third review: a platform-collected payment's receipt key names the platform's account
+     * (`payme:platform:<id>:perform`), so the store's own cashbox can hold the same Payme id without sharing its
+     * receipt. A replay records nothing twice, and a receipt recorded before that change under the old key
+     * (`payme:<id>:perform`) is still recognised as this payment's, also when the payment's own mark of it is gone.
+     */
+    public function test_a_platform_payme_receipt_is_recorded_once_under_the_new_and_the_old_key_format(): void
+    {
+        config(['services.payme.secret_key' => 'platform_payme_key']);
+        $this->store->update(['payment_settings' => array_merge($this->store->payment_settings ?? [], ['payme' => ['enabled' => true]])]);
+        $trx = '61396aaed8b87a4c215ae557';
+        $order = $this->checkout($this->customer, 3, 'payme');
+        $this->assertSame('PLATFORM', $order->payment_owner);
+        $rpc = fn (string $method, array $params) => $this->postJson('/api/v1/payments/payme/webhook', ['jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => $params],
+            ['Authorization' => 'Basic ' . base64_encode('Paycom:platform_payme_key')]);
+        $fiscal = ['id' => $trx, 'type' => 'PERFORM', 'fiscal_data' => ['receipt_id' => 121, 'status_code' => 0, 'message' => 'accepted',
+            'terminal_id' => 'EP000000000025', 'fiscal_sign' => '800031554082', 'qr_code_url' => 'fiscal receipt url', 'date' => '20220706221021']];
+        $rpc('CreateTransaction', ['id' => $trx, 'time' => 1760000000000, 'amount' => 15000000, 'account' => ['order_id' => $order->uuid]])->assertJsonPath('result.state', 1);
+        $rpc('PerformTransaction', ['id' => $trx])->assertJsonPath('result.state', 2);
+        $payment = Payment::where('order_id', $order->id)->where('provider_transaction_id', $trx)->sole();
+
+        // Recorded before this change: the old key, the payment marked by the old code
+        $old = app(\App\Services\Payment\Fiscal\OnlineFiscalRecorder::class)->record($order->fresh(), $payment, 'payme', \App\Domain\Fiscal\FiscalReceiptType::SALE,
+            "payme:{$trx}:perform", ['id' => $trx, 'type' => 'PERFORM'] + $fiscal['fiscal_data']);
+        $this->assertNotNull($old);
+
+        // The payment's mark of it lost (only the receipt row says it was recorded): a replay still records nothing new
+        $rpc('SetFiscalData', $fiscal)->assertExactJson(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['success' => true]]);
+        $rpc('SetFiscalData', $fiscal)->assertJsonPath('result.success', true);
+        $this->assertSame(["payme:{$trx}:perform"], FiscalReceipt::where('store_id', $this->store->id)->pluck('idempotency_key')->all());
+        $this->assertSame($old->receiptUuid, $payment->fresh()->payload['fiscal']['receipt_uuid']);
+
+        // A payment recorded after the change: the new key, once
+        $second = $this->checkout($this->customer, 3, 'payme');
+        $rpc('CreateTransaction', ['id' => "{$trx}-2", 'time' => 1760000000000, 'amount' => 15000000, 'account' => ['order_id' => $second->uuid]])->assertJsonPath('result.state', 1);
+        $rpc('PerformTransaction', ['id' => "{$trx}-2"])->assertJsonPath('result.state', 2);
+        $rpc('SetFiscalData', ['id' => "{$trx}-2"] + $fiscal)->assertJsonPath('result.success', true);
+        $rpc('SetFiscalData', ['id' => "{$trx}-2"] + $fiscal)->assertJsonPath('result.success', true);
+        $this->assertSame(["payme:platform:{$trx}-2:perform"], FiscalReceipt::where('subject_id', $second->id)->pluck('idempotency_key')->all());
+    }
 }

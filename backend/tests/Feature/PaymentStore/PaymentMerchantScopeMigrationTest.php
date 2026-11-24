@@ -152,6 +152,31 @@ class PaymentMerchantScopeMigrationTest extends TestCase
     }
 
     /**
+     * Third review M1/L3: the backfill recomputes every row (a digest left stale by a release without the digest hook is
+     * repaired by running it again), and a store whose settings cannot be decrypted is left NULL (still matched, retried
+     * on the next run), never written `none` (which nothing would ever match or retry).
+     */
+    #[\Tests\Concerns\AsSchemaOwner]
+    public function test_the_digest_backfill_recomputes_stale_rows_and_leaves_unreadable_ones_null(): void
+    {
+        $key = 'own-key-' . Str::random(20);
+        $own = $this->own = Store::forceCreate(['name' => 'Own ' . Str::random(6), 'status' => 'active',
+            'payment_settings' => ['payme' => ['enabled' => true, 'merchant_id' => 'm', 'secret_key' => $key]]]);
+        DB::table('stores')->where('id', $own->id)->update(['payme_key_digest' => PaymeCashbox::digest('the-previous-key')]);
+        $unreadable = (new \Illuminate\Encryption\Encrypter(random_bytes(32), 'aes-256-cbc'))->encryptString(json_encode(['payme' => ['secret_key' => 'x']]));
+        DB::table('stores')->where('id', $this->store->id)->update(['payment_settings' => $unreadable, 'payme_key_digest' => null]);
+
+        try {
+            (require database_path(self::DIGEST))->up();
+
+            $this->assertSame(PaymeCashbox::digest($key), DB::table('stores')->where('id', $own->id)->value('payme_key_digest'));
+            $this->assertNull(DB::table('stores')->where('id', $this->store->id)->value('payme_key_digest'));
+        } finally {
+            DB::table('stores')->where('id', $this->store->id)->update(['payment_settings' => \Illuminate\Support\Facades\Crypt::encryptString(json_encode(['cash' => ['enabled' => true]]))]);
+        }
+    }
+
+    /**
      * @param  array<string, int>  $ids
      * @param  array<string, string>  $scopes
      */

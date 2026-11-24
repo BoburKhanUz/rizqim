@@ -21,6 +21,9 @@ return new class extends Migration
 
     private const INDEX = 'payments_provider_scope_transaction_unique';
 
+    // The merchant account of payment p (the trigger's rule), for the backfill; the migration runs as the tables' owner
+    private const SCOPE_OF = "COALESCE((SELECT CASE WHEN o.payment_owner IS DISTINCT FROM 'PLATFORM' THEN 'store:' || o.store_id ELSE 'platform' END FROM orders o WHERE o.id = p.order_id), 'platform')";
+
     /**
      * Security review F5: a provider's transaction id is only meaningful within the merchant account that issued it (the
      * platform's Click service / Payme cashbox / Paylov account, or a restaurant's own), but `payments` made
@@ -31,14 +34,18 @@ return new class extends Migration
      *
      * `payments.merchant_scope` names that account: `platform`, or `store:<store id>` (an order paid into its store's own
      * account, payment_owner other than PLATFORM, the rule of App\Services\Payment\OrderMerchantAccount::isStore; a
-     * payment without an order is a top-up, the platform's). It is derived from the payment's order in the database
-     * (payments_merchant_scope(), SECURITY DEFINER like payments_parent_store, so row-level security never hides the
-     * order), by BEFORE INSERT / UPDATE OF order_id triggers, for every writer: the application sets the same value
-     * itself (App\Models\Payment::merchantScopeOf), and old code during a deploy, raw SQL or the load-test kit get it from
-     * the database. The identity becomes unique per (provider, merchant_scope, provider_transaction_id).
+     * payment without an order is a top-up, the platform's). It is derived from the payment's order in the database, by
+     * BEFORE INSERT / UPDATE OF order_id triggers, for every writer: the application sets the same value itself
+     * (App\Models\Payment::merchantScopeOf), and old code during a deploy, raw SQL or the load-test kit get it from the
+     * database. The trigger function reads the order as its owner (SECURITY DEFINER, fixed search_path), so row-level
+     * security never hides the order; third review L1: the lookup is inside the trigger function itself, never a
+     * callable helper (a SECURITY DEFINER function returning the scope of any order id let every role read any order's
+     * store across tenants; PostgreSQL calls a trigger function only as a trigger). The identity becomes unique per
+     * (provider, provider_transaction_id, merchant_scope): the same rule as (provider, merchant_scope, id), in the order
+     * that also serves a lookup of an id across accounts (App\Services\Payment\PaymeCashbox::holdersOf).
      *
      * Steps (each one short; re-running the migration resumes where it stopped), as 2026_11_27_100000:
-     * 1. nullable column (metadata only, brief ACCESS EXCLUSIVE), function (no lock), triggers (brief SHARE ROW
+     * 1. nullable column (metadata only, brief ACCESS EXCLUSIVE), trigger function (no lock), triggers (brief SHARE ROW
      *    EXCLUSIVE); every table lock in a transaction of its own, waiting at most min(500 ms, deadlock_timeout / 2);
      * 2. backfill in id ranges of 20 000, one commit each; rows a till holds locked are skipped (SKIP LOCKED) and then
      *    taken one by one, each waiting for its till (at most 5 s);
@@ -58,7 +65,7 @@ return new class extends Migration
                 });
                 Schema::table('payments', function (Blueprint $table) {
                     $table->dropUnique(self::OLD);
-                    $table->unique(['provider', 'merchant_scope', 'provider_transaction_id'], self::INDEX);
+                    $table->unique(['provider', 'provider_transaction_id', 'merchant_scope'], self::INDEX);
                 });
             }
 
@@ -68,20 +75,16 @@ return new class extends Migration
         if (!Schema::hasColumn('payments', 'merchant_scope')) {
             $this->locked(fn () => DB::statement('ALTER TABLE payments ADD COLUMN merchant_scope varchar(40)'));
         }
-        // No table lock; relations schema-qualified and a fixed search_path, as payments_parent_store (stage 3)
+        // No table lock; relations schema-qualified and a fixed search_path, as the stage 3 store lookup
         $schema = '"' . str_replace('"', '""', (string) DB::selectOne('SELECT current_schema() AS s')->s) . '"';
         DB::unprepared(str_replace('{schema}', $schema, <<<'SQL'
-            CREATE OR REPLACE FUNCTION {schema}.payments_merchant_scope(p_order_id bigint) RETURNS varchar
-            LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-                SELECT COALESCE(
-                    (SELECT CASE WHEN o.payment_owner IS DISTINCT FROM 'PLATFORM' THEN 'store:' || o.store_id ELSE 'platform' END
-                       FROM {schema}.orders o WHERE o.id = p_order_id),
-                    'platform')
-            $$;
-
-            CREATE OR REPLACE FUNCTION {schema}.payments_set_merchant_scope() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION {schema}.payments_set_merchant_scope() RETURNS trigger LANGUAGE plpgsql
+            SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
             DECLARE
-                scope varchar := {schema}.payments_merchant_scope(NEW.order_id);
+                scope varchar := COALESCE(
+                    (SELECT CASE WHEN o.payment_owner IS DISTINCT FROM 'PLATFORM' THEN 'store:' || o.store_id ELSE 'platform' END
+                       FROM {schema}.orders o WHERE o.id = NEW.order_id),
+                    'platform');
             BEGIN
                 IF NEW.merchant_scope IS DISTINCT FROM scope THEN
                     IF NEW.merchant_scope IS NOT NULL THEN
@@ -92,6 +95,9 @@ return new class extends Migration
                 RETURN NEW;
             END
             $$;
+
+            -- A development database that ran an earlier version of this migration: the callable helper goes
+            DROP FUNCTION IF EXISTS {schema}.payments_merchant_scope(bigint);
         SQL));
         // Both take SHARE ROW EXCLUSIVE. The update trigger skips a NULL being filled (the backfill sets the same value)
         $this->locked(fn () => DB::unprepared(<<<'SQL'
@@ -118,7 +124,7 @@ return new class extends Migration
         if (ConcurrentIndex::isInvalid(self::INDEX)) {
             DB::statement('DROP INDEX CONCURRENTLY IF EXISTS ' . self::INDEX);
         }
-        DB::statement('CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ' . self::INDEX . ' ON payments (provider, merchant_scope, provider_transaction_id)');
+        DB::statement('CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ' . self::INDEX . ' ON payments (provider, provider_transaction_id, merchant_scope)');
 
         if ($this->constraintExists(self::OLD)) {
             $this->locked(fn () => DB::statement('ALTER TABLE payments DROP CONSTRAINT ' . self::OLD));
@@ -160,7 +166,6 @@ return new class extends Migration
             DB::statement('DROP TRIGGER IF EXISTS payments_merchant_scope_insert ON payments');
             DB::statement('DROP TRIGGER IF EXISTS payments_merchant_scope_update ON payments');
             DB::statement('DROP FUNCTION IF EXISTS payments_set_merchant_scope()');
-            DB::statement('DROP FUNCTION IF EXISTS payments_merchant_scope(bigint)');
             DB::statement('ALTER TABLE payments DROP COLUMN IF EXISTS merchant_scope');
         });
     }
@@ -174,14 +179,14 @@ return new class extends Migration
 
         for ($from = (int) $bounds->lo - 1; $from < (int) $bounds->hi; $from += self::BATCH) {
             DB::transaction(fn () => DB::update(
-                'UPDATE payments p SET merchant_scope = payments_merchant_scope(p.order_id)
+                'UPDATE payments p SET merchant_scope = ' . self::SCOPE_OF . '
                  WHERE p.id IN (SELECT id FROM payments WHERE id > ? AND id <= ? AND merchant_scope IS NULL FOR UPDATE SKIP LOCKED)',
                 [$from, $from + self::BATCH],
             ));
         }
 
         foreach (DB::select('SELECT id FROM payments WHERE merchant_scope IS NULL AND id <= ? ORDER BY id', [(int) $bounds->hi]) as $row) {
-            $this->locked(fn () => DB::update('UPDATE payments SET merchant_scope = payments_merchant_scope(order_id) WHERE id = ? AND merchant_scope IS NULL', [$row->id]), self::ROW_LOCK_TIMEOUT);
+            $this->locked(fn () => DB::update('UPDATE payments p SET merchant_scope = ' . self::SCOPE_OF . ' WHERE p.id = ? AND p.merchant_scope IS NULL', [$row->id]), self::ROW_LOCK_TIMEOUT);
         }
     }
 

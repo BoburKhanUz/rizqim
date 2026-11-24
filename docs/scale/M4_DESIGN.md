@@ -373,9 +373,10 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   the policy into the 20 tables into RESTRICT / NO ACTION, first `orders.user_id`, so that the database refuses what
   the controllers now avoid); **foreign-key checks** (fact 5: a row of the tenant's own store may point at
   another store's parent: `order_bills.order_id`, `pos_refunds.payment_id`, `cash_movements.shift_id`; accepted, the
-  row gives no read of the parent. `payments` is closed: `payments_parent_store()` is SECURITY DEFINER with a fixed
-  search_path since the stage 3 migration, so its trigger sees the order's real store and the policy refuses "my
-  store, your order"); **children without `store_id`** (`order_items`, `order_bill_items`,
+  row gives no read of the parent. `payments` is closed: its trigger reads the order as the tables' owner (SECURITY
+  DEFINER, fixed search_path; since the stage 3 migration through `payments_parent_store()`, since `2026_12_09_100200`
+  inside the trigger function itself, so no callable function answers another store's order), so it sees the order's
+  real store and the policy refuses "my store, your order"); **children without `store_id`** (`order_items`, `order_bill_items`,
   `staff_pay_statement_lines`, `pos_tip_distribution_lines`, ...: reached only through their parents, application
   guard, decision A).
 - The catalog is part of the check: `setupProblems()` also asks that each of the 20 tables has row-level security on

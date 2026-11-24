@@ -97,6 +97,11 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     # write them into bootstrap/cache/config.php (php-fpm reads it), and they are removed before supervisord starts.
     as_app php artisan config:clear
     as_app env DB_POOLER=direct php artisan migrate --force
+    # Third review M1: stores.payme_key_digest is an index hint that a release without its hook (a code rollback) can
+    # leave stale; recomputed on every deploy (idempotent, one row update per changed store, no table lock). A failure
+    # never stops the start: Payme calls still find the store, the slow way (docs/OPERATIONS.md, 29)
+    as_app env DB_POOLER=direct php artisan payments:payme-digests \
+        || echo "OGOHLANTIRISH: payments:payme-digests hammasini yoza olmadi — logni ko'ring va qo'lda qayta ishga tushiring (OPERATIONS.md, 29-bo'lim)." >&2
     as_app php artisan storage:link || true
     as_app php artisan config:cache
     as_app php artisan route:cache

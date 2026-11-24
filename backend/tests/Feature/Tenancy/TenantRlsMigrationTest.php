@@ -25,8 +25,11 @@ class TenantRlsMigrationTest extends TestCase
         return [
             (int) DB::scalar("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relrowsecurity"),
             (int) DB::scalar("SELECT count(*) FROM pg_policy WHERE polname = 'tenant'"),
-            (bool) DB::scalar("SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('payments_parent_store(bigint, jsonb)')"),
-            (string) DB::scalar("SELECT coalesce(array_to_string(proconfig, ','), '') FROM pg_proc WHERE oid = to_regprocedure('payments_parent_store(bigint, jsonb)')"),
+            // Third review L1 (2026_12_09_100200): the store lookup lives in the trigger function itself, which reads
+            // every order as its owner whatever this migration does; the callable helper it used to adjust is gone
+            (bool) DB::scalar("SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('payments_store_id()')"),
+            (string) DB::scalar("SELECT coalesce(array_to_string(proconfig, ','), '') FROM pg_proc WHERE oid = to_regprocedure('payments_store_id()')"),
+            DB::scalar("SELECT to_regprocedure('payments_parent_store(bigint, jsonb)')"),
         ];
     }
 
@@ -35,14 +38,14 @@ class TenantRlsMigrationTest extends TestCase
     {
         $migration = require database_path(self::MIGRATION);
         $n = count(TenantRls::TABLES);
-        $this->assertSame([$n, $n, true, 'search_path=pg_catalog, pg_temp'], $this->state());
+        $this->assertSame([$n, $n, true, 'search_path=pg_catalog, pg_temp', null], $this->state());
 
         $migration->down();
-        $this->assertSame([0, 0, false, ''], $this->state());
+        $this->assertSame([0, 0, true, 'search_path=pg_catalog, pg_temp', null], $this->state());
 
         $migration->up();
         $migration->up(); // and again: nothing to do, no error
-        $this->assertSame([$n, $n, true, 'search_path=pg_catalog, pg_temp'], $this->state());
+        $this->assertSame([$n, $n, true, 'search_path=pg_catalog, pg_temp', null], $this->state());
     }
 
     /**

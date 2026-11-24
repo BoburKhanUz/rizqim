@@ -61,7 +61,7 @@ class Payment extends Model
     /**
      * Security review F5: the merchant account a payment of this order (null: a top-up) is made in and its callbacks are
      * authenticated with (OrderMerchantAccount): the platform's, or its store's own. The same rule as the database's
-     * payments_merchant_scope().
+     * payments_set_merchant_scope() trigger.
      */
     public static function merchantScopeOf(?Order $order): string
     {

@@ -9,8 +9,10 @@ use App\Models\Payment;
 use App\Models\PosQrPayment;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Payment\PaymeCashbox;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -112,5 +114,84 @@ class PosQrPaymeTransactionOwnershipTest extends TestCase
         $this->assertSame(0, Payment::where('order_id', $second->id)->count());
         $this->payme('PerformTransaction', ['id' => 'pm-qr-1'])->assertJsonPath('result.state', 2);
         $this->assertSame('paid', $qr->refresh()->status->value);
+    }
+
+    /**
+     * Third review M1: a stale digest (the store's key changed while a release without the digest hook ran). The QR is
+     * held through its account (the store's own key authorised it); the calls about its transaction id then find the
+     * QR through the store that holds the id, checked against its decrypted key, and the digest is repaired.
+     */
+    public function test_a_qr_is_paid_while_the_stores_digest_is_stale(): void
+    {
+        $qr = $this->paymeQr();
+        $stale = fn () => DB::table('stores')->where('id', $this->store->id)->update(['payme_key_digest' => PaymeCashbox::digest('previous-key')]);
+
+        $stale();
+        $this->create('pm-stale-qr', $qr->account(), $this->tiyin, self::PAYME_SECRET)->assertJsonPath('result.state', 1);
+        $stale();
+        $this->payme('CheckTransaction', ['id' => 'pm-stale-qr'])->assertJsonPath('result.state', 1)->assertJsonPath('result.transaction', (string) $qr->id);
+        $stale();
+        $this->payme('PerformTransaction', ['id' => 'pm-stale-qr'])->assertJsonPath('result.state', 2);
+        $this->assertSame('paid', $qr->refresh()->status->value);
+        $this->assertSame(PaymeCashbox::digest(self::PAYME_SECRET), DB::table('stores')->where('id', $this->store->id)->value('payme_key_digest'));
+        $rows = $this->payme('GetStatement', ['from' => 1763999999999, 'to' => 1764000000001])->json('result.transactions');
+        $this->assertSame([[(string) $qr->id, 2]], array_map(fn ($row) => [$row['transaction'], $row['state']], $rows));
+    }
+
+    /**
+     * Third review L2: a store that saved the platform's Payme key as its own. A call signed with the platform key is
+     * the platform cashbox's, which has no QRs: a platform-collected payment's transaction id is never routed to that
+     * store's QR, even when the store's QR holds the same id.
+     */
+    public function test_a_platform_key_call_never_reaches_a_qr_of_a_store_that_saved_the_platform_key(): void
+    {
+        $this->store->forceFill(['payment_settings' => ['payme' => ['enabled' => true, 'merchant_id' => self::PAYME_MERCHANT, 'secret_key' => 'platform_payme_key']]])->save();
+        $order = $this->onlineOrder($this->store, 'PLATFORM');
+        $this->create('pm-plat-1', $order->uuid, 5000000, 'platform_payme_key')->assertJsonPath('result.state', 1);
+
+        // The store's QR, signed with "its own" key (the platform's), takes the id too
+        $qr = $this->paymeQr();
+        $this->create('pm-plat-1', $qr->account(), $this->tiyin, 'platform_payme_key');
+
+        $payment = Payment::where('order_id', $order->id)->sole();
+        $this->payme('CheckTransaction', ['id' => 'pm-plat-1'], 'platform_payme_key')->assertJsonPath('result.transaction', (string) $payment->id);
+        $this->payme('PerformTransaction', ['id' => 'pm-plat-1'], 'platform_payme_key')->assertJsonPath('result.state', 2)->assertJsonPath('result.transaction', (string) $payment->id);
+        $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
+        $this->assertNotSame('paid', $qr->refresh()->status->value);
+    }
+
+    /**
+     * Security review F2 under a second connection: a CreateTransaction of this id in flight elsewhere (another
+     * connection inside its transaction, holding the transaction's advisory lock as PaymeCashbox::lockTransaction
+     * takes it) makes both a QR's and an order's CreateTransaction of the same id wait for it: neither checks "does a
+     * payment / a QR hold this id" before the other has committed. Here they give up at lock_timeout (nothing held,
+     * -32400, Payme retries); once the other connection is done the first one to commit owns the id. Without the lock
+     * both would go ahead at once and the id would be held twice.
+     */
+    public function test_a_qr_and_an_order_creating_the_same_transaction_id_are_serialised_by_the_advisory_lock(): void
+    {
+        $qr = $this->paymeQr();
+        $order = $this->onlineOrder($this->store, 'STORE');
+        $config = config('database.connections.' . DB::getDefaultConnection());
+        config(['database.connections.payme_race' => $config]);
+        $other = DB::connection('payme_race');
+        try {
+            $other->beginTransaction();
+            $other->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['payme-transaction:pm-race-1']);
+            DB::statement("SET LOCAL lock_timeout = '300ms'");
+
+            $this->create('pm-race-1', $qr->account(), $this->tiyin, self::PAYME_SECRET)->assertJsonPath('error.code', -32400);
+            $this->create('pm-race-1', $order->uuid, 5000000, self::PAYME_SECRET)->assertJsonPath('error.code', -32400);
+            $this->assertNull($qr->refresh()->provider_transaction_id);
+            $this->assertSame(0, Payment::where('order_id', $order->id)->count());
+        } finally {
+            $other->rollBack();
+            DB::purge('payme_race');
+        }
+
+        // The other one gone: the QR commits first and owns the id; the order is answered "belongs to another order"
+        $this->create('pm-race-1', $qr->account(), $this->tiyin, self::PAYME_SECRET)->assertJsonPath('result.state', 1);
+        $this->create('pm-race-1', $order->uuid, 5000000, self::PAYME_SECRET)->assertJsonPath('error.code', -31050);
+        $this->assertSame(0, Payment::where('order_id', $order->id)->count());
     }
 }

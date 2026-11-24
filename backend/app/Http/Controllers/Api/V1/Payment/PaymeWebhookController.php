@@ -49,7 +49,8 @@ class PaymeWebhookController extends Controller
 
     /**
      * The stores whose own Payme key the request's key is, also when it is the platform's (a store that saved the
-     * platform's key as its own still has its transactions found).
+     * platform's key as its own still has its transactions found). Third review M1: also the store of an order whose
+     * own key authorised CheckPerformTransaction / CreateTransaction (authorizeAccount), whatever its digest says.
      *
      * @var list<int>
      */
@@ -80,19 +81,21 @@ class PaymeWebhookController extends Controller
 
         try {
             // Inside a try: a database error looking the key up is a -32400, never an HTTP 500
-            $this->cashbox = $this->cashboxOf($request);
+            $this->cashbox = $this->cashboxOf($request, $this->transactionId($params));
 
             // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`, or a transaction id one of this cashbox's QRs holds and
             // none of its payments does) confirms a bill, never an order: the store's own key, no `detail` and no
-            // SetFiscalData record (Rizqim issues the receipt)
-            $qrRoute = PaymePosQrWebhook::claims($params, $this->keyStores);
+            // SetFiscalData record (Rizqim issues the receipt). Third review L2: the platform's cashbox has no QRs, so
+            // a call signed with the platform key is never routed by transaction id to the QRs of a store that saved
+            // the platform's key as its own (qrStores())
+            $qrRoute = PaymePosQrWebhook::claims($params, $this->qrStores());
         } catch (\Throwable $e) {
             Log::error('Payme Webhook Exception: ' . $e->getMessage());
 
             return $this->rpcError($id, -32400, 'System error');
         }
         if ($qrRoute) {
-            return app(PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id, $this->keyStores);
+            return app(PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id, $this->qrStores());
         }
 
         // 1. HTTP Basic `Paycom:<key>`. Security review F3: a method about an account (CheckPerformTransaction,
@@ -148,14 +151,35 @@ class PaymeWebhookController extends Controller
             return false;
         }
 
-        $expectedKey = $this->secretKey($this->findTarget($this->accountReference($params))[0]);
+        $order = $this->findTarget($this->accountReference($params))[0];
+        $expectedKey = $this->secretKey($order);
         if ($expectedKey === null) {
             Log::error('Payme webhook rejected: no merchant key is configured for this payment (PAYME_SECRET_KEY or the store\'s own key).');
 
             return false;
         }
 
-        return hash_equals($expectedKey, $presented);
+        if (!hash_equals($expectedKey, $presented)) {
+            return false;
+        }
+
+        // Third review M1: the order's own key signed this, so its store's account is the request's whatever the
+        // store's digest says (a stale one is repaired): the replay of a CreateTransaction always finds its payment
+        if (OrderMerchantAccount::isStore($order)) {
+            $storeId = (int) $order->store_id;
+            if ($order->store?->getAttribute('payme_key_digest') !== PaymeCashbox::digest($presented)) {
+                PaymeCashbox::remember($storeId, $presented);
+            }
+            if (!in_array($storeId, $this->keyStores, true)) {
+                $this->keyStores[] = $storeId;
+                sort($this->keyStores);
+            }
+            if ($this->cashbox !== null) {
+                $this->cashbox = $this->keyStores;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -188,9 +212,12 @@ class PaymeWebhookController extends Controller
      * platform key wins. Security review F6: the stores are found through the indexed digest of their key
      * (PaymeCashbox), never by decrypting every store's settings.
      *
+     * Third review M1: with the request's transaction id, the stores that hold it are checked against their decrypted key
+     * too when their digest is stale (PaymeCashbox::storesWithKey, bounded).
+     *
      * @return list<int>|false|null
      */
-    protected function cashboxOf(Request $request): array|false|null
+    protected function cashboxOf(Request $request, string $transactionId = ''): array|false|null
     {
         $this->keyStores = [];
         $presented = $this->presentedKey($request);
@@ -198,13 +225,24 @@ class PaymeWebhookController extends Controller
             return false;
         }
 
-        $this->keyStores = PaymeCashbox::storesWithKey($presented);
+        $this->keyStores = PaymeCashbox::storesWithKey($presented, $transactionId);
         $platformKey = OrderMerchantAccount::secretKey('payme', null);
         if ($platformKey !== null && hash_equals($platformKey, $presented)) {
             return null;
         }
 
         return $this->keyStores !== [] ? $this->keyStores : false;
+    }
+
+    /**
+     * The stores whose POS QRs a call may be about by its transaction id: the key's stores, none for the platform's
+     * key (third review L2: the platform's cashbox has no QRs).
+     *
+     * @return list<int>
+     */
+    protected function qrStores(): array
+    {
+        return $this->cashbox === null ? [] : $this->keyStores;
     }
 
     /**
@@ -735,9 +773,7 @@ class PaymeWebhookController extends Controller
                     $payment,
                     'payme',
                     $type === 'PERFORM' ? FiscalReceiptType::SALE : FiscalReceiptType::REFUND,
-                    // Security review F5: one id may be a payment of the platform's cashbox and of the store's own,
-                    // both of this store: the platform's receipt key names its account
-                    'payme:' . ($payment->merchant_scope === Payment::SCOPE_PLATFORM ? 'platform:' : '') . $payment->provider_transaction_id . ':' . strtolower($type),
+                    $this->fiscalKey($payment, $order, $type),
                     ['id' => $payment->provider_transaction_id, 'type' => $type] + $fiscalData,
                     $type === 'CANCEL' ? ($fiscal['receipt_uuid'] ?? null) : null,
                 );
@@ -758,6 +794,30 @@ class PaymeWebhookController extends Controller
         }
 
         return $this->result($id, ['success' => true]);
+    }
+
+    /**
+     * The idempotency key of the receipt Payme registered for this payment. Security review F5: one id may be a payment
+     * of the platform's cashbox and of the store's own, both of this store, so the platform's key names its account
+     * (`payme:platform:<id>:<type>`). A receipt recorded before that change has the old key (`payme:<id>:<type>`): when
+     * this order's receipt is on record under it, that key is kept, so a replay finds it instead of recording the sale
+     * again (the old key of another order — the store's own payment with the same id — is never taken).
+     */
+    protected function fiscalKey(Payment $payment, Order $order, string $type): string
+    {
+        $legacy = 'payme:' . $payment->provider_transaction_id . ':' . strtolower($type);
+        if ($payment->merchant_scope !== Payment::SCOPE_PLATFORM) {
+            return $legacy;
+        }
+
+        $recordedUnderLegacy = \App\Models\FiscalReceipt::query()
+            ->where('store_id', $order->store_id)
+            ->where('idempotency_key', $legacy)
+            ->where('subject_type', 'order')
+            ->where('subject_id', $order->id)
+            ->exists();
+
+        return $recordedUnderLegacy ? $legacy : 'payme:platform:' . $payment->provider_transaction_id . ':' . strtolower($type);
     }
 
     /**

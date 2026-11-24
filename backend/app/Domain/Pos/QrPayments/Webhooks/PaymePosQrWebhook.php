@@ -369,7 +369,16 @@ final class PaymePosQrWebhook
             $expected = $store !== null && $qr->driver === 'payme' ? StoreMerchant::credential($store, 'payme', 'secret_key') : null;
         }
 
-        return $expected !== null && hash_equals($expected, trim($parts[1]));
+        if ($expected === null || !hash_equals($expected, trim($parts[1]))) {
+            return false;
+        }
+        // Third review M1: the store's own key signed this; a stale digest of it is repaired (PaymeCashbox), so the
+        // calls about the QR's transaction id find the store through the index again
+        if ($qr !== null && isset($store) && $store->getAttribute('payme_key_digest') !== PaymeCashbox::digest($expected)) {
+            PaymeCashbox::remember((int) $store->id, $expected);
+        }
+
+        return true;
     }
 
     /**

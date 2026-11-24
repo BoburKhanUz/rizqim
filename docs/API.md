@@ -3339,7 +3339,11 @@ soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
   hisobi, top-up'lar) yoki `store:<id>` (`payment_owner` PLATFORM bo'lmagan buyurtma — ovqatxonaning o'z hisobi); buyurtmadan
   baza triggeri bilan olinadi (migratsiya `2026_12_09_100100`). Payme so'rovidagi kalit qaysi kassaniki ekani (`platform`
   yoki shu kalitni saqlagan ovqatxonalar — tarmoqda bir nechta) `stores.payme_key_digest` indeksi orqali topiladi
-  (`PaymeCashbox`; har so'rovda hamma ovqatxona sozlamasi ochilmaydi). Shundan:
+  (`PaymeCashbox`; har so'rovda hamma ovqatxona sozlamasi ochilmaydi). Dayjest faqat indeks yordamchisi: eskirgan bo'lsa
+  ham (masalan kod orqaga qaytarilgan paytda kalit o'zgargan) hisob usullari buyurtma kaliti bilan, id usullari shu id'ni
+  saqlagan ovqatxonalar kaliti bilan (ko'pi bilan 8 ta) topadi va dayjestni tuzatadi; faqat `GetStatement` tuzatilguncha
+  `-32504` oladi (OPERATIONS.md, 29-bo'lim). Platforma kaliti bilan kelgan so'rov hech qachon POS QR'ga id bo'yicha
+  yo'naltirilmaydi (platforma kassasida QR yo'q), ovqatxona platforma kalitini o'ziniki deb saqlagan bo'lsa ham. Shundan:
   - `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `SetFiscalData` id'ni **faqat shu kassa hisoblarida**
     qidiradi: boshqa kassaning tranzaksiyasi — `account` bilan ham, usiz ham — noma'lum (`-31003`, SetFiscalData'da
     `-32001`); hech bir kassaga tegishli bo'lmagan kalit — `-32504`; tranzaksiya o'zgarmaydi. `GetStatement` — shu kassa

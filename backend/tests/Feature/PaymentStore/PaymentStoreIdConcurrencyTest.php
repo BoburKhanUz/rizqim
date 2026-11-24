@@ -65,6 +65,8 @@ class PaymentStoreIdConcurrencyTest extends TestCase
             // Whatever happened, the schema ends complete (the migration is re-runnable) and the fixtures are gone
             (require database_path(self::MIGRATION))->up();
             $this->rowLevelSecurity()->up(); // the policies a test rolled back (it goes on where it stopped)
+            // up() above put the callable store helper back: the trigger takes its lookup inline again (third review L1)
+            (require database_path('migrations/2026_12_09_100200_inline_payments_parent_store_lookup.php'))->up();
             DB::table('payments')->whereIn('order_id', collect($this->orders)->pluck('id'))->delete();
             $userIds = User::whereIn('store_id', [$this->store->id, $this->other->id])->pluck('id')->push($this->customer->id)->all();
             Order::withTrashed()->whereIn('store_id', [$this->store->id, $this->other->id])->forceDelete();

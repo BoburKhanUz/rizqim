@@ -26,7 +26,8 @@ use Throwable;
  * - foreign-key checks. A row of the tenant's own store may reference another store's parent
  *   (order_bills.order_id, pos_refunds.payment_id, cash_movements.shift_id): the policy looks at store_id only. The
  *   row cannot be used to read the parent. payments is the exception: its trigger takes the store from the order
- *   (payments_parent_store, SECURITY DEFINER), so "my store, your order" is refused;
+ *   (the payments_store_id trigger function, SECURITY DEFINER; no callable helper since 2026_12_09_100200), so "my
+ *   store, your order" is refused;
  * - the children without a store_id of their own (order_items, order_bill_items, staff_pay_statement_lines,
  *   pos_tip_distribution_lines, ...): reached only through their parents, guarded by the application.
  */
