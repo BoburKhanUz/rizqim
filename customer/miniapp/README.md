@@ -31,6 +31,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Xarita tile shabloni (`{z}/{x}/{y}` bilan). Ochiq OSM serveri faqat ishlab chiqish va kam trafik uchun: productionda akkauntingiz bor provayder yoki o'z tile serveringizni bering |
 | `VITE_MAP_ATTRIBUTION` | OpenStreetMap attribution (HTML) | Tile provayderi talab qiladigan attribution matni (HTML); xaritada ko'rsatiladi |
 | `VITE_APP_DEBUG` | o'chiq | `true` bo'lsa Telegramsiz ochishga ruxsat beradi va auth debug panelini ko'rsatadi. Productionda qo'ymang |
+| `VITE_ANALYTICS_ENABLED` | o'chiq | `true` bo'lsa Mini App o'z serverimizga foydalanish statistikasini yuboradi (pastdagi "Analitika" bo'limi). O'chiq bo'lsa statistika klienti yuklanmaydi ham: hech narsa yuborilmaydi, navbatga qo'yilmaydi va `sessionStorage` ga yozilmaydi. Build vaqtidagi qiymat: serverda repozitoriy Variable `PROD_VITE_ANALYTICS_ENABLED` (staging: `STAGING_VITE_ANALYTICS_ENABLED`) = `true` va qayta deploy bilan yoqiladi (`.github/workflows/deploy.yml`; yo'q = o'chiq). Maxfiylik siyosatining yangi matni e'lon qilingandan keyingina yoqing. Ishlayotgan o'chirgich — serverdagi `ANALYTICS_ENABLED` (o'chiq bo'lsa server hech narsa saqlamaydi) |
 
 ## Skriptlar
 
@@ -56,7 +57,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `hooks/` | `useTelegramAuth`, `useOrders`/`useStaffOrders`, `useStores`, `useCatalog`, `useNotifications`, `useVisibleInterval` |
 | `services/api.ts` | axios klienti: token qo'shish va 401 da qayta autentifikatsiya |
 | `store/` | zustand. `localStorage` ga saqlanadiganlar: har bir Telegram foydalanuvchisi uchun alohida kalitda (`lib/userStorage.ts`) `authStore` (`auth-storage:<telegram id>`), `cartStore` (`cart-storage:<telegram id>`), `useAddressStore` (`address-storage:<telegram id>`); qurilma sozlamasi `languageStore` (`restaurant-language-store`; `uz`/`ru`/`en`). `useAppStore` (UI holati) saqlanmaydi |
-| `lib/` | sof yordamchi funksiyalar: `money`, `format`, `orderStatus`, `polling`, `roles`, `phone`, `stock`, `catalog`, `location`, `analytics`, `apiError`, `telegram`, `lazyWithRetry`, `user` |
+| `lib/` | sof yordamchi funksiyalar: `money`, `format`, `orderStatus`, `polling`, `roles`, `phone`, `stock`, `catalog`, `location`, `analytics` (o'z serverimizga statistika, "Analitika" bo'limi), `apiError`, `telegram`, `lazyWithRetry`, `user` |
 | `types/` | API JSON shakllari (backend controller va modellaridan yozilgan) va `telegram.d.ts` |
 | `test/` | `setup.ts`, `factories.ts`, `httpErrors.ts` |
 
@@ -85,6 +86,65 @@ eski klientlarda `env(safe-area-inset-*)`) + Telegram tugmalari hududi (`--tg-co
 `safeAreaChanged`, `contentSafeAreaChanged`, `fullscreenChanged` hodisalarini kuzatadi. Oddiy rejimda hammasi 0.
 Ilova o'zi to'liq ekran so'ramaydi (`requestFullscreen` chaqirilmaydi): buni foydalanuvchi yoki BotFather sozlamasi hal
 qiladi. Tekshiruv: `e2e/safe-area.spec.ts` (`MINIAPP_SHOTS_DIR=<papka>` bilan skrinshotlar ham oladi).
+
+## Analitika (P to'lqini, 3-qadam)
+
+Mini App voronka hodisalarini (ochildi → restoran → savat → buyurtmaga o'tish → buyurtma) **faqat o'z serverimizga**
+yuboradi: `POST /api/v1/analytics/events`, mijoz tokeni bilan. Shartnoma va hodisalar ro'yxati:
+[docs/API.md](../../docs/API.md) "Analitika hodisalari"; reja: [docs/ANALYTICS_PLAN.md](../../docs/ANALYTICS_PLAN.md) 4.1, A.4.
+
+- `src/lib/analytics.ts` — kirish bundle'idagi kichik qism: `track`, `trackAppOpen`, `setAnalyticsAuth`. Build'da
+  `VITE_ANALYTICS_ENABLED=true` bo'lsagina klient (`src/lib/analyticsClient.ts`, alohida chunk) birinchi chaqiruvda
+  yuklanadi; yuklanguncha chaqiruvlar kichik buferda turadi va o'z vaqti bilan, tartibda uzatiladi (`app_open` birinchi).
+  O'chiq bo'lsa hech narsa yuklanmaydi.
+- `src/lib/analyticsClient.ts` — klient (qaramliksiz): xotiradagi navbat (200 tadan oshsa eng eskisi tashlanadi), ~10 s da
+  bir paket (≤ 50 hodisa, ≤ 32 KB); `order_placed` va `payment_redirect` darhol, `fetch keepalive` bilan; sahifa
+  yashirilganda/yopilganda `keepalive`. Bir vaqtda bitta so'rov; sahifa yashirilganda yo'ldagi so'rov yonida yana bitta
+  (yo'lda bo'lmagan hodisalar bilan; nginx mijozga 2 tagacha ruxsat beradi, server `uid` bo'yicha takrorni tanib oladi),
+  daqiqasiga ko'pi bilan 10 ta. `202` — tayyor (`accepted: 0` ham: server standart bo'yicha o'chiq); `429`/`5xx`/tarmoq —
+  o'sha `uid` lar bilan, kutish o'sib boradi (`Retry-After` birinchi, ko'pi bilan 5 daqiqa); faqat HTTP xatolari 3
+  urinishga sanaladi (uzilgan aloqa va sahifa yopilishidagi oxirgi urinish sanalmaydi); `413`/`422` — paket tashlanadi;
+  `401` — o'sha hisobning yangi tokeni kelguncha kutadi.
+  Har hodisa qaysi hisob ostida yozilgani bilan navbatda turadi va faqat o'sha hisob tokeni bilan ketadi: kirishdan
+  oldingi (yoki chiqishdan keyingi) hodisalar shu sahifada keyin kirgan hisobniki; boshqa hisob kirsa oldingisining
+  hodisalari tashlanadi va yangi sessiya boshlanadi. Xom `start_param` hech qachon yuborilmaydi (unda xodim taklif tokeni
+  yoki boshqa odamning referral id'si bo'lishi mumkin): faqat `app_open.props.start_kind` (kampaniya bo'lsa
+  `campaign_code`).
+  Sessiya: tasodifiy UUID; mijoz ekani ma'lum bo'lgandan keyingina `sessionStorage` dagi `rz_session` ga yoziladi (id,
+  oxirgi harakat, ishga tushirish va hisobning qisqa hash'i — xom qiymat emas). 30 daqiqa hodisasiz o'tsa, boshqa hisob
+  kirsa yoki yangi ishga tushirish bo'lsa (Telegram Web bir tabda qayta ochilganda `sessionStorage` saqlanadi; yangi
+  `initData` = yangi ishga tushirish) yangi sessiya va uning `app_open` i; o'sha ishga tushirishni sahifani qayta
+  yuklash sessiyani davom ettiradi. `localStorage` ga hech narsa yozilmaydi. Hech qachon xato otmaydi va
+  buyurtma/to'lov so'rovlarini kutdirmaydi.
+- `src/hooks/useAnalytics.ts` — React qismi: kirishni uzatish (`useAnalyticsAuth`; roli `customer` bo'lmagan yoki
+  do'konga biriktirilgan hisob, shuningdek saqlangan hisobning `telegram_id` si shu ishga tushirishdagi Telegram
+  foydalanuvchisiga mos kelmasa — **hech narsa yuborilmaydi**, navbat tozalanadi, sessiya yozuvi o'chiriladi), bir
+  harakatga bitta hodisa (`useTrackOnce` — StrictMode va qayta render ikki marta yubormaydi), qidiruv (`useTrackSearch` —
+  faqat natijalar soni va so'z uzunligi, matn hech qachon).
+- Hodisalar qayerda: `App.tsx` (`app_open`, har ishga tushirishda bir marta, `start_param` turi bilan),
+  `StoreDetail.tsx` (`store_view`, `category_view`), `ProductSheet.tsx` (`product_view`), `useAddToCart.ts` va
+  `ReplaceCartDialog.tsx` (`add_to_cart`), `Cart.tsx` (`cart_view`; `checkout_start` — "Buyurtma berish" ilovaning
+  o'z tekshiruvlaridan o'tib `POST /orders` yuborilganda; `checkout_error` — ilova yoki server rad etganda, yetkazib
+  berish narxi hali hisoblanayotgan bo'lsa emas; `order_placed` — `POST /orders` 2xx dan keyin, `payment_redirect` —
+  `tg.openLink` dan oldin), `Home.tsx`, `Stores.tsx`, `CategoryDetail.tsx` (`search`), `HeroPromoSlider.tsx`
+  (`promo_banner_click`).
+- Testlar: `src/lib/analytics.test.ts` (yuklovchi va bufer), `src/lib/analyticsClient.test.ts` (navbat, paketlar, qayta
+  urinish, hisob almashishi, sessiya, qayta ishga tushirish, xodim, o'chirgich, maxfiylik),
+  `src/hooks/useAnalytics.test.tsx`, `src/pages/StoreDetail.analytics.test.tsx`, `src/pages/Cart.analytics.test.tsx`,
+  `src/test/analyticsPlaces.test.tsx`; e2e: `e2e/analytics.spec.ts` (e2e build'ida `VITE_ANALYTICS_ENABLED=true`, soxta
+  API serverning konvert va ruxsat ro'yxati qoidalarini takrorlaydi: paketlar `api.analyticsBatches` da, server
+  tashlaydiganlari `api.analyticsDropped` da).
+
+**Yangi hodisa qo'shish** (shu tartibda, aks holda server hodisani jim tashlaydi):
+
+1. **Ro'yxat:** `docs/API.md` "Hodisalar ro'yxati" jadvaliga qator — nom, qachon, id'lar, ruxsat etilgan `props` va
+   ularning qoidasi. Erkin matn, ism, telefon, manzil, Telegram id hech qachon prop bo'lmaydi; maxfiylik siyosati
+   (`privacy.s2.b`) yangi turdagi ma'lumotni qamrab olishini tekshiring.
+2. **Server:** `backend/app/Domain/Analytics/AnalyticsEvent.php` ga yangi `case` (keyingi raqam; raqamlar saqlangan
+   ma'lumot — hech qachon o'zgartirilmaydi) va `spec()` dagi ids/props; `EventIngestor` testi.
+3. **Klient:** `src/lib/analyticsClient.ts` dagi `AnalyticsCatalogue` (tur: ro'yxatda yo'q prop kompilyatsiya bo'lmaydi) va
+   `SPEC` (ishga tushganda ruxsat ro'yxati); hodisani joyida `track(...)` bilan chaqiring (bir harakatga bir marta:
+   kerak bo'lsa `useTrackOnce`), testini yozing; `e2e/fakeApi.ts` dagi `ANALYTICS_SPEC` ni yangilang.
 
 ## Ma'lumot yangilanishi
 

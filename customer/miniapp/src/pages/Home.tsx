@@ -18,6 +18,7 @@ import { getProductBasePrice } from '../lib/catalog';
 import { getLocationParams } from '../lib/location';
 import { cardToProduct, HOME_STORES_PER_PAGE, isAcceptingOrders, NOT_ACCEPTING_TEXT, searchCards, searchStores } from '../lib/marketplace';
 import { useCardToCart, useFeedCards, useStorePages } from '../hooks/useMarketplace';
+import { useTrackSearch } from '../hooks/useAnalytics';
 import type { Category, ProductCardItem } from '../types';
 
 const NO_CATEGORIES: Category[] = [];
@@ -65,6 +66,8 @@ export default function Home() {
   const parentCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
   const searchedProducts = useMemo(() => searchCards(cards, searchQuery), [cards, searchQuery]);
   const shownStores = searching ? searchStores(stores, query) : stores;
+  // Analytics (wave P): the count of dishes and stores a search found and its length, never what was typed
+  useTrackSearch(searchQuery, searchedProducts.length + shownStores.length, !feed.isPending && !storePages.isPending && (!storePages.hasNextPage || storePages.isFetchNextPageError));
   // Wave P: a marketplace without any store yet (a fresh production; the customer signed in with `store: null`)
   const marketplaceEmpty = !searching && stores.length === 0 && cards.length === 0;
   // Both lists are narrowed to the selected address: with one set, an empty answer means no store serves it

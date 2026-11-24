@@ -14,6 +14,8 @@ import { SoldOutBadge } from '../components/catalog/SoldOutBadge';
 import { StoreLogo } from '../components/catalog/StoreLogo';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { useMenuAvailability } from '../hooks/useMenuAvailability';
+import { useTrackOnce } from '../hooks/useAnalytics';
+import { track } from '../lib/analytics';
 import { getVariantStock } from '../lib/stock';
 import { availabilityView, isProductUnavailable } from '../lib/menuAvailability';
 import { formatQuantity, isMeasuredUnit, unitLabel } from '../lib/quantity';
@@ -89,6 +91,14 @@ export default function StoreDetail() {
   // Wave M2: open now, not order-locked and reachable (`accepting_orders`); a store that is not shows its menu only
   const canOrder = store !== null && store.is_open && isAcceptingOrders(store);
   const variantModalProduct = cart.sheetProduct ?? (canOrder ? targetProduct : null);
+
+  // Analytics (wave P): the store's page was seen, once per store (not per refetch or re-render)
+  useTrackOnce(store ? String(store.id) : null, () => {
+    if (store) track('store_view', { store_id: store.id });
+  });
+  const trackCategory = (categoryId: number) => {
+    if (store) track('category_view', { store_id: store.id, category_id: categoryId });
+  };
 
   const parentCategories = useMemo(() => {
     return categories.filter(c => !c.parent_id);
@@ -314,6 +324,7 @@ export default function StoreDetail() {
                         aria-pressed={isSelected}
                         onClick={() => {
                           selectionChanged();
+                          if (!isSelected) trackCategory(cat.id);
                           setSelectedParentCategoryId(isSelected ? null : cat.id);
                           setSelectedSubCategoryId(null);
                         }}
@@ -337,6 +348,7 @@ export default function StoreDetail() {
                           aria-pressed={isSelected}
                           onClick={() => {
                             selectionChanged();
+                            if (!isSelected) trackCategory(subCat.id);
                             setSelectedSubCategoryId(isSelected ? null : subCat.id);
                           }}
                           className={cx(CHIP, isSelected ? 'bg-brand-soft text-brand-soft-fg' : 'border border-line bg-surface text-fg-muted')}

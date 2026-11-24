@@ -5559,7 +5559,7 @@ So'rov tanasi (≤ 32 KB, JSON):
 | `session_id` | majburiy, UUID (nol UUID `00000000-0000-0000-0000-000000000000` emas). Mini App ishga tushganda yaratadi (`sessionStorage`), 30 daqiqa hodisasiz o'tsa yangisi. Sessiya foydalanuvchiniki: boshqa foydalanuvchi o'sha `session_id` ni yuborsa, bu uning o'z sessiyasi bo'ladi |
 | `platform` | majburiy, `Telegram.WebApp.platform`: `ios`, `android` (`android_x`), `tdesktop` (`unigram`), `macos`, `web` (`webk`, `webz`), `weba`; boshqasi (har qanday tur va uzunlikda) `unknown` bo'lib saqlanadi |
 | `app_version` | ixtiyoriy. Faqat versiya shaklida saqlanadi: `1.4.2`, `2.10`, `1.4.2+57` (`^\d{1,3}(\.\d{1,4}){1,3}(\+\d{1,8})?$`) yoki 7–12 xonali kichik harfli git hash (kamida bitta harf bilan; Mini App build'ining `VITE_SENTRY_RELEASE` i — commit'ning 12 belgisi), ≤ 16 belgi. Boshqa har qanday qiymat (masalan telefon raqami, matn, son) saqlanmaydi; so'rov rad etilmaydi |
-| `start_param` | ixtiyoriy, ≤ 512. Faqat **turi** saqlanadi (`app_open.props.start_kind`), xom qiymat hech qachon |
+| `start_param` | ixtiyoriy, ≤ 512. Faqat **turi** saqlanadi (`app_open.props.start_kind`), xom qiymat hech qachon. Mini App uni **yubormaydi** (pastda "Mini App klienti"): server `app_open.props.start_kind` ni oladi |
 | `events` | majburiy, 1–50 ta. Har biri: `uid` (UUID, qayta yuborilganda o'sha), `name`, `at` (mijoz vaqti, epoch **millisekund**, butun son), kerak bo'lsa `store_id` / `product_id` / `category_id` (butun son) va `props` |
 
 Boshqa yuqori darajadagi maydon (masalan `user_id`, `search_text`) — `422`.
@@ -5621,14 +5621,14 @@ majburiy); "props" — ruxsat etilgan kalitlar, boshqasi hodisani tashlaydi.
 
 | # | `name` | Qachon (Mini App) | id | `props` |
 |---|---|---|---|---|
-| 1 | `app_open` | sessiyada bir marta, ilova ochilganda | — | `start_kind` (`campaign`, `referral`, `store`, `invite`, `none`, `unknown`), `campaign_code` (`^[a-z0-9_]{3,32}$`). Server `start_param` bo'lsa turini o'zi aniqlaydi; `campaign_code` saqlanmaydi (4-qadamda `campaign_id` ga aylanadi) |
+| 1 | `app_open` | sessiya boshida bir marta: ilova har ishga tushirilganda (sahifani qayta yuklash emas), 30 daqiqa harakatsizlikdan va boshqa hisob kirganidan keyin | — | `start_kind` (`campaign`, `referral`, `store`, `invite`, `none`, `unknown`), `campaign_code` (`^[a-z0-9_]{3,32}$`). Server `start_param` bo'lsa turini o'zi aniqlaydi; `campaign_code` saqlanmaydi (4-qadamda `campaign_id` ga aylanadi) |
 | 2 | `store_view` | restoran sahifasi ochildi | `store_id*` | — |
 | 3 | `category_view` | restoran ichida bo'lim tanlandi | `store_id*`, `category_id*` | — (`category_id` `props` ga yoziladi) |
 | 4 | `product_view` | taom kartasi ochildi | `store_id*`, `product_id*` | — |
 | 5 | `add_to_cart` | savatga qo'shildi | `store_id*`, `product_id*` | `qty` (og'irlik uchun kasr; avval 3 xonagacha yaxlitlanadi, keyin 0 < son ≤ 10 000: `0.0001` tashlanadi) |
 | 6 | `cart_view` | savat ochildi | `store_id*` | `items` (0–100 000 butun), `value` (savat summasi, so'm, 0–10¹⁰) |
-| 7 | `checkout_start` | savatda "Buyurtma berish" | `store_id*` | `items`, `value`, `payment_method` (`cash`, `click`, `payme`, `uzum`, `paynet`, `paylov`, `keshbek`), `order_type` (`delivery`, `pickup`, `dine_in`) |
-| 8 | `checkout_error` | buyurtma berishda xato | `store_id*` | `code*` (`out_of_zone`, `min_order`, `store_closed`, `item_unavailable`, `validation`, `payment`, `network`) |
+| 7 | `checkout_start` | savatda "Buyurtma berish": bosish ilovaning o'z tekshiruvlaridan o'tib, `POST /orders` yuborilganda (ilova o'zi rad etgan bosish — faqat `checkout_error`) | `store_id*` | `items`, `value`, `payment_method` (`cash`, `click`, `payme`, `uzum`, `paynet`, `paylov`, `keshbek`), `order_type` (`delivery`, `pickup`, `dine_in`) |
+| 8 | `checkout_error` | buyurtma berishda xato: ilova (tekshiruvlar) yoki server rad etdi. Yetkazib berish narxi hali hisoblanayotgani xato emas | `store_id*` | `code*` (`out_of_zone`, `min_order`, `store_closed`, `item_unavailable`, `validation`, `payment`, `network`) |
 | 9 | `order_placed` | `POST /orders` 2xx dan keyin | — | `order_uuid*` (UUID). Server `order_id` va `store_id` ni buyurtmadan oladi; uuid saqlanmaydi |
 | 10 | `payment_redirect` | to'lov sahifasiga o'tishdan oldin (`tg.openLink`) | `store_id*` | — |
 | 11 | `search` | qidiruv natijasi ko'rsatildi | `store_id` | `results` (natijalar soni), `length` (so'z uzunligi, 0–256). **Qidiruv matni yuborilmaydi va saqlanmaydi** |
@@ -5650,3 +5650,42 @@ hech qachon DDL qilmaydi). Bazada **joriy oy va undan oldingi ikki oy** (`ANALYT
 chiqqan kunning kechasi bo'lak arxivsiz o'chiriladi (`db:partitions:archive`, [OPERATIONS.md](OPERATIONS.md) 20-bo'lim). Kunlik yig'indilar (16-qadam) shaxssiz va muddatsiz.
 RLS: `store_id` bo'sh bo'lishi mumkin va jadvalni hech bir restoran o'qimaydi (`TenantRlsInventoryTest::NOT_UNDER_RLS`,
 `MIXED`); restoran o'z voronkasini 16-qadamdagi RLS ostidagi kunlik jadvallardan ko'radi.
+
+### Mini App klienti (3-qadam)
+
+`customer/miniapp/src/lib/analytics.ts` (kirish bundle'idagi kichik qism), `src/lib/analyticsClient.ts` (klient,
+qaramliksiz) va `src/hooks/useAnalytics.ts`; tafsilot va yangi hodisa qo'shish tartibi:
+[customer/miniapp/README.md](../customer/miniapp/README.md) "Analitika". Build'da `VITE_ANALYTICS_ENABLED=true`
+bo'lmasa (standart o'chiq) hech narsa yuklanmaydi, yuborilmaydi va qurilmaga yozilmaydi.
+
+- Build'da yoqilmagan bo'lsa klient (`lib/analyticsClient.ts`) yuklanmaydi ham; yoqilgan bo'lsa birinchi chaqiruvda
+  alohida chunk sifatida yuklanadi, ungacha chaqiruvlar o'z vaqti bilan buferda turadi. Serverdagi Mini App obrazida
+  yoqish: repozitoriy Variable `PROD_VITE_ANALYTICS_ENABLED=true` (staging: `STAGING_VITE_ANALYTICS_ENABLED`) va qayta
+  deploy; ishlayotgan o'chirgich — serverning `ANALYTICS_ENABLED` i.
+- Paket ~10 soniyada bir; `order_placed` va `payment_redirect` darhol, `fetch keepalive` bilan; sahifa yashirilganda
+  `keepalive`. Bir vaqtda bitta so'rov; sahifa yashirilganda yo'ldagi so'rov yonida yana bitta, yo'lda bo'lmagan
+  hodisalar bilan (nginx: mijozga bir vaqtda 2 ta; ikkala `keepalive` tana birga brauzerning 64 KB chegarasida);
+  daqiqasiga ko'pi bilan 10 ta; ≤ 50 hodisa va ≤ 32 KB. `202` — tayyor; `429`/`5xx`/tarmoq — o'sha `uid` lar bilan,
+  kutib (`Retry-After` hisobga olinadi, sahifa yashirilganda ham; kutish ko'pi bilan 5 daqiqa); 3 urinishga faqat HTTP
+  xatolari sanaladi (uzilgan aloqa va sahifa yashirilishidagi oxirgi urinish sanalmaydi: navbat 200 hodisa bilan, server
+  esa 24 soatdan eski hodisani tashlashi bilan cheklaydi); `413`/`422` — paket tashlanadi; `401` — o'sha hisobning
+  yangi tokeni kelguncha kutadi (tokenni ilovaning boshqa so'rovi yangilaydi).
+- Hisob: har hodisa qaysi hisob ostida yozilgani bilan navbatda turadi va faqat o'sha hisob tokeni bilan yuboriladi.
+  Kirishdan oldingi (yoki chiqishdan keyingi) hodisalar shu sahifada keyin kirgan hisobniki; boshqa hisob kirsa
+  oldingisining yuborilmagan hodisalari tashlanadi va yangi sessiya (o'z `app_open` i bilan) boshlanadi.
+- `session_id` — tasodifiy UUID. `sessionStorage` dagi `rz_session` ga (`{id, last, open, launch, user}`; `launch` va
+  `user` — ishga tushirish `initData` si va hisob id'sining qisqa bir tomonlama hash'i, xom qiymat emas) faqat mijoz
+  ekani ma'lum bo'lgandan keyin yoziladi; xodim uchun hech narsa qolmaydi. Yangi sessiya va uning `app_open` i: 30
+  daqiqa hodisasiz (`start_kind: none`), boshqa hisob kirganda (`none`) va har yangi ishga tushirishda (`initData`
+  boshqa: Telegram Web bir tabda qayta ochganda `sessionStorage` saqlanadi), shu ishga tushirishning `start_param` turi
+  bilan. O'sha ishga tushirishni sahifani qayta yuklash sessiyani davom ettiradi (ikki marta sanalmaydi).
+- Xom `start_param` **yuborilmaydi** (unda xodim taklif tokeni yoki boshqa foydalanuvchining referral id'si bo'lishi
+  mumkin, qayta urinishda yana ketardi): klient `props.start_kind` (va kampaniya bo'lsa `campaign_code`) ni `StartParam`
+  qoidasi bilan o'zi hisoblaydi, server konvertda `start_param` bo'lmaganda shuni oladi. Kampaniya atributsiyasi
+  (4-qadam) kirishdagi imzolangan `initData` dan olinadi, bu hodisadan emas.
+- `app_version` = `VITE_SENTRY_RELEASE` (shaklga mos kelmasa yuborilmaydi), `platform` = `Telegram.WebApp.platform`
+  (bo'sh bo'lsa `unknown`).
+- Kim: roli `customer` va `store_id` bo'sh hisob (serverdagi `EventIngestor::excluded` bilan bir xil), shu ishga
+  tushirishdagi Telegram foydalanuvchisining o'zi (saqlangan hisobning `telegram_id` si mos kelmasa — kirish xato
+  bergan, qurilmada boshqa odamning sessiyasi qolgan — hech narsa yuborilmaydi). Xodim uchun navbat tozalanadi va hech
+  narsa yuborilmaydi. Kirish muvaffaqiyatsiz bo'lgan sessiya hech qachon yuborilmaydi (token yo'q).

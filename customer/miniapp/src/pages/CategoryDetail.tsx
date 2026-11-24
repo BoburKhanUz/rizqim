@@ -4,6 +4,7 @@ import { useCartStore } from '../store/cartStore';
 import { useLanguageStore } from '../store/languageStore';
 import { selectionChanged } from '../lib/twa';
 import { useCardToCart, useFeedCards } from '../hooks/useMarketplace';
+import { useTrackSearch } from '../hooks/useAnalytics';
 import { useAddressStore } from '../store/useAddressStore';
 import { getLocationParams } from '../lib/location';
 import { cardToProduct, isAcceptingOrders, NOT_ACCEPTING_TEXT, searchCards } from '../lib/marketplace';
@@ -52,6 +53,9 @@ export default function CategoryDetail() {
     const result = selectedSubCategoryId ? products.filter(p => p.category_id === selectedSubCategoryId) : products;
     return searchCards(result, searchQuery);
   }, [products, selectedSubCategoryId, searchQuery]);
+
+  // Analytics (wave P): how many dishes a search found and how long it was, never what was typed
+  useTrackSearch(searchQuery, filteredProducts.length, !loading);
 
   const selectSubCategory = (subCategoryId: number | null) => {
     selectionChanged();

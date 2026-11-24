@@ -47,6 +47,9 @@ export default defineConfig({
       VITE_REVERB_APP_KEY: '',
       VITE_SENTRY_DSN: '',
       VITE_APP_DEBUG: '',
+      // Wave P: the analytics client is on in the e2e build (the fake API takes its batches): e2e/analytics.spec.ts
+      VITE_ANALYTICS_ENABLED: 'true',
+      VITE_SENTRY_RELEASE: 'abc1234e2e',
       API_PROXY_TARGET: `http://127.0.0.1:${E2E_API_PORT}`,
     },
   },

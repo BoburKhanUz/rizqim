@@ -2,6 +2,7 @@ import { isAxiosError } from 'axios';
 import { formatMoney } from './format';
 import { toAmount } from './money';
 import type { ApiErrorBody, DeliveryRefusalReason } from '../types';
+import type { CheckoutErrorCode } from './analytics';
 
 // What to tell the customer when the server refuses a delivery quote or an order. The server's own messages are Uzbek and
 // fit to show for the domain refusals (`data.reason`, 422 `errors`); what is not (Laravel's English defaults, a
@@ -105,4 +106,44 @@ export function describeOrderFailure(error: unknown): OrderFailure {
   if (text) return failure(text, { refreshMenu: MENU_TROUBLE.test(text) });
 
   return failure("Buyurtma berishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.");
+}
+
+// Wave P (analytics): the `checkout_error` code of a refusal, by its reason (docs/API.md "Analitika hodisalari").
+export function checkoutErrorCodeOfReason(reason: string | undefined): CheckoutErrorCode | null {
+  switch (reason) {
+    case 'outside_zone':
+    case 'branch_outside_zone':
+      return 'out_of_zone';
+    case 'branch_closed':
+      return 'store_closed';
+    case 'below_minimum_order':
+      return 'min_order';
+    default:
+      return null;
+  }
+}
+
+/**
+ * The analytics code of a delivery quote that stops the order: refused (by its reason) or failed. A quote still being
+ * asked for is a wait, not an error: null.
+ */
+export function checkoutErrorCodeOfQuote(quote: { status: string; reason?: string }): CheckoutErrorCode | null {
+  if (quote.status === 'refused') return checkoutErrorCodeOfReason(quote.reason) ?? 'out_of_zone';
+  if (quote.status === 'error') return 'network';
+  return null;
+}
+
+// ...and of a failed POST /orders: only the kind of failure, never the server's text.
+export function checkoutErrorCode(error: unknown): CheckoutErrorCode {
+  const response = isAxiosError<ApiErrorBody>(error) ? error.response : undefined;
+  if (!response) return 'network';
+  const byReason = checkoutErrorCodeOfReason(refusalReasonOf(response.data));
+  if (byReason) return byReason;
+  const { status } = response;
+  if (status === 408 || status === 429 || status >= 500) return 'network';
+  if (status === 402 || response.data?.errors?.payment_method) return 'payment';
+  const failure = describeOrderFailure(error);
+  if (failure.refreshQuote) return 'out_of_zone';
+  if (failure.refreshMenu) return 'item_unavailable';
+  return 'validation';
 }

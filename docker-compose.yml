@@ -384,6 +384,8 @@ services:
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Mini App statistikasi o'z serverimizga (true = yoqilgan, standart o'chiq). customer/miniapp/README.md "Analitika"
+        VITE_ANALYTICS_ENABLED: ${VITE_ANALYTICS_ENABLED:-}
         # Reverb (WebSocket) ulanishi: kalit backend bilan bir xil (ildiz .env dagi REVERB_APP_KEY). Bo'sh host =
         # Mini App ochilgan domen (window.location.hostname); port/scheme tashqi HTTPS proksi bo'yicha (443/https)
         VITE_REVERB_APP_KEY: ${VITE_REVERB_APP_KEY:-${REVERB_APP_KEY:-}}
