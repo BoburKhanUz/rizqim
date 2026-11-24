@@ -176,10 +176,7 @@ final class PaymeCashbox
             return; // nothing verified to compare against: the next call or `payments:payme-digests` writes it
         }
         try {
-            DB::transaction(function () use ($storeId, $digest, $verifiedSettings) {
-                if (DB::getDriverName() === 'pgsql') {
-                    DB::select("SELECT set_config('lock_timeout', '1s', true)");
-                }
+            self::withLockTimeout('1s', function () use ($storeId, $digest, $verifiedSettings) {
                 $repaired = DB::table('stores')->where('id', $storeId)
                     ->where('payment_settings', $verifiedSettings)
                     ->where(fn ($query) => $query->whereNull('payme_key_digest')->orWhere('payme_key_digest', '!=', $digest))
@@ -226,6 +223,7 @@ final class PaymeCashbox
      */
     public static function recomputeAll(string $lockTimeout = '5s'): array
     {
+        self::assertLockTimeout($lockTimeout);
         $read = $changed = $failed = 0;
         DB::table('stores')->select(['id', 'payment_settings', 'payme_key_digest'])->orderBy('id')
             ->chunkById(200, function ($stores) use (&$read, &$changed, &$failed, $lockTimeout) {
@@ -240,10 +238,7 @@ final class PaymeCashbox
                         continue;
                     }
                     try {
-                        DB::transaction(function () use ($store, $digest, $lockTimeout, &$changed) {
-                            if (DB::getDriverName() === 'pgsql') {
-                                DB::select("SELECT set_config('lock_timeout', ?, true)", [$lockTimeout]);
-                            }
+                        self::withLockTimeout($lockTimeout, function () use ($store, $digest, &$changed) {
                             // Only if the settings are still the ones read (a save meanwhile wrote its own digest)
                             $changed += DB::table('stores')->where('id', $store->id)
                                 ->where('payment_settings', $store->payment_settings)
@@ -257,5 +252,59 @@ final class PaymeCashbox
             });
 
         return [$read, $changed, $failed];
+    }
+
+    /**
+     * $work in a short transaction of its own that waits at most $lockTimeout for a lock (SET LOCAL: PgBouncer runs
+     * php-fpm in transaction mode, so a session setting would leak to the next request on that server connection;
+     * tests/Unit/TransactionPoolingSafetyTest). Whatever $work throws is rethrown after the rollback.
+     *
+     * Inside a caller's transaction (the migration's backfill when it runs in one, a test's RefreshDatabase) this is a
+     * savepoint, and two things differ: a SET LOCAL made in a savepoint that is released lasts until the caller's
+     * transaction ends, so the caller's lock_timeout is put back before the release; and a failure (a lock timeout, a
+     * deadlock) is always rolled back to the savepoint, so the caller's transaction is left usable. Laravel's nested
+     * DB::transaction() does not do the latter for a deadlock (it rethrows a DeadlockException without rolling back
+     * to the savepoint, leaving the caller's transaction aborted), hence the savepoint handled here.
+     */
+    private static function withLockTimeout(string $lockTimeout, \Closure $work): mixed
+    {
+        self::assertLockTimeout($lockTimeout);
+        $db = DB::connection();
+        if ($db->getDriverName() !== 'pgsql') {
+            return $db->transaction(fn () => $work());
+        }
+        $set = 'SET LOCAL lock_timeout = ';
+        if ($db->transactionLevel() === 0) {
+            return $db->transaction(function () use ($db, $set, $lockTimeout, $work) {
+                $db->statement($set . $db->getPdo()->quote($lockTimeout));
+
+                return $work();
+            });
+        }
+
+        $before = (string) $db->selectOne("SELECT current_setting('lock_timeout') AS value")->value;
+        $db->statement('SAVEPOINT payme_cashbox_lock_timeout');
+        try {
+            $db->statement($set . $db->getPdo()->quote($lockTimeout));
+            $result = $work();
+            $db->statement($set . $db->getPdo()->quote($before));
+            $db->statement('RELEASE SAVEPOINT payme_cashbox_lock_timeout');
+
+            return $result;
+        } catch (\Throwable $e) {
+            // Also undoes the SET LOCAL made in the savepoint
+            $db->statement('ROLLBACK TO SAVEPOINT payme_cashbox_lock_timeout');
+            $db->statement('RELEASE SAVEPOINT payme_cashbox_lock_timeout');
+
+            throw $e;
+        }
+    }
+
+    /** A lock_timeout is a plain interval (`5s`, `500ms`, `1min`, `0`): it is written into the SET statement. */
+    private static function assertLockTimeout(string $lockTimeout): void
+    {
+        if (preg_match('/^[0-9]{1,9}(us|ms|s|min|h)?$/', $lockTimeout) !== 1) {
+            throw new \InvalidArgumentException("Not a lock_timeout: {$lockTimeout}");
+        }
     }
 }
