@@ -121,6 +121,17 @@ const ok = (data: unknown, extra: Record<string, unknown> = {}): ApiReply => rep
 const fail = (status: number, message: string, errors?: Record<string, string[]>): ApiReply =>
   reply(status, errors ? { success: false, message, errors } : { success: false, message })
 
+// The Telegram user id of an initData query string ('' when there is none)
+function telegramIdOf(initData: unknown): string {
+  if (typeof initData !== 'string') return ''
+  try {
+    const user = JSON.parse(new URLSearchParams(initData).get('user') ?? 'null') as { id?: number } | null
+    return user?.id === undefined ? '' : String(user.id)
+  } catch {
+    return ''
+  }
+}
+
 // A deterministic uuid, so a test can name an order by its first eight characters (the list shows them as "#AAAAAAAA")
 export const uuidOf = (n: number): string => `e2e${String(n).padStart(5, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`
 
@@ -275,6 +286,15 @@ export class FakeApi {
     this.sessions.set(token, user)
   }
 
+  /** Telegram accounts other than the default one: a sign-in with the initData of `user.telegram_id` is answered as `user`. */
+  private accounts = new Map<string, ApiUser>()
+
+  /** Another Telegram account that can sign in on this device (its initData names `user.telegram_id`). */
+  addAccount(user: ApiUser): ApiUser {
+    this.accounts.set(String(user.telegram_id), user)
+    return user
+  }
+
   /** Makes every token issued so far invalid, like an expired or pruned one. */
   expireTokens(): void {
     this.validTokens.clear()
@@ -314,7 +334,7 @@ export class FakeApi {
   acceptingOrders = true
 
   private route(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null): ApiReply {
-    if (method === 'POST' && path === '/auth/telegram') return this.login()
+    if (method === 'POST' && path === '/auth/telegram') return this.login(body)
     // Public: no token (GET /api/v1/realtime)
     if (method === 'GET' && path === '/realtime') return ok(this.realtimeStatus)
 
@@ -327,6 +347,8 @@ export class FakeApi {
     if (method === 'GET' && path === '/stores') return this.stores(query)
     if (method === 'GET' && path === '/catalog') return this.catalog(query)
     if (method === 'GET' && path === '/couriers') return ok([])
+    // The profile's region / district pickers: none set up
+    if (method === 'GET' && path === '/locations') return ok({ regions: [], districts: [] })
     // The unread badge of the home screen's bell: no notifications
     if (method === 'GET' && path === '/notifications') return ok({ items: [], unread_count: 0, pagination: { current_page: 1, last_page: 1, per_page: 20, total: 0 } })
     if (method === 'POST' && path === '/notifications/read') return ok(null)
@@ -357,11 +379,14 @@ export class FakeApi {
   }
 
   // POST /auth/telegram
-  private login(): ApiReply {
+  private login(body: Record<string, unknown> | null): ApiReply {
     if (this.loginFailureStatus !== null) return fail(this.loginFailureStatus, 'Server Error')
     const token = `token-${++this.tokenCounter}`
     this.validTokens.add(token)
-    return ok({ token, user: this.user, store: this.userStore(), sms_verification_required: false })
+    // The account of the Telegram user the initData names (the default user unless another account was added)
+    const account = this.accounts.get(telegramIdOf(body?.initData))
+    if (account) this.sessions.set(token, account)
+    return ok({ token, user: account ?? this.user, store: this.userStore(), sms_verification_required: false })
   }
 
   private userStore(): Store | null {

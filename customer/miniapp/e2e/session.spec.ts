@@ -1,15 +1,17 @@
+import type { Page } from '@playwright/test'
 import { makeUser } from '../src/test/factories'
+import { addLavashToCart } from './cartFlow'
 import { TELEGRAM_ID } from './fakeApi'
-import { expect, test } from './fixtures'
+import { expect, installNetwork, installTelegram, relaunchAs, test, userStorageKey } from './fixtures'
 
 // The app was last used a long time ago: its stored token no longer works. On the first 401 it signs in again with the
 // Telegram launch data (one POST /auth/telegram, however many requests failed) and replays what failed.
 test('an expired token is renewed once and the failed requests are replayed', async ({ page, api }) => {
   const order = api.addOrder({ status: 'new' })
-  await page.addInitScript((user) => {
+  await page.addInitScript(({ key, user }) => {
     const stored = { state: { token: 'stale-token', user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }
-    if (localStorage.getItem('auth-storage') === null) localStorage.setItem('auth-storage', JSON.stringify(stored))
-  }, api.user)
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(stored))
+  }, { key: userStorageKey('auth-storage'), user: api.user })
 
   await page.goto('/orders')
 
@@ -30,66 +32,7 @@ test('an expired token is renewed once and the failed requests are replayed', as
     )
     expect(retry?.authorization, `${call.method} ${call.path} was not replayed`).toBe('Bearer token-1')
   }
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('auth-storage') ?? '{}').state.token)).toBe('token-1')
-})
-
-// One phone, two Telegram accounts: the Mini App's storage is the device's. User A used the app on this phone; now
-// Telegram user B (the fixtures' TELEGRAM_ID) opens it. A's session must never be used, shown or sent for B, even
-// while the sign-in fails; once B signs in, only B's data is there.
-test('a session stored for another Telegram user is never used, not even when the sign-in fails', async ({ page, api }) => {
-  const userA = makeUser({ id: 77, telegram_id: '777000777', name: 'Aziza Begimova', phone: '+998907777777', role: 'customer', store_id: null })
-  api.addSession('token-of-A', userA)
-  const orderOfA = api.addOrder({ user_id: 77, short_code: 'AZIZA1', status: 'new' })
-  const orderOfB = api.addOrder({ short_code: 'BOBUR1', status: 'new' })
-  api.loginFailureStatus = 500
-
-  await page.addInitScript((user) => {
-    if (localStorage.getItem('auth-storage') !== null) return // seed once: a reload keeps what the app left
-    localStorage.setItem('auth-storage', JSON.stringify({ state: { token: 'token-of-A', user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }))
-    localStorage.setItem('cart-storage', JSON.stringify({
-      state: {
-        items: [{ id: 'b0000000-0000-4000-8000-000000000001', productId: 1, variantId: 'b0000000-0000-4000-8000-000000000001', storeId: '1', name: 'Lavash', price: 25000, quantity: 3 }],
-        storeName: 'Lazzat', storeAddress: 'Chilonzor', specialInstructions: 'Aziza: domofon 42', checkoutAttempt: null,
-      },
-      version: 0,
-    }))
-    localStorage.setItem('address-storage', JSON.stringify({
-      state: { addresses: [{ id: 9, title: 'Azizaning uyi', address: 'Yunusobod 4-kvartal, 17-uy', lat: 41.36, lng: 69.28, is_default: true }], selectedAddressId: 9 },
-      version: 1,
-    }))
-  }, userA)
-
-  await page.goto('/orders')
-
-  // The sign-in error screen, signed out ...
-  const alert = page.getByRole('alert')
-  await expect(alert.getByText('Kirish amalga oshmadi')).toBeVisible()
-  await expect(alert.getByRole('button', { name: 'Qayta urinish' })).toBeVisible()
-  // ... with nothing of A on it ...
-  await expect(page.getByText(`#${orderOfA.short_code}`)).toHaveCount(0)
-  await expect(page.getByText(/Aziza|Yunusobod|907777777/)).toHaveCount(0)
-  // ... nothing sent with A's token (one sign-in as the current user, and nothing else that needs a session) ...
-  expect(api.calls.filter((call) => call.authorization === 'Bearer token-of-A')).toEqual([])
-  expect(api.calls.filter((call) => call.authorization !== null)).toEqual([])
-  expect(api.callsTo('POST', '/auth/telegram')).toHaveLength(1)
-  // ... and A's session, cart and addresses are gone from the device
-  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }))
-  expect(stored).not.toContain('token-of-A')
-  expect(stored).not.toMatch(/Aziza|Yunusobod|907777777/)
-
-  // The backend is back: the retry signs B in, and only B's data is shown
-  api.loginFailureStatus = null
-  await alert.getByRole('button', { name: 'Qayta urinish' }).click()
-
-  const active = page.getByRole('region', { name: 'Faol buyurtmalar' })
-  await expect(active.getByText(`#${orderOfB.short_code}`, { exact: true })).toBeVisible()
-  await expect(page.getByText(`#${orderOfA.short_code}`)).toHaveCount(0)
-  await expect(page.getByText(/Aziza|Yunusobod|907777777/)).toHaveCount(0)
-  expect(api.calls.filter((call) => call.authorization === 'Bearer token-of-A')).toEqual([])
-  expect(api.callsTo('POST', '/auth/telegram')).toHaveLength(2)
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('auth-storage') ?? '{}').state.user.telegram_id)).toBe(TELEGRAM_ID)
-  const cart = await page.evaluate(() => JSON.parse(localStorage.getItem('cart-storage') ?? '{}').state)
-  expect(cart).toMatchObject({ items: [], specialInstructions: '' })
+  expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ token: 'token-1' })
 })
 
 // The same person, a flaky network: a deep-link re-sign-in that fails keeps their own session (nobody is logged out).
@@ -97,18 +40,18 @@ test('the same Telegram user keeps the stored session when a re-sign-in fails', 
   const order = api.addOrder({ status: 'new' })
   api.addSession('own-token', api.user)
   api.loginFailureStatus = 500
-  await page.addInitScript((user) => {
-    if (localStorage.getItem('auth-storage') === null) {
-      localStorage.setItem('auth-storage', JSON.stringify({ state: { token: 'own-token', user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }))
+  await page.addInitScript(({ key, user }) => {
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, JSON.stringify({ state: { token: 'own-token', user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }))
     }
     // Opened from a deep link: the app signs in again (POST /auth/telegram) instead of opening with the stored session
-    const key = '__telegram__initParams'
-    const params = JSON.parse(sessionStorage.getItem(key) ?? '{}') as { tgWebAppData?: string }
+    const launchKey = '__telegram__initParams'
+    const params = JSON.parse(sessionStorage.getItem(launchKey) ?? '{}') as { tgWebAppData?: string }
     if (params.tgWebAppData && !params.tgWebAppData.includes('start_param=')) {
       params.tgWebAppData += '&start_param=store_e2e'
-      sessionStorage.setItem(key, JSON.stringify(params))
+      sessionStorage.setItem(launchKey, JSON.stringify(params))
     }
-  }, api.user)
+  }, { key: userStorageKey('auth-storage'), user: api.user })
 
   await page.goto('/orders')
 
@@ -119,3 +62,278 @@ test('the same Telegram user keeps the stored session when a re-sign-in fails', 
   expect(api.callsTo('POST', '/auth/telegram').map((call) => call.status)).toEqual([500])
   expect(api.callsTo('GET', '/orders').every((call) => call.authorization === 'Bearer own-token')).toBe(true)
 })
+
+// ---------------------------------------------------------------------------------------------------------------------
+// One phone, several Telegram accounts. The Mini App's localStorage belongs to the device, not to the account, so every
+// per-user store (session, cart, saved addresses) is kept under the key of the Telegram user who has the app open
+// (src/lib/userStorage.ts): one account never reads or overwrites another's, and each finds its own again.
+
+const A_ID = '777000777'
+const makeUserA = () => makeUser({ id: 77, telegram_id: A_ID, name: 'Aziza Begimova', phone: '+998907777777', role: 'customer', store_id: null })
+const A_HOME = { id: 9, title: 'Azizaning uyi', address: 'Yunusobod 4-kvartal, 17-uy', lat: 41.36, lng: 69.28, is_default: true, intercom: '42' }
+const B_OFFICE = { id: 5, title: 'Ofis', address: 'Chilonzor 9, 14-uy', lat: 41.2856, lng: 69.2037, is_default: true }
+const A_TRACES = /Aziza|Yunusobod|907777777|domofon 42/
+const LEGACY_KEYS = ['auth-storage', 'cart-storage', 'address-storage']
+
+const addressStore = (address: object) => JSON.stringify({ state: { addresses: [address], selectedAddressId: (address as { id: number }).id }, version: 1 })
+
+async function readStored(page: Page, key: string): Promise<Record<string, unknown> | null> {
+  return page.evaluate((k) => {
+    const raw = localStorage.getItem(k)
+    return raw === null ? null : (JSON.parse(raw) as { state: Record<string, unknown> }).state
+  }, key)
+}
+
+const allStorage = (page: Page) => page.evaluate(() => ({ ...localStorage }) as Record<string, string>)
+
+// Puts these keys into the device's localStorage once (a reload keeps what the app left there)
+async function seedOnce(page: Page, entries: Record<string, string>): Promise<void> {
+  await page.addInitScript((seed) => {
+    if (localStorage.getItem('e2e-seeded') !== null) return
+    localStorage.setItem('e2e-seeded', '1')
+    for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value)
+  }, entries)
+}
+
+// The tab's next load is a launch by this Telegram account (a same-origin page that is not the app, to set it on)
+async function launchAs(page: Page, telegramId: string): Promise<void> {
+  if (page.url() === 'about:blank') await page.goto('/favicon.svg')
+  await relaunchAs(page, telegramId)
+}
+
+// What a customer leaves behind when the cart was filled and a checkout was attempted: the note and the open attempt
+async function leaveNoteAndAttempt(page: Page, telegramId: string, note: string): Promise<void> {
+  await page.evaluate(({ key, note }) => {
+    const stored = JSON.parse(localStorage.getItem(key) ?? '{}') as { state: Record<string, unknown>; version: number }
+    stored.state.specialInstructions = note
+    stored.state.checkoutAttempt = { key: 'attempt-key', fingerprint: JSON.stringify({ notes: note }) }
+    localStorage.setItem(key, JSON.stringify(stored))
+  }, { key: userStorageKey('cart-storage', telegramId), note })
+}
+
+test('A was signed out with a cart and addresses on the device: B sees none of it, and A finds it all again', async ({ page, api }) => {
+  api.addAccount(makeUserA())
+  await seedOnce(page, { [userStorageKey('address-storage', A_ID)]: addressStore(A_HOME) })
+
+  // A fills a cart, with a saved home address
+  await launchAs(page, A_ID)
+  await addLavashToCart(page)
+  await expect(page.getByText(A_HOME.address)).toBeVisible()
+  await leaveNoteAndAttempt(page, A_ID, 'Aziza: domofon 42')
+
+  // A's session dies and cannot be renewed (initData too old, backend down): A is signed out, on the sign-in error screen
+  api.expireTokens()
+  api.loginFailureStatus = 500
+  await page.reload()
+  const alert = page.getByRole('alert')
+  await expect(alert.getByText('Kirish amalga oshmadi')).toBeVisible()
+  await expect(alert.getByRole('button', { name: 'Qayta urinish' })).toBeVisible()
+  expect(await readStored(page, userStorageKey('auth-storage', A_ID))).toMatchObject({ token: null, user: null, isAuthenticated: false })
+
+  // Telegram user B opens the app on the same phone
+  api.loginFailureStatus = null
+  await launchAs(page, TELEGRAM_ID)
+  await page.goto('/cart')
+  await expect(page.getByRole('heading', { name: 'Savat', level: 1 })).toBeVisible()
+  await expect(page.getByText('Lavash (Standart)')).toHaveCount(0)
+  await expect(page.getByText(A_TRACES)).toHaveCount(0)
+  await page.goto('/profile')
+  await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
+  await expect(page.getByText(A_TRACES)).toHaveCount(0)
+  const stored = await allStorage(page)
+  for (const [key, value] of Object.entries(stored)) {
+    if (!key.endsWith(`:${A_ID}`)) expect(value, key).not.toMatch(A_TRACES)
+  }
+  // B's cart: empty (never even saved, or saved empty)
+  expect((await readStored(page, userStorageKey('cart-storage'))) ?? { items: [] }).toMatchObject({ items: [] })
+  expect(JSON.stringify(await readStored(page, userStorageKey('cart-storage')))).not.toMatch(/domofon|attempt-key/)
+
+  // A comes back: their cart, note, open checkout and home address are all there
+  await launchAs(page, A_ID)
+  await page.goto('/cart')
+  await expect(page.getByText('Lavash (Standart)')).toBeVisible()
+  await expect(page.getByText(A_HOME.address)).toBeVisible()
+  expect(await readStored(page, userStorageKey('cart-storage', A_ID))).toMatchObject({
+    specialInstructions: 'Aziza: domofon 42',
+    checkoutAttempt: { key: 'attempt-key' },
+  })
+  expect(await readStored(page, userStorageKey('auth-storage', A_ID))).toMatchObject({ user: { telegram_id: A_ID } })
+})
+
+test('two accounts open at once (two tabs) keep separate carts and addresses', async ({ page, api, baseURL }) => {
+  api.addAccount(makeUserA())
+  await seedOnce(page, {
+    [userStorageKey('address-storage', A_ID)]: addressStore(A_HOME),
+    [userStorageKey('address-storage')]: addressStore(B_OFFICE),
+  })
+
+  // Tab 1: A; tab 2 (the same device storage): B
+  await launchAs(page, A_ID)
+  await addLavashToCart(page)
+  await leaveNoteAndAttempt(page, A_ID, 'Aziza: domofon 42')
+
+  const tabB = await page.context().newPage()
+  await installTelegram(tabB, TELEGRAM_ID)
+  await installNetwork(tabB, api, new URL(baseURL ?? 'http://127.0.0.1').origin)
+  await tabB.goto('/cart')
+  await expect(tabB.getByRole('heading', { name: 'Savat', level: 1 })).toBeVisible()
+  await expect(tabB.getByText('Lavash (Standart)')).toHaveCount(0)
+  await addLavashToCart(tabB)
+  await expect(tabB.getByText(B_OFFICE.address)).toBeVisible()
+  await expect(tabB.getByText(A_TRACES)).toHaveCount(0)
+  await leaveNoteAndAttempt(tabB, TELEGRAM_ID, 'Bobur: ofis')
+
+  // A works on in tab 1 (a write of A's stores), then both tabs reload: each sees only its own
+  await page.goto('/cart')
+  await expect(page.getByText(A_HOME.address)).toBeVisible()
+  await tabB.reload()
+  await expect(tabB.getByText(B_OFFICE.address)).toBeVisible()
+  await expect(tabB.getByText(A_TRACES)).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByText(A_HOME.address)).toBeVisible()
+  await expect(page.getByText(B_OFFICE.address)).toHaveCount(0)
+
+  expect(await readStored(page, userStorageKey('cart-storage', A_ID))).toMatchObject({ specialInstructions: 'Aziza: domofon 42' })
+  expect(await readStored(page, userStorageKey('cart-storage'))).toMatchObject({ specialInstructions: 'Bobur: ofis' })
+  expect(await readStored(page, userStorageKey('auth-storage', A_ID))).toMatchObject({ user: { telegram_id: A_ID } })
+  expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID } })
+  await tabB.close()
+})
+
+test.describe('data saved before per-user storage (legacy keys)', () => {
+  const legacyAuth = (user: object | null, token: string | null) =>
+    JSON.stringify({ state: { token, user, store: null, isAuthenticated: user !== null, smsVerificationRequired: false }, version: 0 })
+  const legacyCart = (note: string) => JSON.stringify({
+    state: {
+      items: [{ id: 'b0000000-0000-4000-8000-000000000001', productId: 1, variantId: 'b0000000-0000-4000-8000-000000000001', storeId: '1', name: 'Lavash', price: 25000, quantity: 3 }],
+      storeName: 'Lazzat', storeAddress: 'Chilonzor', specialInstructions: note, checkoutAttempt: { key: 'old-key', fingerprint: '{}' },
+    },
+    version: 0,
+  })
+
+  test('the owner of the stored session gets all of it moved into their own storage', async ({ page, api }) => {
+    api.addSession('own-token', api.user)
+    const seed = { 'auth-storage': legacyAuth(api.user, 'own-token'), 'cart-storage': legacyCart('Ali: ofis'), 'address-storage': addressStore(B_OFFICE) }
+    await seedOnce(page, seed)
+
+    await page.goto('/profile')
+
+    await expect(page.getByText(B_OFFICE.address)).toBeVisible()
+    // The session was used as it was (no new sign-in), and nothing is left under the old keys
+    expect(api.callsTo('POST', '/auth/telegram')).toHaveLength(0)
+    expect(api.callsTo('GET', '/user').length).toBeGreaterThan(0)
+    expect(api.callsTo('GET', '/user').every((call) => call.authorization === 'Bearer own-token')).toBe(true)
+    const stored = await allStorage(page)
+    for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
+    expect(await readStored(page, userStorageKey('cart-storage'))).toMatchObject({ specialInstructions: 'Ali: ofis', checkoutAttempt: { key: 'old-key' } })
+    expect(await readStored(page, userStorageKey('address-storage'))).toMatchObject({ addresses: [B_OFFICE] })
+  })
+
+  for (const [name, owner] of [['another Telegram user', makeUserA()], ['nobody (already signed out)', null]] as const) {
+    test(`a stored session of ${name} is removed with its cart and addresses, never shown`, async ({ page, api }) => {
+      if (owner) api.addSession('token-of-A', owner)
+      await seedOnce(page, {
+        'auth-storage': legacyAuth(owner, owner ? 'token-of-A' : null),
+        'cart-storage': legacyCart('Aziza: domofon 42'),
+        'address-storage': addressStore(A_HOME),
+      })
+
+      await page.goto('/profile')
+
+      await expect(page.getByText("Sizda hali saqlangan manzillar yo'q")).toBeVisible()
+      await expect(page.getByText(A_TRACES)).toHaveCount(0)
+      expect(api.calls.filter((call) => call.authorization === 'Bearer token-of-A')).toEqual([])
+      const stored = await allStorage(page)
+      for (const key of LEGACY_KEYS) expect(stored[key], key).toBeUndefined()
+      expect(JSON.stringify(stored)).not.toMatch(A_TRACES)
+      expect(JSON.stringify(stored)).not.toContain('token-of-A')
+      expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID } })
+    })
+  }
+})
+
+// A production build opened with no Telegram user (a link opened in Telegram's in-app browser, which may share the
+// storage): the "open in Telegram" screen, and nothing on the device is read into the page or deleted.
+for (const path of ['/', '/?dev=true']) {
+  test(`no Telegram user (${path}): nothing is deleted from the device`, async ({ page }) => {
+    const seed = {
+      'auth-storage': JSON.stringify({ state: { token: 'legacy-token', user: makeUserA(), store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }),
+      'address-storage': addressStore(A_HOME),
+      [userStorageKey('cart-storage', A_ID)]: JSON.stringify({ state: { items: [], storeName: '', storeAddress: '', specialInstructions: 'Aziza: domofon 42', checkoutAttempt: null }, version: 0 }),
+      [userStorageKey('address-storage', A_ID)]: addressStore(A_HOME),
+    }
+    await seedOnce(page, seed)
+    // No launch parameters: Telegram did not open this page as a Mini App
+    await page.addInitScript(() => sessionStorage.removeItem('__telegram__initParams'))
+
+    await page.goto(path)
+
+    if (path === '/') await expect(page.getByRole('link', { name: 'Bot orqali ochish' })).toBeVisible()
+    else await expect(page.getByText('Iltimos, ilovani Telegram orqali oching')).toBeVisible()
+    await expect(page.getByText(A_TRACES)).toHaveCount(0)
+    const stored = await allStorage(page)
+    for (const [key, value] of Object.entries(seed)) expect(stored[key], key).toBe(value)
+  })
+}
+
+// The backend unlinked the account's telegram_id (an invite was claimed elsewhere) and the background GET /user brought
+// that into the store: the app signs in again with initData. The cart and the addresses are this Telegram user's own.
+test.describe('the stored user loses its telegram_id', () => {
+  async function openWithUnlinkedRefresh(page: Page, api: import('./fakeApi').FakeApi) {
+    api.addSession('own-token', { ...api.user, telegram_id: null })
+    await seedOnce(page, {
+      [userStorageKey('auth-storage')]: JSON.stringify({ state: { token: 'own-token', user: api.user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }),
+      [userStorageKey('address-storage')]: addressStore(B_OFFICE),
+      [userStorageKey('cart-storage')]: JSON.stringify({ state: { items: [], storeName: '', storeAddress: '', specialInstructions: 'Ali: ofis', checkoutAttempt: null }, version: 0 }),
+    })
+    await page.goto('/profile')
+  }
+
+  test('a re-sign-in signs the same person in again, and nothing of theirs is lost', async ({ page, api }) => {
+    await openWithUnlinkedRefresh(page, api)
+
+    await expect.poll(() => api.callsTo('POST', '/auth/telegram').map((call) => call.status)).toContain(200)
+    await expect(page.getByText(B_OFFICE.address)).toBeVisible()
+    await expect(page.getByText('Kirish amalga oshmadi')).toHaveCount(0)
+    await expect.poll(() => readStored(page, userStorageKey('auth-storage'))).toMatchObject({ user: { telegram_id: TELEGRAM_ID }, isAuthenticated: true })
+    expect(await readStored(page, userStorageKey('cart-storage'))).toMatchObject({ specialInstructions: 'Ali: ofis' })
+    expect(await readStored(page, userStorageKey('address-storage'))).toMatchObject({ addresses: [B_OFFICE] })
+  })
+
+  test('when the re-sign-in fails: the sign-in error screen with retry, and the cart and addresses are kept', async ({ page, api }) => {
+    api.loginFailureStatus = 500
+    await openWithUnlinkedRefresh(page, api)
+
+    const alert = page.getByRole('alert')
+    await expect(alert.getByText('Kirish amalga oshmadi')).toBeVisible()
+    await expect(alert.getByRole('button', { name: 'Qayta urinish' })).toBeVisible()
+    expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ token: null, isAuthenticated: false })
+    expect(await readStored(page, userStorageKey('cart-storage'))).toMatchObject({ specialInstructions: 'Ali: ofis' })
+    expect(await readStored(page, userStorageKey('address-storage'))).toMatchObject({ addresses: [B_OFFICE] })
+  })
+})
+
+// A session that dies and cannot be renewed ends on the sign-in error screen (with retry), never on screens that are
+// silently signed out. The retry signs in again once the backend is back.
+for (const [name, path, role] of [['a customer screen (axios)', '/orders', 'customer'], ['a staff screen (the staff API)', '/manager', 'manager']] as const) {
+  test(`signed out on ${name}: the sign-in error screen, then the retry signs in`, async ({ page, api }) => {
+    api.signInAs(role)
+    const order = api.addOrder({ status: 'new' })
+    api.loginFailureStatus = 500
+    await seedOnce(page, {
+      [userStorageKey('auth-storage')]: JSON.stringify({ state: { token: 'dead-token', user: api.user, store: null, isAuthenticated: true, smsVerificationRequired: false }, version: 0 }),
+    })
+
+    await page.goto(path)
+
+    const alert = page.getByRole('alert')
+    await expect(alert.getByText('Kirish amalga oshmadi')).toBeVisible()
+    await expect(page.getByText(`#${order.short_code}`)).toHaveCount(0)
+    expect(await readStored(page, userStorageKey('auth-storage'))).toMatchObject({ token: null, isAuthenticated: false })
+
+    api.loginFailureStatus = null
+    await alert.getByRole('button', { name: 'Qayta urinish' }).click()
+    await expect(page.getByText('Kirish amalga oshmadi')).toHaveCount(0)
+    await expect.poll(() => readStored(page, userStorageKey('auth-storage'))).toMatchObject({ isAuthenticated: true })
+  })
+}

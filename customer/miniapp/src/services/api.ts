@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { getInitData, tg } from '../lib/telegram';
 import { noteResponseRevision } from '@rizqim/staff';
 import { revisions } from '../lib/revisions';
-import { dropStoredSession, isForeignSession, sessionToken } from '../lib/session';
+import { isCurrentTelegramUser, sessionToken, signOut } from '../lib/session';
 import type { ApiResponse, LoginPayload } from '../types';
 
 
@@ -61,12 +61,9 @@ async function requestFreshToken(): Promise<string | null> {
 
     const data = res.data?.data;
     if (res.data?.success && data?.token) {
+      // An answer for another Telegram account than the one that has the app open is never stored or used
+      if (!isCurrentTelegramUser(data.user)) return null;
       useAuthStore.getState().setAuth(data.token, data.user, data.store, data.sms_verification_required);
-      // The answer is for another Telegram account than the one that has the app open: not used
-      if (isForeignSession()) {
-        dropStoredSession();
-        return null;
-      }
       return data.token;
     }
   } catch {
@@ -134,15 +131,15 @@ api.interceptors.response.use(
 
     // Never try to recover a failed login itself, nor a request that was already replayed once (no loops)
     if (config.url?.includes('/auth/telegram') || config._authRetried) {
-      useAuthStore.getState().logout();
+      signOut();
       return Promise.reject(error);
     }
 
     const token = await recoverToken(config._authToken ?? null);
 
     if (!token) {
-      // Can't renew the session: fall back to the previous behaviour
-      useAuthStore.getState().logout();
+      // Can't renew the session: the sign-in error screen (lib/session.ts signOut)
+      signOut();
       return Promise.reject(error);
     }
 

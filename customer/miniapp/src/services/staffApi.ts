@@ -1,7 +1,6 @@
 import { createAuthFetch, createStaffApi, setDefaultStaffApi, toApiRoot, withRevisionCapture } from '@rizqim/staff';
 import { revisions } from '../lib/revisions';
-import { sessionToken } from '../lib/session';
-import { useAuthStore } from '../store/authStore';
+import { sessionToken, signOut } from '../lib/session';
 import { recoverToken } from './api';
 
 // The API of the staff screens (@rizqim/staff, shared with the partner web), signed the way this app signs everything:
@@ -16,7 +15,7 @@ export const staffApi = createStaffApi({
       getToken: sessionToken, // never a session stored for another Telegram user (lib/session.ts)
       renewToken: recoverToken,
       // Can't renew the session: fall back to the sign-in screen, as the axios client does
-      onSignedOut: () => useAuthStore.getState().logout(),
+      onSignedOut: () => signOut(),
     }),
     revisions,
   ),

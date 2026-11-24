@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, userStorageKey } from './fixtures'
 
 // The menu model of P1-21 in the Mini App (P1-31): modifiers, items sold by weight, the stop-list and the delivery quote.
 
@@ -228,10 +228,10 @@ test.describe('the delivery quote', () => {
 
   async function seedAddresses(page: Page, selectedAddressId: number) {
     await page.addInitScript(
-      ({ addresses, selected }) => {
-        localStorage.setItem('address-storage', JSON.stringify({ state: { addresses, selectedAddressId: selected }, version: 1 }))
+      ({ key, addresses, selected }) => {
+        localStorage.setItem(key, JSON.stringify({ state: { addresses, selectedAddressId: selected }, version: 1 }))
       },
-      { addresses: [HOME, FAR], selected: selectedAddressId },
+      { key: userStorageKey('address-storage'), addresses: [HOME, FAR], selected: selectedAddressId },
     )
   }
 

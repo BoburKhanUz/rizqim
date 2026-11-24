@@ -97,7 +97,9 @@ describe('the request interceptor', () => {
     expect(requests).toEqual([expect.objectContaining({ url: '/orders', authorization: `Bearer ${OLD_TOKEN}` })]);
   });
 
-  it('never sends a token stored for another Telegram user: it is dropped and the request goes without it', async () => {
+  it('never sends a token whose user is not the current Telegram user: nothing is sent and a new sign-in is asked for', async () => {
+    const session = await import('../lib/session');
+    session.useSessionStatus.setState({ signingIn: false, error: null, attempt: 0 }); // the app was signed in
     // makeUser() is Telegram user 555000111; the app is open for 7100001
     Object.defineProperty(window, 'Telegram', { configurable: true, value: { WebApp: { initDataUnsafe: { user: { id: 7100001 } } } } });
     try {
@@ -105,7 +107,9 @@ describe('the request interceptor', () => {
 
       expect(requests[0].authorization).toBeUndefined();
       expect(useAuthStore.getState()).toMatchObject({ token: null, user: null, isAuthenticated: false });
-      expect(localStorage.getItem('auth-storage')).not.toContain(OLD_TOKEN);
+      expect(JSON.stringify({ ...localStorage })).not.toContain(OLD_TOKEN);
+      // useTelegramAuth signs in again with initData (attempt bumped)
+      expect(session.useSessionStatus.getState()).toMatchObject({ signingIn: true, attempt: 1 });
     } finally {
       Reflect.deleteProperty(window, 'Telegram');
     }
@@ -125,6 +129,7 @@ describe('the request interceptor', () => {
 
       expect(requests.filter((r) => r.authorization === `Bearer ${NEW_TOKEN}`)).toEqual([]);
       expect(useAuthStore.getState().token).toBeNull();
+      expect(JSON.stringify({ ...localStorage })).not.toContain(NEW_TOKEN);
     } finally {
       Reflect.deleteProperty(window, 'Telegram');
     }
@@ -346,6 +351,54 @@ describe('when the session cannot be renewed', () => {
       expect(response.data).toEqual({ ok: true });
       expect(loginCount()).toBe(2);
     });
+  });
+});
+
+// Finding 5: every way the client gives up on the session goes through signOut (lib/session.ts): the session, the
+// in-memory query cache and the change tokens are dropped, and the app is left on the sign-in error screen with retry.
+describe('signing out', () => {
+  const SIGN_OUTS: Array<[string, () => Promise<unknown>]> = [
+    ['the replayed request is refused again', () => {
+      handler = (config) => (isLogin(config) ? loginReply() : { status: 401 });
+      return api.get('/orders');
+    }],
+    ['the login is refused', () => {
+      handler = (config) => (isLogin(config) ? { status: 401 } : { status: 401 });
+      return api.get('/orders');
+    }],
+    ['the login endpoint is down', () => {
+      handler = (config) => (isLogin(config) ? { status: 503 } : { status: 401 });
+      return api.get('/orders');
+    }],
+    ['there is no initData to sign in with', () => {
+      vi.mocked(telegram.getInitData).mockReturnValue('');
+      handler = () => ({ status: 401 });
+      return api.get('/orders');
+    }],
+    ['the login itself answers 401', () => {
+      handler = () => ({ status: 401 });
+      return api.post('/auth/telegram', { initData: 'x' });
+    }],
+  ];
+
+  it.each(SIGN_OUTS)('%s: the error screen, with the session and the caches gone', async (_name, run) => {
+    const session = await import('../lib/session');
+    const { queryClient } = await import('../lib/queryClient');
+    const { revisions } = await import('../lib/revisions');
+    const { useCartStore } = await import('../store/cartStore');
+    session.useSessionStatus.setState({ signingIn: false, error: null, attempt: 0 });
+    queryClient.setQueryData(['orders', 'active'], [{ id: 1 }]);
+    const clearRevisions = vi.spyOn(revisions, 'clear');
+    useCartStore.getState().addItem({ id: 'v1', productId: 1, variantId: 'v1', storeId: 's1', name: 'Lavash', price: 25000, quantity: 1 });
+
+    await expect(run()).rejects.toBeDefined();
+
+    expect(useAuthStore.getState()).toMatchObject({ token: null, user: null, isAuthenticated: false });
+    expect(session.useSessionStatus.getState()).toMatchObject({ signingIn: false, error: session.SIGNED_OUT_ERROR });
+    expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    expect(clearRevisions).toHaveBeenCalled();
+    // The same person's cart stays (it is kept per Telegram user)
+    expect(useCartStore.getState().items).toHaveLength(1);
   });
 });
 

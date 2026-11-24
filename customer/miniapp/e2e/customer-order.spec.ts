@@ -1,5 +1,5 @@
 import { addLavashToCart } from './cartFlow'
-import { expect, test } from './fixtures'
+import { expect, test, userStorageKey } from './fixtures'
 
 test('customer orders for pickup and sees the order among the active ones', async ({ page, api }) => {
   await addLavashToCart(page)
@@ -31,10 +31,10 @@ test('customer orders for pickup and sees the order among the active ones', asyn
 
 test('customer orders for delivery to a saved address', async ({ page, api }) => {
   // An address saved earlier, with its pin on the map (picking one on the map itself is not part of this test)
-  await page.addInitScript(() => {
+  await page.addInitScript((key) => {
     const address = { id: 1, title: 'Uy', address: 'Chilonzor 9, 14-uy', lat: 41.2856, lng: 69.2037, is_default: true }
-    localStorage.setItem('address-storage', JSON.stringify({ state: { addresses: [address], selectedAddressId: 1 }, version: 1 }))
-  })
+    localStorage.setItem(key, JSON.stringify({ state: { addresses: [address], selectedAddressId: 1 }, version: 1 }))
+  }, userStorageKey('address-storage'))
 
   await addLavashToCart(page)
 

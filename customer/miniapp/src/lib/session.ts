@@ -1,15 +1,15 @@
+import { create } from 'zustand';
 import { useAuthStore } from '../store/authStore';
-import { useCartStore } from '../store/cartStore';
-import { useAddressStore } from '../store/useAddressStore';
 import { queryClient } from './queryClient';
 import { revisions } from './revisions';
+import { launchTelegramId, MOCK_TELEGRAM_ID_KEY } from './userStorage';
 
-// Whose session the device holds. The Mini App's localStorage belongs to the device (the Telegram app), not to the
-// Telegram account: two accounts on one phone share it. A stored session (token + user) may only be used, shown or
-// sent while the Telegram user it was issued for has the app open.
+export { MOCK_TELEGRAM_ID_KEY };
 
-// The dev server's stand-in for a Telegram account outside Telegram (see useTelegramAuth)
-export const MOCK_TELEGRAM_ID_KEY = 'mock_telegram_id';
+// Whose session this is. The per-user stores are kept under the key of the Telegram user who has the app open
+// (lib/userStorage.ts), so another account's data is never even loaded. On top of that, in memory: a session is only
+// used, shown or sent while its user is that Telegram user, a sign-in answer for another account is never taken, and
+// a session whose user stopped matching (the backend unlinked its telegram_id) is replaced by a new sign-in.
 
 type SessionState = {
   token: string | null;
@@ -17,21 +17,20 @@ type SessionState = {
   user: { telegram_id?: string | number | null } | null;
 };
 
-function readMockTelegramId(): string | null {
-  try {
-    return localStorage.getItem(MOCK_TELEGRAM_ID_KEY);
-  } catch {
-    return null;
-  }
-}
-
-// The Telegram account that has the app open: the user of this launch's initData (set by Telegram, read from
-// window.Telegram, which telegram-web-app.js / @twa-dev/sdk fill in), else, on the dev server only, the mock account.
-// null: nothing identifies the user (opened outside Telegram).
+// The Telegram account that has the app open: the user of this launch's initData, else, on the dev server only, the
+// mock account the storage was chosen for. null: nothing identifies the user (a production build outside Telegram).
 export function currentTelegramId(): string | null {
   const id = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
   if (id !== undefined && id !== null && String(id) !== '') return String(id);
-  return import.meta.env.DEV ? readMockTelegramId() : null;
+  return import.meta.env.DEV ? launchTelegramId : null;
+}
+
+// The user (of a stored session, or of a sign-in answer) is the Telegram user who has the app open
+export function isCurrentTelegramUser(user: SessionState['user'] | undefined): boolean {
+  const current = currentTelegramId();
+  if (current === null) return false;
+  const owner = user?.telegram_id;
+  return owner !== undefined && owner !== null && String(owner) === current;
 }
 
 // The device holds a session, or a part of one
@@ -39,43 +38,81 @@ function holdsSession(state: SessionState): boolean {
   return Boolean(state.token || state.user || state.isAuthenticated);
 }
 
-// The stored session was not issued to the user who has the app open now, so it must not be used.
-//  - A Telegram user (or the dev server's mock account) is known: the session is theirs only if its user has that
-//    telegram_id. A session without a user cannot be tied to anyone and is foreign too.
-//  - Nobody is known (no initData user): a production build treats the session as foreign (it cannot prove whose it
-//    is, and it signs nobody in outside Telegram anyway); the dev server keeps it, as it always did, until a mock
-//    account is chosen.
+// The stored session must not be used: it holds something, and its user is not the Telegram user who has the app open
+// (another telegram_id, none at all, or nobody is known to have the app open).
 export function isForeignSession(state: SessionState = useAuthStore.getState()): boolean {
-  if (!holdsSession(state)) return false;
-  const current = currentTelegramId();
-  if (current === null) return !import.meta.env.DEV;
-  const owner = state.user?.telegram_id;
-  return owner === undefined || owner === null || String(owner) !== current;
+  return holdsSession(state) && !isCurrentTelegramUser(state.user);
 }
 
-// Forgets the stored session and everything kept on the device for its user: the auth store, the cart (lines, the note
-// to the store, the open checkout attempt with its body), the saved addresses, the in-memory query cache and the
-// change tokens. The language and the order-sound switch are the device's settings and stay.
-export function dropStoredSession(): void {
+// --- Signing in and out --------------------------------------------------------------------------------------------
+
+export const SIGNED_OUT_ERROR = 'Session expired: please sign in again.';
+
+interface SessionStatus {
+  // A sign-in is running (the app shows its loader)
+  signingIn: boolean;
+  // Why the app is signed out (the app shows the sign-in error screen with retry); null: no error
+  error: string | null;
+  // Bumped to ask useTelegramAuth for a new sign-in with initData
+  attempt: number;
+}
+
+const INITIAL_STATUS: SessionStatus = { signingIn: true, error: null, attempt: 0 };
+
+// The state of the sign-in, shared by useTelegramAuth (which runs it and shows it) and everything that ends a session
+export const useSessionStatus = create<SessionStatus>()(() => ({ ...INITIAL_STATUS }));
+
+// Back to "not signed in yet" (tests)
+export function resetSessionStatus(): void {
+  useSessionStatus.setState({ ...INITIAL_STATUS });
+}
+
+// Forgets the session in memory and on the device, and everything that was read with it: the in-memory query cache
+// and the change tokens. The cart and the saved addresses stay: they are this Telegram user's (lib/userStorage.ts).
+export function clearSession(): void {
   useAuthStore.getState().logout();
-  useCartStore.getState().clearCart();
-  useAddressStore.setState({ addresses: [], selectedAddressId: null });
   queryClient.clear();
   revisions.clear();
 }
 
-// Drops the stored session when it belongs to another user. Returns whether it did.
-export function dropForeignSession(): boolean {
+// Every sign-out goes through here: the session and its caches are dropped, and the app shows the sign-in error screen
+// with retry (never screens that are silently signed out).
+export function signOut(reason: string = SIGNED_OUT_ERROR): void {
+  clearSession();
+  useSessionStatus.setState({ signingIn: false, error: reason });
+}
+
+// The stored session stopped matching the Telegram user (say, the backend unlinked its telegram_id and a refresh
+// brought that in): it is dropped, with its caches, and the user signs in again with initData (useTelegramAuth); if
+// that fails, the sign-in error screen. A sign-in that is already running is not started twice.
+export function signInAgain(): void {
+  const status = useSessionStatus.getState();
+  clearSession();
+  if (status.signingIn) return;
+  useSessionStatus.setState({ signingIn: true, error: null, attempt: status.attempt + 1 });
+}
+
+// Drops a stored session that does not belong to the Telegram user who has the app open (the cart and addresses stay)
+export function clearForeignSession(): boolean {
   if (!isForeignSession()) return false;
-  dropStoredSession();
+  clearSession();
   return true;
 }
 
-// The token a request may carry: the stored one only while it belongs to the user who has the app open. A foreign one
-// is dropped on the spot (with its user's data) and nothing is sent.
+// The token a request may carry: the stored one only while it belongs to the user who has the app open. Otherwise
+// nothing is sent and a new sign-in is asked for.
 export function sessionToken(): string | null {
-  const { token } = useAuthStore.getState();
-  if (!token) return null;
-  if (dropForeignSession()) return null;
-  return token;
+  const state = useAuthStore.getState();
+  if (!state.token) return null;
+  if (isForeignSession(state)) {
+    signInAgain();
+    return null;
+  }
+  return state.token;
 }
+
+// Whatever writes the store (a background GET /user, the profile's refresh): a user that stops matching the Telegram
+// user is never kept as the session.
+useAuthStore.subscribe((state) => {
+  if (state.token && isForeignSession(state)) signInAgain();
+});
