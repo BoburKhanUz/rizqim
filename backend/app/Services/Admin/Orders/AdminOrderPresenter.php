@@ -16,6 +16,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\AdminPii;
+use App\Services\Payment\StoreOwnRefund;
 use App\Services\Payment\StoreRefundReview;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -232,12 +233,17 @@ class AdminOrderPresenter
                 // Null for every other provider
                 'confirmation' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['state'] ?? null) ? $payment->payload['paylov']['state'] : null,
                 'provider_refund' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['refund']['status'] ?? null) ? $payment->payload['paylov']['refund']['status'] : null,
+                // Owner decision 4: who gives this payment's money back when a refund of it is recorded
+                'refund_by' => StoreOwnRefund::refundRecorded($payment) && StoreOwnRefund::isStores($order, $payment) ? StoreOwnRefund::REFUND_BY : null,
                 'created_at' => $payment->created_at?->toIso8601String(),
             ])->all(),
             // Wave P: provider refunds on the store's own cashbox waiting for (or given) a manager's decision
             // (StoreRefundReview): the latest one (null when none) and the whole history, the latest first
             'store_refund_review' => $storeRefundReviews[0] ?? null,
             'store_refund_reviews' => $storeRefundReviews,
+            // Owner decision 4: `store_own_account` once a refund of money paid into the store's own account was
+            // recorded (the store gives it back from there, RIZQIM holds none of it), else null
+            'refund_by' => StoreOwnRefund::of($order, $order->payments),
             'refunds' => [
                 'paid' => $balance['paid']->toString(),
                 'refunded' => $balance['refunded']->toString(),
@@ -314,9 +320,32 @@ class AdminOrderPresenter
             'decided_at' => $request->decided_at?->toIso8601String(),
             'decision_note' => $request->decision_note,
             'execution' => $request->execution,
+            // Owner decision 4: the store gives the money back from its own account (store_own_account) or null
+            'refund_by' => $this->refundByOf($request),
             'mine' => (int) $request->requested_by === (int) $viewer->id,
             'can_decide' => $this->refunds->canDecide($request, $viewer),
         ];
+    }
+
+    /**
+     * Owner decision 4: an approved request says it (execution.refund_by, recorded at approval); one not decided yet is
+     * the store's to pay back when the order's money still paid is in the store's own account.
+     */
+    private function refundByOf(OrderRefundRequest $request): ?string
+    {
+        if ($request->status === OrderRefundRequest::APPROVED) {
+            return is_string($request->execution['refund_by'] ?? null) ? $request->execution['refund_by'] : null;
+        }
+        if ($request->status !== OrderRefundRequest::PENDING) {
+            return null;
+        }
+        $order = Order::query()->whereKey($request->order_id)->first(['id', 'store_id', 'payment_owner']);
+        if ($order === null) {
+            return null;
+        }
+
+        return StoreOwnRefund::wouldBe($order, Payment::query()->where('order_id', $order->id)->get(['id', 'provider', 'provider_transaction_id', 'status', 'payload']))
+            ? StoreOwnRefund::REFUND_BY : null;
     }
 
     /**

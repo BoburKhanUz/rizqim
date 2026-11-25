@@ -31,7 +31,8 @@ class CrossStoreReadsTest extends TestCase
 
     private function deliverByCourier(): Order
     {
-        $order = $this->makeOrder(OrderStatus::ON_THE_WAY, ['courier_id' => $this->courier->id]);
+        // Owner decision 3: paid in a way the platform verified (Paylov's read-back), so it earns the referral bonus
+        $order = $this->payThroughPaylov($this->makeOrder(OrderStatus::ON_THE_WAY, ['courier_id' => $this->courier->id]));
         $this->bearerJson('POST', "/api/v1/orders/{$order->uuid}/complete", $this->courier->createToken('t')->plainTextToken)->assertOk();
 
         return $order;
@@ -47,7 +48,7 @@ class CrossStoreReadsTest extends TestCase
     {
         // The customer's first order was delivered at another store: this one, at the courier's store, is not the first
         $other = $this->makeStore('Boshqa');
-        $this->makeOrder(OrderStatus::DELIVERED, ['store_id' => $other->id, 'branch_id' => $this->makeBranch($other, 'Boshqa filial')->id]);
+        $this->payThroughPaylov($this->makeOrder(OrderStatus::DELIVERED, ['store_id' => $other->id, 'branch_id' => $this->makeBranch($other, 'Boshqa filial')->id]));
 
         $this->assertSame(0, $this->referralRewards($this->deliverByCourier()));
     }

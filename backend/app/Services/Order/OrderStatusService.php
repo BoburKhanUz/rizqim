@@ -38,6 +38,11 @@ class OrderStatusService
      *  - from: statuses the caller's action was offered in (e.g. a Telegram button); the order must still be in one;
      *  - notes: status history note;
      *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund);
+     *  - two_person_check: owner decision 4 — what two-person check a refund of a DELIVERED order paid into the
+     *    store's own account went through (`refund_request:<id>`, `store_refund_review`). Without it a person cannot
+     *    refund such an order (422 `two_person_check`): RIZQIM's commission on it goes back only after one member
+     *    asked and another confirmed. The system (null actor) refunds such an order only for a refund the provider
+     *    confirmed (refunded_by_provider), after a refund RIZQIM itself had asked for;
      *  - cancel_reason (CancelReason|string), required for canceled/rejected: staff pick any but payment_timeout,
      *    which is the system's (null actor) own, and no_show only for a pickup order already accepted
      *    (CancelReason::appliesTo); cancel_note: optional free text (max 500);
@@ -94,6 +99,16 @@ class OrderStatusService
             $recall = !empty($options['kitchen_recall']) && $from === OrderStatus::READY && $to === OrderStatus::PREPARING;
             if (($reassign && $to !== OrderStatus::COURIER_ASSIGNED) || (!$reassign && !$recall && !$from->canTransitionTo($to, $order->type))) {
                 throw OrderTransitionException::illegal($from, $to);
+            }
+
+            if ($to === OrderStatus::REFUNDED && $from === OrderStatus::DELIVERED && \App\Services\Payment\OrderMerchantAccount::isStore($order)
+                && empty($options['two_person_check']) && !($actor === null && !empty($options['refunded_by_provider']))) {
+                throw new OrderTransitionException(
+                    "Ovqatxona o'z hisobiga olgan buyurtmani bitta xodim qaytara olmaydi: komissiya faqat ikki xodim tekshiruvidan keyin qaytadi. "
+                    . "Boshqaruv markazida pulni qaytarish so'rovini yarating — uni boshqa xodim tasdiqlaydi.",
+                    422,
+                    'two_person_check',
+                );
             }
 
             $cancellation = $to->isCancellation() ? $this->cancellation($order, $from, $actor, $options) : [];
@@ -228,6 +243,8 @@ class OrderStatusService
                 'reason' => $cancellation['cancel_reason'] ?? null,
                 'note' => $cancellation['cancel_note'] ?? ($to === OrderStatus::REFUNDED ? ($options['notes'] ?? null) : null),
                 'refunded_by_provider' => $to === OrderStatus::REFUNDED ? !empty($options['refunded_by_provider']) : null,
+                // Owner decision 4: the two-person check a store-owned delivered order's refund went through
+                'two_person_check' => $to === OrderStatus::REFUNDED ? ($options['two_person_check'] ?? null) : null,
                 'total_price' => in_array($to, [OrderStatus::CANCELED, OrderStatus::REJECTED, OrderStatus::REFUNDED], true) ? $order->total_price : null,
                 'payment_method' => $order->payment_method,
             ], fn ($value) => $value !== null),
@@ -237,20 +254,23 @@ class OrderStatusService
 
     /**
      * The one way to refund a delivered order (super_admin; a null actor is the system, e.g. a refund Payme made).
-     * Calling it again is a no-op.
+     * Calling it again is a no-op. Owner decision 4: an order paid into the store's own account needs $twoPersonCheck
+     * (the refund request or store refund review it went through) when a person refunds it.
      *
      * @throws OrderTransitionException
      */
-    public function refund(Order $order, ?User $actor, string $reason, bool $refundedByProvider = false): OrderTransitionResult
+    public function refund(Order $order, ?User $actor, string $reason, bool $refundedByProvider = false, ?string $twoPersonCheck = null): OrderTransitionResult
     {
         if (trim($reason) === '') {
             throw new OrderTransitionException("Qaytarish sababini kiriting.", 422, 'reason');
         }
 
-        return $this->transition($order, OrderStatus::REFUNDED, $actor, [
+        return $this->transition($order, OrderStatus::REFUNDED, $actor, array_filter([
             'notes' => trim($reason),
             'refunded_by_provider' => $refundedByProvider,
-        ]);
+            // Owner decision 4: required for a delivered order paid into the store's own account (see transition)
+            'two_person_check' => $twoPersonCheck,
+        ], fn ($value) => $value !== null));
     }
 
     /**
@@ -589,15 +609,19 @@ class OrderStatusService
 
         $paid = Money::sum(...$payments->pluck('amount')->all());
         $amount = $paid->isZero() ? Money::of($order->total_price) : $paid;
+        // Owner decision 4: money in the store's own account goes back from there, never from RIZQIM
+        $stores = $payments->contains(fn (\App\Models\Payment $payment) => \App\Services\Payment\StoreOwnRefund::isStores($order, $payment));
 
         Log::warning("Manual refund required for {$to->value} order {$order->uuid}", [
             'order_id' => $order->id,
             'payment_method' => $order->payment_method,
             'amount' => $amount->toString(),
+            'refund_by' => $stores ? \App\Services\Payment\StoreOwnRefund::REFUND_BY : null,
         ]);
 
         return "To'lov avtomatik qaytarilmadi: " . number_format($amount->toFloat(), 0, '.', ' ')
-            . " UZS ({$order->payment_method}) mijozga qo'lda qaytarilishi kerak.";
+            . " UZS ({$order->payment_method}) mijozga qo'lda qaytarilishi kerak."
+            . ($stores ? ' ' . \App\Services\Payment\StoreOwnRefund::LABEL . " (pul ovqatxonaning o'z to'lov hisobida, RIZQIM'da emas)." : '');
     }
 
     /**

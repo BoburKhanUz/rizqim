@@ -325,7 +325,8 @@ class RefundRequestService
                 && $amount->equals($balance['refundable'])) {
                 $paidBefore = $payments->filter(fn (Payment $payment) => $payment->status === PaymentStatus::PAID)->keyBy('id');
                 try {
-                    $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}");
+                    // Owner decision 4: asked by one member, approved by another (lockForDecision): the two-person check
+                    $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}", false, "refund_request:{$refund->id}");
                 } catch (OrderTransitionException $e) {
                     throw new AdminOrderException($e->getMessage(), 'refund_failed', $e->status === 403 ? 403 : 422);
                 }
@@ -390,6 +391,10 @@ class RefundRequestService
                     'payment_method' => $order->payment_method,
                     'automatic_amount' => $automatic->toString(),
                     'manual_amount' => $manual->toString(),
+                    // Owner decision 4: who returns the manual part — the store from its own account (RIZQIM holds none
+                    // of that money), or null (the approver, as before)
+                    'refund_by' => collect($shares)->contains(fn (array $share) => $share['kind'] === self::KIND_MANUAL
+                        && \App\Services\Payment\StoreOwnRefund::isStores($order, $share['payment'])) ? \App\Services\Payment\StoreOwnRefund::REFUND_BY : null,
                     // Provider refunds are not automated for Click/Payme: the money is returned by hand; wave P: Paylov's
                     // are (payment/cancel, the whole payment)
                     'provider_refund' => match (true) {

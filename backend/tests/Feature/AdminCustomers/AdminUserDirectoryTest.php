@@ -211,4 +211,33 @@ class AdminUserDirectoryTest extends TestCase
         $this->assertSame(['referral' => 1, 'refunded' => 2, 'spent' => 1], $entries->countBy('kind')->sortKeys()->all());
         $this->assertSame(1, $this->adminJson('GET', "/users/{$customer->id}", $this->signIn($this->makeMember(PlatformRole::SUPPORT)))->json('data.profile.referrals'));
     }
+
+    public function test_the_card_of_a_referred_customer_says_why_the_bonus_is_still_pending(): void
+    {
+        // Owner decision 3: only a delivered order whose payment the platform verified earns the referrer's bonus
+        $referrer = $this->makeCustomer(0, ['name' => 'Taklif qilgan']);
+        $friend = $this->makeCustomer(0, ['name' => "Do'st"]);
+        DB::table('users')->where('id', $friend->id)->update(['referred_by' => $referrer->id]);
+        $token = $this->signIn($this->makeMember(PlatformRole::SUPPORT));
+        $card = fn (User $user) => $this->adminJson('GET', "/users/{$user->id}", $token)->assertOk()->json('data.profile.referral_bonus');
+
+        $this->assertNull($card($referrer), 'nobody invited the referrer');
+        $this->assertSame(['status' => 'pending', 'order' => null, 'unverified_deliveries' => 0], array_diff_key($card($friend), ['label' => 1]));
+
+        // Delivered for cash and into the store's own Click account: not verified, still pending
+        $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'cash']);
+        $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_owner' => 'STORE', 'payment_status' => 'paid']);
+        $pending = $card($friend);
+        $this->assertSame('pending', $pending['status']);
+        $this->assertSame(2, $pending['unverified_deliveries']);
+        $this->assertStringContainsString('onlayn', $pending['label']);
+
+        $granted = $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid']);
+        DB::table('store_transactions')->insert([
+            'store_id' => $this->store->id, 'type' => 'commission', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '5000.00',
+            'reference_id' => $granted->uuid, 'order_id' => $granted->id, 'notes' => "Referral cashback reward cost for referred user #{$friend->id}",
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->assertSame(['status' => 'granted', 'order' => ['uuid' => $granted->uuid, 'short_code' => $granted->short_code]], array_intersect_key($card($friend), ['status' => 1, 'order' => 1]));
+    }
 }

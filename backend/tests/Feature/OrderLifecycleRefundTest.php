@@ -225,20 +225,29 @@ class OrderLifecycleRefundTest extends TestCase
         $customer = $this->makeCustomer();
         $customer->referred_by = $referrer->id;
         $customer->save();
+        // Owner decision 3: only a payment the platform verified earns the bonus (here: into its own Click account)
+        $paidOrder = function () use ($customer): Order {
+            $order = $this->checkout($customer, 1, 'click');
+            $order->payments()->update(['status' => PaymentStatus::PAID->value, 'paid_at' => now()]);
+            $order->update(['payment_status' => PaymentStatus::PAID->value]);
 
-        $first = $this->deliver($this->checkout($customer, 1));
+            return $this->deliver($order);
+        };
+
+        $first = $paidOrder();
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['10000.00', '0.00'], $this->storeBalances());
+        // 50 000 collected pays the 5 000 commission, 45 000 to the wallet; then the bonus' 5 000 on the debt
+        $this->assertSame(['5000.00', '45000.00'], $this->storeBalances());
 
         app(OrderStatusService::class)->refund($first, $this->admin, 'Mijoz shikoyati');
 
-        // Only the commission is reversed; the referral reward and its cost stay
+        // Only the commission and the settlement are reversed; the referral reward and its cost stay
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
         $this->assertSame(['5000.00', '0.00'], $this->storeBalances());
 
-        $this->deliver($this->checkout($customer, 1));
+        $paidOrder();
 
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['10000.00', '0.00'], $this->storeBalances());
+        $this->assertSame(['0.00', '40000.00'], $this->storeBalances());
     }
 }

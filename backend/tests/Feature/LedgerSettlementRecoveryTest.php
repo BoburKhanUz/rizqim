@@ -58,9 +58,13 @@ class LedgerSettlementRecoveryTest extends TestCase
         DB::statement('ALTER TABLE store_transactions RENAME COLUMN balance_after_renamed TO balance_after');
     }
 
-    private function deliver(): Order
+    private function deliver(bool $verified = true): Order
     {
+        // Owner decision 3: paid in a way the platform verified (Paylov's read-back), so it earns the referral bonus
         $order = $this->makeOrder(OrderStatus::ON_THE_WAY, ['courier_id' => $this->courier->id]);
+        if ($verified) {
+            $order = $this->payThroughPaylov($order);
+        }
 
         $this->assertTrue(app(OrderStatusService::class)->transition($order, OrderStatus::DELIVERED, $this->courier)->changed);
 
@@ -187,7 +191,7 @@ class LedgerSettlementRecoveryTest extends TestCase
     public function test_an_order_refunded_before_the_retry_is_not_booked_any_more(): void
     {
         $this->breakLedger();
-        $order = $this->deliver();
+        $order = $this->deliver(verified: false);
         $this->repairLedger();
         $admin = $this->makeStaff(\App\Enums\UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
         app(OrderStatusService::class)->refund($order, $admin, 'Mijoz shikoyati');

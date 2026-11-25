@@ -15,7 +15,8 @@ class MarkOrderAsPaid
 {
     public function __construct(
         protected OrderStatusService $orderStatus,
-        protected LedgerService $ledger
+        protected LedgerService $ledger,
+        protected \App\Services\Finance\SettlementRecoveryService $settlements,
     ) {}
 
     /**
@@ -41,9 +42,12 @@ class MarkOrderAsPaid
                 $order->update(['payment_status' => PaymentStatus::PAID->value]);
             }
 
-            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent).
+            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent). Owner
+            // decision 3: the payment is verified only now, so the referral bonus it may earn is granted now (once)
             if ($order->status === OrderStatus::DELIVERED) {
                 $this->ledger->settlePlatformOrder($order);
+                // Idempotent: what delivery booked stays as it is; in a savepoint, a failure is marked and retried
+                $this->settlements->book($order);
 
                 return null;
             }
@@ -65,6 +69,11 @@ class MarkOrderAsPaid
             return;
         }
 
+        $this->notify($order);
+    }
+
+    private function notify(Order $order): void
+    {
         // 3. Dispatch admin / kitchen telegram notifications
         try {
             $telegramService = app(\App\Services\Notifications\TelegramNotificationService::class);

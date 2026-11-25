@@ -92,7 +92,62 @@ class UserCardPresenter
             'courier_type' => $user->role === UserRole::COURIER ? ['value' => $user->courier_type->value, 'label' => $user->courier_type->labelUz()] : null,
             'referred_by' => $referrer && !$referrer->isPlatformAccount() ? ['id' => (int) $referrer->id, 'name' => (string) $referrer->name] : null,
             'referrals' => User::query()->where('referred_by', $user->id)->count(),
+            // Owner decision 3: whether the referrer's bonus for this customer was granted, and why it may still wait
+            'referral_bonus' => $user->referred_by ? $this->referralBonus($user) : null,
             'created_at' => CustomerFormat::iso($user->created_at),
+        ];
+    }
+
+    /**
+     * Owner decision 3: the referrer's bonus for this (referred) customer — `granted` (the order that earned it),
+     * `pending` (no delivered order the platform verified the payment of yet: cash and the store's own Click / Payme /
+     * Uzum / Paynet do not count, ReferralService::paymentVerifiedByPlatform), or `not_earned` (the first verified
+     * delivery did not earn it: below 50 000, as before). `unverified_deliveries`: their delivered orders that did not
+     * count.
+     *
+     * @return array{status: string, label: string, order: array{uuid: string, short_code: string|null}|null, unverified_deliveries: int}
+     */
+    private function referralBonus(User $user): array
+    {
+        $rewarded = \App\Models\StoreTransaction::query()
+            ->where('type', \App\Enums\StoreTransactionType::COMMISSION->value)
+            ->where('notes', \App\Services\Finance\LedgerService::referralNote((int) $user->id))
+            ->whereIn('order_id', \App\Models\Order::query()->select('id')->where('user_id', $user->id))
+            ->orderBy('id')
+            ->first(['order_id']);
+        $delivered = \App\Models\Order::query()->where('user_id', $user->id)
+            ->whereIn('status', [\App\Enums\OrderStatus::DELIVERED->value, \App\Enums\OrderStatus::REFUNDED->value])
+            ->get(['id', 'uuid', 'short_code', 'store_id', 'payment_method', 'payment_owner', 'payment_status']);
+        $verified = $delivered->filter(fn (\App\Models\Order $order) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($order));
+        $unverified = $delivered->count() - $verified->count();
+        $amount = number_format(\App\Services\Finance\LedgerService::REFERRAL_REWARD, 0, ',', ' ');
+
+        if ($rewarded !== null) {
+            $order = $delivered->firstWhere('id', (int) $rewarded->order_id) ?? \App\Models\Order::query()->whereKey($rewarded->order_id)->first(['id', 'uuid', 'short_code']);
+
+            return [
+                'status' => 'granted',
+                'label' => "Taklif qilganga {$amount} ball berilgan" . ($order?->short_code ? " (#{$order->short_code})" : '') . '.',
+                'order' => $order ? ['uuid' => (string) $order->uuid, 'short_code' => $order->short_code] : null,
+                'unverified_deliveries' => $unverified,
+            ];
+        }
+
+        if ($verified->isNotEmpty()) {
+            return [
+                'status' => 'not_earned',
+                'label' => "Bonus berilmadi: onlayn to'langan birinchi yetkazilgan buyurtma " . number_format(\App\Services\Finance\LedgerService::REFERRAL_MIN_ORDER, 0, ',', ' ') . " so'mdan kam edi (yoki uning hisob-kitobi hali yozilmagan).",
+                'order' => null,
+                'unverified_deliveries' => $unverified,
+            ];
+        }
+
+        return [
+            'status' => 'pending',
+            'label' => "Bonus kutilmoqda: taklif qilganga {$amount} ball do'stning onlayn to'langan (to'lovni platforma tasdiqlagan) birinchi yetkazilgan buyurtmasidan so'ng beriladi. Naqd va ovqatxonaning o'z Click, Payme, Uzum yoki Paynet hisobiga to'langan buyurtmalar hisobga olinmaydi"
+                . ($unverified > 0 ? " (bunday yetkazilgan buyurtmalar: {$unverified})" : '') . '.',
+            'order' => null,
+            'unverified_deliveries' => $unverified,
         ];
     }
 

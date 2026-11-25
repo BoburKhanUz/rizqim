@@ -118,6 +118,9 @@ class StaffOrderPresenter
                     'status' => $history->status->value,
                     'created_at' => $history->created_at?->toJSON(),
                 ])->all();
+            // Owner decision 4: the store gives the money back from its own account (a recorded refund of it), or null
+            $data['refund_by'] = \App\Services\Payment\StoreOwnRefund::of($order, \App\Models\Payment::query()->where('order_id', $order->id)
+                ->get(['id', 'order_id', 'provider', 'provider_transaction_id', 'status', 'payload']));
         }
 
         return $data;
