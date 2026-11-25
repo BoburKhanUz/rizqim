@@ -39,6 +39,24 @@ return [
     'send_default_pii' => false,
     'max_request_body_size' => 'none',
 
+    // sentry/sentry 4.34 data collection (replaces the legacy defaults above, which still sent request headers, the
+    // URL query string and outgoing HTTP client query strings such as Nominatim ?q=<address>). Everything about the
+    // request is off: no user/IP, cookies, headers, bodies, URL parameters, SQL bindings, queue job arguments or
+    // stack frame arguments; only the URL path and method of the request stay. Privacy policy s8 relies on this
+    // (docs/legal/README.md); SentryScrubber strips the same parts again as a second line of defence.
+    'data_collection' => [
+        'user_info' => false,
+        'cookies' => ['mode' => 'off'],
+        'http_headers' => ['request' => ['mode' => 'off'], 'response' => ['mode' => 'off']],
+        'http_bodies' => [],
+        'url_query_params' => ['mode' => 'off'],
+        'gen_ai' => ['inputs' => false, 'outputs' => false],
+        'database_query_data' => false,
+        'queues' => false,
+        'stack_frame_variables' => false,
+        'frame_context_lines' => 5,
+    ],
+
     'before_send' => [SentryScrubber::class, 'beforeSend'],
     'before_send_transaction' => [SentryScrubber::class, 'beforeSendTransaction'],
     'before_breadcrumb' => [SentryScrubber::class, 'beforeBreadcrumb'],

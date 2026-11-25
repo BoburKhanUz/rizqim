@@ -111,6 +111,52 @@ class SentryScrubberTest extends TestCase
         ], JSON_THROW_ON_ERROR));
     }
 
+    public function test_http_breadcrumbs_and_spans_lose_their_query_string(): void
+    {
+        $breadcrumb = SentryScrubber::beforeBreadcrumb(new Breadcrumb(Breadcrumb::LEVEL_INFO, Breadcrumb::TYPE_HTTP, 'http', null, [
+            'url' => 'https://nominatim.openstreetmap.org/search?q=Amir+Temur+108',
+            'url.full' => 'https://nominatim.openstreetmap.org/search?q=Amir+Temur+108&format=jsonv2',
+            'http.query' => 'q=Amir+Temur+108&format=jsonv2',
+            'http.request.method' => 'GET',
+            'http.response.status_code' => 200,
+        ]));
+        $this->assertSame([
+            'url' => 'https://nominatim.openstreetmap.org/search',
+            'url.full' => 'https://nominatim.openstreetmap.org/search',
+            'http.request.method' => 'GET',
+            'http.response.status_code' => 200,
+        ], $breadcrumb->getMetadata());
+
+        $transaction = Event::createTransaction();
+        $span = new Span();
+        $span->setOp('http.client');
+        $span->setDescription('GET https://nominatim.openstreetmap.org/reverse?lat=41.311081&lon=69.240562');
+        $span->setData(['url' => 'https://nominatim.openstreetmap.org/reverse?lat=41.311081', 'http.query' => 'lat=41.311081&lon=69.240562']);
+        $transaction->setSpans([$span]);
+        $sent = SentryScrubber::beforeSendTransaction($transaction)->getSpans()[0];
+
+        $this->assertSame('GET https://nominatim.openstreetmap.org/reverse', $sent->getDescription());
+        $this->assertSame(['url' => 'https://nominatim.openstreetmap.org/reverse'], $sent->getData());
+    }
+
+    public function test_breadcrumb_context_keys_that_identify_a_customer_are_masked(): void
+    {
+        $breadcrumb = SentryScrubber::beforeBreadcrumb(new Breadcrumb(Breadcrumb::LEVEL_WARNING, Breadcrumb::TYPE_DEFAULT, 'log.warning', 'Order 1017 not accepted', [
+            'user_id' => 42, 'userId' => 42, 'order_id' => 1017, 'store_id' => 5, 'address' => 'Amir Temur 108',
+            'lat' => 41.31, 'lng' => 69.24, 'latitude' => 41.31, 'longitude' => 69.24, 'q' => 'Amir', 'query' => 'Amir',
+            'search' => 'osh', 'name' => 'Aziz', 'telegram_id' => 279058397, 'status' => 'pending', 'attempt' => 2,
+        ]));
+
+        $metadata = $breadcrumb->getMetadata();
+        foreach (['user_id', 'userId', 'order_id', 'store_id', 'address', 'lat', 'lng', 'latitude', 'longitude', 'q', 'query', 'search', 'name', 'telegram_id'] as $key) {
+            $this->assertSame(self::MASK, $metadata[$key], $key);
+        }
+        $this->assertSame('pending', $metadata['status']);
+        $this->assertSame(2, $metadata['attempt']);
+        // The message itself stays readable
+        $this->assertSame('Order 1017 not accepted', $breadcrumb->getMessage());
+    }
+
     public function test_ordinary_numbers_are_not_masked(): void
     {
         $text = 'Order 1700000000123 total 150000 sum, uuid 9f1c2d3e-0000-4000-8000-123456789012, lat 41.311081 lng 69.240562, status 500';
@@ -129,7 +175,8 @@ class SentryScrubberTest extends TestCase
     {
         $event = Event::createEvent();
         $event->setRequest([
-            'url' => 'https://api.example.uz/api/v1/phone/verify-code',
+            'url' => 'https://api.example.uz/api/v1/phone/verify-code?q=Amir+Temur+108&lat=41.31#frag',
+            'method' => 'POST',
             'headers' => ['Authorization' => 'Bearer 1|secretsecretsecretsecret', 'Accept' => 'application/json'],
             'data' => ['phone' => '+998901234567', 'code' => '123456'],
             'cookies' => ['laravel_session' => 'abc'],
@@ -156,7 +203,8 @@ class SentryScrubberTest extends TestCase
         }
         $this->assertSame('abc-123-req', $sent->getTags()['request_id']);
         $this->assertSame(17, $sent->getExtra()['order_id']);
-        $this->assertSame('application/json', $sent->getRequest()['headers']['Accept']);
+        // Second line of defence behind config/sentry.php data_collection: no headers, cookies, body or URL parameters
+        $this->assertSame(['url' => 'https://api.example.uz/api/v1/phone/verify-code', 'method' => 'POST'], $sent->getRequest());
         $this->assertSame('42', $sent->getUser()->getId());
         $this->assertNull($sent->getUser()->getEmail());
         $this->assertNull($sent->getUser()->getIpAddress());
@@ -173,5 +221,17 @@ class SentryScrubberTest extends TestCase
         $this->assertSame('none', config('sentry.max_request_body_size'));
         $this->assertFalse(config('sentry.send_default_pii'));
         $this->assertLessThanOrEqual(0.1, config('sentry.traces_sample_rate'));
+
+        // Privacy policy s8: no headers, cookies, body or URL parameters (incoming and outgoing HTTP)
+        $collection = config('sentry.data_collection');
+        $this->assertFalse($collection['user_info']);
+        $this->assertSame('off', $collection['cookies']['mode']);
+        $this->assertSame('off', $collection['http_headers']['request']['mode']);
+        $this->assertSame('off', $collection['http_headers']['response']['mode']);
+        $this->assertSame([], $collection['http_bodies']);
+        $this->assertSame('off', $collection['url_query_params']['mode']);
+        $this->assertFalse($collection['database_query_data']);
+        $this->assertFalse($collection['stack_frame_variables']);
+        $this->assertInstanceOf(\Sentry\DataCollection\DataCollectionOptions::class, (new \Sentry\Options(['data_collection' => $collection]))->getDataCollection());
     }
 }
