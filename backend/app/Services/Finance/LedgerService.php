@@ -260,8 +260,26 @@ class LedgerService
      * referrer's bonus when the order qualifies (grantReferralReward). Idempotent, part by part, so a booking that
      * failed can simply be run again (SettlementRecoveryService); callers run it in a transaction (savepoint) of its
      * own, so a failure books nothing at all (a deadlock too: RevisionPostgresConnection rolls it back to the savepoint).
+     * The production path (SettlementRecoveryService::book) runs its parts itself, with the refunded parts' catch-up
+     * between the settlement and the bonus (review L1); this keeps the whole sequence for direct callers.
      */
     public function processOrderDelivered(\App\Models\Order $order, ?int $performedBy = null): void
+    {
+        $this->bookCommissionAndSettlement($order, $performedBy);
+
+        // 3. Referral reward; a failure fails the whole booking, which is then retried like any other
+        $this->grantReferralReward($order, $performedBy);
+    }
+
+    /**
+     * The first two parts of processOrderDelivered: the commission and the platform-collected money to the store,
+     * each at most once. Returns which of them it booked now (false: booked before, or nothing to book). Review L1:
+     * SettlementRecoveryService::book runs the parts refunded meanwhile between these and the referral bonus, so an
+     * order whose parts reached everything paid never earns the bonus only to have it taken back at once.
+     *
+     * @return array{commission: bool, settlement: bool}
+     */
+    public function bookCommissionAndSettlement(\App\Models\Order $order, ?int $performedBy = null): array
     {
         $store = $order->store;
         // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
@@ -270,15 +288,16 @@ class LedgerService
             : Money::of($order->total_price)->percent($this->commissionRateOf($order, $store)); // the same resolved rate as checkout
 
         // 1. Always deduct commission for every order to log the commission transaction
+        $commission = false;
         if ($commissionAmount->isPositive() && !$this->hasCommission($order)) {
             $this->deductCommission($store, $commissionAmount, $order, null, $performedBy);
+            $commission = true;
         }
 
         // 2. Settle full amount if collected by the platform
-        $this->settlePlatformOrder($order, $performedBy);
+        $settlement = $this->settlePlatformOrder($order, $performedBy);
 
-        // 3. Referral reward; a failure fails the whole booking, which is then retried like any other
-        $this->grantReferralReward($order, $performedBy);
+        return ['commission' => $commission, 'settlement' => $settlement];
     }
 
     /** The referral bonus (ReferralService::BONUS): ball to the referrer, paid by the platform out of its commission income. */
@@ -587,11 +606,29 @@ class LedgerService
      */
     public function reverseDeliveredOrderShare(\App\Models\Order $order, int $refundRequestId, Money $refunded, Money $paid, ?int $performedBy = null): array
     {
-        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid], $performedBy);
+        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid, 'catch_up' => false], $performedBy);
     }
 
     /**
-     * @param  array{request: int, refunded: Money, paid: Money}|null  $share  null: the whole order
+     * A part of the booking was deferred when refund requests were approved (settlement_failed_at: e.g. the late
+     * payment's settlement was booked but the commission was not) and is booked now: reverse, per part of the booking,
+     * what is still outstanding of this request's cumulative share — its target ($refunded of $paid of what is booked
+     * now) less what the order's reversal rows already took back. Unlike reverseDeliveredOrderShare it runs for a
+     * request that already has its reversal row and after a full one: what that row reversed is counted, so nothing is
+     * reversed twice and nothing booked later is missed; nothing outstanding, nothing booked and no row. The row it
+     * adds names the request in `components.catch_up_for_request` when the request already has its own row (one row
+     * per request, unique), and is `is_full` only when the order has no full reversal yet (one per order). Callers hold
+     * the order lock (SettlementRecoveryService::reverseDeferredParts).
+     *
+     * @return array{commission: Money, settlement: Money, added_to_debt: Money}
+     */
+    public function reverseOutstandingShare(\App\Models\Order $order, int $refundRequestId, Money $refunded, Money $paid, ?int $performedBy = null): array
+    {
+        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid, 'catch_up' => true], $performedBy);
+    }
+
+    /**
+     * @param  array{request: int, refunded: Money, paid: Money, catch_up: bool}|null  $share  null: the whole order
      * @return array{commission: Money, settlement: Money, added_to_debt: Money}
      */
     private function reverseDelivery(\App\Models\Order $order, ?array $share, ?int $performedBy): array
@@ -603,8 +640,10 @@ class LedgerService
             $walletRows = fn () => StoreWalletTransaction::where('store_id', $store->id)->where('order_id', $order->id);
 
             $reversals = \App\Models\OrderLedgerReversal::where('order_id', $order->id)->lockForUpdate()->get();
-            if ($reversals->contains(fn ($reversal) => $reversal->is_full)
-                || ($share !== null && $reversals->contains(fn ($reversal) => (int) $reversal->order_refund_request_id === $share['request']))) {
+            $hasFull = $reversals->contains(fn ($reversal) => $reversal->is_full);
+            $hasOwnRow = $share !== null && $reversals->contains(fn ($reversal) => (int) $reversal->order_refund_request_id === $share['request']);
+            // A catch-up (reverseOutstandingShare) takes only the difference to its target, whatever was reversed before
+            if (!($share['catch_up'] ?? false) && ($hasFull || $hasOwnRow)) {
                 return $nothing;
             }
             // Reversed before P4-23 (all at once, with no record): nothing is left to reverse
@@ -717,15 +756,16 @@ class LedgerService
                 \App\Models\OrderLedgerReversal::create([
                     'order_id' => $order->id,
                     'store_id' => $store->id,
-                    'order_refund_request_id' => $share['request'] ?? null,
-                    'is_full' => $isFull,
+                    // A catch-up of a request that has its own row names it in the components (one row per request)
+                    'order_refund_request_id' => $hasOwnRow ? null : ($share['request'] ?? null),
+                    'is_full' => $isFull && !$hasFull,
                     'refunded_total' => $share !== null ? $share['refunded']->toString() : null,
                     'paid_total' => $share !== null ? $share['paid']->toString() : null,
                     'components' => array_map(fn (Money $amount) => $amount->toString(), $delta) + [
                         'payoff_invoices' => array_map(fn (Money $amount) => $amount->toString(), $deltaInvoices),
                         'added_to_debt' => $shortfall->toString(),
                         'invoices_reopened' => $reopened,
-                    ],
+                    ] + ($hasOwnRow ? ['catch_up_for_request' => $share['request']] : []),
                     'performed_by' => $performedBy,
                 ]);
             }

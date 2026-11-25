@@ -3185,6 +3185,7 @@ Bugun bo'limining manbalari (`App\Services\Admin\Today\Attention`, `App\Provider
 | `kind` | Nima | Ruxsat | Daraja | `href` |
 |---|---|---|---|---|
 | `settlement_failed` | yetkazilgan, lekin ledger yozuvi yiqilgan buyurtmalar (`settlement_failed_at`) | `finance.view` | avtomatik urinishlar tugagan bo'lsa `critical`, aks holda `warning` | `/orders/{uuid}` |
+| `settlement_unbooked` | review H1: yetkazilgan, platforma yig'gan, to'langan, lekin hisob-kitob qatori ham, qayta urinish belgisi ham yo'q buyurtmalar (to'lovi — `payments.paid_at` — 15 daqiqadan oldin, 30 kundan keyin tushgan; `SettlementRecoveryService::unbookedLatePayments`; `since` — to'lov vaqti). `subtitle` admin «qayta urinish»i buni yozmasligini va nima qilishni aytadi: avval do'konning moliya tuzatishlarini tekshirish (pul qo'lda yozilgan bo'lishi mumkin, tuzatishda `order_id` yo'q), so'ng serverda `php artisan orders:retry-settlements {id} --confirm-unbooked` (docs/OPERATIONS.md) | `finance.view` | `critical` | `/orders/{uuid}` |
 | `fiscal_failed` | oxirgi 7 kunda yiqilgan fiskal cheklar (`status = failed`) | `devices.view` | `critical` | `/pos?fiscal={uuid}` |
 | `device_offline` | faol ovqatxonaning POS/KDS terminali 10 daqiqadan beri aloqa qilmagan, filial esa hozir ish vaqtida (filial ish soatlari; filialsiz yoki soati belgilanmagan filial — ovqatxona soatlari; `pos_device_offline` ogohlantirishi bilan bir xil qoida, Monitoring bo'limiga qarang; ovqatxona "yopiq" qilingan bo'lsa — yo'q). 3 kundan ko'p ko'rinmagan terminallar bu yerda emas | `devices.view` | `warning` | `/pos?device={uuid}` |
 | `invoice_overdue` | to'lov muddati (Toshkent sanasi) o'tgan, to'lanmagan obuna hisob-fakturalari | `finance.view` | `warning` | `/pos?invoice={uuid}` |
@@ -3631,7 +3632,7 @@ Yetti ichki qoida (`kind`), har biri `alert_rules` jadvalida bitta qator (yo'q b
 | `queue_backlog` | Navbatda `threshold` dan ko'p vazifa, yoki eng eskisi `threshold_secondary` daqiqadan beri kutmoqda (har navbat alohida) | 500 ta, 10 daqiqa | diqqat |
 | `pos_device_offline` | Faol ovqatxonaning kassasi yoki oshxona ekrani **ish vaqti ichida** `threshold` daqiqadan beri aloqada emas (har qurilma alohida) | 15 daqiqa | diqqat |
 | `fiscal_failures` | `window_minutes` ichida `threshold` va undan ko'p fiskal chek `failed` bo'ldi | 1 ta, 60 daqiqa | kritik |
-| `settlement_failures` | Hisobga yozilmagan (`settlement_failed_at`) buyurtmalar `threshold` va undan ko'p | 1 ta | kritik |
+| `settlement_failures` | Hisobga yozilmagan (`settlement_failed_at`) buyurtmalar `threshold` va undan ko'p; review H1: alohida topilma (subject `unmarked`) — to'langan, platforma yig'gan, yetkazilgan, hisob-kitobi ham belgisi ham yo'q buyurtmalar (to'lovi 15 daqiqadan oldin, 30 kundan keyin tushgan; `details.oldest_paid_at`) shuncha va undan ko'p | 1 ta | kritik |
 | `backup_stale` | Oxirgi zaxira `threshold` soatdan eski (yoki hech qachon yozilmagan) | 26 soat | kritik |
 | `scheduler_stale` | Scheduler yurak urishi yo'q yoki `threshold` soniyadan eski | 180 soniya | kritik |
 | `pos_sync_signature` (M5 S3) | Kassa `window_minutes` ichida `threshold` va undan ko'p imzosi noto'g'ri (`bad`) yoki navbatdan yo'qolgan amaldan keyingi (`chain_gap`) oflayn amal yubordi; yoki shu oynada kaliti bittadan ko'p almashtirildi; yoki imzolab turgan kassa imzosiz amal yubordi (har kassa alohida; "Imzolangan navbat") | 1 ta, 1440 daqiqa | diqqat |
@@ -4255,10 +4256,15 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
   yozuvi; `counts {pending, stuck}`.
 - `GET /admin/finance/settlement-failures` — hisob-kitobi yozilmagan yetkazilgan buyurtmalar (`attempts`, `max_attempts`,
   `gave_up`, `error`); `POST .../{uuid}/retry {reason}` — `SettlementRecoveryService::retry` (har 10 daqiqadagi ish bilan bir
-  yo'l, urinishlar tugagan bo'lsa ham): `{booked, order}` (`order: null` — yozildi yoki endi yetkazilgan emas).
+  yo'l, urinishlar tugagan bo'lsa ham): `{booked, order}` (`order: null` — yozildi yoki endi yetkazilgan emas). Belgisiz
+  buyurtma («Bugun»dagi `settlement_unbooked`) uchun 404: uni bu tugma ataylab yozmaydi (moliya pulini qo'lda yozgan
+  bo'lishi mumkin) — faqat tekshiruvdan keyin serverda `orders:retry-settlements <id> --confirm-unbooked` (docs/OPERATIONS.md).
   Hisob-kitob yozilmagan paytda tasdiqlangan qisman qaytarishlar (`execution.ledger_reversal_deferred: true`) shu yozuv
-  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi,
-  `ledger_reversal_on_retry: true`).
+  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi —
+  so'rov jami qaytargani —, `ledger_reversal_caught_up_at`, `ledger_reversal_catch_up_reason:
+  retry|late_payment|replay|manual` — `manual`: belgisiz buyurtmani `orders:retry-settlements --confirm-unbooked` yozdi;
+  eski so'rovlarda `ledger_reversal_on_retry: true` qolishi mumkin); hisob-kitob qisman turgan paytda tasdiqlangan qism keyin
+  yozilgan qismdan ham faqat qolgan ulushini qaytaradi.
 - `GET /admin/finance/balances?filter=all|debt|over_limit|subscription_debt|wallet&q=&page=&per_page=` — `wallet_balance,
   debt_balance, subscription_debt, commission_debt, credit_limit, over_limit` (faqat **komissiya qarzi** limitdan oshsa),
   `is_order_locked, pending_payouts`; `totals` — hamma do'konlar bo'yicha.
