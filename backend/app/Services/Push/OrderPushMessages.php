@@ -30,11 +30,29 @@ class OrderPushMessages
                 ? ['Buyurtma yetkazildi', "{$code} buyurtmangiz yetkazildi. Yoqimli ishtaha!"]
                 : ['Buyurtma tayyor', "{$code} buyurtmangiz tayyor, olib ketishingiz mumkin."],
             'canceled', 'rejected' => ['Buyurtma bekor qilindi', "{$code} buyurtmangiz bekor qilindi."],
-            'refunded' => ['Pul qaytarildi', "{$code} buyurtmangiz bo'yicha pul qaytarilmoqda."],
+            // Owner decision 4: money paid into the restaurant's own account goes back from there, never "returned"
+            // before it is seen back
+            'refunded' => $this->refundedByStore($order)
+                ? ['Pulni ovqatxona qaytaradi', "{$code} buyurtmangiz bo'yicha pulni ovqatxona o'z hisobidan qaytaradi."]
+                : ['Pul qaytarildi', "{$code} buyurtmangiz bo'yicha pul qaytarilmoqda."],
             default => ["Buyurtma holati o'zgardi", "{$code} buyurtmangiz holati yangilandi."],
         };
 
         return new PushContent($title, $body, $this->data($order, 'order_updates'), $this->collapseKey($order));
+    }
+
+    /**
+     * Whether the order's refund is the restaurant's to make from its own account and not seen back yet.
+     */
+    protected function refundedByStore(Order $order): bool
+    {
+        if (!\App\Services\Payment\StoreOwnRefund::isStoreOwned($order)) {
+            return false;
+        }
+        $refund = \App\Services\Payment\StoreOwnRefund::forCustomer($order, \App\Models\Payment::query()->where('order_id', $order->id)
+            ->get(['id', 'order_id', 'provider', 'provider_transaction_id', 'status', 'payload']));
+
+        return $refund !== null && !$refund['returned'];
     }
 
     /**

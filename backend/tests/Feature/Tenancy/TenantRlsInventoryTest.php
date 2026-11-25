@@ -211,7 +211,7 @@ class TenantRlsInventoryTest extends TestCase
                 // "has this employee a customer's orders at any store": they must survive the employee's removal
                 'app/Http/Controllers/Api/V1/Store/OwnerEmployeeController.php' => 1,
                 'app/Models/AuditLog.php' => 1, // an audit line for no store (store_id NULL), never one for another store
-                'app/Services/Finance/LedgerService.php' => 1, // the referral: the customer's first delivery at any store
+                'app/Services/Finance/LedgerService.php' => 1, // the referral: the customer's bonus at any store, the referrer's monthly cap
             ],
             // suspend/resumeTenantRole(): what asApp() is made of
             'suspend/resume' => [

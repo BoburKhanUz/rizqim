@@ -57,6 +57,17 @@ export interface AuditEntry {
   created_at: string | null;
 }
 
+/** Owner decision 3: the referrer's bonus for a referred customer (only a delivered order the platform verified earns it) */
+export interface ReferralBonus {
+  /** `not_earned` only from before the clawback and monthly cap rules (an older backend) */
+  status: 'granted' | 'pending' | 'not_earned';
+  /** Why it is pending (backend's code; the label says it in words) */
+  reason?: 'booking_pending' | 'referrer_cap' | 'taken_back' | 'not_granted' | 'commission_below_bonus' | 'below_minimum' | 'no_qualifying_order' | null;
+  label: string;
+  order: { uuid: string; short_code: string | null } | null;
+  unverified_deliveries: number;
+}
+
 export interface UserCard {
   profile: {
     id: number;
@@ -70,6 +81,10 @@ export interface UserCard {
     courier_type: { value: string; label: string } | null;
     referred_by: Named | null;
     referrals: number;
+    /** Owner decision 3: whether the referrer's bonus for this referred customer was granted, and why it may still wait */
+    referral_bonus?: ReferralBonus | null;
+    /** Owner's rule B: this user's bonuses as a referrer this month, of the cap; null when they invited nobody */
+    referral_month?: { count: number; cap: number; label: string } | null;
     created_at: string | null;
   };
   block: { blocked: boolean; at: string | null; reason: string | null; by: Named | null };

@@ -57,6 +57,7 @@ export function refundRequest(overrides: Partial<RefundRequest> = {}): RefundReq
     decided_at: null,
     decision_note: null,
     execution: null,
+    refund_by: null,
     mine: false,
     can_decide: true,
     ...overrides,
@@ -121,6 +122,7 @@ export function card(overrides: Partial<OrderCard> = {}): OrderCard {
       can_approve_refund: false,
       can_decide_store_refund: false,
       can_approve_store_refund: false,
+      can_mark_store_refunded: false,
     },
     ...overrides,
   };

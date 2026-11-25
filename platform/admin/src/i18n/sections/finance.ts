@@ -200,6 +200,8 @@ export const finance = defineSection({
     finance_reportCommission: 'Komissiya',
     finance_reportSubscription: 'Obuna',
     finance_reportRefunded: 'Qaytarishlarda ayirildi: {{amount}}',
+    finance_reportReferral: "Do'st taklifi bonuslari (RIZQIM to'lagan): {{amount}} ({{count}} ta)",
+    finance_reportNet: 'Bonuslardan keyin: {{amount}}',
     finance_reportOrders: '{{count}} ta buyurtma, GMV {{gmv}}',
     finance_reportChannels: 'Komissiya kanal bo\'yicha',
     finance_reportChannelRow: '{{orders}} ta buyurtma · GMV {{gmv}}',

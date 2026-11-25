@@ -143,6 +143,18 @@ export const orders = defineSection({
     orders_refundDecidedBy: "Ko'rib chiqdi: {{name}}, {{time}}",
     orders_refundAwaiting: 'Tasdiq kutilmoqda: uni boshqa xodim tasdiqlaydi',
     orders_refundManualLeft: "{{amount}} mijozga to'lov tizimi kabinetida yoki naqd qaytariladi",
+    // Owner decision 4 (refund_by: store_own_account)
+    orders_refundByStore: "Pulni ovqatxona o'z hisobidan qaytaradi",
+    orders_refundByStoreHint: "Pul ovqatxonaning o'z to'lov hisobida, RIZQIM'da emas: ovqatxonaga xabar bering. Yetkazilgan buyurtmaning komissiyasi faqat ikki xodim tekshiruvidan keyin qaytadi.",
+    orders_refundByStoreLeft: "{{amount}} mijozga ovqatxona o'z hisobidan qaytaradi",
+    // Review 5: the store's own refund is done (seen back, or marked by a member)
+    orders_refundByStoreDone: "Pulni ovqatxona o'z hisobidan qaytardi",
+    orders_refundedManually: "Qo'lda belgilandi: {{name}}, {{time}}",
+    orders_markStoreRefunded: 'Ovqatxona pulni qaytardi',
+    orders_markStoreRefundedText:
+      "Ovqatxona mijozning pulini o'z to'lov hisobidan qaytarganini tekshirdingizmi (chek, kabinet)? Click, Uzum va Paynet qaytarishni RIZQIM'ga tasdiqlamaydi. Belgilasangiz mijoz «qaytarildi» deb ko'radi. Hisob-kitob va komissiyaga tegmaydi: ular qaytarish tasdiqlanganda hal qilingan.",
+    orders_markStoreRefundedSubmit: 'Belgilash',
+    orders_markStoreRefundedDone: 'Belgilandi: ovqatxona pulni mijozga qaytardi.',
     orders_refundAutomatic: '{{amount}} avtomatik qaytdi (keshbek)',
     orders_approve: 'Tasdiqlash',
     orders_reject: 'Rad etish',

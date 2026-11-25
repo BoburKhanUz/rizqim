@@ -7,7 +7,7 @@ part of 'data371.dart';
 // **************************************************************************
 
 Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
-  discount: json['discount'] as String,
+  deliveryPrice: json['delivery_price'] as String,
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   statusLabel: json['status_label'] as String,
@@ -19,8 +19,8 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
   paymentMethod: json['payment_method'] as String,
   paymentStatus: json['payment_status'] as String,
   subtotal: json['subtotal'] as String,
+  discount: json['discount'] as String,
   uuid: json['uuid'] as String,
-  deliveryPrice: json['delivery_price'] as String,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   totalPrice: json['total_price'] as String,
@@ -33,12 +33,10 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
   customer: json['customer'] == null
       ? null
       : Customer5.fromJson(json['customer'] as Map<String, dynamic>),
-  statusHistory: (json['status_history'] as List<dynamic>)
-      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  courier: json['courier'] == null
+  delivery: json['delivery'] == null
       ? null
-      : Courier5.fromJson(json['courier'] as Map<String, dynamic>),
+      : Delivery8.fromJson(json['delivery'] as Map<String, dynamic>),
+  refundReturned: json['refund_returned'] as bool?,
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
@@ -51,9 +49,13 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
   readyAt: json['ready_at'] as String?,
   closedAt: json['closed_at'] as String?,
   waitingSeconds: (json['waiting_seconds'] as num).toInt(),
-  delivery: json['delivery'] == null
+  statusHistory: (json['status_history'] as List<dynamic>)
+      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  refundBy: json['refund_by'] as String?,
+  courier: json['courier'] == null
       ? null
-      : Delivery8.fromJson(json['delivery'] as Map<String, dynamic>),
+      : Courier5.fromJson(json['courier'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data371ToJson(Data371 instance) => <String, dynamic>{
@@ -94,4 +96,6 @@ Map<String, dynamic> _$Data371ToJson(Data371 instance) => <String, dynamic>{
   'closed_at': instance.closedAt,
   'waiting_seconds': instance.waitingSeconds,
   'status_history': instance.statusHistory,
+  'refund_by': instance.refundBy,
+  'refund_returned': instance.refundReturned,
 };

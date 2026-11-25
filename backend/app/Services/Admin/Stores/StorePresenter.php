@@ -453,7 +453,8 @@ class StorePresenter
                     'created_at' => $this->iso($payout->created_at),
                     'processed_at' => $this->iso($payout->processed_at),
                 ])->values()->all(),
-            'ledger' => StoreTransaction::query()->where('store_id', $store->id)->orderByDesc('id')->limit(10)->get()
+            // Owner decision 3's addition: a referral bonus the platform paid never moved the store's money (platform report)
+            'ledger' => StoreTransaction::query()->where('store_id', $store->id)->where('type', '!=', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)->orderByDesc('id')->limit(10)->get()
                 ->map(fn (StoreTransaction $entry) => [
                     'id' => (int) $entry->id,
                     'type' => $entry->type->value,

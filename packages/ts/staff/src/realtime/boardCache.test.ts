@@ -11,7 +11,7 @@ const TODAY = '2026-10-20';
 const FINISHED: StaffOrdersQuery = { scope: 'history', date: TODAY, per_page: 30, branch_id: 1 };
 
 const at = (hour: number) => `${TODAY}T${String(hour).padStart(2, '0')}:00:00+05:00`;
-const detailOf = (order: StaffOrder): StaffOrderDetail => ({ ...order, status_history: [{ from_status: null, status: order.status, created_at: order.created_at }] });
+const detailOf = (order: StaffOrder): StaffOrderDetail => ({ ...order, status_history: [{ from_status: null, status: order.status, created_at: order.created_at }], refund_by: null, refund_returned: null });
 
 function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });

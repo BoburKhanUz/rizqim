@@ -1307,3 +1307,258 @@ Chiqishda soni, har do'kon id'si va maydon nomlari (`payme.secret_key`...), qiym
 
 **Paylov kabinet qaytarishi.** O'z Paylov hisobiga yig'adigan do'konning yetkazilgan buyurtmasi uchun Paylov'dan kelgan va Paylov tasdiqlagan `transaction.cancel` (RIZQIM o'zi `payment/cancel` so'ramagan bo'lsa) endi darhol qaytarilmaydi: Payme'dagidek Bugun → «Diqqat talab qiladi» → «Ovqatxona kassasidan qaytarishlar» ga tushadi, komissiya menejer qaroriga qadar saqlanadi, buyurtma kartasida «Ovqatxona kassasidan qaytarish» bloki (ikki xodim tasdiqlaydi yoki bittasi rad etadi). Tasdiqlashdan oldin pul haqiqatan qaytganini do'konning Paylov biznes panelida emas, RIZQIM Paylov'dan o'qigan holat (`cancel`/`refunded`) allaqachon tasdiqlagan; menejer hal qiladigani — komissiya qaytadimi (admin kartasidagi matn ham shuni aytadi: tasdiqlash — komissiya bekor qilinadi, rad etish — saqlanadi; Payme matni o'zgarmagan). Tekshiruvga webhook aytgan summa (`reported_amount_tiyin`) va Paylov'dan o'qilgan summa (`paylov_amount_tiyin`) yoziladi; ulardan biri to'lov summasidan farq qilsa `amount_mismatch: true` va kartada ogohlantirish: «Qaytarilgan summa to'lov summasidan farq qiladi — tasdiqlashdan oldin tekshiring» (qisman kabinet qaytarishi bo'lishi mumkin). Tasdiqlash avvalgidek to'lovni to'liq qaytgan deb hisoblab komissiyani to'liq bekor qiladi — farq bo'lsa, menejer Paylov bilan aniqlashtirguncha tasdiqlamasin. Bekor qilish birinchi marta buyurtma yetkazilishidan oldin xabar qilingan bo'lsa (Paylov o'shanda javob bermagan, keyin `payments:paylov-reconcile` tasdiqlagan), tekshiruvda `reported_before_delivery: true` va kartada bir qator. Ma'lumotlar to'lovning `payload.store_refund_review` ida — migratsiya yo'q, kesh/Redis'ga tegilmaydi (faqat rad etishlar hisoblagichi keshda).
 
+
+## 31. Do'st taklifi bonusi faqat tasdiqlangan to'lov uchun (egasining 3-qarori) va ovqatxona o'z hisobidan qaytaradigan pul (4-qarori)
+
+Migratsiya yo'q, kesh/Redis'ga tegilmaydi: hamma narsa mavjud ustunlardan (`orders.payment_owner`, `payment_method`, `payment_status`, `payments.payload`, `store_transactions.type` — oddiy satr) o'qiladi va yoziladi.
+
+### 3-qaror: taklif bonusi
+
+**Qoida (bitta joyda: `App\Services\Auth\ReferralService::qualifiesForReferralBonus()`).** Taklif qilganga 5 000 ball
+do'stning **mos** yetkazilgan buyurtmasi uchun beriladi. Buyurtma mos, agar:
+
+1. summasi kamida **50 000** so'm (`ReferralService::MIN_ORDER`);
+2. to'lovini **platformaning o'zi tasdiqlagan** (`paymentVerifiedByPlatform`, jadval quyida);
+3. **egasining A qoidasi:** buyurtmaning yozilgan komissiyasi (`orders.commission_amount`, checkout'da olingan va
+   yetkazishda yechiladigan snapshot) bonusdan (`ReferralService::BONUS` = 5 000) **kam emas** — bonus platforma shu
+   buyurtmadan oladigan puldan oshmaydi. 50 000 × 10% = 5 000 — beriladi; 50 000 × 9% = 4 500 — yo'q; 100 000 × 5% —
+   beriladi; 0% kanal — hech qachon.
+
+Bundan tashqari, bonus berish paytida (qulflar ostida, `LedgerService::grantReferralReward`):
+
+4. mijozning bonusi hali turmagan bo'lishi kerak (hamma ovqatxonalar bo'yicha, qaytarib olinganlar ayirilgan —
+   `LedgerService::referralRewardedNet`; o'chirilgan (soft-delete) buyurtmalar ham hisobga olinadi);
+5. **egasining B qoidasi:** taklif qiluvchiga shu Toshkent oyida **berilgan** bonuslar (oylik hisobotdagi chegara bilan —
+   `MonthlyRevenueReport::monthBounds`) `ReferralService::MONTHLY_CAP_PER_REFERRER` (**10**) dan kam bo'lishi kerak.
+   Bu yalpi chegara (review L1): qaytarib olish faqat o'zi qaytargan bonus berilgan oydagi o'rinni bo'shatadi —
+   oktyabrdagi 10 bonusdan 3 tasi noyabrda qaytarib olinsa, noyabr baribir faqat 10 ta beradi (avval −3 dan
+   boshlanib 13 ta berardi); oktyabr ichida qaytarilgan oktyabr bonusi esa oktyabrda bitta o'rin bo'shatadi.
+
+**Mos bo'lmagan buyurtma taklifni «ishlatmaydi».** Tasdiqlanmagan to'lov, 50 000 dan kam summa, bonusdan kam komissiya,
+oylik chegara to'lgan — bularning hech biri bonus bermaydi va taklif kutishda qoladi: keyingi mos buyurtma (oylik
+chegara bo'lsa — keyingi oyda ham) bonus oladi. Taklif faqat **turgan bonus** bilan yopiladi. (Bu tarmoqdan oldin
+birinchi yetkazilgan buyurtma 50 000 dan kam bo'lsa ham taklif yopilardi — endi yopilmaydi; deploy oldidan hisob quyida.)
+
+| To'lov | Tasdiqlangan |
+|---|---|
+| Platformaning o'z merchant hisobiga onlayn (Click, Payme, Paylov, Uzum, Paynet — `payment_owner: PLATFORM`), `paid` | ha |
+| Ovqatxonaning o'z Paylov hisobiga, Paylov'dan o'qib tasdiqlangan (`payload.paylov.state: confirmed`, `refused` yo'q) | ha |
+| **Keshbek** | **yo'q** (keshbek faqat shu bonusdan keladi: hisobga olinsa zanjir — A → B → C, B C uchun olgan keshbek bilan to'laydi) |
+| Naqd | yo'q |
+| Ovqatxonaning o'z Click / Payme / Uzum / Paynet hisobiga | yo'q (ovqatxona o'z kalitini biladi va «to'landi» xabarini o'zi yuborishi mumkin) |
+
+**Konstantalar va ularni o'zgartirish.** Hammasi `App\Services\Auth\ReferralService` da (config/.env'da emas, ataylab):
+`BONUS = 5000`, `MIN_ORDER = 50000`, `MONTHLY_CAP_PER_REFERRER = 10`; A qoidasi — `commissionCoversBonus()`.
+O'zgartirish — shu qiymatni o'zgartirib, testlarni (`tests/Feature/Referral/ReferralRulesTest`,
+`ReferralConcurrencyTest`) yangilab deploy qilish; migratsiya kerak emas. `LedgerService::REFERRAL_REWARD` /
+`REFERRAL_MIN_ORDER` shulardan olinadi.
+
+**Qachon beriladi.** Yetkazilganda (`processOrderDelivered`, hisob-kitob bilan bir savepoint'da; xato bo'lsa hisob-kitob
+kabi qayta uriniladi), yoki to'lov yetkazilgandan keyin tushsa — `MarkOrderAsPaid` da (Paylov: Paylov'dan o'qib
+tasdiqlangan paytda). Kechikkan to'lovda (review 3, review H1) to'lov holati va do'konga hisob-kitob **avval o'z
+tranzaksiyasida yoziladi va commit qilinadi**, bonus esa shundan keyin **alohida tranzaksiyada**
+(`SettlementRecoveryService::bookAfterPayment` → `book`): bonus xatosi (deadlock, lock timeout) to'lov holatini ham,
+hisob-kitobni ham bekor qila olmaydi — buyurtma `settlement_failed_at` bilan belgilanadi, superadminga xabar ketadi va
+`RetryFailedSettlementsJob` uni keyinroq bir marta beradi (provayder javob olgan to'lovni qayta yubormaydi, boshqa qayta
+urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham shu savepoint'da tozalaydi (review L5).
+
+**Deadlock savepoint'da (review H1).** Laravel ichki (nested) tranzaksiyadagi deadlock / serialization xatosida
+savepoint'ga qaytmasdan `DeadlockException` tashlardi; PostgreSQL esa butun tashqi tranzaksiyani «aborted» holatda
+qoldirardi: belgi (`settlement_failed_at`) yozilmasdi, keyingi «commit» esa hech narsani saqlamay muvaffaqiyat
+qaytarardi (yetkazish holati, komissiya, hisob-kitob jimgina yo'qolardi, after-commit hodisalari esa ketardi). Endi
+`RevisionPostgresConnection::handleTransactionException` bunday darajani avval o'z savepoint'iga qaytaradi
+(`NestedTransactionDeadlockTest`): yetkazishda faqat hisob-kitob savepoint'i (komissiya, hisob-kitob, bonus) bekor
+bo'ladi, yetkazish belgi bilan commit qilinadi va qayta urinishda hammasi bir marta yoziladi. Agar tashqi tranzaksiya
+baribir aborted bo'lsa (belgi yozilmasa, 25P02), `book` xatoni tashlaydi — tranzaksiya butunlay va ochiq bekor bo'ladi,
+hech narsa commit qilinmaydi va hodisa ketmaydi (`ReferralLatePaymentFailureTest`: haqiqiy PostgreSQL 40P01 bilan).
+
+**Bir marta va poyga yo'q.** Qulf tartibi boshqa ledger yo'llari kabi: avval ovqatxona qatori, keyin mijoz va taklif
+qiluvchining `users` qatorlari (bitta so'rovda, id tartibida — bir-birini taklif qilgan ikki akkaunt ham deadlock
+bermaydi). Shundan keyin bonus turganmi va oylik son o'qiladi — bir vaqtda ikki yetkazish (bir mijozniki) yoki bir
+taklif qiluvchining ikki do'sti oxirgi (10-) o'rinni ikki marta ololmaydi (`ReferralConcurrencyTest`, ikkala holat ham
+fork qilingan jarayonlarda). Hamma ovqatxonalar bo'yicha o'qish RLS'dan login roli bilan o'tadi (`TenantRls::asApp`,
+bitta chaqiriq: faqat ha/yo'q va son qaytadi). `RefundRequestService::approve` ham endi ovqatxona qatorini mijoz
+balansidan (keshbek ulushi) oldin qulflaydi — avval teskari edi va bonus bilan deadlock berishi mumkin edi.
+
+**Ovqatxona qatori `FOR NO KEY UPDATE` bilan qulflanadi (review H1).** Keshbek bilan checkout (`CreateOrderAction`)
+avval mijozning `users` qatorini `FOR UPDATE` qulflaydi, keyin buyurtmani qo'shadi — uning foreign key tekshiruvi
+ovqatxona qatoriga `FOR KEY SHARE` oladi. Bonus/qaytarib olish esa avval ovqatxonani, keyin `users` ni qulflaydi:
+ovqatxona `FOR UPDATE` bo'lganda ikkalasi bir-birini kutib deadlock (40P01) berardi. Endi hamma pul yo'llari
+(`LedgerService` ning barcha ovqatxona qulflari, `RefundRequestService::approve`, `AdjustmentService`,
+`PayoutService::complete`) ovqatxona qatorini `Store::ledgerLock()` — `FOR NO KEY UPDATE` bilan oladi: u o'zi bilan va
+`FOR UPDATE` bilan to'qnashadi (ledger yo'llari bir-birini avvalgidek kutadi, ovqatxonani o'chirish ham kutadi), lekin
+foreign key tekshiruvini kutdirmaydi. Bu yo'llar ovqatxonaning faqat kalit bo'lmagan ustunlarini (`debt_balance`,
+`wallet_balance`, holat...) yozadi; yangi buyurtma qo'shilishini to'xtatib turishga hech bir yo'l tayanmaydi.
+Tekshiruv: `ReferralConcurrencyTest` (ikki ulanish: keshbek checkout va bir vaqtdagi yetkazish bonusi).
+
+**To'liq qaytarilgan buyurtma: bonus qaytarib olinadi (review 1).** Bonus bergan buyurtma to'liq qaytarilsa — qaysi yo'l
+bilan bo'lmasin (butun buyurtma uchun qaytarish so'rovi, tasdiqlangan ovqatxona kassasi qaytarishi, provayder tasdiqlagan
+qaytarish, naqd/platforma buyurtmasini bitta xodim qaytarishi, yoki tasdiqlangan qismlar to'langan hammasiga yetsa) —
+`LedgerService::reverseDelivery` ning o'sha tranzaksiyasida `clawBackReferralReward`: taklif qiluvchi balansidan −5 000
+va qarama-qarshi `referral_bonus` yozuvi (`amount` −5 000, ovqatxona balansiga ta'sirsiz, izohi `Referral bonus taken
+back for referred user #<id>: order #<kod> refunded`). Bir marta: buyurtmaning bonus yozuvlari yig'indisi musbat
+bo'lgandagina, grant bilan bir xil qulflar ostida. Oylik hisobot uni qaytarish bo'lgan oyda ayiradi (`referral_bonuses`
+yig'indi, `referral_count` sof son). Shundan so'ng taklif **yana ochiq**: keyingi haqiqiy mos buyurtma bonusni bir marta
+oladi; qaytarib olingan buyurtmaning o'zi esa (yoki to'lovi endi `paid` emas) hech qachon olmaydi. Qisman qaytarish
+bonusni qaytarib olmaydi. Eski, ovqatxona to'lagan bonus (`commission` + izoh) qaytarib olinmaydi (RIZQIM uni
+to'lamagan) va taklifni yopiq saqlaydi. Raqamlar (`ReferralClawbackTest`): 50 000 / komissiya 5 000 / bonus 5 000 →
+to'liq qaytarish → taklif qiluvchi 0, bitta +5 000 va bitta −5 000 yozuv, hisobot sof 0; qayta ishlash hech narsani
+o'zgartirmaydi; keyingi mos buyurtma yana bir marta beradi; «buyurtma → bonus → qaytarish» aylanishi taklif qiluvchini
+hech qachon 0 dan yuqorida qoldirmaydi.
+
+**Taklif qiluvchi balansi manfiy bo'lishi mumkin (tanlov va sababi).** Bonusni ishlatib bo'lgan taklif qiluvchidan
+qaytarib olinsa, `users.balance` manfiy bo'ladi (masalan −5 000). Bu xavfsiz: ustunda CHECK cheklovi yo'q; keshbek bilan
+to'lash balans ≥ buyurtma summasini talab qiladi (`CreateOrderAction`: qulf ostida tekshiradi va
+`where balance >= total` bilan yechadi) — manfiy balans hech narsaga to'lamaydi; akkaunt birlashtirish balans 0 bo'lmasa
+rad etiladi. Qarz keyingi bonuslardan yopiladi (+5 000 avval qarzni qoplaydi). Mini App va boshqaruv markazi manfiy
+keshbekni «qarz» sifatida ko'rsatadi. Shuning uchun «bor bo'lganini yechish va kamomadni yozish» varianti tanlanmadi —
+u taklifni yopiq qoldirishni talab qilardi.
+
+**Admin.** Mijoz kartasi (`GET /admin/users/{id}`, «Profil»): `profile.referral_bonus` — `{status: granted|pending,
+reason, label, order, unverified_deliveries}`. `pending` sabablari (`reason`): `booking_pending` (mos buyurtmaning
+hisob-kitobi qayta urinishda), `referrer_cap` («taklif qiluvchining oylik chegarasi to'lgan»), `taken_back` (bonus
+qaytarib olingan, keyingi mos buyurtmada beriladi), `not_granted` (mos buyurtma taklif ochiq bo'lmagan paytda
+yetkazilgan), `commission_below_bonus` («buyurtma komissiyasi bonusdan kam»), `below_minimum`, `no_qualifying_order`.
+Taklif qiluvchining o'z kartasida `profile.referral_month` — `{count, cap, label: "Bu oy: N/10"}`. Keshbek tarixida
+bonus «referral» qatori (plus), qaytarib olingani ham (minus, «… qaytarib olindi»).
+
+**Naqdni ham qo'shish (egasining tanlovi).** `ReferralService::paymentVerifiedByPlatform()` ning birinchi qatoriga:
+
+```php
+if ($order->payment_method === 'cash') { return true; }
+```
+
+Shu bitta qator bonusni ham, admin kartasini ham naqd buyurtmalarga kengaytiradi (A va B qoidalari baribir amal qiladi).
+Testlar (`ReferralVerifiedPaymentTest`) naqd uchun `false` kutadi — ularni ham o'zgartiring. Ovqatxona o'z Click/Payme
+hisobini qo'shish ham shu joyda, lekin u soxta «to'landi» bilan bonus olish yo'lini ochadi.
+
+**Ochiq qolgan xavflar.** O'zini o'zi taklif qilish ikkinchi Telegram akkaunti bilan (`referrerIdFromParam` faqat bir
+xil telegram id'ni rad etadi) — endi oylik chegara bilan cheklangan: bitta taklif qiluvchiga oyiga ko'pi bilan
+10 × 5 000 = **50 000 so'm**. Qurilma yoki telefon tekshiruvi yo'q.
+
+### Deploy oldidan (faqat o'qiydigan SQL, mahalliy bazada sinab ko'rilgan)
+
+(a) Yangi qoida bilan taklifi **qayta ochiladigan** mijozlar: taklif bilan kelgan, yetkazilgan (yoki qaytarilgan)
+buyurtmasi bor, lekin hech qanday bonus yozuvi yo'q (eski kodda birinchi yetkazish taklifni yopardi). Maksimal
+majburiyat = son × 5 000 (oylik chegara bilan bundan ham kam):
+
+```sql
+SELECT count(*) AS reopened, count(*) * 5000 AS max_liability_som
+FROM users u
+WHERE u.referred_by IS NOT NULL
+  AND EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id AND o.status IN ('delivered', 'refunded'))
+  AND NOT EXISTS (
+    SELECT 1 FROM store_transactions st JOIN orders o2 ON o2.id = st.order_id
+    WHERE o2.user_id = u.id
+      AND (st.type = 'referral_bonus'
+        OR (st.type = 'commission' AND st.notes = 'Referral cashback reward cost for referred user #' || u.id)));
+```
+
+(b) Bonussiz taklif qilingan mijozlarning yetkazilgan, lekin hali to'lanmagan onlayn buyurtmalari (to'lov tushsa
+`MarkOrderAsPaid` bonus berishi mumkin; naqd va keshbek chiqarib tashlangan — ular hech qachon bonus bermaydi):
+
+```sql
+SELECT o.payment_method, o.payment_owner, count(*) AS orders, count(DISTINCT o.user_id) AS customers
+FROM orders o JOIN users u ON u.id = o.user_id
+WHERE u.referred_by IS NOT NULL
+  AND o.status = 'delivered' AND o.payment_status <> 'paid' AND o.payment_method NOT IN ('cash', 'keshbek')
+  AND o.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM store_transactions st JOIN orders o2 ON o2.id = st.order_id
+    WHERE o2.user_id = u.id
+      AND (st.type = 'referral_bonus'
+        OR (st.type = 'commission' AND st.notes = 'Referral cashback reward cost for referred user #' || u.id)))
+GROUP BY o.payment_method, o.payment_owner ORDER BY orders DESC;
+```
+
+(c) 2026-10-18 dan oldin yaratilgan, `STORE` deb belgilangan yetkazilgan eski Click / Payme buyurtmalari (ularning
+qaytarishi endi ikki kishilik tekshiruvga tushadi va `store_own_account` belgisini oladi; qayta belgilash — egasining
+qarori, kod buni qilmaydi):
+
+```sql
+SELECT payment_method, count(*) AS orders, min(created_at) AS first, max(created_at) AS last
+FROM orders
+WHERE payment_owner = 'STORE' AND payment_method IN ('click', 'payme') AND status = 'delivered'
+  AND created_at < '2026-10-18' AND deleted_at IS NULL
+GROUP BY payment_method;
+```
+
+### Bonusni platforma to'laydi (3-qarorga qo'shimcha)
+
+**Nima o'zgardi.** 5 000 ballni RIZQIM o'z komissiya daromadidan to'laydi; ovqatxona qarzi va hamyoni bonusdan o'zgarmaydi. Har bonus — bonusni olib kelgan buyurtma ovqatxonasi ledger'ida (`store_transactions`) **bitta** `type: referral_bonus` yozuvi: `amount` — platforma to'lagan summa (5 000), `balance_before` = `balance_after` = o'sha paytdagi qarz (ta'siri yo'q), izohi `Referral bonus paid by the platform for referred user #<id>`, `order_id` — buyurtma. Shu yozuv bir martalik belgisi ham (avvalgi `commission` yozuvi o'rniga, xuddi shu qulflar ostida); to'liq qaytarishda
+unga qarama-qarshi −5 000 yozuv qo'shiladi (yuqorida). Migratsiya yo'q: `type` oddiy satr ustuni, yangi qiymat `StoreTransactionType::REFERRAL_BONUS`.
+
+Raqamlar (`ReferralVerifiedPaymentTest`): 50 000 so'mlik buyurtma, komissiya 5 000 — birinchi tasdiqlangan yetkazishdan keyin ovqatxona qarzi **5 000** (faqat komissiya, 10 000 emas), taklif qilgan balansi +5 000, platforma xarajati 5 000 bir marta yozilgan; qayta urinish, ikkinchi hisob-kitob va keyingi yetkazish hech narsani o'zgartirmaydi.
+
+**Kim nimani ko'radi.**
+- Ovqatxona: `GET /owner/finance` (`ledger_transactions`), `GET /owner/finance/ledger` (hamkor paneli, `type=referral_bonus` filtri — 422) — `referral_bonus` yozuvlari chiqmaydi. Boshqaruv markazida ovqatxona kartasi (oxirgi 10 yozuv) va Moliya → ovqatxona ledger'i (`/admin/finance/stores/{id}/ledger`) ham ularni ko'rsatmaydi (ovqatxona hisobi emas).
+- Platforma: Moliya → Oylik hisobot (`GET /admin/finance/reports/monthly`, Excel ham): `totals.referral_bonuses` (oyda yozilgan `referral_bonus` summasi — qaytarib olinganlar ayirilgan), `referral_count` (sof son: bonus +1, qaytarib olish −1), `net` = `total` − `referral_bonuses`. `total` (komissiya + obuna) o'zgarmagan.
+- Komissiya hisoblari (`CommissionStats`, 50% chegirma, qaytarishdagi komissiya qaytarish `LedgerService::reverseDelivery`, `hasCommission`) faqat `commission` turini o'qiydi — `referral_bonus` ularga kirmaydi; eski izohli `commission` yozuvlari avvalgidek chiqarib tashlanadi.
+- Admin mijoz kartasi (`referral_bonus`), keshbek tarixi va «bir marta» tekshiruvi ikkala shaklni o'qiydi (`LedgerService::referralRewardedNet`, `whereReferralRewardOf` / `whereAnyReferralReward`).
+
+**Eski yozuvlar.** O'zgartirilmaydi: ovqatxonadan haqiqatan olingan. Ular — `type = 'commission'` va izohi `Referral cashback reward cost for referred user #…`; har taklif qilingan mijozga ko'pi bilan bitta (lekin 3-qarordan oldingi kodda ham har mijozga bir marta edi). Soni — taklif bilan kelib birinchi yetkazilgan buyurtmasi 50 000 dan katta bo'lgan mijozlar soni, ko'pi bilan `SELECT count(*) FROM users WHERE referred_by IS NOT NULL`. Topish (faqat o'qiydi):
+
+```sql
+SELECT store_id, count(*) AS rows, sum(amount) AS charged
+FROM store_transactions
+WHERE type = 'commission' AND notes LIKE 'Referral cashback reward cost%'
+GROUP BY store_id ORDER BY charged DESC;
+```
+
+Ularni ovqatxonaga qaytarish (masalan Moliya → tuzatish, ikki kishilik) — egasining qarori; kod buni o'zi qilmaydi.
+
+**Platforma buyurtmada zarar ko'rmaydi (A qoidasi).** Komissiya = buyurtma summasi × stavka (`orders.commission_amount`, buyurtma paytida `CommissionPolicy::rateFor` bilan olingan: tarif rejasidagi kanal stavkasi — kuryer, o'z yetkazishi, olib ketish — yoki ovqatxonaning o'z `commission_rate` i; docs/BILLING.md «Komissiya»). Bonus faqat komissiya ≥ 5 000 bo'lsa beriladi: S summali buyurtmada stavka ≥ 5 000 / S (50 000 da ≥ 10%, 100 000 da ≥ 5%, 200 000 da ≥ 2,5%); 0% kanal hech qachon bermaydi. Bunday buyurtma taklifni ishlatmaydi.
+
+### 4-qaror: ovqatxona o'z hisobidan qaytaradigan pul
+
+**«Ovqatxona hisobidagi» buyurtma** (`StoreOwnRefund::isStoreOwned`): `payment_owner: STORE` va to'lov usuli naqd emas — pul ovqatxonaning o'z Click/Payme/Uzum/Paynet/Paylov hisobiga tushgan. Naqd buyurtmalar (POS buyurtmalari ham) bunga kirmaydi va o'zgarmagan.
+
+**Belgi.** RIZQIM pulni o'zi qaytara olmasa (Click/Payme/Uzum/Paynet — qaytarish faqat ovqatxona kabinetida; Paylov — RIZQIM'ning `payment/cancel` i butunlay bajarilmagan, `manual_refund_required`) yoki ovqatxona o'z kabinetida qaytargan bo'lsa (`store_refund_review`), qaytarish `refund_by: store_own_account` oladi, matni **«Pulni ovqatxona o'z hisobidan qaytaradi»**:
+
+| Qayerda | Maydon |
+|---|---|
+| Admin buyurtma kartasi | `refund_by`, `payments[].refund_by`, tarix izohida matn |
+| Qaytarish so'rovi (admin) | `refund_by`, `execution.refund_by`, tasdiq xabari |
+| Admin bekor qilish javobi | «Buyurtma bekor qilindi. Pulni ovqatxona o'z hisobidan qaytaradi: ovqatxonaga xabar bering.» |
+| Hamkor paneli buyurtma tafsiloti | `GET /staff/orders/{uuid}` → `refund_by` (uz/ru/en matn) |
+| Mijoz (Mini App) | `GET /orders` → `refund {refund_by, returned}`; `returned: false` bo'lsa «Pulni ovqatxona o'z hisobidan qaytaradi» |
+| Mijozga Telegram / push | bekor qilish va qaytarish xabarida shu qator; push sarlavhasi «Pulni ovqatxona qaytaradi» (pul qaytmaguncha «qaytarildi» yo'q) |
+
+**Qaytarildi (review 5).** Har bir shunday to'lov qaytgan bo'lsa — provayderning bekor qilishi kelgan (`refunded` /
+`cancelled`: Payme, Paylov) yoki xodim qo'lda belgilagan (quyida) — qaytarish **tugagan**: admin kartasida
+`refund_returned: true` (`payments[].refund_returned`), hamkor paneli tafsilotida `refund_returned: true` va matn
+**«Pulni ovqatxona o'z hisobidan qaytardi»** (qaytarish ko'rsatmasi emas: qaytarib bo'lgan ovqatxonaga yana «qaytaring»
+deyilmaydi — ikki marta qaytarish xavfi), Mini App'da `refund.returned: true` («Qaytarildi»).
+
+**«Ovqatxona pulni qaytardi» (bitta xodim).** Click, Uzum, Paynet (va `manual_refund_required` dan keyingi Paylov)
+qaytarish tasdig'ini yubormaydi — mijoz abadiy «Qaytarilmoqda» ko'rardi. `POST /admin/orders/{uuid}/store-own-refund/returned`
+(`orders.refund_approve`, step-up, `reason`, Idempotency-Key; jurnal `admin.orders.store_own_refund.returned`: kim,
+qachon, qaysi to'lovlar): ovqatxona pulni qaytarganini (chek, kabinet) tekshirgan xodim belgilaydi. To'lovga
+`payload.refunded_manually_by` / `_at` / `_covers` yoziladi (to'lovning `status` i provayder aytganicha qoladi — bu
+provayder tasdig'i emas), mijozda «qaytarildi», kartadagi ko'rsatmalar tozalanadi. Ledger va komissiyaga **tegmaydi**
+(ularni ikki kishilik oqim hal qilgan). Qayta bosish hech narsani o'zgartirmaydi (200). Rad etiladi: platforma yig'gan
+pul (422 `not_store_own_refund`) va qaytarishi hal qilinmagan buyurtma (422 `no_approved_refund`: tasdiqlangan so'rov
+ulushi yoki bekor qilingan/qaytarilgan buyurtmadagi `manual_refund_required` yo'q). Ovqatxona tomonida bunday tugma
+**yo'q** (ovqatxona mijozga «qaytardim» deya olmasin). Admin buyurtma kartasida «Ovqatxona pulni qaytardi» tugmasi
+(`actions.can_mark_store_refunded`).
+
+**Komissiya faqat ikki kishilik tekshiruvdan keyin qaytadi** (yetkazilgan buyurtma, 50 000 / komissiya 5 000 misolida — testlar `StoreOwnAccountRefundTest`):
+
+| Yo'l | Bugun | Natija |
+|---|---|---|
+| `OrderStatusService::refund` bitta xodim (superadmin, tinker) | ilgari komissiyani darhol qaytarardi | 422 `two_person_check`, qarz 5 000 qoladi |
+| Admin «holatni tuzatish» → `refunded` | 422 `use_refund_request` | o'zgarmagan |
+| Admin «bekor qilish» yetkazilgan buyurtmada | 422 (holat bekor qilinmaydi) | o'zgarmagan |
+| Ovqatxona/xodim (`/staff/orders/{uuid}/status`, `/orders/{uuid}/status`, Telegram tugmalari) | `refunded` qabul qilinmaydi, OrderPolicy rad etadi | o'zgarmagan |
+| Qaytarish so'rovi, to'liq | ikki kishi | birinchi xodim so'raydi — qarz 5 000; o'zi tasdiqlay olmaydi (403 `four_eyes`); boshqa xodim tasdiqlaydi — 0, bitta reversal; takror tasdiq hech narsa qilmaydi |
+| Qaytarish so'rovi, qisman (20 000) | ikki kishi | tasdiqdan keyin 3 000 (5 000 × 20/50 qaytdi, `deliveryShareOf`), qolgan 30 000 — 0; har so'rov bir marta |
+| Ovqatxona kassasidan qaytarish (Payme `CancelTransaction`, Paylov tasdiqlangan `transaction.cancel`) | taklif + boshqa xodim | taklifdan keyin 5 000, tasdiqdan keyin 0; rad etish — 5 000 qoladi |
+| Paylov: RIZQIM so'ragan qaytarishning tasdig'i (`payment/cancel` javobi yoki webhook) | so'rov tasdiqlangandan keyin keladi | butun buyurtma uchun so'rov: buyurtma allaqachon `refunded`, yangi qaytarish yo'q. Buyurtmaning **bir qismi** uchun tasdiqlangan so'rov (`payload.paylov.refund.reason: refund_request_<id>`, `execution.mode` ≠ `order_refunded`; masalan Paylov 30 000 + Payme 20 000): faqat to'lov `refunded` bo'ladi, buyurtma `delivered` qoladi, komissiya o'zgarmaydi (o'z ulushi tasdiqda qaytgan) — review 4, `PaylovPayments::applyCancel` |
+| `SettlementRecoveryService` qayta urinishi | tasdiqlangan qismlarni qaytaradi | o'zgarmagan (har biri ikki kishi tasdiqlagan) |
+| Moliya tuzatishlari (`/admin/finance/adjustments`) | o'z ikki kishilik tasdig'i bor | o'zgarmagan, buyurtma komissiyasi emas |
+
+`OrderStatusService` nomlangan tekshiruvni (`refund_request:<id>`, `store_refund_review`) qulf ostida tekshiradi: so'rov shu buyurtmaniki va kutilmoqda, so'ragan/taklif qilgan — boshqa odam. So'ragan xodimning akkaunti o'chirilgan bo'lsa (`requested_by` NULL) bu «boshqa odam» emas: 422 `requester_missing` — «… So'rovni rad eting va yangi qaytarish so'rovini yarating» (to'liq va qisman so'rov ham). Tizim (aktyorsiz) faqat provayder tasdiqlagan qaytarishni (`refunded_by_provider`) o'tkazadi: Paylov'da RIZQIM o'zi so'ragan `payment/cancel` (u esa tasdiqlangan qaytarish so'rovidan keladi); ovqatxonaning o'z kabinetidagi qaytarishlar avvalgidek tekshiruvga tushadi.
+
+**Yetkazilmagan buyurtma.** Ovqatxona hisobiga to'langan buyurtma bekor qilinsa komissiya yozilmagan bo'ladi (yetkazishda yoziladi) — faqat belgi qo'yiladi; Paylov'ni RIZQIM o'zi qaytaradi (belgi faqat u bajarilmasa).
+
+**O'zgarmaganlar.** Platforma yig'gan buyurtmalar (`payment_owner: PLATFORM`) qaytarishi, naqd buyurtma qaytarishi, Payme/Paylov kabinet qaytarishini ushlab turish (29–30-bo'limlar).

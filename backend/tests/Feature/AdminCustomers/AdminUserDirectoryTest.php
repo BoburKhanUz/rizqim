@@ -205,10 +205,127 @@ class AdminUserDirectoryTest extends TestCase
             'reference_id' => $friendOrder->uuid, 'order_id' => $friendOrder->id, 'notes' => "Referral cashback reward cost for referred user #{$friend->id}",
             'created_at' => now(), 'updated_at' => now(),
         ]);
+        // Owner decision 3's addition: a second friend's bonus, paid by the platform (a referral_bonus row)
+        $second = $this->makeCustomer(0, ['name' => 'Ikkinchi do\'st']);
+        DB::table('users')->where('id', $second->id)->update(['referred_by' => $customer->id]);
+        $secondOrder = $this->orderOf($second);
+        DB::table('store_transactions')->insert([
+            'store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '0.00',
+            'reference_id' => $secondOrder->uuid, 'order_id' => $secondOrder->id, 'notes' => "Referral bonus paid by the platform for referred user #{$second->id}",
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
 
         $entries = collect($this->adminJson('GET', "/users/{$customer->id}", $this->signIn($this->makeMember(PlatformRole::SUPPORT)))->assertOk()->json('data.keshbek.entries'));
-        $this->assertSame(['-40000.00', '5000.00', '10000.00', '30000.00'], $entries->pluck('amount')->sortBy(fn ($amount) => (float) $amount)->values()->all());
-        $this->assertSame(['referral' => 1, 'refunded' => 2, 'spent' => 1], $entries->countBy('kind')->sortKeys()->all());
-        $this->assertSame(1, $this->adminJson('GET', "/users/{$customer->id}", $this->signIn($this->makeMember(PlatformRole::SUPPORT)))->json('data.profile.referrals'));
+        $this->assertSame(['-40000.00', '5000.00', '5000.00', '10000.00', '30000.00'], $entries->pluck('amount')->sortBy(fn ($amount) => (float) $amount)->values()->all());
+        $this->assertSame(['referral' => 2, 'refunded' => 2, 'spent' => 1], $entries->countBy('kind')->sortKeys()->all());
+        $this->assertSame(2, $this->adminJson('GET', "/users/{$customer->id}", $this->signIn($this->makeMember(PlatformRole::SUPPORT)))->json('data.profile.referrals'));
+    }
+
+    public function test_the_card_of_a_referred_customer_says_why_the_bonus_is_still_pending(): void
+    {
+        // Owner decision 3: only a delivered order whose payment the platform verified earns the referrer's bonus
+        $referrer = $this->makeCustomer(0, ['name' => 'Taklif qilgan']);
+        $friend = $this->makeCustomer(0, ['name' => "Do'st"]);
+        DB::table('users')->where('id', $friend->id)->update(['referred_by' => $referrer->id]);
+        $token = $this->signIn($this->makeMember(PlatformRole::SUPPORT));
+        $card = fn (User $user) => $this->adminJson('GET', "/users/{$user->id}", $token)->assertOk()->json('data.profile.referral_bonus');
+
+        $this->assertNull($card($referrer), 'nobody invited the referrer');
+        $this->assertSame(['status' => 'pending', 'reason' => 'no_qualifying_order', 'order' => null, 'unverified_deliveries' => 0], array_diff_key($card($friend), ['label' => 1]));
+
+        // Delivered for cash and into the store's own Click account: not verified, still pending
+        $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'cash']);
+        $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_owner' => 'STORE', 'payment_status' => 'paid']);
+        $pending = $card($friend);
+        $this->assertSame('pending', $pending['status']);
+        $this->assertSame(2, $pending['unverified_deliveries']);
+        $this->assertStringContainsString('onlayn', $pending['label']);
+
+        $granted = $this->orderOf($friend, OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid']);
+        DB::table('store_transactions')->insert([
+            'store_id' => $this->store->id, 'type' => 'commission', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '5000.00',
+            'reference_id' => $granted->uuid, 'order_id' => $granted->id, 'notes' => "Referral cashback reward cost for referred user #{$friend->id}",
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->assertSame(['status' => 'granted', 'order' => ['uuid' => $granted->uuid, 'short_code' => $granted->short_code]], array_intersect_key($card($friend), ['status' => 1, 'order' => 1]));
+
+        // A bonus the platform paid (owner decision 3's addition) reads the same
+        $other = $this->makeCustomer(0, ['name' => 'Boshqa do\'st']);
+        DB::table('users')->where('id', $other->id)->update(['referred_by' => $referrer->id]);
+        $paid = $this->orderOf($other, OrderStatus::DELIVERED, ['payment_method' => 'payme', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid']);
+        DB::table('store_transactions')->insert([
+            'store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '0.00',
+            'reference_id' => $paid->uuid, 'order_id' => $paid->id, 'notes' => "Referral bonus paid by the platform for referred user #{$other->id}",
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->assertSame('granted', $card($other)['status']);
+    }
+
+    /**
+     * The owner's rules A and B and review finding 1 on the card: the pending reason names the case — a commission
+     * below the bonus, the referrer's monthly cap, a bonus taken back on a full refund, a booking still to be retried —
+     * never "below 50 000" for an order that was not below it; the referrer's own card shows "Bu oy: N/10".
+     */
+    public function test_the_card_names_why_a_qualifying_or_near_qualifying_order_did_not_earn_the_bonus(): void
+    {
+        $referrer = $this->makeCustomer(0, ['name' => 'Taklif qilgan']);
+        $friend = $this->makeCustomer(0, ['name' => "Do'st"]);
+        DB::table('users')->where('id', $friend->id)->update(['referred_by' => $referrer->id]);
+        $token = $this->signIn($this->makeMember(PlatformRole::SUPPORT));
+        $card = fn (User $user) => $this->adminJson('GET', "/users/{$user->id}", $token)->assertOk()->json('data.profile');
+        $platformPaid = ['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid'];
+
+        $this->assertSame(['pending', 'no_qualifying_order'], [$card($friend)['referral_bonus']['status'], $card($friend)['referral_bonus']['reason']]);
+
+        // 50 000 at 9 %: the commission does not cover the bonus
+        $this->orderOf($friend, OrderStatus::DELIVERED, $platformPaid + ['commission_amount' => 4500]);
+        $bonus = $card($friend)['referral_bonus'];
+        $this->assertSame(['pending', 'commission_below_bonus'], [$bonus['status'], $bonus['reason']]);
+        $this->assertStringContainsString('buyurtma komissiyasi bonusdan kam', $bonus['label']);
+        $this->assertStringNotContainsString('50 000', $bonus['label']);
+
+        // A qualifying 50 000 order the referrer's monthly cap refused (10 bonuses this month for other friends)
+        for ($i = 0; $i < 10; $i++) {
+            $other = $this->makeCustomer();
+            DB::table('users')->where('id', $other->id)->update(['referred_by' => $referrer->id]);
+            $paid = $this->orderOf($other, OrderStatus::DELIVERED, $platformPaid);
+            DB::table('store_transactions')->insert([
+                'store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '0.00',
+                'reference_id' => $paid->uuid, 'order_id' => $paid->id, 'notes' => "Referral bonus paid by the platform for referred user #{$other->id}",
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $this->orderOf($friend, OrderStatus::DELIVERED, $platformPaid, 5);
+        $bonus = $card($friend)['referral_bonus'];
+        $this->assertSame(['pending', 'referrer_cap'], [$bonus['status'], $bonus['reason']]);
+        $this->assertStringContainsString("taklif qiluvchining oylik chegarasi to'lgan", $bonus['label']);
+        $this->assertStringNotContainsString('kam edi', $bonus['label']);
+        $this->assertSame(['count' => 10, 'cap' => 10, 'label' => 'Bu oy: 10/10'], $card($referrer)['referral_month']);
+        $this->assertNull($card($friend)['referral_month'], 'the friend invited nobody');
+    }
+
+    public function test_the_card_says_a_bonus_was_taken_back_and_the_referral_is_open_again(): void
+    {
+        $referrer = $this->makeCustomer(0, ['name' => 'Taklif qilgan']);
+        $friend = $this->makeCustomer(0, ['name' => "Do'st"]);
+        DB::table('users')->where('id', $friend->id)->update(['referred_by' => $referrer->id]);
+        $token = $this->signIn($this->makeMember(PlatformRole::SUPPORT));
+        $refunded = $this->orderOf($friend, OrderStatus::REFUNDED, ['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'refunded']);
+        foreach (['5000.00' => "Referral bonus paid by the platform for referred user #{$friend->id}", '-5000.00' => "Referral bonus taken back for referred user #{$friend->id}: order #{$refunded->short_code} refunded"] as $amount => $note) {
+            DB::table('store_transactions')->insert([
+                'store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => $amount, 'balance_before' => '0.00', 'balance_after' => '0.00',
+                'reference_id' => $refunded->uuid, 'order_id' => $refunded->id, 'notes' => $note, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        $bonus = $this->adminJson('GET', "/users/{$friend->id}", $token)->assertOk()->json('data.profile.referral_bonus');
+        $this->assertSame(['pending', 'taken_back'], [$bonus['status'], $bonus['reason']]);
+        $this->assertStringContainsString('qaytarib olindi', $bonus['label']);
+        $this->assertSame(['count' => 0, 'cap' => 10, 'label' => 'Bu oy: 0/10'], $this->adminJson('GET', "/users/{$referrer->id}", $token)->json('data.profile.referral_month'));
+
+        // The referrer's keshbek history shows both rows: the bonus and its clawback
+        $entries = collect($this->adminJson('GET', "/users/{$referrer->id}", $token)->json('data.keshbek.entries'))->where('kind', 'referral')->values();
+        $this->assertSame(['-5000.00', '5000.00'], $entries->pluck('amount')->sort()->values()->all());
+        $this->assertStringContainsString('qaytarib olindi', $entries->firstWhere('amount', '-5000.00')['label']);
     }
 }

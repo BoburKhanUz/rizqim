@@ -147,6 +147,29 @@ trait OrderLifecycleFixtures
     }
 
     /**
+     * Owner decision 3: marks the order paid into the store's own Paylov account and settled on Paylov's read-back (the
+     * state PaylovPayments::confirm leaves), a payment the platform verified (ReferralService::paymentVerifiedByPlatform)
+     * that books no settlement (the store holds the money): the ledger is the commission alone, as for cash.
+     */
+    protected function payThroughPaylov(Order $order): Order
+    {
+        $order->forceFill(['payment_method' => 'paylov', 'payment_owner' => 'STORE', 'payment_status' => 'paid'])->save();
+        \App\Models\Payment::create([
+            'order_id' => $order->id,
+            'store_id' => $order->store_id,
+            'merchant_scope' => \App\Models\Payment::merchantScopeOf($order),
+            'provider' => 'paylov',
+            'provider_transaction_id' => 'paylov-' . Str::random(12),
+            'amount' => $order->total_price,
+            'status' => 'paid',
+            'paid_at' => now(),
+            'payload' => ['paylov' => ['state' => \App\Services\Payment\Paylov\PaylovPayments::STATE_CONFIRMED, 'refused' => null]],
+        ]);
+
+        return $order->refresh();
+    }
+
+    /**
      * A real checkout (stock, keshbek and payment rows exactly as production creates them).
      */
     protected function checkout(User $customer, int $quantity = 2, string $paymentMethod = 'cash', string $type = 'pickup', ?string $promoCode = null): Order

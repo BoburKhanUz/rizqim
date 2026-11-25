@@ -38,6 +38,10 @@ class MonthlyRevenueExport
         $writer->addRow(self::row(['Komissiya', $number($report['totals']['commission'])]));
         $writer->addRow(self::row(['Obuna', $number($report['totals']['subscription'])]));
         $writer->addRow(self::row(['Qaytarishlarda ayirilgan komissiya', $number($report['totals']['commission_refunded'])]));
+        // Owner decision 3: the referral bonuses RIZQIM paid out of its own income, and what is left after them
+        $writer->addRow(self::row(["Do'st taklifi bonuslari (RIZQIM to'lagan)", $number($report['totals']['referral_bonuses'])]));
+        $writer->addRow(self::row(['Bonuslar soni', (int) $report['totals']['referral_count']]));
+        $writer->addRow(self::row(['Bonuslardan keyingi daromad', $number($report['totals']['net'])], $bold));
         $writer->addRow(self::row(['Buyurtmalar', (int) $report['totals']['orders']]));
         $writer->addRow(self::row(['GMV', $number($report['totals']['gmv'])]));
         $writer->addRow(self::row([]));

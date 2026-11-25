@@ -264,7 +264,8 @@ final class PaymeCashbox
      * transaction ends, so the caller's lock_timeout is put back before the release; and a failure (a lock timeout, a
      * deadlock) is always rolled back to the savepoint, so the caller's transaction is left usable. Laravel's nested
      * DB::transaction() does not do the latter for a deadlock (it rethrows a DeadlockException without rolling back
-     * to the savepoint, leaving the caller's transaction aborted), hence the savepoint handled here.
+     * to the savepoint, leaving the caller's transaction aborted), hence the savepoint handled here (review H1:
+     * RevisionPostgresConnection now rolls such a level back itself; the savepoint here also scopes the SET LOCAL).
      *
      * Only DB::statement() on the hooked connection, like every other SET LOCAL in app/ (ConcurrentIndex,
      * PartitionManager::withLockRetry, FiscalReceiptLock): never the raw PDO, which RevisionMapCoverageTest refuses

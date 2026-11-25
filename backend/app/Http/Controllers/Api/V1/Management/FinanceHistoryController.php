@@ -37,7 +37,9 @@ class FinanceHistoryController extends ManagementController
      * Debt ledger
      *
      * The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),
-     * subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.
+     * subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt. A referral
+     * bonus is the platform's own cost and never listed (owner decision 3); one charged to the store before that (a
+     * `commission` row with the note "Referral cashback reward cost ...") still is.
      */
     #[QueryParameter('type', description: 'commission | topup | refund | adjustment | subscription | settlement | payout.', type: 'string', required: false)]
     #[QueryParameter('from', description: 'YYYY-MM-DD (do\'kon vaqti).', type: 'string', required: false)]
@@ -151,13 +153,16 @@ class FinanceHistoryController extends ManagementController
     private function transactions(Request $request, string $table): JsonResponse
     {
         $this->validateFilters($request, [
-            'type' => ['nullable', 'string', Rule::in(array_map(fn (StoreTransactionType $type) => $type->value, StoreTransactionType::cases()))],
+            // Owner decision 3's addition: a referral bonus the platform paid is no row of the store's money
+            'type' => ['nullable', 'string', Rule::in(array_values(array_diff(array_map(fn (StoreTransactionType $type) => $type->value, StoreTransactionType::cases()), [StoreTransactionType::REFERRAL_BONUS->value])))],
         ]);
         $store = $this->currentStore($request);
 
         $query = DB::table($table)
             ->leftJoin('orders', 'orders.id', '=', "{$table}.order_id")
             ->where("{$table}.store_id", $store->id)
+            // Owner decision 3's addition: the platform's referral bonus record never moved the store's money
+            ->where("{$table}.type", '!=', StoreTransactionType::REFERRAL_BONUS->value)
             ->when($request->filled('type'), fn (Builder $query) => $query->where("{$table}.type", $request->input('type')))
             ->select(["{$table}.*", 'orders.uuid as order_uuid', 'orders.short_code as order_short_code']);
         $this->dateRange($query, "{$table}.created_at", $request, $store);

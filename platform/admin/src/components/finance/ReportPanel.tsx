@@ -66,6 +66,12 @@ export function ReportPanel({ enabled, canExport, onDone }: { enabled: boolean; 
               <span className="text-title font-bold text-fg" data-testid="report-total">
                 {uzs(data.totals.total)}
               </span>
+              {data.totals.referral_bonuses !== undefined && data.totals.referral_bonuses !== '0.00' && (
+                <span className="flex flex-col text-caption text-fg-muted" data-testid="report-referral">
+                  <span>{t('finance_reportReferral', { amount: uzs(data.totals.referral_bonuses), count: data.totals.referral_count ?? 0 })}</span>
+                  {data.totals.net !== undefined && <span className="font-bold text-fg">{t('finance_reportNet', { amount: uzs(data.totals.net) })}</span>}
+                </span>
+              )}
             </Card>
             <Card className="flex flex-col gap-1">
               <span className="text-footnote font-bold text-fg-muted">{t('finance_reportCommission')}</span>

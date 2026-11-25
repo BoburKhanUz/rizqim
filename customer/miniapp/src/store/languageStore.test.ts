@@ -20,6 +20,20 @@ describe('the translation table', () => {
     }
   });
 
+  // Owner decision 3 (and review 6): the bonus is given after the friend's first order of at least 50 000 so'm, paid
+  // online through RIZQIM, is delivered — the text names the minimum and the online payment, and promises no more
+  it('promises the referral bonus only for a first order from the minimum, paid online through RIZQIM', () => {
+    expect(translations.uz.inviteText).toContain("RIZQIM orqali onlayn to'langan");
+    expect(translations.ru.inviteText).toContain('оплаченный онлайн через RIZQIM');
+    expect(translations.en.inviteText).toContain('paid online through RIZQIM');
+    for (const language of ['uz', 'ru', 'en'] as const) {
+      expect(translations[language].inviteText).toContain('{{min}}');
+      expect(translations[language].inviteText).toContain('{{amount}}');
+      expect(translations[language].inviteText).toMatch(/10/);
+      expect(translations[language].inviteText).not.toMatch(/muvaffaqiyatli|успешного|successful|har bir|каждый|every/);
+    }
+  });
+
   it('uses the same {{placeholders}} in every language of a phrase', () => {
     for (const [key, text] of Object.entries(translations.uz)) {
       expect(placeholders(translations.ru[key as keyof typeof translations.uz]), key).toEqual(placeholders(text));

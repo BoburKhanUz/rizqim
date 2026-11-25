@@ -112,7 +112,7 @@ export const balances = (): BalancePage => ({
 export const report = (): MonthlyReport => ({
   period: '2026-10',
   timezone: 'Asia/Tashkent',
-  totals: { orders: 4, gmv: '260000.00', commission: '28500.00', commission_refunded: '5000.00', subscription: '149000.00', total: '177500.00' },
+  totals: { orders: 4, gmv: '260000.00', commission: '28500.00', commission_refunded: '5000.00', subscription: '149000.00', total: '177500.00', referral_count: 1, referral_bonuses: '5000.00', net: '172500.00' },
   channels: [
     { channel: 'rizqim_courier', label: 'RIZQIM kuryeri', orders: 2, gmv: '200000.00', commission: '25000.00', commission_refunded: '5000.00' },
     { channel: 'pickup', label: 'Olib ketish', orders: 1, gmv: '50000.00', commission: '2500.00', commission_refunded: '0.00' },

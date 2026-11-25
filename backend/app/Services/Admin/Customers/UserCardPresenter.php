@@ -92,8 +92,108 @@ class UserCardPresenter
             'courier_type' => $user->role === UserRole::COURIER ? ['value' => $user->courier_type->value, 'label' => $user->courier_type->labelUz()] : null,
             'referred_by' => $referrer && !$referrer->isPlatformAccount() ? ['id' => (int) $referrer->id, 'name' => (string) $referrer->name] : null,
             'referrals' => User::query()->where('referred_by', $user->id)->count(),
+            // Owner decision 3: whether the referrer's bonus for this customer was granted, and why it may still wait
+            'referral_bonus' => $user->referred_by ? $this->referralBonus($user) : null,
+            // Owner's rule B: the bonuses this user (as a referrer) has this Asia/Tashkent month, of the cap; null when
+            // they invited nobody
+            'referral_month' => $this->referralMonth($user),
             'created_at' => CustomerFormat::iso($user->created_at),
         ];
+    }
+
+    /**
+     * Owner decision 3 (and rules A, B, review finding 1): the referrer's bonus for this (referred) customer — `granted`
+     * (the order that earned it; a bonus taken back on a full refund no longer counts) or `pending` with `reason`:
+     * `booking_pending` (a qualifying order's ledger booking failed and is retried), `referrer_cap` (the referrer's
+     * monthly cap was reached when a qualifying order was delivered), `taken_back` (the bonus went back on a full
+     * refund; the next qualifying order earns it), `commission_below_bonus` (an order's commission was below the bonus),
+     * `below_minimum` (a verified order below 50 000), `no_qualifying_order` (no delivered order whose payment the
+     * platform verified: cash, keshbek and the store's own Click / Payme / Uzum / Paynet do not count) or `not_granted`
+     * (a qualifying order delivered while the referral was not open, e.g. before the invite was linked).
+     * `unverified_deliveries`: their delivered orders that did not count as verified. The rule itself is
+     * ReferralService::qualifiesForReferralBonus; this only explains it.
+     *
+     * @return array{status: string, reason: string|null, label: string, order: array{uuid: string, short_code: string|null}|null, unverified_deliveries: int}
+     */
+    private function referralBonus(User $user): array
+    {
+        $ledger = app(\App\Services\Finance\LedgerService::class);
+        $orders = \App\Models\Order::query()->withTrashed()->where('user_id', $user->id)
+            ->whereIn('status', [\App\Enums\OrderStatus::DELIVERED->value, \App\Enums\OrderStatus::REFUNDED->value])
+            ->orderBy('id')
+            ->get(['id', 'uuid', 'short_code', 'store_id', 'status', 'payment_method', 'payment_owner', 'payment_status', 'total_price', 'commission_amount', 'settlement_failed_at', 'updated_at']);
+        $unverified = $orders->reject(fn (\App\Models\Order $order) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($order))->count();
+        $amount = number_format(\App\Services\Auth\ReferralService::BONUS, 0, ',', ' ');
+        $result = fn (string $status, ?string $reason, string $label, ?\App\Models\Order $order = null) => [
+            'status' => $status,
+            'reason' => $reason,
+            'label' => $label,
+            'order' => $order ? ['uuid' => (string) $order->uuid, 'short_code' => $order->short_code] : null,
+            'unverified_deliveries' => $unverified,
+        ];
+
+        // The bonus rows on the customer's orders (soft-deleted ones too), per order: a positive sum is a standing bonus
+        $bonusRows = \App\Models\StoreTransaction::query()->whereIn('order_id', $orders->pluck('id')->all() ?: [0])
+            ->where(fn ($query) => \App\Services\Finance\LedgerService::whereReferralRewardOf($query, (int) $user->id)
+                ->orWhere(fn ($row) => $row->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)->where('amount', '<', 0)))
+            ->get(['order_id', 'amount']);
+        $netByOrder = $bonusRows->groupBy('order_id')->map(fn ($rows) => \App\Support\Money::sum(...$rows->pluck('amount')->all()));
+        if ($ledger->referralRewardedNet((int) $user->id)) {
+            $orderId = $netByOrder->filter(fn (\App\Support\Money $net) => $net->isPositive())->keys()->first();
+            $order = $orderId !== null ? $orders->firstWhere('id', (int) $orderId) : null;
+
+            return $result('granted', null, "Taklif qilganga {$amount} ball berilgan" . ($order?->short_code ? " (#{$order->short_code})" : '') . '.', $order);
+        }
+
+        $takenBack = $bonusRows->contains(fn ($row) => \App\Support\Money::of((string) $row->amount)->isNegative());
+        // Delivered and still paid (a refunded order earns nothing), not one whose bonus went back
+        $delivered = $orders->filter(fn (\App\Models\Order $order) => $order->status === \App\Enums\OrderStatus::DELIVERED
+            && $order->payment_status === \App\Enums\PaymentStatus::PAID && !$netByOrder->has($order->id))->keyBy('id');
+        $why = $delivered->map(fn (\App\Models\Order $order) => \App\Services\Auth\ReferralService::whyNotQualifying($order));
+        $qualifying = $delivered->filter(fn (\App\Models\Order $order) => $why[$order->id] === null);
+        $cap = \App\Services\Auth\ReferralService::MONTHLY_CAP_PER_REFERRER;
+        $referrerId = (int) $user->referred_by;
+        $deliveredAt = fn (\App\Models\Order $order) => \App\Models\OrderStatusHistory::query()->where('order_id', $order->id)
+            ->where('status', \App\Enums\OrderStatus::DELIVERED->value)->min('created_at') ?? $order->updated_at;
+        $later = " Keyingi mos buyurtmadan so'ng beriladi.";
+
+        if (($failed = $qualifying->first(fn (\App\Models\Order $order) => $order->settlement_failed_at !== null)) !== null) {
+            return $result('pending', 'booking_pending', "Bonus kutilmoqda: #{$failed->short_code} buyurtmasining hisob-kitobi hali yozilmagan, qayta urinishda beriladi.", $failed);
+        }
+        if (($capped = $qualifying->first(fn (\App\Models\Order $order) => \App\Services\Auth\ReferralService::monthlyBonusesOf($referrerId, \Illuminate\Support\Carbon::parse($deliveredAt($order))) >= $cap)) !== null) {
+            return $result('pending', 'referrer_cap', "Bonus kutilmoqda: taklif qiluvchining oylik chegarasi to'lgan (oyiga {$cap} ta bonus), #{$capped->short_code} uchun berilmadi." . $later, $capped);
+        }
+        if ($takenBack) {
+            return $result('pending', 'taken_back', "Bonus qaytarib olindi: uni bergan buyurtma to'liq qaytarilgan." . $later);
+        }
+        if ($qualifying->isNotEmpty()) {
+            return $result('pending', 'not_granted', "Bonus kutilmoqda: mos buyurtma taklif ochiq bo'lmagan paytda yetkazilgan (masalan, taklif keyin bog'langan)." . $later, $qualifying->first());
+        }
+        if ($why->contains('commission_below_bonus')) {
+            return $result('pending', 'commission_below_bonus', "Bonus kutilmoqda: buyurtma komissiyasi bonusdan kam ({$amount} so'm), shuning uchun berilmadi." . $later);
+        }
+        if ($why->contains('below_minimum') && $delivered->contains(fn (\App\Models\Order $order) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($order))) {
+            return $result('pending', 'below_minimum', "Bonus kutilmoqda: onlayn to'langan yetkazilgan buyurtmalar " . number_format(\App\Services\Auth\ReferralService::MIN_ORDER, 0, ',', ' ') . " so'mdan kam edi." . $later);
+        }
+
+        return $result('pending', 'no_qualifying_order', "Bonus kutilmoqda: taklif qilganga {$amount} ball do'stning RIZQIM orqali onlayn to'langan (to'lovni platforma tasdiqlagan), " . number_format(\App\Services\Auth\ReferralService::MIN_ORDER, 0, ',', ' ') . " so'mdan kam bo'lmagan birinchi yetkazilgan buyurtmasidan so'ng beriladi. Naqd, keshbek va ovqatxonaning o'z Click, Payme, Uzum yoki Paynet hisobiga to'langan buyurtmalar hisobga olinmaydi"
+            . ($unverified > 0 ? " (bunday yetkazilgan buyurtmalar: {$unverified})" : '') . '.');
+    }
+
+    /**
+     * Owner's rule B on a referrer's card: their bonuses this Asia/Tashkent month (granted in the month and not taken back: a gross limit, ReferralService::monthlyBonusesOf) of the cap.
+     *
+     * @return array{count: int, cap: int, label: string}|null
+     */
+    private function referralMonth(User $user): ?array
+    {
+        if (!User::query()->where('referred_by', $user->id)->exists()) {
+            return null;
+        }
+        $count = \App\Services\Auth\ReferralService::monthlyBonusesOf((int) $user->id, now());
+        $cap = \App\Services\Auth\ReferralService::MONTHLY_CAP_PER_REFERRER;
+
+        return ['count' => $count, 'cap' => $cap, 'label' => "Bu oy: {$count}/{$cap}"];
     }
 
     /**

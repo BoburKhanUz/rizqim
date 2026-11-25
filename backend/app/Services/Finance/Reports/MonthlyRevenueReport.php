@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\DB;
  *   partial refunds took back of it (order_ledger_reversals: commission_wallet + commission_debt). A fully refunded
  *   order counts nothing — the same rule as RevenueReportService (P1-23), plus the parts;
  * - subscriptions: the month's subscription invoices that are not void (invoiced, paid of it, still open);
- * - per store: both, largest total first.
+ * - per store: both, largest total first;
+ * - owner decision 3's addition: the referral bonuses RIZQIM paid out of its own income in the month
+ *   (store_transactions of type referral_bonus, booked in the month: `referral_bonuses`, their count `referral_count`)
+ *   are its cost: `net` = total − referral_bonuses. A legacy bonus charged to a store (a commission row with the
+ *   referral note) was the store's cost and is not counted here.
  *
  * Amounts are Money; the controller and the Excel export turn them into decimal strings / numbers.
  */
@@ -28,11 +32,35 @@ class MonthlyRevenueReport
 
     public function timezone(): string
     {
+        return self::timezoneName();
+    }
+
+    /** The report's month boundary time zone (config billing.timezone, Asia/Tashkent). */
+    public static function timezoneName(): string
+    {
         return (string) config('billing.timezone', 'Asia/Tashkent');
     }
 
     /**
-     * @return array{period: string, timezone: string, totals: array{orders: int, gmv: Money, commission: Money, commission_refunded: Money, subscription: Money, total: Money}, channels: list<array{channel: string, label: string, orders: int, gmv: Money, commission: Money, commission_refunded: Money}>, subscriptions: array{invoices: int, invoiced: Money, paid: Money, outstanding: Money}, stores: list<array{store_id: int, store_name: string, orders: int, gmv: Money, commission: Money, commission_by_channel: array<string, Money>, subscription: Money, total: Money}>}
+     * The report's month (Y-m, in timezoneName()) as [start, end) timestamps in the app's time zone, formatted for a
+     * created_at comparison. The one boundary helper: the report and the referral cap
+     * (ReferralService::monthlyBonusesOf) use it.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function monthBounds(string $period): array
+    {
+        $tz = self::timezoneName();
+        $appTz = (string) config('app.timezone');
+
+        return [
+            Carbon::createFromFormat('!Y-m', $period, $tz)->setTimezone($appTz)->format('Y-m-d H:i:s'),
+            Carbon::createFromFormat('!Y-m', $period, $tz)->addMonthNoOverflow()->setTimezone($appTz)->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    /**
+     * @return array{period: string, timezone: string, totals: array{orders: int, gmv: Money, commission: Money, commission_refunded: Money, subscription: Money, total: Money, referral_count: int, referral_bonuses: Money, net: Money}, channels: list<array{channel: string, label: string, orders: int, gmv: Money, commission: Money, commission_refunded: Money}>, subscriptions: array{invoices: int, invoiced: Money, paid: Money, outstanding: Money}, stores: list<array{store_id: int, store_name: string, orders: int, gmv: Money, commission: Money, commission_by_channel: array<string, Money>, subscription: Money, total: Money}>}
      */
     public function build(string $period): array
     {
@@ -135,6 +163,19 @@ class MonthlyRevenueReport
         }
 
         $commission = Money::sum(...array_column($channelRows, 'commission'));
+        $total = $commission->plus($subscriptions['invoiced']);
+
+        // Owner decision 3's addition: the platform's own cost — referral bonuses it paid, booked in the month
+        // Review finding 1: a bonus taken back (a full refund of the order that earned it) is a negative row booked in
+        // the month of the clawback: it nets the sum out, and counts −1
+        [$referralStart, $referralEnd] = self::monthBounds($period);
+        $referral = DB::table('store_transactions')
+            ->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
+            ->where('created_at', '>=', $referralStart)
+            ->where('created_at', '<', $referralEnd)
+            ->selectRaw('COALESCE(SUM(CASE WHEN amount > 0 THEN 1 WHEN amount < 0 THEN -1 ELSE 0 END), 0) AS rewards, COALESCE(SUM(amount), 0) AS paid')
+            ->first();
+        $referralPaid = Money::of((string) ($referral->paid ?? '0'));
 
         return [
             'period' => $period,
@@ -145,7 +186,10 @@ class MonthlyRevenueReport
                 'commission' => $commission,
                 'commission_refunded' => Money::sum(...array_column($channelRows, 'commission_refunded')),
                 'subscription' => $subscriptions['invoiced'],
-                'total' => $commission->plus($subscriptions['invoiced']),
+                'total' => $total,
+                'referral_count' => (int) ($referral->rewards ?? 0),
+                'referral_bonuses' => $referralPaid,
+                'net' => $total->minus($referralPaid),
             ],
             'channels' => $channelRows,
             'subscriptions' => $subscriptions,

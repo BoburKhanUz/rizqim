@@ -219,26 +219,37 @@ class OrderLifecycleRefundTest extends TestCase
         $this->assertSame(['debt' => [], 'wallet' => []], $this->refundRows($order));
     }
 
-    public function test_a_refunded_first_order_keeps_its_referral_reward_and_the_next_order_earns_none(): void
+    public function test_a_refunded_first_order_gives_its_referral_reward_back_and_the_next_order_earns_it(): void
     {
         $referrer = $this->makeCustomer();
         $customer = $this->makeCustomer();
         $customer->referred_by = $referrer->id;
         $customer->save();
+        // Owner decision 3: only a payment the platform verified earns the bonus (here: into its own Click account)
+        $paidOrder = function () use ($customer): Order {
+            $order = $this->checkout($customer, 1, 'click');
+            $order->payments()->update(['status' => PaymentStatus::PAID->value, 'paid_at' => now()]);
+            $order->update(['payment_status' => PaymentStatus::PAID->value]);
 
-        $first = $this->deliver($this->checkout($customer, 1));
+            return $this->deliver($order);
+        };
+
+        $first = $paidOrder();
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['10000.00', '0.00'], $this->storeBalances());
+        // 50 000 collected pays the 5 000 commission, 45 000 to the wallet; owner decision 3's addition: the bonus is the
+        // platform's, nothing of it on the store's debt
+        $this->assertSame(['0.00', '45000.00'], $this->storeBalances());
 
         app(OrderStatusService::class)->refund($first, $this->admin, 'Mijoz shikoyati');
 
-        // Only the commission is reversed; the referral reward and its cost stay
-        $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['5000.00', '0.00'], $this->storeBalances());
+        // The commission and the settlement are reversed; review finding 1: the referral bonus is taken back too
+        $this->assertEquals(0, (float) $referrer->fresh()->balance);
+        $this->assertSame(['0.00', '0.00'], $this->storeBalances());
 
-        $this->deliver($this->checkout($customer, 1));
+        // The referral is open again: the next qualifying order earns it, once
+        $paidOrder();
 
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['10000.00', '0.00'], $this->storeBalances());
+        $this->assertSame(['0.00', '45000.00'], $this->storeBalances());
     }
 }

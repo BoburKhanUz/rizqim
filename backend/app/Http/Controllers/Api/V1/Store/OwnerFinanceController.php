@@ -44,6 +44,8 @@ class OwnerFinanceController extends Controller
 
         // Get recent ledger transactions (debt/commission)
         $ledgerTransactions = StoreTransaction::where('store_id', $store->id)
+            // Owner decision 3's addition: a referral bonus the platform paid never moved the store's money
+            ->where('type', '!=', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
             ->orderBy('created_at', 'desc')
             ->limit(20)
             ->get();

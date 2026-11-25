@@ -167,7 +167,7 @@ class AdjustmentService
             return true;
         }
 
-        Store::withTrashed()->whereKey($store->id)->lockForUpdate()->value('id');
+        Store::withTrashed()->whereKey($store->id)->lock(Store::ledgerLock())->value('id');
         User::whereKey($member->id)->lockForUpdate()->value('id');
 
         $since = now()->subHours(max(1, (int) config('finance.four_eyes_window_hours', 24)));
@@ -211,7 +211,7 @@ class AdjustmentService
     {
         $kind = AdjustmentKind::from($adjustment->kind);
         $amount = Money::of($adjustment->amount);
-        $store = Store::withTrashed()->where('id', $adjustment->store_id)->lockForUpdate()->firstOrFail();
+        $store = Store::withTrashed()->where('id', $adjustment->store_id)->lock(Store::ledgerLock())->firstOrFail();
         $notes = "Manual adjustment #{$adjustment->id}: {$adjustment->reason}";
         $links = ['reference_id' => (string) $adjustment->uuid, 'performed_by' => $performedBy];
         $update = ['status' => FinanceAdjustment::APPLIED, 'applied_at' => now()];

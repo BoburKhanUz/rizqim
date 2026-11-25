@@ -15,7 +15,8 @@ class MarkOrderAsPaid
 {
     public function __construct(
         protected OrderStatusService $orderStatus,
-        protected LedgerService $ledger
+        protected LedgerService $ledger,
+        protected \App\Services\Finance\SettlementRecoveryService $settlements,
     ) {}
 
     /**
@@ -29,7 +30,8 @@ class MarkOrderAsPaid
             return;
         }
 
-        $order = DB::transaction(function () use ($payment) {
+        $bookLate = false;
+        $order = DB::transaction(function () use ($payment, &$bookLate) {
             $order = Order::whereKey($payment->order_id)->lockForUpdate()->first();
 
             if (!$order) {
@@ -41,9 +43,11 @@ class MarkOrderAsPaid
                 $order->update(['payment_status' => PaymentStatus::PAID->value]);
             }
 
-            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent).
+            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent), and it
+            // commits with the payment status before anything else is tried
             if ($order->status === OrderStatus::DELIVERED) {
                 $this->ledger->settlePlatformOrder($order);
+                $bookLate = true;
 
                 return null;
             }
@@ -61,10 +65,28 @@ class MarkOrderAsPaid
             return $result->changed ? $result->order : null;
         });
 
+        if ($bookLate) {
+            // Owner decision 3: the payment is verified only now, so the referral bonus it may earn is granted now
+            // (once). Review finding 3 and review H1: in a transaction of its own, after the payment and the settlement
+            // committed, so the bonus never undoes either. The whole delivery booking again (commission, settlement:
+            // idempotent, already done; the referral bonus): a failure (a deadlock, a lock timeout) is rolled back,
+            // the order is marked (settlement_failed_at, alerted) and RetryFailedSettlementsJob books it again later,
+            // granting the bonus exactly once. A provider does not replay a payment it got an answer for, so nothing
+            // else would retry it
+            $this->settlements->bookAfterPayment((int) $payment->order_id);
+
+            return;
+        }
+
         if (!$order) {
             return;
         }
 
+        $this->notify($order);
+    }
+
+    private function notify(Order $order): void
+    {
         // 3. Dispatch admin / kitchen telegram notifications
         try {
             $telegramService = app(\App\Services\Notifications\TelegramNotificationService::class);

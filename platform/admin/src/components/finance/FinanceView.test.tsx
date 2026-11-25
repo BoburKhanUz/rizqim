@@ -169,6 +169,9 @@ describe('FinanceView', () => {
     setup({ 'GET /finance/reports/monthly': () => ok(report()) }, { initial: { ...START, tab: 'report' } });
     expect(await screen.findByTestId('report-total')).toHaveTextContent("177 500 so'm");
     expect(screen.getByText(/Qaytarishlarda ayirildi: 5 000.so'm/)).toBeInTheDocument();
+    // Owner decision 3: the referral bonuses the platform paid are its cost
+    expect(screen.getByTestId('report-referral')).toHaveTextContent(/Do'st taklifi bonuslari \(RIZQIM to'lagan\): 5 000.so'm \(1 ta\)/);
+    expect(screen.getByTestId('report-referral')).toHaveTextContent(/Bonuslardan keyin: 172 500.so'm/);
     expect(screen.getByRole('region', { name: "Komissiya kanal bo'yicha" })).toHaveTextContent('RIZQIM kuryeri');
     expect(screen.getByRole('button', { name: 'Excel yuklab olish' })).toBeInTheDocument();
   });

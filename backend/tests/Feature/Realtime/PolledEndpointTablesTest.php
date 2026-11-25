@@ -50,7 +50,8 @@ class PolledEndpointTablesTest extends TestCase
         'GET /pos/orders/{uuid}/bills' => ['branches', 'stores', 'orders', 'order_items', 'order_bills', 'order_bill_items', 'payments', 'fiscal_receipts', 'pos_refunds', 'pos_tips', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
         'GET /pos/waitlist' => ['branches', 'stores', 'pos_waitlist_entries', 'dining_tables', 'halls', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
         'GET /pos/bill-print-requests' => ['branches', 'stores', 'pos_bill_print_requests', 'orders', 'order_bills', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
-        'GET /staff/orders/{uuid}' => ['order_status_histories', 'product_variants', 'products', 'branches', 'stores', 'orders', 'order_items', 'order_assignments', 'store_subscriptions', 'tariff_plans', 'features', 'settings', 'role_permission_overrides', 'dining_tables', 'halls', 'users'],
+        // Owner decision 4: `refund_by` reads the order's payments (tracked through their order: RevisionMap VIA orders)
+        'GET /staff/orders/{uuid}' => ['payments', 'order_status_histories', 'product_variants', 'products', 'branches', 'stores', 'orders', 'order_items', 'order_assignments', 'store_subscriptions', 'tariff_plans', 'features', 'settings', 'role_permission_overrides', 'dining_tables', 'halls', 'users'],
         // Wave P (receipts): a customer's orders carry `receipts` (fiscal_receipts, through its bills: order_bills, and the
         // payment's fiscal state: payments). payments and order_bills move the customer's token through their order;
         // a receipt that becomes issued moves it in SendCustomerReceiptNotice (fiscal_receipts' own rule is the branch),

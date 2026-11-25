@@ -42,6 +42,46 @@ describe('UserCardView', () => {
     expect(screen.getByText('Mini App / Telegram')).toBeInTheDocument();
   });
 
+  // Owner decision 3: why the referrer's bonus for this customer is still pending, or which order earned it
+  it('says why the referral bonus is still pending', async () => {
+    const base = userCard();
+    const pending = "Bonus kutilmoqda: taklif qilganga 5 000 ball do'stning onlayn to'langan birinchi yetkazilgan buyurtmasidan so'ng beriladi (bunday yetkazilgan buyurtmalar: 2).";
+    setup({
+      'GET /users/7': () => ok(userCard({ profile: { ...base.profile, referred_by: { id: 3, name: 'Taklif qilgan' }, referral_bonus: { status: 'pending', label: pending, order: null, unverified_deliveries: 2 } } })),
+    });
+    expect(await screen.findByTestId('referral-bonus')).toHaveTextContent(pending);
+    expect(within(screen.getByTestId('referral-bonus')).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('links the order that earned the referral bonus', async () => {
+    const base = userCard();
+    const granted = userCard({ profile: { ...base.profile, referral_bonus: { status: 'granted', label: 'Taklif qilganga 5 000 ball berilgan (#AB12CD).', order: { uuid: 'ab12cd34-1111-4222-8333-444455556666', short_code: 'AB12CD' }, unverified_deliveries: 0 } } });
+    setup({ 'GET /users/7': () => ok(granted) });
+    expect(within(await screen.findByTestId('referral-bonus')).getByRole('link', { name: 'Buyurtma #AB12CD' })).toHaveAttribute('href', '/orders/ab12cd34-1111-4222-8333-444455556666');
+  });
+
+  // Owner's rule B: the referrer's own card shows how many bonuses of the monthly cap they have this month
+  it("shows the referrer's bonuses this month of the cap", async () => {
+    const base = userCard();
+    setup({ 'GET /users/7': () => ok(userCard({ profile: { ...base.profile, referral_month: { count: 10, cap: 10, label: 'Bu oy: 10/10' } } })) });
+    expect(await screen.findByTestId('referral-month')).toHaveTextContent('Bu oy: 10/10');
+  });
+
+  // Review 1: a bonus taken back after it was spent leaves a debt: shown as one, never as money to spend
+  it('shows a negative keshbek balance as a debt', async () => {
+    const base = userCard();
+    const { user } = setup({ 'GET /users/7': () => ok(userCard({ keshbek: { ...base.keshbek, balance: '-5000.00' } })) });
+    await user.click(await screen.findByRole('tab', { name: 'Keshbek' }));
+    expect(screen.getByTestId('keshbek-balance')).toHaveTextContent(/Qarz: 5.000.so'm/);
+    expect(screen.getByText(/keyingi bonusdan yopiladi/)).toBeInTheDocument();
+  });
+
+  it('shows no referral bonus row for a customer nobody invited', async () => {
+    setup();
+    await screen.findByRole('heading', { name: 'Olim Egamov', level: 1 });
+    expect(screen.queryByTestId('referral-bonus')).not.toBeInTheDocument();
+  });
+
   it('blocks with a reason and shows the answer', async () => {
     const blocked = userCard({ block: { blocked: true, at: '2026-10-28T10:00:00+05:00', reason: 'Firibgarlik', by: { id: 1, name: 'Aziza Karimova' } }, actions: { block: false, unblock: true, close_sessions: true } });
     let current = userCard();

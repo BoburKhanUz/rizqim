@@ -176,6 +176,8 @@ export default function Orders() {
     const panelId = `${panelIdPrefix}-${order.id}`;
     const typeLabel = order.type === 'delivery' ? t('delivery') : order.type === 'pickup' ? t('pickup') : t('dineIn');
     const hasReason = (order.status === 'canceled' || order.status === 'rejected') && (order.cancel_reason || order.cancel_note);
+    // Owner decision 4: money paid into the restaurant's own account comes back from there: never "refunded" before it is
+    const refundByStore = order.refund?.refund_by === 'store_own_account' && !order.refund.returned;
 
     return (
       <Card key={order.id} padded={false} className="p-4">
@@ -201,10 +203,16 @@ export default function Orders() {
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-2">
-            <StatusBadge status={order.status} audience="customer" />
+            <StatusBadge status={order.status} audience="customer" labelKey={refundByStore && order.status === 'refunded' ? 'status_refundByStore' : undefined} />
             <span className="text-body font-bold text-brand">{formatMoney(order.total_price, language)}</span>
           </div>
         </div>
+
+        {refundByStore && (
+          <p className="mt-3 rounded-control bg-info-soft p-3 text-footnote font-medium text-info-soft-fg" data-testid="order-refund-by-store">
+            {t('orderRefundByStore')}
+          </p>
+        )}
 
         {/* Why a canceled or rejected order was */}
         {hasReason && (

@@ -68,9 +68,14 @@ class AdminOrderInterventionController extends AdminController
 
         $this->audited($request, $result->order, $before, ['manual_refund_required' => $result->manualRefundRequired]);
 
-        return $this->success($this->card($request, $result->order), $result->manualRefundRequired
-            ? "Buyurtma bekor qilindi. To'lov mijozga qaytarilishi kerak: qaytarish so'rovini yarating."
-            : 'Buyurtma bekor qilindi.');
+        $order = $result->order;
+
+        return $this->success($this->card($request, $order), match (true) {
+            !$result->manualRefundRequired => 'Buyurtma bekor qilindi.',
+            // Owner decision 4: the money is in the store's own account
+            \App\Services\Payment\StoreOwnRefund::of($order, $order->payments()->get()) !== null => "Buyurtma bekor qilindi. " . \App\Services\Payment\StoreOwnRefund::LABEL . ': ovqatxonaga xabar bering.',
+            default => "Buyurtma bekor qilindi. To'lov mijozga qaytarilishi kerak: qaytarish so'rovini yarating.",
+        });
     }
 
     /**

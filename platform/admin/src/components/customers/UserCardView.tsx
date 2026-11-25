@@ -211,6 +211,24 @@ function Overview({ user }: { user: UserCard }) {
               ...(profile.courier_type ? [[t('customers_courierType'), profile.courier_type.label] as [string, ReactNode]] : []),
               [t('customers_referredBy'), profile.referred_by ? <Link href={`/users/${profile.referred_by.id}`} className="font-bold text-brand hover:underline">{profile.referred_by.name}</Link> : '—'],
               [t('customers_referrals'), String(profile.referrals)],
+              ...(profile.referral_month
+                ? [[t('customers_referralMonth'), <span key="referral-month" data-testid="referral-month">{profile.referral_month.label}</span>] as [string, ReactNode]]
+                : []),
+              ...(profile.referral_bonus
+                ? [
+                    [
+                      t('customers_referralBonus'),
+                      <span key="referral-bonus" data-testid="referral-bonus" className="flex flex-col gap-0.5">
+                        <span className={profile.referral_bonus.status === 'pending' ? 'font-bold text-warning-soft-fg' : 'text-fg'}>{profile.referral_bonus.label}</span>
+                        {profile.referral_bonus.order && (
+                          <Link href={`/orders/${profile.referral_bonus.order.uuid}`} className="font-bold text-brand hover:underline">
+                            {t('customers_referralBonusOrder', { code: profile.referral_bonus.order.short_code ?? profile.referral_bonus.order.uuid })}
+                          </Link>
+                        )}
+                      </span>,
+                    ] as [string, ReactNode],
+                  ]
+                : []),
               [t('customers_createdAt'), when(profile.created_at)],
             ]}
           />
@@ -327,7 +345,15 @@ function Keshbek({ user }: { user: UserCard }) {
   return (
     <Section title={t('customers_card_keshbek')}>
       <Card padded={false}>
-        <p className="px-4 pt-4 text-body font-bold text-fg">{t('customers_balance', { amount: uzs(user.keshbek.balance) })}</p>
+        {/* Review 1: a referral bonus taken back after it was spent leaves the balance below zero: a debt, not money */}
+        {Number(user.keshbek.balance) < 0 ? (
+          <>
+            <p data-testid="keshbek-balance" className="px-4 pt-4 text-body font-bold text-danger-soft-fg">{t('customers_balanceDebt', { amount: uzs(String(Math.abs(Number(user.keshbek.balance)))) })}</p>
+            <p className="px-4 text-caption text-fg-muted">{t('customers_balanceDebtNote')}</p>
+          </>
+        ) : (
+          <p data-testid="keshbek-balance" className="px-4 pt-4 text-body font-bold text-fg">{t('customers_balance', { amount: uzs(user.keshbek.balance) })}</p>
+        )}
         <p className="px-4 pb-2 text-caption text-fg-muted">{t('customers_keshbekNote')}</p>
         {user.keshbek.entries.length === 0 ? (
           <Empty text={t('customers_keshbekEmpty')} />

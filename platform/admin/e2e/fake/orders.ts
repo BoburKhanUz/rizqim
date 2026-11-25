@@ -345,6 +345,7 @@ export class FakeOrders {
       execution: refund.status === 'approved'
         ? { mode: 'order_refunded', order_status_before: 'delivered', order_status_after: 'refunded', payment_method: 'click', automatic_amount: '0.00', manual_amount: approvedManual ? refund.amount : '0.00', provider_refund: approvedManual ? 'manual' : 'none' }
         : null,
+      refund_by: null,
       mine: refund.requested_by.id === actor.id,
       can_decide: refund.status === 'pending' && refund.requested_by.id !== actor.id && can('admin.orders.refund_approve'),
     }
@@ -378,6 +379,8 @@ export class FakeOrders {
       audit: (order.audit ?? []).map((entry) => ({ ...entry, before: null, after: null })),
       store_refund_review: reviews[0] ?? null,
       store_refund_reviews: reviews,
+      refund_by: null,
+      refund_returned: null,
       actions: {
         can_intervene: intervene,
         can_cancel: intervene && active,
@@ -389,6 +392,7 @@ export class FakeOrders {
         can_approve_refund: can('admin.orders.refund_approve'),
         can_decide_store_refund: can('admin.orders.refund_approve') && reviewPending,
         can_approve_store_refund: can('admin.orders.refund_approve') && reviewPending && reviews[0]?.proposed_by !== actor.id,
+        can_mark_store_refunded: false,
       },
     }
   }

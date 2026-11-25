@@ -73,6 +73,24 @@ class Store extends Model
     ];
 
     /**
+     * Review H1: the lock every money path takes on the store row before it books (LedgerService, refund approval,
+     * finance adjustments, payouts), for ->lock(): FOR NO KEY UPDATE on PostgreSQL, FOR UPDATE elsewhere.
+     *
+     * Two such lockers still exclude each other (NO KEY UPDATE conflicts with itself and with FOR UPDATE), so the
+     * ledger stays serialized per store, and a DELETE of the store still waits. What no longer waits is a foreign key
+     * check's FOR KEY SHARE: an insert that references the store (a new order at checkout). A keshbek checkout locks
+     * the customer's users row and then inserts its order; the referral grant and clawback, a refund approval's
+     * keshbek share and a refund's keshbek return lock the store and then users rows. With FOR UPDATE on the store
+     * the two waited on each other (40P01, ReferralConcurrencyTest). The statements relying on this lock write only
+     * non-key columns of the store (debt_balance, wallet_balance, subscription_debt, status...), which takes the same
+     * NO KEY UPDATE lock, and nothing relies on keeping new orders of the store out while it is held.
+     */
+    public static function ledgerLock(): string|bool
+    {
+        return \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql' ? 'for no key update' : true;
+    }
+
+    /**
      * Whether new orders are refused: the rule CreateOrderAction applies (payment_required / finance_hold, or debt
      * over the credit limit).
      */

@@ -34,7 +34,10 @@ abstract class OrdersApi {
   /// Wave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a.
   /// 9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the.
   /// store's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:.
-  /// ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.
+  /// ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`.
+  /// (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the.
+  /// restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back.
+  /// or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
   ///
   /// [scope] - Omit for the full legacy list.
   ///

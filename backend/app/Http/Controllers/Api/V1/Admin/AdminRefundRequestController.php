@@ -28,7 +28,7 @@ use Illuminate\Validation\Rule;
 #[Group('Admin')]
 class AdminRefundRequestController extends AdminController
 {
-    private const REQUEST = 'array{id: int, uuid: string, amount: string, status: string, status_label: string, reason: string, requested_by: array{id: int, name: string}|null, requested_at: string|null, decided_by: array{id: int, name: string}|null, decided_at: string|null, decision_note: string|null, execution: array<string, mixed>|null, mine: bool, can_decide: bool}';
+    private const REQUEST = 'array{id: int, uuid: string, amount: string, status: string, status_label: string, reason: string, requested_by: array{id: int, name: string}|null, requested_at: string|null, decided_by: array{id: int, name: string}|null, decided_at: string|null, decision_note: string|null, execution: array<string, mixed>|null, refund_by: string|null, mine: bool, can_decide: bool}';
 
     public function __construct(
         private readonly RefundRequestService $refunds,
@@ -182,6 +182,9 @@ class AdminRefundRequestController extends AdminController
 
         $message = match (true) {
             !$approve => "So'rov rad etildi.",
+            // Owner decision 4: the money is in the store's own account: the store gives it back, never the approver
+            ($refund->execution['refund_by'] ?? null) === \App\Services\Payment\StoreOwnRefund::REFUND_BY => 'Tasdiqlandi. '
+                . RefundRequestService::uzs(Money::of($refund->execution['manual_amount'] ?? '0')) . "ni mijozga ovqatxona o'z hisobidan qaytaradi: ovqatxonaga xabar bering.",
             ($refund->execution['manual_amount'] ?? '0.00') !== '0.00' => 'Tasdiqlandi. ' . RefundRequestService::uzs(Money::of($refund->execution['manual_amount'])) . "ni mijozga to'lov tizimi kabinetida yoki naqd qaytaring.",
             default => 'Tasdiqlandi, pul qaytarildi.',
         };

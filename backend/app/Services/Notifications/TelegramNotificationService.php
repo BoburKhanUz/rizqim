@@ -556,7 +556,19 @@ class TelegramNotificationService
         return "❌ *Buyurtmangiz bekor qilindi.*\n🆔 ID: #{$order->short_code}"
             . ($reason ? "\n📝 *Sabab:* {$reason->customerLabel()}" : '')
             . ($order->cancel_note && $reason !== CancelReason::CUSTOMER_REQUEST ? "\n💬 " . $this->escapeMarkdown($order->cancel_note) : '')
-            . ($reason === CancelReason::CUSTOMER_REQUEST ? '' : "\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.");
+            . ($reason === CancelReason::CUSTOMER_REQUEST ? '' : "\n😔 Agar xatolik bo'lgan bo'lsa, iltimos biz bilan bog'laning.")
+            . $this->storeRefundLine($order);
+    }
+
+    /**
+     * Owner decision 4: money paid into the restaurant's own account goes back from there (RIZQIM holds none of it):
+     * said for as long as it is not seen back.
+     */
+    protected function storeRefundLine(Order $order): string
+    {
+        $refund = \App\Services\Payment\StoreOwnRefund::forCustomer($order, $order->payments()->get(['id', 'order_id', 'provider', 'provider_transaction_id', 'status', 'payload']));
+
+        return $refund !== null && !$refund['returned'] ? "\n🏪 " . \App\Services\Payment\StoreOwnRefund::LABEL . '.' : '';
     }
 
     /**
@@ -570,7 +582,7 @@ class TelegramNotificationService
     /**
      * "Returned" only once the money is back: Payme refunded it (refunded_by_provider) or it went to the keshbek
      * balance, both leaving the payment refunded. Cash, and a card payment flagged for a manual refund, are still to
-     * be returned.
+     * be returned; owner decision 4: by the restaurant from its own account when it was paid there.
      */
     protected function refundText(Order $order): string
     {
@@ -579,7 +591,8 @@ class TelegramNotificationService
 
         return "💸 *Buyurtmangiz bo'yicha pul " . ($returned ? 'qaytarildi' : 'qaytariladi') . "*\n🆔 ID: #{$order->short_code}"
             . ($amount > 0 ? "\n💰 Summa: *" . number_format($amount, 0, '.', ' ') . " UZS*" : '')
-            . ($returned && $order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '');
+            . ($returned && $order->payment_method === 'keshbek' ? "\n👛 Mablag' keshbek balansingizga qaytarildi." : '')
+            . (!$returned ? $this->storeRefundLine($order) : '');
     }
 
     protected function sendMessage(string $chatId, string $text, array $replyMarkup = [], string $parseMode = 'Markdown'): void

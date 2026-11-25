@@ -167,7 +167,9 @@ class CustomerOrderAlertTest extends TestCase
 
     public function test_the_admin_refund_of_a_paid_click_order_tells_the_customer_it_will_be_returned(): void
     {
-        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_status' => 'paid']);
+        // Platform-collected (owner decision 4: a store-owned delivered order is refunded only after a two-person check,
+        // StoreOwnAccountRefundTest covers what its customer is told)
+        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid']);
         Payment::create(['order_id' => $order->id, 'provider' => 'click', 'amount' => 50000, 'status' => PaymentStatus::PAID, 'paid_at' => now()]);
 
         app(OrderStatusService::class)->refund($order, null, 'Sifatsiz mahsulot');

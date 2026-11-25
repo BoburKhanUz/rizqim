@@ -1043,7 +1043,8 @@ export interface paths {
          * @description `period` — "YYYY-MM", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in
          *     the month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from
          *     before the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total
-         *     first. Amounts are decimal strings.
+         *     first. Owner decision 3: `referral_bonuses` — the referral bonuses RIZQIM paid out of its own income in the month
+         *     (`referral_count` of them), its cost; `net` = `total` − `referral_bonuses`. Amounts are decimal strings.
          */
         get: operations["admin.finance.reports.monthly"];
         put?: never;
@@ -2182,6 +2183,34 @@ export interface paths {
          *     busy one is picked, as for the store. `reason` is required. Answers the order card.
          */
         post: operations["admin.orders.status_fixed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orders/{uuid}/store-own-refund/returned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a store's own refund as done
+         * @description "Ovqatxona pulni qaytardi": the store returned the customer's money from its own Click / Payme / Uzum / Paynet /
+         *     Paylov account (checked with the store: a receipt, the store's cabinet). Each such payment of the order whose refund
+         *     was decided (an approved refund request's share, or a refund flagged by the order's cancel or refund) is marked done
+         *     by hand (`payments[].refunded_manually`), never as the provider's confirmation (its `status` stays). The customer's
+         *     order then reads refunded (`refund.returned` true), the admin card and the partner order detail
+         *     `refund_returned: true`. The ledger and the commission are not touched: the two-person flow decided them. One
+         *     member is enough; marking again changes nothing (200). 422 `not_store_own_refund` for money RIZQIM collected (it
+         *     refunds that itself), 422 `no_approved_refund` when no refund of the store's money was decided yet. `reason` is
+         *     required. Answers the order card. Stores have no such action.
+         */
+        post: operations["admin.orders.store_own_refund.returned"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4704,7 +4733,10 @@ export interface paths {
          *     Wave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a
          *     9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the
          *     store's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:
-         *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.
+         *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`
+         *     (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the
+         *     restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back
+         *     or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
          */
         get: operations["order.index"];
         put?: never;
@@ -6062,7 +6094,9 @@ export interface paths {
         /**
          * Debt ledger
          * @description The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),
-         *     subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.
+         *     subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt. A referral
+         *     bonus is the platform's own cost and never listed (owner decision 3); one charged to the store before that (a
+         *     `commission` row with the note "Referral cashback reward cost ...") still is.
          */
         get: operations["financeHistory.ledger"];
         put?: never;
@@ -12219,7 +12253,11 @@ export interface paths {
         /**
          * One order for staff (detail)
          * @description Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order
-         *     of another store or of a branch the caller does not work in.
+         *     of another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`
+         *     once a refund of money paid into the store's own provider account was recorded (the store gives it back from its
+         *     own cabinet: RIZQIM holds none of it), else null; `refund_returned` whether that refund is done (the provider's
+         *     cancel arrived, or a RIZQIM team member recorded the store's refund: show "refunded", never "refund it" again),
+         *     null when there is no such refund.
          */
         get: operations["staffOrder.show"];
         put?: never;
@@ -14262,7 +14300,7 @@ export interface components {
          * StoreTransactionType
          * @enum {string}
          */
-        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment" | "subscription";
+        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment" | "subscription" | "referral_bonus";
         /** StoreWalletTransaction */
         StoreWalletTransaction: {
             id: number;
@@ -17475,6 +17513,9 @@ export interface operations {
                                 commission_refunded: string;
                                 subscription: string;
                                 total: string;
+                                referral_count: number;
+                                referral_bonuses: string;
+                                net: string;
                             };
                             channels: {
                                 channel: string;
@@ -21007,6 +21048,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -21085,6 +21127,61 @@ export interface operations {
                 };
             };
             /** @description Not allowed from the current status (illegal, stale, use_cancel, use_refund_request) or no courier (courier) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.store_own_refund.returned": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such order (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not the store's money (not_store_own_refund) or no refund decided (no_approved_refund) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -22786,6 +22883,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -22864,6 +22962,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -61633,6 +61732,8 @@ export interface operations {
                                 status: string;
                                 created_at: string | null;
                             }[];
+                            refund_by: string | null;
+                            refund_returned: boolean | null;
                         };
                     };
                 };
@@ -62108,6 +62209,8 @@ export interface operations {
                                 status: string;
                                 created_at: string | null;
                             }[];
+                            refund_by: string | null;
+                            refund_returned: boolean | null;
                         };
                     };
                 };

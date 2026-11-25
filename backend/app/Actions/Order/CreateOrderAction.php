@@ -406,7 +406,9 @@ class CreateOrderAction
 
             $paymentStatus = PaymentStatus::PENDING;
             if ($paymentMethod === 'keshbek') {
-                // Re-read under lock: the authenticated user instance may hold a stale balance
+                // Re-read under lock: the authenticated user instance may hold a stale balance. Review H1: the order's
+                // insert below then takes FOR KEY SHARE on the store, which the ledger's store lock (FOR NO KEY UPDATE,
+                // Store::ledgerLock) does not block, so a referral grant waiting on this users row cannot deadlock it
                 $balance = Money::of(User::whereKey($user->id)->lockForUpdate()->value('balance'));
                 $insufficientBalance = "Keshbek balansi yetarli emas (Mavjud: " . number_format($balance->toFloat(), 0, '.', ' ') . " ball, Kerak: " . number_format($totalPrice->toFloat(), 0, '.', ' ') . " UZS).";
                 if ($balance->isLessThan($totalPrice)) {

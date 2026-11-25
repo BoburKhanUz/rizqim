@@ -118,6 +118,13 @@ class StaffOrderPresenter
                     'status' => $history->status->value,
                     'created_at' => $history->created_at?->toJSON(),
                 ])->all();
+            // Owner decision 4: the store gives the money back from its own account (a recorded refund of it), or null
+            $payments = \App\Models\Payment::query()->where('order_id', $order->id)
+                ->get(['id', 'order_id', 'provider', 'provider_transaction_id', 'status', 'payload']);
+            $data['refund_by'] = \App\Services\Payment\StoreOwnRefund::of($order, $payments);
+            // Review finding 5: that refund is done (the provider's cancel arrived, or a platform member recorded the store's
+            // refund): the panel then says "refunded", never "refund it" again; null when there is no such refund
+            $data['refund_returned'] = \App\Services\Payment\StoreOwnRefund::returnedOf($order, $payments);
         }
 
         return $data;

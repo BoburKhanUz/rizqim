@@ -102,7 +102,8 @@ final class StoreRefundReviewDecision
 
                 $providers = $payments->map(fn (Payment $payment) => ucfirst((string) (StoreRefundReview::of($payment)['provider'] ?? $payment->provider)))->unique()->implode(', ');
                 try {
-                    $this->orders->refund($order, $member, "Boshqaruv markazi: ovqatxona kassasi orqali qilingan {$providers} qaytarishi tasdiqlandi. {$note}", true);
+                    // Owner decision 4: proposed by one member, confirmed by another: the two-person check
+                    $this->orders->refund($order, $member, "Boshqaruv markazi: ovqatxona kassasi orqali qilingan {$providers} qaytarishi tasdiqlandi. {$note}", true, 'store_refund_review');
                 } catch (OrderTransitionException $e) {
                     throw new AdminOrderException($e->getMessage(), 'refund_failed', $e->status === 403 ? 403 : 422);
                 }

@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 #[Group('Admin')]
 class AdminFinanceReportController extends AdminController
 {
-    private const REPORT = 'array{period: string, timezone: string, totals: array{orders: int, gmv: string, commission: string, commission_refunded: string, subscription: string, total: string}, channels: list<array{channel: string, label: string, orders: int, gmv: string, commission: string, commission_refunded: string}>, subscriptions: array{invoices: int, invoiced: string, paid: string, outstanding: string}, stores: list<array{store: array{id: int, name: string}, orders: int, gmv: string, commission: string, commission_by_channel: array<string, string>, subscription: string, total: string}>}';
+    private const REPORT = 'array{period: string, timezone: string, totals: array{orders: int, gmv: string, commission: string, commission_refunded: string, subscription: string, total: string, referral_count: int, referral_bonuses: string, net: string}, channels: list<array{channel: string, label: string, orders: int, gmv: string, commission: string, commission_refunded: string}>, subscriptions: array{invoices: int, invoiced: string, paid: string, outstanding: string}, stores: list<array{store: array{id: int, name: string}, orders: int, gmv: string, commission: string, commission_by_channel: array<string, string>, subscription: string, total: string}>}';
 
     public function __construct(
         private readonly MonthlyRevenueReport $report,
@@ -35,7 +35,8 @@ class AdminFinanceReportController extends AdminController
      * `period` — "YYYY-MM", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in
      * the month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from
      * before the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total
-     * first. Amounts are decimal strings.
+     * first. Owner decision 3: `referral_bonuses` — the referral bonuses RIZQIM paid out of its own income in the month
+     * (`referral_count` of them), its cost; `net` = `total` − `referral_bonuses`. Amounts are decimal strings.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::REPORT . '}')]
     public function monthly(Request $request): JsonResponse
@@ -98,7 +99,8 @@ class AdminFinanceReportController extends AdminController
         return [
             'period' => $report['period'],
             'timezone' => $report['timezone'],
-            'totals' => ['orders' => $report['totals']['orders']] + array_map($money, array_diff_key($report['totals'], ['orders' => 0])),
+            'totals' => ['orders' => $report['totals']['orders'], 'referral_count' => $report['totals']['referral_count']]
+                + array_map($money, array_diff_key($report['totals'], ['orders' => 0, 'referral_count' => 0])),
             'channels' => array_map(fn (array $row) => [
                 'channel' => $row['channel'],
                 'label' => $row['label'],

@@ -77,7 +77,10 @@ class OrderController extends Controller
      * Wave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a
      * 9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the
      * store's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:
-     * ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.
+     * ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`
+     * (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the
+     * restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back
+     * or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
      */
     #[QueryParameter('scope', description: 'Omit for the full legacy list.', type: "'active'|'history'")]
     #[QueryParameter('per_page', description: 'Only with `scope=history`: page size, 1-50 (larger values are capped at 50).', type: 'int', default: OrderQueryService::HISTORY_DEFAULT_PER_PAGE)]
@@ -95,6 +98,8 @@ class OrderController extends Controller
         $attach = function (\Illuminate\Support\Collection $orders) use ($user): void {
             if ($this->orders->listsOwnOrders($user)) {
                 app(\App\Domain\Receipts\CustomerOrderReceipts::class)->attach($orders);
+                // Owner decision 4: a refund the restaurant makes from its own account, until the money is seen back
+                \App\Services\Payment\StoreOwnRefund::attachForCustomer($orders);
             }
         };
 

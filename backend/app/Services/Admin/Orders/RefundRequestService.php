@@ -298,6 +298,18 @@ class RefundRequestService
             }
 
             $order = Order::whereKey($refund->order_id)->lockForUpdate()->firstOrFail();
+            // Review finding 7: a delivered store-owned order's commission goes back only after two people; an asker
+            // whose account was deleted is nobody (whole or partial request alike: make a new request)
+            if ($refund->requested_by === null && $order->status === OrderStatus::DELIVERED && \App\Services\Payment\StoreOwnRefund::isStoreOwned($order)) {
+                $missing = \App\Services\Order\OrderStatusService::requesterMissing();
+                throw new AdminOrderException($missing->getMessage(), $missing->reason, 422);
+            }
+            // The store row before the customer's balance (spread raises it for a keshbek share), the order every ledger
+            // path takes — store → customer → referrer (LedgerService::grantReferralReward, clawBackReferralReward,
+            // reverseDelivery). Taken the other way round, this approval and a delivery of another of the customer's
+            // orders at the same store would deadlock. FOR NO KEY UPDATE (Store::ledgerLock, review H1): a keshbek checkout
+            // of the customer (users row, then its order's foreign key check on the store) does not wait on it
+            \App\Models\Store::whereKey($order->store_id)->lock(\App\Models\Store::ledgerLock())->first();
             $amount = Money::of($refund->amount);
             $payments = Payment::where('order_id', $order->id)->orderBy('id')->lockForUpdate()->get();
             $balance = self::balanceOf($payments, self::approvedRequests([(int) $order->id])->get());
@@ -325,7 +337,8 @@ class RefundRequestService
                 && $amount->equals($balance['refundable'])) {
                 $paidBefore = $payments->filter(fn (Payment $payment) => $payment->status === PaymentStatus::PAID)->keyBy('id');
                 try {
-                    $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}");
+                    // Owner decision 4: asked by one member, approved by another (lockForDecision): the two-person check
+                    $this->orders->refund($order, $approver, "Boshqaruv markazi, qaytarish so'rovi #{$refund->id}: {$refund->reason}", false, "refund_request:{$refund->id}");
                 } catch (OrderTransitionException $e) {
                     throw new AdminOrderException($e->getMessage(), 'refund_failed', $e->status === 403 ? 403 : 422);
                 }
@@ -390,6 +403,10 @@ class RefundRequestService
                     'payment_method' => $order->payment_method,
                     'automatic_amount' => $automatic->toString(),
                     'manual_amount' => $manual->toString(),
+                    // Owner decision 4: who returns the manual part — the store from its own account (RIZQIM holds none
+                    // of that money), or null (the approver, as before)
+                    'refund_by' => collect($shares)->contains(fn (array $share) => $share['kind'] === self::KIND_MANUAL
+                        && \App\Services\Payment\StoreOwnRefund::isStores($order, $share['payment'])) ? \App\Services\Payment\StoreOwnRefund::REFUND_BY : null,
                     // Provider refunds are not automated for Click/Payme: the money is returned by hand; wave P: Paylov's
                     // are (payment/cancel, the whole payment)
                     'provider_refund' => match (true) {
