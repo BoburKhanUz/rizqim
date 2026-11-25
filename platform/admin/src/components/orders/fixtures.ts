@@ -57,6 +57,7 @@ export function refundRequest(overrides: Partial<RefundRequest> = {}): RefundReq
     decided_at: null,
     decision_note: null,
     execution: null,
+    refund_by: null,
     mine: false,
     can_decide: true,
     ...overrides,

@@ -48,7 +48,17 @@ class FinanceReportTest extends TestCase
         OrderLedgerReversal::create(['order_id' => $part->id, 'store_id' => $a->id, 'is_full' => false, 'components' => ['commission_debt' => '5000.00', 'commission_wallet' => '0.00']]);
         $this->delivered($a, 'own_delivery', '80000', '8000', '2026-10-12 12:00', OrderStatus::REFUNDED);
         $this->delivered($a, 'own_delivery', '80000', '8000', '2026-11-01 00:10');
-        $this->delivered($a, null, '10000', '1000', '2026-10-20 12:00');
+        $legacy = $this->delivered($a, null, '10000', '1000', '2026-10-20 12:00');
+        // Owner decision 3's addition: a referral bonus the platform paid in October (its cost), one in November (not
+        // here), and a legacy one the store paid (a commission row with the referral note: the store's cost, not here)
+        $bonus = fn (string $type, string $at, string $note) => \App\Models\StoreTransaction::forceCreate([
+            'store_id' => $a->id, 'type' => $type, 'amount' => '5000.00', 'balance_before' => '0.00',
+            'balance_after' => $type === 'commission' ? '5000.00' : '0.00', 'order_id' => $legacy->id, 'notes' => $note,
+            'created_at' => $this->at($at), 'updated_at' => $this->at($at),
+        ]);
+        $bonus('referral_bonus', '2026-10-21 12:00', 'Referral bonus paid by the platform for referred user #1');
+        $bonus('referral_bonus', '2026-11-02 12:00', 'Referral bonus paid by the platform for referred user #2');
+        $bonus('commission', '2026-10-22 12:00', 'Referral cashback reward cost for referred user #3');
 
         $this->withoutTrials();
         $b = $this->v2Store('Beta');
@@ -67,7 +77,7 @@ class FinanceReportTest extends TestCase
         $report = $this->financeJson('GET', '/finance/reports/monthly?period=2026-10', $token)->assertOk()->json('data');
 
         $this->assertSame('2026-10', $report['period']);
-        $this->assertSame(['orders' => 4, 'gmv' => '260000.00', 'commission' => '28500.00', 'commission_refunded' => '5000.00', 'subscription' => '149000.00', 'total' => '177500.00'], $report['totals']);
+        $this->assertSame(['orders' => 4, 'referral_count' => 1, 'gmv' => '260000.00', 'commission' => '28500.00', 'commission_refunded' => '5000.00', 'subscription' => '149000.00', 'total' => '177500.00', 'referral_bonuses' => '5000.00', 'net' => '172500.00'], $report['totals']);
         $channels = array_column($report['channels'], null, 'channel');
         $this->assertSame(['orders' => 2, 'commission' => '25000.00', 'commission_refunded' => '5000.00'], array_intersect_key($channels['rizqim_courier'], ['orders' => 1, 'commission' => 1, 'commission_refunded' => 1]));
         $this->assertSame('2500.00', $channels['pickup']['commission']);
@@ -108,6 +118,8 @@ class FinanceReportTest extends TestCase
         $this->assertSame(['Umumiy', 'Ovqatxonalar'], array_keys($sheets));
         $summary = array_column(array_filter($sheets['Umumiy'], fn (array $row) => count($row) === 2), 1, 0);
         $this->assertSame([177500, 28500, 149000], [(int) $summary['Jami daromad'], (int) $summary['Komissiya'], (int) $summary['Obuna']]);
+        // Owner decision 3's addition: the platform's referral cost and what is left after it
+        $this->assertSame([5000, 1, 172500], [(int) $summary["Do'st taklifi bonuslari (RIZQIM to'lagan)"], (int) $summary['Bonuslar soni'], (int) $summary['Bonuslardan keyingi daromad']]);
         $this->assertSame(['Beta', 149000], [$sheets['Ovqatxonalar'][1][1], (int) end($sheets['Ovqatxonalar'][1])]);
 
         $entry = AuditLog::where('action', 'admin.finance.report_exported')->sole();

@@ -109,9 +109,8 @@ class UserCardPresenter
      */
     private function referralBonus(User $user): array
     {
-        $rewarded = \App\Models\StoreTransaction::query()
-            ->where('type', \App\Enums\StoreTransactionType::COMMISSION->value)
-            ->where('notes', \App\Services\Finance\LedgerService::referralNote((int) $user->id))
+        // Both shapes of the reward: platform-paid, and the legacy store-charged one
+        $rewarded = \App\Services\Finance\LedgerService::whereReferralRewardOf(\App\Models\StoreTransaction::query(), (int) $user->id)
             ->whereIn('order_id', \App\Models\Order::query()->select('id')->where('user_id', $user->id))
             ->orderBy('id')
             ->first(['order_id']);

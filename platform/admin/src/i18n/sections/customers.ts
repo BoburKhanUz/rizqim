@@ -62,6 +62,8 @@ export const customers = defineSection({
     customers_courierType: 'Kuryer turi',
     customers_referredBy: 'Taklif qilgan',
     customers_referrals: 'Taklif qilganlari',
+    customers_referralBonus: 'Taklif bonusi',
+    customers_referralBonusOrder: 'Buyurtma #{{code}}',
     customers_createdAt: "Ro'yxatdan o'tgan",
     customers_stats: 'Buyurtmalar',
     customers_statOrders: 'Jami',

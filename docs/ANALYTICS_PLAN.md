@@ -63,10 +63,13 @@ Kod o'qib tekshirildi. So'rovnoma (P_ANALYTICS_RULES.md) asosan to'g'ri, lekin q
    tushum) qaytaradi va hamkor panelida "Filial bo'yicha" bloki bor (`partner/web/src/components/reports/ReportsView.tsx`).
    Yo'g'i: o'rtacha chek, bekor qilish ulushi, tayyorlash vaqti va yonma-yon jadval.
 3. **"Keshbek" foizli keshbek emas.** Kodda buyurtmadan foiz qaytaradigan keshbek yo'q. `users.balance` faqat ikki yo'l
-   bilan to'ladi: do'st taklifi bonusi (taklif qilingan mijozning 50 000 so'm va undan katta birinchi yetkazilgan buyurtmasi
-   uchun taklif qilganga 5 000 ball, `LedgerService::processOrderDelivered`) va qaytarishda balansga qaytgan pul. Sarflash —
-   butun buyurtmani `keshbek` usuli bilan to'lash. **Bonusning narxini restoran to'laydi**: u restoran qarziga
-   `commission` turidagi yozuv sifatida tushadi (izohi `Referral cashback reward cost`), keshbek bilan to'langan buyurtma
+   bilan to'ladi: do'st taklifi bonusi (taklif qilingan mijozning to'lovi platforma tasdiqlagan — egasining 3-qarori,
+   OPERATIONS.md 31-bo'lim — 50 000 so'm va undan katta birinchi yetkazilgan buyurtmasi uchun taklif qilganga 5 000 ball,
+   `LedgerService::grantReferralReward`) va qaytarishda balansga qaytgan pul. Sarflash —
+   butun buyurtmani `keshbek` usuli bilan to'lash. **Bonusning narxini RIZQIM o'z komissiya daromadidan to'laydi**
+   (egasining 3-qaroriga qo'shimcha, OPERATIONS.md 31-bo'lim): buyurtma ovqatxonasi ledger'ida `referral_bonus` turidagi
+   yozuv (ovqatxona qarzini o'zgartirmaydi, `amount` — platforma to'lagan summa). Undan oldin restoran to'lagan: restoran
+   qarziga `commission` turidagi yozuv (izohi `Referral cashback reward cost`) — eski yozuvlar o'zgarmaydi. Keshbek bilan to'langan buyurtma
    puli esa restoranga RIZQIM tomonidan haqiqiy pul bilan (netting orqali) o'tkaziladi. Demak "keshbek xarajati" hisoboti
    aslida **ballar harakati va majburiyat** hisoboti (4.6). Bu ega bilmasligi mumkin bo'lgan muhim fakt — 7-bo'lim, 11-savol.
 4. **Promo samaradorligi qisman bor.** `App\Services\Admin\Marketing\PromoCodes::stats` har kod uchun ishlatilish soni,
@@ -188,7 +191,8 @@ Instagram, varaqa, bloger, restoran QR, sayt, boshqa; boshlanish va tugash; ixti
 - **Bir mijoz narxi** — xarajat kiritilgan bo'lsa: xarajat / birinchi buyurtma bergan mijozlar.
 
 **Do'st taklifi hisoboti:** taklif qilganlar soni, taklif bilan ro'yxatdan o'tganlar (`users.referred_by`), bonus olgan
-taklif (ledgerdagi bonus yozuvlari soni), bonus jami (ledgerdagi summa, uni restoranlar to'lagan — 2-bo'lim, 3-band),
+taklif (ledgerdagi bonus yozuvlari soni), bonus jami (ledgerdagi summa: `referral_bonus` — RIZQIM to'lagan, eski
+`commission` + izoh — restoranlar to'lagan; 2-bo'lim, 3-band),
 taklif qilinganlarning GMV'si; eng faol taklif qiluvchilar ro'yxati (ism, telefon `admin.pii.view` siz niqoblangan).
 
 **Restoranning o'z havolasi (keyinroq, 7-bo'lim, 6-savol):** restoran hamkor panelida o'z QR va havolasini oladi
@@ -264,7 +268,8 @@ kassadagi PIN sessiyadan ochilmaydi). Boshqaruv markazida restoran kartasidan ha
 | Komissiya | `commission` (hamyondan va qarzga), do'st bonusi yozuvlari bundan tashqari |
 | Qaytarilgan komissiya | `refund` yozuvlari, komissiya tomoni (`CommissionStats` qoidasi) |
 | Qaytarishda restorandan qaytarib olingan pul | `refund` yozuvlari, hisob-kitob tomoni |
-| Do'st taklifi bonusi (restoran to'lagan) | `commission`, izohi `Referral cashback reward cost` |
+| Do'st taklifi bonusi (RIZQIM to'lagan, restoranga ta'sir qilmaydi) | `referral_bonus` (aktga chiqmaydi) |
+| Do'st taklifi bonusi (eski: restoran to'lagan) | `commission`, izohi `Referral cashback reward cost` |
 | Obuna hisob-fakturalari va bekor qilinganlari | qarzdagi `subscription` |
 | Restoran o'zi to'lagan (to'ldirish) | qarzdagi buyurtmasiz, payoutsiz `topup` |
 | Payoutdan ushlangan qarz | qarzdagi `payout_request_id` li `topup` |
@@ -429,7 +434,7 @@ ma'nosiz, ularni orqaga to'ldirish istalgan payt ishlaydi.
 | 8 | Ertalabki Telegram hisoboti standart yoqilgan bo'lsinmi? | A) egaga yoqilgan, menejerga o'chiq / B) hammaga o'chiq | **A**, bir bosishda o'chiriladi |
 | 9 | Restoran, xodim va RIZQIM jamoasi hisoblari voronkadan chiqarilsinmi? | ha / yo'q | **Ha** |
 | 10 | Kampaniyaga xarajat kiritib "bir mijoz narxi" hisoblansinmi? | ha / yo'q | **Ha** (ixtiyoriy maydon; bu ledger puli emas, faqat ma'lumot) |
-| 11 | Do'st taklifi bonusini (5 000) hozirgidek restoran to'laydimi? | A) aktda alohida qator qilib ko'rsatamiz, qoida o'zgarmaydi / B) RIZQIM o'z hisobidan to'laydigan qilib o'zgartirish (alohida pul ishi) | **A** hozir; B — analitikadan tashqari, alohida qaror va 2 review'li pul o'zgarishi |
+| 11 | Do'st taklifi bonusini (5 000) hozirgidek restoran to'laydimi? | A) aktda alohida qator qilib ko'rsatamiz, qoida o'zgarmaydi / B) RIZQIM o'z hisobidan to'laydigan qilib o'zgartirish (alohida pul ishi) | ~~**A** hozir~~ — egasi **B** ni tanladi (3-qarorga qo'shimcha, OPERATIONS.md 31-bo'lim): yangi bonuslar `referral_bonus` yozuvi, restoran qarziga tushmaydi |
 | 12 | Qidiruv matni saqlansinmi ("nima qidirishdi, topilmadi")? | ha / yo'q | **Yo'q** — faqat "natija bor/yo'q" va so'z uzunligi; matnda shaxsiy ma'lumot bo'lishi mumkin |
 | 13 | Yangi platforma ekranlarini (Kampaniyalar) Sotuv roli ham ko'rsinmi? | ha / yo'q | **Ha**: superadmin "Rollar" matritsasida Sotuv'ga `marketing.view` beradi (kod o'zgarmaydi) |
 
@@ -548,7 +553,8 @@ Campaigns and referrals:
   rows excluded) − REFUND reversals of those orders (exactly `CommissionStats` rules, keyed by order_id instead of month).
 - `cost_per_first_order` = campaigns.cost / first_orders (null when cost null or 0 orders).
 - Referrals: `referred_signups(P)` = users with `referred_by` NOT NULL created ∈ P; `rewards(P)` = count and SUM(amount) of
-  `store_transactions` type `commission`, notes LIKE `'Referral cashback reward cost%'`, created ∈ P.
+  `store_transactions` type `referral_bonus` (platform-paid) plus the legacy type `commission`, notes LIKE
+  `'Referral cashback reward cost%'` (store-paid), created ∈ P.
 
 Keshbek:
 
@@ -567,7 +573,8 @@ Store statement (money; ledger only):
 - Lines: `collected_by_platform` = wallet SETTLEMENT + debt TOPUP WHERE order_id NOT NULL; `commission` = wallet
   COMMISSION (abs) + debt COMMISSION non-referral; `commission_returned` = debt REFUND amount<0 + wallet REFUND amount>0
   of orders that had commission (CommissionStats rule, but over the range); `refund_clawback` = the other REFUND
-  rows (settlement side); `referral_rewards` = debt COMMISSION referral-note; `subscriptions` = debt SUBSCRIPTION
+  rows (settlement side); `referral_rewards` = debt COMMISSION referral-note (legacy, store-paid only; `referral_bonus`
+  rows are the platform's and not on the store's act — their balance_after equals the debt, so opening/closing are right); `subscriptions` = debt SUBSCRIPTION
   (positive and void negatives separately); `store_topups` = debt TOPUP WHERE order_id NULL AND payout_request_id NULL;
   `payout_netting` = debt TOPUP WHERE payout_request_id NOT NULL; `payouts_to_card` = wallet PAYOUT rows not netting;
   `adjustments` = ADJUSTMENT rows (both).

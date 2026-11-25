@@ -38,8 +38,8 @@ class OrderStatusService
      *  - from: statuses the caller's action was offered in (e.g. a Telegram button); the order must still be in one;
      *  - notes: status history note;
      *  - refunded_by_provider: a refund the payment provider already made (nothing is flagged for a manual refund);
-     *  - two_person_check: owner decision 4 — what two-person check a refund of a DELIVERED order paid into the
-     *    store's own account went through (`refund_request:<id>`, `store_refund_review`). Without it a person cannot
+     *  - two_person_check: owner decision 4 — what two-person check a refund of a DELIVERED order paid online into
+     *    the store's own provider account (StoreOwnRefund::isStoreOwned; not cash) went through (`refund_request:<id>`, `store_refund_review`). Without it a person cannot
      *    refund such an order (422 `two_person_check`): RIZQIM's commission on it goes back only after one member
      *    asked and another confirmed. The system (null actor) refunds such an order only for a refund the provider
      *    confirmed (refunded_by_provider), after a refund RIZQIM itself had asked for;
@@ -101,8 +101,12 @@ class OrderStatusService
                 throw OrderTransitionException::illegal($from, $to);
             }
 
-            if ($to === OrderStatus::REFUNDED && $from === OrderStatus::DELIVERED && \App\Services\Payment\OrderMerchantAccount::isStore($order)
-                && empty($options['two_person_check']) && !($actor === null && !empty($options['refunded_by_provider']))) {
+            // Owner decision 4: RIZQIM's commission on a delivered order paid into the store's own provider account goes
+            // back only after a two-person check (a refund request asked by one member and approved by another, or a
+            // held cabinet refund proposed and confirmed: StoreRefundReviewDecision). Cash orders are not concerned
+            if ($to === OrderStatus::REFUNDED && $from === OrderStatus::DELIVERED && \App\Services\Payment\StoreOwnRefund::isStoreOwned($order)
+                && !($actor === null && !empty($options['refunded_by_provider']))
+                && !$this->twoPersonCheckHolds($order, $actor, $options['two_person_check'] ?? null)) {
                 throw new OrderTransitionException(
                     "Ovqatxona o'z hisobiga olgan buyurtmani bitta xodim qaytara olmaydi: komissiya faqat ikki xodim tekshiruvidan keyin qaytadi. "
                     . "Boshqaruv markazida pulni qaytarish so'rovini yarating — uni boshqa xodim tasdiqlaydi.",
@@ -250,6 +254,39 @@ class OrderStatusService
             ], fn ($value) => $value !== null),
             ['actor' => $actor],
         );
+    }
+
+    /**
+     * Owner decision 4: whether the two-person check a refund of a delivered store-owned order names really took place,
+     * read under the order's lock: `refund_request:<id>` — a pending request for this order asked by someone other than
+     * $actor (RefundRequestService::approve refunds before it marks the request approved); `store_refund_review` — a
+     * pending cabinet refund of this order proposed by someone other than $actor (StoreRefundReviewDecision). Anything
+     * else, or the asker/proposer acting alone, is no check.
+     */
+    protected function twoPersonCheckHolds(Order $order, ?User $actor, mixed $check): bool
+    {
+        if ($actor === null || !is_string($check)) {
+            return false;
+        }
+
+        if (preg_match('/^refund_request:(\d+)$/', $check, $match) === 1) {
+            return \App\Models\OrderRefundRequest::query()->whereKey((int) $match[1])->where('order_id', $order->id)
+                ->where('status', \App\Models\OrderRefundRequest::PENDING)
+                ->where('requested_by', '!=', $actor->id)
+                ->exists();
+        }
+
+        if ($check === 'store_refund_review') {
+            return \App\Models\Payment::query()->where('order_id', $order->id)->get(['id', 'payload'])
+                ->contains(function (\App\Models\Payment $payment) use ($actor) {
+                    $review = \App\Services\Payment\StoreRefundReview::of($payment);
+
+                    return ($review['status'] ?? null) === \App\Services\Payment\StoreRefundReview::PENDING
+                        && is_numeric($review['proposed_by'] ?? null) && (int) $review['proposed_by'] !== (int) $actor->id;
+                });
+        }
+
+        return false;
     }
 
     /**

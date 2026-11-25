@@ -15,8 +15,7 @@ class MarkOrderAsPaid
 {
     public function __construct(
         protected OrderStatusService $orderStatus,
-        protected LedgerService $ledger,
-        protected \App\Services\Finance\SettlementRecoveryService $settlements,
+        protected LedgerService $ledger
     ) {}
 
     /**
@@ -46,8 +45,9 @@ class MarkOrderAsPaid
             // decision 3: the payment is verified only now, so the referral bonus it may earn is granted now (once)
             if ($order->status === OrderStatus::DELIVERED) {
                 $this->ledger->settlePlatformOrder($order);
-                // Idempotent: what delivery booked stays as it is; in a savepoint, a failure is marked and retried
-                $this->settlements->book($order);
+                // Exactly once per referred customer (under the customer's row lock); a failure fails the listener like
+                // the settlement's, and the provider's replay of the payment grants it then
+                $this->ledger->grantReferralReward($order);
 
                 return null;
             }

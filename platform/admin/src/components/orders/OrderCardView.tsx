@@ -113,7 +113,13 @@ export function OrderCardView({ uuid }: { uuid: string }) {
             <SlaBadge sla={order.sla} now={now} />
             {order.refund_pending && <Pill tone="warning">{t('orders_refundPending')}</Pill>}
             {order.manual_refund_required && <Pill tone="danger">{t('orders_manualRefund')}</Pill>}
+            {order.refund_by === 'store_own_account' && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
           </div>
+          {order.refund_by === 'store_own_account' && (
+            <p className="text-footnote text-warning-soft-fg" data-testid="order-refund-by-store">
+              {t('orders_refundByStoreHint')}
+            </p>
+          )}
           <p className="break-words text-footnote text-fg">
             {[order.store?.name, order.branch?.name, order.region?.name, order.channel_label].filter(Boolean).join(' · ')} · <span className="font-bold">{money(order.total)}</span>
           </p>
@@ -309,6 +315,7 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
                   <span className="text-fg">{exactMoney(payment.amount)}</span>
                   <Pill tone={payment.status === 'paid' ? 'success' : payment.status === 'refunded' ? 'neutral' : 'warning'}>{payment.status}</Pill>
                   {payment.manual_refund_required && <Pill tone="danger">{t('orders_paymentManual')}</Pill>}
+                  {payment.refund_by === 'store_own_account' && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
                   {payment.confirmation === 'unconfirmed' && <Pill tone="warning">{t('orders_paylovUnconfirmed')}</Pill>}
                   {payment.confirmation === 'mismatch' && <Pill tone="danger">{t('orders_paylovMismatch')}</Pill>}
                   {(payment.provider_refund === 'requested' || payment.provider_refund === 'retrying') && <Pill tone="warning">{t('orders_paylovRefunding')}</Pill>}
@@ -341,7 +348,12 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
                       {request.decision_note ? ` — ${request.decision_note}` : ''}
                     </span>
                   )}
-                  {request.execution && Number(request.execution.manual_amount) > 0 && <span className="text-caption font-bold text-warning-soft-fg">{t('orders_refundManualLeft', { amount: exactMoney(request.execution.manual_amount) })}</span>}
+                  {request.execution && Number(request.execution.manual_amount) > 0 && (
+                    <span className="text-caption font-bold text-warning-soft-fg">
+                      {t(request.refund_by === 'store_own_account' ? 'orders_refundByStoreLeft' : 'orders_refundManualLeft', { amount: exactMoney(request.execution.manual_amount) })}
+                    </span>
+                  )}
+                  {request.status === 'pending' && request.refund_by === 'store_own_account' && <span className="text-caption font-bold text-warning-soft-fg">{t('orders_refundByStore')}</span>}
                   {request.execution && Number(request.execution.automatic_amount) > 0 && <span className="text-caption text-fg-muted">{t('orders_refundAutomatic', { amount: exactMoney(request.execution.automatic_amount) })}</span>}
                   {request.status === 'pending' && request.mine && <span className="text-caption text-fg-muted">{t('orders_refundAwaiting')}</span>}
                   {request.can_decide && (

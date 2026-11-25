@@ -20,6 +20,8 @@ enum StoreTransactionType {
   adjustment('adjustment'),
   @JsonValue('subscription')
   subscription('subscription'),
+  @JsonValue('referral_bonus')
+  referralBonus('referral_bonus'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

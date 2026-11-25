@@ -236,18 +236,19 @@ class OrderLifecycleRefundTest extends TestCase
 
         $first = $paidOrder();
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        // 50 000 collected pays the 5 000 commission, 45 000 to the wallet; then the bonus' 5 000 on the debt
-        $this->assertSame(['5000.00', '45000.00'], $this->storeBalances());
+        // 50 000 collected pays the 5 000 commission, 45 000 to the wallet; owner decision 3's addition: the bonus is the
+        // platform's, nothing of it on the store's debt
+        $this->assertSame(['0.00', '45000.00'], $this->storeBalances());
 
         app(OrderStatusService::class)->refund($first, $this->admin, 'Mijoz shikoyati');
 
-        // Only the commission and the settlement are reversed; the referral reward and its cost stay
+        // Only the commission and the settlement are reversed; the referral reward stays (the platform paid it)
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['5000.00', '0.00'], $this->storeBalances());
+        $this->assertSame(['0.00', '0.00'], $this->storeBalances());
 
         $paidOrder();
 
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);
-        $this->assertSame(['0.00', '40000.00'], $this->storeBalances());
+        $this->assertSame(['0.00', '45000.00'], $this->storeBalances());
     }
 }

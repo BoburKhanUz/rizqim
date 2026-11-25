@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\DB;
  *   partial refunds took back of it (order_ledger_reversals: commission_wallet + commission_debt). A fully refunded
  *   order counts nothing — the same rule as RevenueReportService (P1-23), plus the parts;
  * - subscriptions: the month's subscription invoices that are not void (invoiced, paid of it, still open);
- * - per store: both, largest total first.
+ * - per store: both, largest total first;
+ * - owner decision 3's addition: the referral bonuses RIZQIM paid out of its own income in the month
+ *   (store_transactions of type referral_bonus, booked in the month: `referral_bonuses`, their count `referral_count`)
+ *   are its cost: `net` = total − referral_bonuses. A legacy bonus charged to a store (a commission row with the
+ *   referral note) was the store's cost and is not counted here.
  *
  * Amounts are Money; the controller and the Excel export turn them into decimal strings / numbers.
  */
@@ -32,7 +36,7 @@ class MonthlyRevenueReport
     }
 
     /**
-     * @return array{period: string, timezone: string, totals: array{orders: int, gmv: Money, commission: Money, commission_refunded: Money, subscription: Money, total: Money}, channels: list<array{channel: string, label: string, orders: int, gmv: Money, commission: Money, commission_refunded: Money}>, subscriptions: array{invoices: int, invoiced: Money, paid: Money, outstanding: Money}, stores: list<array{store_id: int, store_name: string, orders: int, gmv: Money, commission: Money, commission_by_channel: array<string, Money>, subscription: Money, total: Money}>}
+     * @return array{period: string, timezone: string, totals: array{orders: int, gmv: Money, commission: Money, commission_refunded: Money, subscription: Money, total: Money, referral_count: int, referral_bonuses: Money, net: Money}, channels: list<array{channel: string, label: string, orders: int, gmv: Money, commission: Money, commission_refunded: Money}>, subscriptions: array{invoices: int, invoiced: Money, paid: Money, outstanding: Money}, stores: list<array{store_id: int, store_name: string, orders: int, gmv: Money, commission: Money, commission_by_channel: array<string, Money>, subscription: Money, total: Money}>}
      */
     public function build(string $period): array
     {
@@ -135,6 +139,16 @@ class MonthlyRevenueReport
         }
 
         $commission = Money::sum(...array_column($channelRows, 'commission'));
+        $total = $commission->plus($subscriptions['invoiced']);
+
+        // Owner decision 3's addition: the platform's own cost — referral bonuses it paid, booked in the month
+        $referral = DB::table('store_transactions')
+            ->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
+            ->where('created_at', '>=', $start->format('Y-m-d H:i:s'))
+            ->where('created_at', '<', $end->format('Y-m-d H:i:s'))
+            ->selectRaw('COUNT(*) AS rewards, COALESCE(SUM(amount), 0) AS paid')
+            ->first();
+        $referralPaid = Money::of((string) ($referral->paid ?? '0'));
 
         return [
             'period' => $period,
@@ -145,7 +159,10 @@ class MonthlyRevenueReport
                 'commission' => $commission,
                 'commission_refunded' => Money::sum(...array_column($channelRows, 'commission_refunded')),
                 'subscription' => $subscriptions['invoiced'],
-                'total' => $commission->plus($subscriptions['invoiced']),
+                'total' => $total,
+                'referral_count' => (int) ($referral->rewards ?? 0),
+                'referral_bonuses' => $referralPaid,
+                'net' => $total->minus($referralPaid),
             ],
             'channels' => $channelRows,
             'subscriptions' => $subscriptions,

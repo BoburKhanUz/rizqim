@@ -284,7 +284,7 @@ final class TenantRls
      * such a read finds nothing and such a write does nothing or fails, whatever the Eloquent scope says.
      *
      * The uses (TenantRlsInventoryTest lists them: a new one is a decision, not a habit): the referral's "is this the
-     * customer's first delivery at any store" (LedgerService::isFirstDelivery) and an audit line for no store
+     * customer's first delivery at any store" (LedgerService::referralStillOpenFor) and an audit line for no store
      * (AuditLog::performInsert). Every use carries a comment saying which rows it needs and why that is safe. Keep the
      * callback to the statements that need it and load their results inside it (a lazy cursor read later runs as the tenant role
      * again). Outside a tenant transaction, and with TENANT_RLS off, it only calls $callback. A transaction opened

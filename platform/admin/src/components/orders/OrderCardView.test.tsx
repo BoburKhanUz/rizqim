@@ -151,6 +151,43 @@ describe('OrderCardView', () => {
     expect(within(dialog).getByText(/darhol mijozning keshbek balansiga qaytadi/)).toBeInTheDocument();
   });
 
+  // Owner decision 4: money paid into the store's own account is the store's to give back
+  it('says the store refunds it from its own account, on the order, the payment and the request', async () => {
+    const stores = card({
+      status: 'refunded',
+      status_label: 'Qaytarildi',
+      manual_refund_required: true,
+      refund_by: 'store_own_account',
+      payments: [{ uuid: 'p1', provider: 'click', amount: '50000.00', status: 'paid', paid_at: null, manual_refund_required: true, manual_refund_approved: [{ refund_request_id: 7, amount: '50000.00', approved_at: null }], refund_by: 'store_own_account', created_at: null }],
+      refunds: {
+        paid: '50000.00',
+        refunded: '50000.00',
+        refundable: '0.00',
+        requests: [
+          refundRequest({
+            status: 'approved',
+            status_label: 'Tasdiqlandi',
+            can_decide: false,
+            refund_by: 'store_own_account',
+            execution: { mode: 'order_refunded', order_status_before: 'delivered', order_status_after: 'refunded', payment_method: 'click', automatic_amount: '0.00', manual_amount: '50000.00', provider_refund: 'manual', refund_by: 'store_own_account' },
+          }),
+        ],
+      },
+    });
+    setup({ [`GET /orders/${UUID}`]: () => ok(stores) });
+    expect(await screen.findByTestId('order-refund-by-store')).toHaveTextContent(/ikki xodim tekshiruvidan keyin/);
+    expect(screen.getAllByText("Pulni ovqatxona o'z hisobidan qaytaradi")).toHaveLength(2); // the order and the payment
+    expect(within(screen.getByTestId('refund-7')).getByText(/50.000.so'm mijozga ovqatxona o'z hisobidan qaytaradi/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('refund-7')).queryByText(/to'lov tizimi kabinetida yoki naqd/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing of it on an order the platform collected', async () => {
+    setup();
+    await screen.findByRole('heading', { name: 'Buyurtma #ORD-AB12CD' });
+    expect(screen.queryByTestId('order-refund-by-store')).not.toBeInTheDocument();
+    expect(screen.queryByText("Pulni ovqatxona o'z hisobidan qaytaradi")).not.toBeInTheDocument();
+  });
+
   it('marks a Paylov payment Paylov has not confirmed yet, and its refund through Paylov', async () => {
     const paylov = card({
       payments: [

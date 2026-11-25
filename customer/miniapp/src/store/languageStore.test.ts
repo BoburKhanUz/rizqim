@@ -20,6 +20,15 @@ describe('the translation table', () => {
     }
   });
 
+  // Owner decision 3: the referral bonus is granted only after the friend's first order paid online is delivered, so the
+  // invite text never promises it for any first order
+  it('promises the referral bonus only for an order paid online', () => {
+    expect(translations.uz.inviteText).toContain("onlayn to'langan");
+    expect(translations.ru.inviteText).toContain('оплаченный онлайн');
+    expect(translations.en.inviteText).toContain('paid online');
+    for (const language of ['uz', 'ru', 'en'] as const) expect(translations[language].inviteText).not.toMatch(/muvaffaqiyatli|успешного|successful/);
+  });
+
   it('uses the same {{placeholders}} in every language of a phrase', () => {
     for (const [key, text] of Object.entries(translations.uz)) {
       expect(placeholders(translations.ru[key as keyof typeof translations.uz]), key).toEqual(placeholders(text));

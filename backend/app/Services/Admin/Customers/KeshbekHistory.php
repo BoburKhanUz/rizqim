@@ -17,17 +17,14 @@ use Illuminate\Support\Facades\DB;
  * - returned: the parts approved refund requests gave back (payload.refunded_to_balance_parts) and what a cancellation
  *   gave back (payload.refunded_to_balance; after partial refunds only the rest, refunded_to_balance_by_requests set),
  *   plus;
- * - referral bonus: 5 000 for each first delivered order of a customer they invited (LedgerService books the store's
- *   side as a commission row with the referral note), plus.
+ * - referral bonus: 5 000 for the first verified delivered order of each customer they invited (LedgerService: a
+ *   platform-paid REFERRAL_BONUS row, or before owner decision 3's addition a store-charged commission row with the
+ *   referral note; both are read), plus.
  *
  * The newest $limit entries; older history is not needed to read the balance (the balance itself is shown).
  */
 class KeshbekHistory
 {
-    // LedgerService::REFERRAL_NOTE: the store_transactions note of a referral reward ("... for referred user #12")
-    private const REFERRAL_NOTE = 'Referral cashback reward cost';
-
-    private const REFERRAL_AMOUNT = '5000.00';
 
     /**
      * @return array{balance: string, entries: list<array{kind: string, label: string, amount: string, order: array{uuid: string, short_code: string|null}|null, at: string|null}>}
@@ -69,16 +66,17 @@ class KeshbekHistory
             ->join('orders', 'orders.id', '=', 'store_transactions.order_id')
             ->join('users', 'users.id', '=', 'orders.user_id')
             ->where('users.referred_by', $user->id)
-            ->where('store_transactions.notes', 'like', self::REFERRAL_NOTE . '%')
+            // Both shapes: platform-paid (REFERRAL_BONUS) and the legacy store-charged rows (LedgerService)
+            ->where(fn ($query) => \App\Services\Finance\LedgerService::whereAnyReferralReward($query))
             ->orderByDesc('store_transactions.id')
             ->limit($limit)
-            ->get(['store_transactions.created_at', 'users.name as friend', 'orders.uuid', 'orders.short_code']);
+            ->get(['store_transactions.created_at', 'store_transactions.amount', 'users.name as friend', 'orders.uuid', 'orders.short_code']);
 
         foreach ($rewards as $reward) {
             $entries[] = $this->entry(
                 'referral',
                 "Do'st taklifi uchun bonus (" . $reward->friend . ')',
-                Money::of(self::REFERRAL_AMOUNT),
+                Money::of((string) $reward->amount),
                 null,
                 $this->time($reward->created_at),
             );

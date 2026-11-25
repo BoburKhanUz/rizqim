@@ -40,8 +40,7 @@ class CrossStoreReadsTest extends TestCase
 
     private function referralRewards(Order $order): int
     {
-        return StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)
-            ->where('notes', 'like', 'Referral%')->count();
+        return StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value)->count();
     }
 
     public function test_the_referral_reward_follows_the_customers_first_delivery_at_any_store(): void

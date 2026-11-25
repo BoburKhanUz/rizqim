@@ -21,7 +21,9 @@ abstract class OwnerFinanceHistoryApi {
   /// Debt ledger.
   ///
   /// The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),.
-  /// subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.
+  /// subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt. A referral.
+  /// bonus is the platform's own cost and never listed (owner decision 3); one charged to the store before that (a.
+  /// `commission` row with the note "Referral cashback reward cost ...") still is.
   ///
   /// [type] - commission | topup | refund | adjustment | subscription | settlement | payout.
   ///

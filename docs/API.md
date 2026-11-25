@@ -441,7 +441,10 @@ mintaqasidagi kunlar, `Y-m-d`, ko'pi bilan 93 kun), `q` (buyurtma raqamining bos
 **`GET /staff/orders/{uuid}`** (`orders.view`) — tafsilot: taomlar (modifikatorlar, miqdor va birlik — `quantity`,
 `unit`, `quantity_label`: `"1.5 kg"`; narxlar; `kitchen_status`, `ready_at`), izoh, `customer`, `delivery`, `courier`,
 summalar, vaqtlar (`created_at`, `accepted_at`, `preparing_at`, `ready_at`, `closed_at`) va `status_history`.
-Ro'yxat elementida ham xuddi shu maydonlar bor (`status_history` dan tashqari). P2-30: `waiting_seconds` — oshxona
+Ro'yxat elementida ham xuddi shu maydonlar bor (`status_history` va `refund_by` dan tashqari). Egasining 4-qarori:
+`refund_by` — `store_own_account`, agar ovqatxonaning o'z to'lov hisobiga (Click, Payme, Uzum, Paynet; Paylov — RIZQIM
+qaytara olmagan bo'lsa) tushgan pulni qaytarish yozilgan bo'lsa (pulni ovqatxona o'z kabinetidan qaytaradi, RIZQIM'da u
+pul yo'q), aks holda `null` (OPERATIONS.md, 31-bo'lim). P2-30: `waiting_seconds` — oshxona
 chiptasidagi qoida bilan (qabul qilingandan, qabul qilinmagan bo'lsa yaratilgandan; yangi va oshxonadagi buyurtmada
 hozirgacha, keyin tayyor bo'lgunicha, tayyor bo'lmay yopilgan bo'lsa yopilgunicha). Doska ishlayotgan soatni
 `accepted_at` (yoki `created_at`) dan o'zi sanaydi, to'xtaganini serverdan oladi.
@@ -648,7 +651,10 @@ analitikasi bilan bir xil raqam). Filialga biriktirilgan menejer doim o'z filial
 
 **Moliya tarixi** (`finance.view`, terminal PIN sessiyasidan emas; Laravel sahifalari, `per_page` 1–100, standart 25;
 `from`/`to` do'kon vaqtida):
-- `GET /owner/finance/ledger?type=` — qarz hisobi (`store_transactions`), musbat summa qarzni oshiradi.
+- `GET /owner/finance/ledger?type=` — qarz hisobi (`store_transactions`), musbat summa qarzni oshiradi. Platforma
+  to'lagan do'st taklifi bonusi (`referral_bonus`, egasining 3-qarori) ovqatxona hisobi emas — chiqmaydi
+  (`type=referral_bonus` — 422); `GET /owner/finance` ning `ledger_transactions` ida ham. Undan oldin ovqatxonadan olingan
+  bonus (`commission`, izohi `Referral cashback reward cost …`) avvalgidek ko'rinadi.
 - `GET /owner/finance/wallet?type=` — hamyon (`store_wallet_transactions`).
 - `GET /owner/payouts?status=pending|completed|rejected` — karta raqami niqoblangan (`8600 **** **** 9012`), izohlardagi
   karta raqamlari ham.
@@ -1054,6 +1060,13 @@ Iste'molchilar qonuni 28-1-modda (sotuvchi nomi, manzili, shikoyat tartibi shart
 - `GET/POST /owner/settings` (ega): `legal_name` (faqat o'qiladi), `legal_address` (≤ 500), `complaint_contact` (≤ 255).
   Yuborilmagan maydon saqlanadi, bo'sh — tozalanadi. O'zgarish jurnalga `store.seller_details_updated` (telefon
   niqoblanadi). Hamkor panelida: Sozlamalar → Do'kon → "Sotuvchi ma'lumotlari".
+
+**Ovqatxona qaytaradigan pul (`refund`, egasining 4-qarori).** `GET /orders` mijozning o'z buyurtmalarida `refund`:
+`{refund_by: "store_own_account", returned: bool}` — buyurtma puli ovqatxonaning o'z to'lov hisobiga tushgan va uni
+qaytarish yozilgan (bekor qilingan to'langan buyurtma, tasdiqlangan qaytarish so'rovi, ovqatxona kabinetidagi qaytarish);
+`returned` — to'lov provayderda qaytgan (`refunded`/`cancelled`) bo'lsa `true`. Boshqa hollarda `null`. `returned: false`
+bo'lsa Mini App «Pulni ovqatxona o'z hisobidan qaytaradi» deb yozadi; Telegram xabari va ilova push'i ham «qaytarildi»
+demaydi.
 
 **Buyurtma cheklari (`receipts`).** `GET /orders` (barcha scope'lar) mijozning **o'z** buyurtmalarida `seller` va
 `receipts` qaytaradi (`App\Domain\Receipts\CustomerOrderReceipts`), faqat `customer` roli uchun; xodim ro'yxatlarida
@@ -3324,6 +3337,18 @@ tegishli to'lovlar `payload.refund_request_ids` oladi; tasdiqdan oldin qaytarilg
 **Click/Payme orqali avtomatik qaytarish yo'q**: kodda Payme qaytarishi faqat Payme'ning `CancelTransaction` webhook'i
 sifatida keladi (kabinetdan qilinganda), Click qaytarish API (`payment/reversal`) va Uzum ulanmagan.
 
+**Ovqatxonaning o'z hisobidagi pul (egasining 4-qarori, OPERATIONS.md 31-bo'lim).** Buyurtma puli ovqatxonaning o'z
+Click/Payme/Uzum/Paynet hisobiga tushgan bo'lsa (Paylov — RIZQIM'ning `payment/cancel` i bajarilmay qolsa), qo'lda
+qaytariladigan ulush tasdiqlovchiniki emas: `execution.refund_by: "store_own_account"`, so'rovning o'zida ham `refund_by`
+(kutilayotgan so'rovda — hozir to'langan pul ovqatxona hisobida bo'lsa), javob xabari «… ni mijozga ovqatxona o'z
+hisobidan qaytaradi: ovqatxonaga xabar bering.». Buyurtma kartasida `refund_by` (buyurtma) va `payments[].refund_by`.
+Boshqa hollarda `null`. **Yetkazilgan shunday buyurtmaning komissiyasi faqat ikki kishilik tekshiruvdan keyin
+qaytariladi**: shu so'rov (biri so'raydi, boshqasi tasdiqlaydi) yoki «Ovqatxona kassasidan qaytarish» (taklif + boshqa
+xodim tasdig'i). `OrderStatusService::refund` ni bitta xodim (superadmin ham) to'g'ridan-to'g'ri chaqirsa — 422
+`two_person_check` («… Boshqaruv markazida pulni qaytarish so'rovini yarating — uni boshqa xodim tasdiqlaydi.»); nomlangan
+tekshiruv (`refund_request:<id>`, `store_refund_review`) haqiqatan o'tganini qulf ostida tekshiradi (so'rov shu buyurtmaniki,
+kutilmoqda, so'ragan boshqa odam). Naqd buyurtma va platforma yig'gan buyurtma o'zgarmagan.
+
 **Ovqatxona kassasidan qaytarish (wave P; Paylov — egasining 2-qarori).** Quyidagi Payme uchun yozilgan; ovqatxonaning o'z
 Paylov kabinetida qilingan va Paylov tasdiqlagan qaytarish (`transaction.cancel`, «Paylov» bo'limi) ham xuddi shunday
 tekshiruvga qo'yiladi va xuddi shu endpointlar bilan hal qilinadi (`provider: paylov`, `reason` yo'q, Paylov'ga javob
@@ -4221,6 +4246,7 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
   `is_order_locked, pending_payouts`; `totals` — hamma do'konlar bo'yicha.
 - `GET /admin/finance/stores/{id}/ledger?ledger=debt|wallet&cursor=` — do'kon ledger'i (eng yangisi birinchi), har yozuvda
   `order`, `subscription_invoice` (nima yopilgan yoki qayta ochilgan), `payout_request_id`; izohdagi karta raqamlari niqoblangan.
+  Platforma to'lagan `referral_bonus` yozuvlari bu yerda yo'q (ular oylik hisobotda — platforma xarajati).
 - `GET /admin/finance/summary` — tablar va "Bugun" uchun sonlar.
 
 ### Qo'lda tuzatish
@@ -4242,7 +4268,10 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
 ### Oylik hisobot
 
 `GET /admin/finance/reports/monthly?period=YYYY-MM` (Toshkent oyi, odatda joriy) — `totals {orders, gmv, commission,
-commission_refunded, subscription, total}`, `channels[]` (`rizqim_courier`, `own_delivery`, `pickup`, `pos`, `aggregator`,
+commission_refunded, subscription, total, referral_count, referral_bonuses, net}` (egasining 3-qarori: `referral_bonuses` —
+oyda RIZQIM o'z daromadidan to'lagan do'st taklifi bonuslari, `store_transactions.type = referral_bonus`, `referral_count`
+ta; `net` = `total` − `referral_bonuses`; Excel'da «Do'st taklifi bonuslari (RIZQIM to'lagan)», «Bonuslar soni»,
+«Bonuslardan keyingi daromad»), `channels[]` (`rizqim_courier`, `own_delivery`, `pickup`, `pos`, `aggregator`,
 `unknown` — kanal yozilmagan eski buyurtmalar), `subscriptions {invoices, invoiced, paid, outstanding}`, `stores[]` (eng
 kattasi birinchi, `commission_by_channel`). Komissiya: shu oyda yetkazilgan (birinchi `delivered` yozuvi) va hali yetkazilgan
 holatdagi buyurtmalarning `commission_amount` i, **qisman qaytarishlar ayirilgan** (`order_ledger_reversals`); to'liq
@@ -4315,7 +4344,12 @@ qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_l
 
 `GET /admin/users/{id}` — karta:
 
-- `profile` (telefon, SMS bilan tasdiqlanganmi, Telegram, kuryer turi, kim taklif qilgan, nechta odamni taklif qilgan),
+- `profile` (telefon, SMS bilan tasdiqlanganmi, Telegram, kuryer turi, kim taklif qilgan, nechta odamni taklif qilgan,
+  egasining 3-qarori: `referral_bonus` — taklif bilan kelgan mijozda `{status: granted|pending|not_earned, label, order:
+  {uuid, short_code}|null, unverified_deliveries}`, boshqalarda `null`. `pending` — platforma to'lovini tasdiqlagan
+  yetkazilgan buyurtma hali yo'q (naqd va ovqatxonaning o'z Click/Payme/Uzum/Paynet hisobiga to'langanlar hisobga
+  olinmaydi, `unverified_deliveries` — shunday yetkazilganlar soni); `not_earned` — birinchi tasdiqlangan yetkazilgan
+  buyurtma 50 000 so'mdan kam edi; `label` — kartada ko'rsatiladigan o'zbekcha izoh),
   `block` (`blocked`, `at`, `reason`, `by`);
 - `stats`: buyurtmalar soni, yetkazilgan, bekor qilingan, yetkazilganlar summasi, o'rtacha chek, oxirgi buyurtma, toifa
   (`segment`: 10+ buyurtma — doimiy mijoz (VIP), 2+ — qaytgan, 1 — yangi, 0 — buyurtma bermagan; eski paneldagi
@@ -4324,7 +4358,9 @@ qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_l
   `orders.view` bo'lmasa `null`;
 - `keshbek`: `balance` (users.balance — asosiy qiymat) va `entries`. Keshbek uchun alohida ledger jadvali yo'q, harakatlar
   yozilgan joyidan tiklanadi: keshbek bilan to'lov (minus), qisman qaytarishlar va bekor qilishda qaytgani (plus), do'st
-  taklifi bonusi 5 000 (plus);
+  taklifi bonusi 5 000 (plus; egasining 3-qaroridan beri faqat do'stning to'lovini platforma tasdiqlagan birinchi
+  yetkazilgan buyurtmasi uchun va uni RIZQIM to'laydi — `referral_bonus` yozuvi; eski, ovqatxona to'lagan
+  `commission` + izohli yozuvlar ham o'qiladi);
 - `complaints` (oxirgi 20) — `support.view` bo'lmasa `null`;
 - `sessions`: faol tokenlar (Mini App / Telegram, ilova, kassa PIN sessiyasi; admin sessiyasi hech qachon), ilova
   sessiyalari (refresh), oxirgi foydalanish, shaxsiy qurilmalari;

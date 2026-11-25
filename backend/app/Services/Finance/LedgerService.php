@@ -17,8 +17,13 @@ use Exception;
 
 class LedgerService
 {
-    // A referral reward's cost is booked as a COMMISSION row of the referred order; its note tells it apart.
-    private const REFERRAL_NOTE = 'Referral cashback reward cost';
+    // Before owner decision 3's addition a referral reward's cost was charged to the store: a COMMISSION row of the
+    // referred order on its debt, told apart by this note. Those rows stay as they are (no rewrite); every reader still
+    // tells them apart from commission. New bonuses are StoreTransactionType::REFERRAL_BONUS rows the platform pays.
+    public const REFERRAL_NOTE = 'Referral cashback reward cost';
+
+    /** The note of a platform-paid referral bonus row (StoreTransactionType::REFERRAL_BONUS). */
+    public const REFERRAL_BONUS_NOTE = 'Referral bonus paid by the platform';
 
     /**
      * P4-21: the subscription part of the debt (docs/BILLING.md, "Qarzning ikki qismi"): payments pay the oldest
@@ -276,7 +281,7 @@ class LedgerService
         $this->grantReferralReward($order, $performedBy);
     }
 
-    /** The referral bonus: 5 000 ball to the referrer, charged to the store of the order that earned it. */
+    /** The referral bonus: 5 000 ball to the referrer, paid by the platform out of its commission income. */
     public const REFERRAL_REWARD = 5000;
 
     /** The smallest order total that earns the referral bonus. */
@@ -284,8 +289,9 @@ class LedgerService
 
     /**
      * The referrer's bonus for a referred customer's first delivered order whose payment the platform verified (owner
-     * decision 3, ReferralService::paymentVerifiedByPlatform): 5 000 ball to the referrer, the same 5 000 charged to the
-     * order's store (a COMMISSION row with the referral note on its debt, as before). An order the platform could not
+     * decision 3, ReferralService::paymentVerifiedByPlatform): 5 000 ball to the referrer, paid by the platform out of
+     * its commission income (owner decision 3's addition): a REFERRAL_BONUS row on the order's store ledger records it
+     * (the platform's cost, `amount`) without moving the store's debt or wallet. An order the platform could not
      * verify (cash, the store's own Click / Payme / Uzum / Paynet) neither earns it nor uses it up: the next verified
      * delivery still does. The first verified delivery uses it up whatever it earns (below 50 000: nothing, as before).
      *
@@ -307,7 +313,7 @@ class LedgerService
         return DB::transaction(function () use ($order, $performedBy) {
             $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
             $user = \App\Models\User::whereKey($order->user_id)->lockForUpdate()->first();
-            if (!$user || !$user->referred_by || $this->referralRewarded((int) $user->id) || !$this->isFirstVerifiedDelivery($order)) {
+            if (!$user || !$user->referred_by || !$this->referralStillOpenFor($order)) {
                 return false;
             }
 
@@ -319,49 +325,67 @@ class LedgerService
             // 1. Award the cashback points to the referrer
             $referrer->increment('balance', self::REFERRAL_REWARD);
 
-            // 2. Charge them to the store's debt
-            $balanceBefore = Money::of($lockedStore->debt_balance);
-            $balanceAfter = $balanceBefore->plus(self::REFERRAL_REWARD);
-
+            // 2. Owner decision 3 (addition): the platform pays it out of its commission income, the store is never
+            // charged. The row on the order's store ledger is the exactly-once marker and the platform's cost record:
+            // the store's debt and wallet do not move (balance_before = balance_after), `amount` is what was paid
+            $balance = Money::of($lockedStore->debt_balance)->toString();
             StoreTransaction::create([
                 'store_id' => $lockedStore->id,
-                'type' => StoreTransactionType::COMMISSION->value,
+                'type' => StoreTransactionType::REFERRAL_BONUS->value,
                 'amount' => Money::of(self::REFERRAL_REWARD)->toString(),
-                'balance_before' => $balanceBefore->toString(),
-                'balance_after' => $balanceAfter->toString(),
+                'balance_before' => $balance,
+                'balance_after' => $balance,
                 'reference_id' => $order->uuid,
                 'order_id' => $order->id,
                 'performed_by' => $performedBy,
-                'notes' => self::referralNote((int) $user->id),
+                'notes' => self::referralBonusNote((int) $user->id),
             ]);
-
-            $lockedStore->forceFill(['debt_balance' => $balanceAfter->toString()])->save();
 
             return true;
         });
     }
 
-    /** The store_transactions note of a referral reward ("Referral cashback reward cost for referred user #12"). */
+    /** The note of a legacy, store-charged referral reward ("Referral cashback reward cost for referred user #12"). */
     public static function referralNote(int $referredUserId): string
     {
         return self::REFERRAL_NOTE . " for referred user #{$referredUserId}";
     }
 
-    /**
-     * Whether a referral reward was booked for any order of this customer, at any store. Stage 3: as the login role,
-     * because inside a tenant transaction row-level security hides the other stores' rows; only "exists" comes back.
-     */
-    public function referralRewarded(int $referredUserId): bool
+    /** The note of a platform-paid referral bonus ("Referral bonus paid by the platform for referred user #12"). */
+    public static function referralBonusNote(int $referredUserId): string
     {
-        return \App\Support\Tenancy\TenantRls::asApp(fn () => StoreTransaction::query()
-            // The customer's orders at every store: the bonus is the platform's, once per referred customer
-            ->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
-            ->where('type', StoreTransactionType::COMMISSION->value)
-            ->where('notes', self::referralNote($referredUserId))
-            // ...of this customer's orders at every store
-            ->whereIn('order_id', \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
-                ->select('id')->where('user_id', $referredUserId))
-            ->exists());
+        return self::REFERRAL_BONUS_NOTE . " for referred user #{$referredUserId}";
+    }
+
+    /**
+     * Narrows a store_transactions query to the referral rewards of this referred customer, in both shapes: the
+     * platform-paid REFERRAL_BONUS row, and the legacy store-charged COMMISSION row with the referral note.
+     *
+     * @template TQuery of \Illuminate\Database\Eloquent\Builder<StoreTransaction>|\Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    public static function whereReferralRewardOf($query, int $referredUserId, string $table = 'store_transactions')
+    {
+        return $query->where(fn ($rows) => $rows
+            ->where(fn ($row) => $row->where("{$table}.type", StoreTransactionType::REFERRAL_BONUS->value)->where("{$table}.notes", self::referralBonusNote($referredUserId)))
+            ->orWhere(fn ($row) => $row->where("{$table}.type", StoreTransactionType::COMMISSION->value)->where("{$table}.notes", self::referralNote($referredUserId))));
+    }
+
+    /**
+     * Narrows a store_transactions query to every referral reward, in both shapes (see whereReferralRewardOf).
+     *
+     * @template TQuery of \Illuminate\Database\Eloquent\Builder<StoreTransaction>|\Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    public static function whereAnyReferralReward($query, string $table = 'store_transactions')
+    {
+        return $query->where(fn ($rows) => $rows
+            ->where("{$table}.type", StoreTransactionType::REFERRAL_BONUS->value)
+            ->orWhere(fn ($row) => $row->where("{$table}.type", StoreTransactionType::COMMISSION->value)->where("{$table}.notes", 'like', self::REFERRAL_NOTE . '%')));
     }
 
     /**
@@ -376,33 +400,53 @@ class LedgerService
     }
 
     /**
-     * Whether no other order of the customer whose payment the platform verified was delivered before this one (a
-     * refunded one was delivered too, and one without a recorded delivery counts as earlier). Decided by the order of
+     * Whether this order may still earn the customer's referral bonus: none was booked for any order of the customer at
+     * any store (once per referred customer — also when a later-paid earlier delivery is verified after a later one
+     * earned it), and no other order of the customer whose payment the platform verified was delivered before this one
+     * (a refunded one was delivered too, and one without a recorded delivery counts as earlier). Decided by the order of
      * the delivered status history rows, so a booking retried after the customer's next order was delivered still sees
-     * this one as the first. Owner decision 3: an order the platform could not verify (cash, the store's own Click /
-     * Payme / Uzum / Paynet) is no earlier delivery: it never uses the referral up.
+     * this one as the first. Owner decision 3: an order the platform could not verify
+     * (ReferralService::paymentVerifiedByPlatform: cash, the store's own Click / Payme / Uzum / Paynet) is no earlier
+     * delivery: it never uses the referral up.
      */
-    private function isFirstVerifiedDelivery(\App\Models\Order $order): bool
+    private function referralStillOpenFor(\App\Models\Order $order): bool
     {
         $delivered = \App\Enums\OrderStatus::DELIVERED->value;
         $deliveredAs = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', $delivered)->min('id');
+        // The customer's orders at every store (see below why)
+        $customerOrders = fn () => \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
+            ->select('id')->where('user_id', $order->user_id);
 
-        // M4: the customer's orders at every store (the platform's first delivery), also when a store's staff deliver.
-        // Stage 3: as the login role, because inside the delivery's tenant transaction row-level security hides the
-        // other stores' orders whatever the scope says (the reward would be paid again at every store). Only whether
-        // one of them was verified comes back, nothing of another store's order leaves this method
-        return !\App\Support\Tenancy\TenantRls::asApp(fn () => \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('user_id', $order->user_id)
-            ->whereKeyNot($order->id)
-            ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
-            ->where('payment_method', '!=', 'cash')
-            ->whereIn('payment_status', [PaymentStatus::PAID->value, PaymentStatus::REFUNDED->value])
-            ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(
-                'statusHistories',
-                fn ($history) => $history->where('status', $delivered)->where('id', '>', $deliveredAs)
-            ))
-            ->orderBy('id')
-            ->get(['id', 'store_id', 'payment_method', 'payment_owner', 'payment_status'])
-            ->contains(fn (\App\Models\Order $earlier) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($earlier)));
+        // M4: the customer's orders at every store (the platform's bonus, once per referred customer), also when a
+        // store's staff deliver. Stage 3: as the login role, because inside the delivery's tenant transaction row-level
+        // security hides the other stores' rows whatever the scope says (the reward would be paid again at every
+        // store). Only two booleans leave the callback, nothing of another store's order or payment
+        return \App\Support\Tenancy\TenantRls::asApp(function () use ($order, $delivered, $deliveredAs, $customerOrders) {
+            // A reward booked at any store: the bonus is the platform's, once per referred customer
+            // Both shapes: a platform-paid bonus, and a legacy one charged to a store before owner decision 3's addition
+            $rewarded = self::whereReferralRewardOf(StoreTransaction::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class), (int) $order->user_id)
+                ->whereIn('order_id', $customerOrders())
+                ->exists();
+            if ($rewarded) {
+                return false;
+            }
+
+            // Any of the customer's orders at every store delivered before this one and verified. The verified-payment
+            // rule is ReferralService::paymentVerifiedByPlatform alone (no SQL pre-filter): widening it widens this too
+            $earlierVerified = \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
+                ->where('user_id', $order->user_id)
+                ->whereKeyNot($order->id)
+                ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
+                ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(
+                    'statusHistories',
+                    fn ($history) => $history->where('status', $delivered)->where('id', '>', $deliveredAs)
+                ))
+                ->orderBy('id')
+                ->get(['id', 'store_id', 'payment_method', 'payment_owner', 'payment_status'])
+                ->contains(fn (\App\Models\Order $earlier) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($earlier));
+
+            return !$earlierVerified;
+        });
     }
 
     /**

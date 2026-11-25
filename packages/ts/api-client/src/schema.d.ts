@@ -1043,7 +1043,8 @@ export interface paths {
          * @description `period` — "YYYY-MM", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in
          *     the month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from
          *     before the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total
-         *     first. Amounts are decimal strings.
+         *     first. Owner decision 3: `referral_bonuses` — the referral bonuses RIZQIM paid out of its own income in the month
+         *     (`referral_count` of them), its cost; `net` = `total` − `referral_bonuses`. Amounts are decimal strings.
          */
         get: operations["admin.finance.reports.monthly"];
         put?: never;
@@ -4704,7 +4705,10 @@ export interface paths {
          *     Wave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a
          *     9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the
          *     store's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:
-         *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.
+         *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`
+         *     (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the
+         *     restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back
+         *     — else null). Staff lists (floor staff's own till orders included) do not.
          */
         get: operations["order.index"];
         put?: never;
@@ -6062,7 +6066,9 @@ export interface paths {
         /**
          * Debt ledger
          * @description The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),
-         *     subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.
+         *     subscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt. A referral
+         *     bonus is the platform's own cost and never listed (owner decision 3); one charged to the store before that (a
+         *     `commission` row with the note "Referral cashback reward cost ...") still is.
          */
         get: operations["financeHistory.ledger"];
         put?: never;
@@ -12219,7 +12225,9 @@ export interface paths {
         /**
          * One order for staff (detail)
          * @description Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order
-         *     of another store or of a branch the caller does not work in.
+         *     of another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`
+         *     once a refund of money paid into the store's own provider account was recorded (the store gives it back from its
+         *     own cabinet: RIZQIM holds none of it), else null.
          */
         get: operations["staffOrder.show"];
         put?: never;
@@ -14262,7 +14270,7 @@ export interface components {
          * StoreTransactionType
          * @enum {string}
          */
-        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment" | "subscription";
+        StoreTransactionType: "commission" | "topup" | "settlement" | "payout" | "refund" | "adjustment" | "subscription" | "referral_bonus";
         /** StoreWalletTransaction */
         StoreWalletTransaction: {
             id: number;
@@ -17475,6 +17483,9 @@ export interface operations {
                                 commission_refunded: string;
                                 subscription: string;
                                 total: string;
+                                referral_count: number;
+                                referral_bonuses: string;
+                                net: string;
                             };
                             channels: {
                                 channel: string;
@@ -21007,6 +21018,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -22786,6 +22798,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -22864,6 +22877,7 @@ export interface operations {
                             execution: {
                                 [key: string]: unknown;
                             } | null;
+                            refund_by: string | null;
                             mine: boolean;
                             can_decide: boolean;
                         };
@@ -61633,6 +61647,7 @@ export interface operations {
                                 status: string;
                                 created_at: string | null;
                             }[];
+                            refund_by: string | null;
                         };
                     };
                 };
@@ -62108,6 +62123,7 @@ export interface operations {
                                 status: string;
                                 created_at: string | null;
                             }[];
+                            refund_by: string | null;
                         };
                     };
                 };

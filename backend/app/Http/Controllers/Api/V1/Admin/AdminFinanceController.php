@@ -271,6 +271,9 @@ class AdminFinanceController extends AdminController
         $wallet = ($data['ledger'] ?? 'debt') === 'wallet';
         $model = $wallet ? StoreWalletTransaction::class : StoreTransaction::class;
         $page = $model::query()->where('store_id', $store->id)
+            // Owner decision 3's addition: a referral bonus the platform paid is the platform's cost, not a store row
+            // (the revenue report shows it); a legacy store-charged one stays (a commission row)
+            ->when(!$wallet, fn ($query) => $query->where('type', '!=', StoreTransactionType::REFERRAL_BONUS->value))
             ->orderByDesc('id')
             ->cursorPaginate((int) ($data['per_page'] ?? 50))
             ->withQueryString();

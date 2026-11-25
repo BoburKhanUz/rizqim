@@ -25,13 +25,28 @@ final class StoreOwnRefund
     public const LABEL = "Pulni ovqatxona o'z hisobidan qaytaradi";
 
     /**
+     * Whether the order is "store-owned" in the sense of owner decision 4: paid online straight into the store's own
+     * provider account (payment_owner STORE, OrderMerchantAccount), not cash. A cash order (the store's till) and a POS
+     * order (cash, commission 0) are not: their refunds are unchanged. OrderStatusService refuses a person's refund of
+     * such an order once delivered unless it went through a two-person check.
+     */
+    public static function isStoreOwned(Order $order): bool
+    {
+        return OrderMerchantAccount::isStore($order) && $order->payment_method !== 'cash';
+    }
+
+    /**
      * Whether giving this payment's money back is the store's, never RIZQIM's: a provider payment of a store-owned
      * order (keshbek goes back to the balance and cash is in the store's till anyway) that RIZQIM cannot refund itself.
+     * A refund the store already made in its own cabinet (StoreRefundReview held it) is the store's too.
      */
     public static function isStores(Order $order, Payment $payment): bool
     {
-        if (!OrderMerchantAccount::isStore($order) || in_array($payment->provider, ['keshbek', 'cash'], true)) {
+        if (!self::isStoreOwned($order) || in_array($payment->provider, ['keshbek', 'cash'], true)) {
             return false;
+        }
+        if (is_array($payment->payload[StoreRefundReview::KEY] ?? null)) {
+            return true;
         }
         if ($payment->provider === 'paylov' && $payment->provider_transaction_id !== null) {
             // RIZQIM's payment/cancel (with the store's account) gives it back, unless it was refused for good
@@ -42,12 +57,14 @@ final class StoreOwnRefund
     }
 
     /**
-     * Whether a refund of this payment was recorded for someone to make by hand: flagged by a cancel or a refund
-     * (manual_refund_required), or a share of an approved refund request (manual_refund_approved).
+     * Whether a refund of this payment was recorded: flagged for someone to make by hand by a cancel or a refund
+     * (manual_refund_required), a share of an approved refund request (manual_refund_approved), or a refund the store
+     * made in its own cabinet that waits for (or got) a manager's decision (StoreRefundReview).
      */
     public static function refundRecorded(Payment $payment): bool
     {
-        return !empty($payment->payload['manual_refund_required']) || !empty($payment->payload['manual_refund_approved']);
+        return !empty($payment->payload['manual_refund_required']) || !empty($payment->payload['manual_refund_approved'])
+            || is_array($payment->payload[StoreRefundReview::KEY] ?? null);
     }
 
     /**

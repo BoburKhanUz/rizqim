@@ -33,9 +33,7 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
   customer: json['customer'] == null
       ? null
       : Customer5.fromJson(json['customer'] as Map<String, dynamic>),
-  statusHistory: (json['status_history'] as List<dynamic>)
-      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  refundBy: json['refund_by'] as String?,
   courier: json['courier'] == null
       ? null
       : Courier5.fromJson(json['courier'] as Map<String, dynamic>),
@@ -51,6 +49,9 @@ Data371 _$Data371FromJson(Map<String, dynamic> json) => Data371(
   readyAt: json['ready_at'] as String?,
   closedAt: json['closed_at'] as String?,
   waitingSeconds: (json['waiting_seconds'] as num).toInt(),
+  statusHistory: (json['status_history'] as List<dynamic>)
+      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
+      .toList(),
   delivery: json['delivery'] == null
       ? null
       : Delivery8.fromJson(json['delivery'] as Map<String, dynamic>),
@@ -94,4 +95,5 @@ Map<String, dynamic> _$Data371ToJson(Data371 instance) => <String, dynamic>{
   'closed_at': instance.closedAt,
   'waiting_seconds': instance.waitingSeconds,
   'status_history': instance.statusHistory,
+  'refund_by': instance.refundBy,
 };

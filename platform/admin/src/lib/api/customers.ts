@@ -57,6 +57,14 @@ export interface AuditEntry {
   created_at: string | null;
 }
 
+/** Owner decision 3: the referrer's bonus for a referred customer (only a delivered order the platform verified earns it) */
+export interface ReferralBonus {
+  status: 'granted' | 'pending' | 'not_earned';
+  label: string;
+  order: { uuid: string; short_code: string | null } | null;
+  unverified_deliveries: number;
+}
+
 export interface UserCard {
   profile: {
     id: number;
@@ -70,6 +78,8 @@ export interface UserCard {
     courier_type: { value: string; label: string } | null;
     referred_by: Named | null;
     referrals: number;
+    /** Owner decision 3: whether the referrer's bonus for this referred customer was granted, and why it may still wait */
+    referral_bonus?: ReferralBonus | null;
     created_at: string | null;
   };
   block: { blocked: boolean; at: string | null; reason: string | null; by: Named | null };

@@ -9617,7 +9617,7 @@
         "/v1/admin/finance/reports/monthly": {
             "get": {
                 "operationId": "admin.finance.reports.monthly",
-                "description": "`period` — \"YYYY-MM\", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in\nthe month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from\nbefore the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total\nfirst. Amounts are decimal strings.",
+                "description": "`period` — \"YYYY-MM\", an Asia/Tashkent month (default: the current one). Commission: the orders delivered in\nthe month that are still delivered, less what partial refunds took back; by channel (`unknown` — orders from\nbefore the channel was recorded). Subscriptions: the month's invoices that are not void. Stores — largest total\nfirst. Owner decision 3: `referral_bonuses` — the referral bonuses RIZQIM paid out of its own income in the month\n(`referral_count` of them), its cost; `net` = `total` − `referral_bonuses`. Amounts are decimal strings.",
                 "summary": "Monthly revenue report",
                 "tags": [
                     "Admin"
@@ -9665,6 +9665,15 @@
                                                         },
                                                         "total": {
                                                             "type": "string"
+                                                        },
+                                                        "referral_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "referral_bonuses": {
+                                                            "type": "string"
+                                                        },
+                                                        "net": {
+                                                            "type": "string"
                                                         }
                                                     },
                                                     "required": [
@@ -9673,7 +9682,10 @@
                                                         "commission",
                                                         "commission_refunded",
                                                         "subscription",
-                                                        "total"
+                                                        "total",
+                                                        "referral_count",
+                                                        "referral_bonuses",
+                                                        "net"
                                                     ]
                                                 },
                                                 "channels": {
@@ -21336,6 +21348,12 @@
                                                     ],
                                                     "additionalProperties": {}
                                                 },
+                                                "refund_by": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "mine": {
                                                     "type": "boolean"
                                                 },
@@ -21356,6 +21374,7 @@
                                                 "decided_at",
                                                 "decision_note",
                                                 "execution",
+                                                "refund_by",
                                                 "mine",
                                                 "can_decide"
                                             ]
@@ -26880,6 +26899,12 @@
                                                     ],
                                                     "additionalProperties": {}
                                                 },
+                                                "refund_by": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "mine": {
                                                     "type": "boolean"
                                                 },
@@ -26900,6 +26925,7 @@
                                                 "decided_at",
                                                 "decision_note",
                                                 "execution",
+                                                "refund_by",
                                                 "mine",
                                                 "can_decide"
                                             ]
@@ -27077,6 +27103,12 @@
                                                     ],
                                                     "additionalProperties": {}
                                                 },
+                                                "refund_by": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "mine": {
                                                     "type": "boolean"
                                                 },
@@ -27097,6 +27129,7 @@
                                                 "decided_at",
                                                 "decision_note",
                                                 "execution",
+                                                "refund_by",
                                                 "mine",
                                                 "can_decide"
                                             ]
@@ -42167,7 +42200,7 @@
         "/v1/orders": {
             "get": {
                 "operationId": "order.index",
-                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.\n\nWave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a\n9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the\nstore's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:\nready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link). Staff lists (floor staff's own till orders included) do not.",
+                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.\n\nWave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a\n9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the\nstore's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:\nready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`\n(owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the\nrestaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back\n— else null). Staff lists (floor staff's own till orders included) do not.",
                 "summary": "List orders",
                 "tags": [
                     "Orders"
@@ -55021,7 +55054,7 @@
         "/v1/owner/finance/ledger": {
             "get": {
                 "operationId": "financeHistory.ledger",
-                "description": "The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),\nsubscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt.",
+                "description": "The store's debt balance movements (store_transactions): commission (debt up), top-up (debt down),\nsubscription invoices and their voids, refunds and adjustments. A positive `amount` raises the debt. A referral\nbonus is the platform's own cost and never listed (owner decision 3); one charged to the store before that (a\n`commission` row with the note \"Referral cashback reward cost ...\") still is.",
                 "summary": "Debt ledger",
                 "tags": [
                     "Owner: finance history"
@@ -169773,7 +169806,7 @@
         "/v1/staff/orders/{uuid}": {
             "get": {
                 "operationId": "staffOrder.show",
-                "description": "Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order\nof another store or of a branch the caller does not work in.",
+                "description": "Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order\nof another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`\nonce a refund of money paid into the store's own provider account was recorded (the store gives it back from its\nown cabinet: RIZQIM holds none of it), else null.",
                 "summary": "One order for staff (detail)",
                 "tags": [
                     "Staff orders"
@@ -170243,6 +170276,12 @@
                                                             "created_at"
                                                         ]
                                                     }
+                                                },
+                                                "refund_by": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -170282,7 +170321,8 @@
                                                 "ready_at",
                                                 "closed_at",
                                                 "waiting_seconds",
-                                                "status_history"
+                                                "status_history",
+                                                "refund_by"
                                             ]
                                         }
                                     },
@@ -172278,6 +172318,12 @@
                                                             "created_at"
                                                         ]
                                                     }
+                                                },
+                                                "refund_by": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -172317,7 +172363,8 @@
                                                 "ready_at",
                                                 "closed_at",
                                                 "waiting_seconds",
-                                                "status_history"
+                                                "status_history",
+                                                "refund_by"
                                             ]
                                         }
                                     },
@@ -180629,7 +180676,8 @@
                     "payout",
                     "refund",
                     "adjustment",
-                    "subscription"
+                    "subscription",
+                    "referral_bonus"
                 ],
                 "title": "StoreTransactionType"
             },

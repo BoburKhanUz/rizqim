@@ -145,6 +145,14 @@ export interface Order {
   // Wave P (receipts), the customer's own orders only: the seller when the order was placed and its fiscal receipts
   seller?: StoreSeller | null;
   receipts?: OrderReceipt[];
+  // Owner decision 4, the customer's own orders only: a refund of money paid into the restaurant's own account — the
+  // restaurant gives it back; `returned` once the payment provider shows it back. Null otherwise
+  refund?: OrderStoreRefund | null;
+}
+
+export interface OrderStoreRefund {
+  refund_by: 'store_own_account';
+  returned: boolean;
 }
 
 // Wave P (receipts): a sale or refund receipt of the order (App\Domain\Receipts\CustomerOrderReceipts). `ready`

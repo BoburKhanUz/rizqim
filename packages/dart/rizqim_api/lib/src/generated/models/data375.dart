@@ -39,7 +39,7 @@ class Data375 {
     required this.cancelReason,
     required this.cancelNote,
     required this.customer,
-    required this.statusHistory,
+    required this.refundBy,
     required this.courier,
     required this.itemsTotal,
     required this.itemsReady,
@@ -51,6 +51,7 @@ class Data375 {
     required this.readyAt,
     required this.closedAt,
     required this.waitingSeconds,
+    required this.statusHistory,
     required this.delivery,
   });
 
@@ -120,6 +121,8 @@ class Data375 {
   final int waitingSeconds;
   @JsonKey(name: 'status_history')
   final List<StatusHistory2> statusHistory;
+  @JsonKey(name: 'refund_by')
+  final String? refundBy;
 
   Map<String, Object?> toJson() => _$Data375ToJson(this);
 }

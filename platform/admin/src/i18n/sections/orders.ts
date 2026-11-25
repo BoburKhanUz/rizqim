@@ -143,6 +143,10 @@ export const orders = defineSection({
     orders_refundDecidedBy: "Ko'rib chiqdi: {{name}}, {{time}}",
     orders_refundAwaiting: 'Tasdiq kutilmoqda: uni boshqa xodim tasdiqlaydi',
     orders_refundManualLeft: "{{amount}} mijozga to'lov tizimi kabinetida yoki naqd qaytariladi",
+    // Owner decision 4 (refund_by: store_own_account)
+    orders_refundByStore: "Pulni ovqatxona o'z hisobidan qaytaradi",
+    orders_refundByStoreHint: "Pul ovqatxonaning o'z to'lov hisobida, RIZQIM'da emas: ovqatxonaga xabar bering. Yetkazilgan buyurtmaning komissiyasi faqat ikki xodim tekshiruvidan keyin qaytadi.",
+    orders_refundByStoreLeft: "{{amount}} mijozga ovqatxona o'z hisobidan qaytaradi",
     orders_refundAutomatic: '{{amount}} avtomatik qaytdi (keshbek)',
     orders_approve: 'Tasdiqlash',
     orders_reject: 'Rad etish',

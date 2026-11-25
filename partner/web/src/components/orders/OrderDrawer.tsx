@@ -185,6 +185,13 @@ export function OrderDrawer({ order, detail, detailLoading, detailError, onRetry
             <p className="text-footnote text-fg-muted">
               {paymentMethodLabel(shown.payment_method, language) || shown.payment_method} · {paymentStatusLabel(t, shown.payment_status)}
             </p>
+            {/* Owner decision 4: a refund of money paid into the store's own account is the store's to make */}
+            {detail?.refund_by === 'store_own_account' && (
+              <div role="note" className="mt-1 rounded-control bg-warning-soft px-3 py-2 text-footnote text-warning-soft-fg" data-testid="order-refund-by-store">
+                <p className="font-bold">{t('board_refundByStore')}</p>
+                <p>{t('board_refundByStoreHint')}</p>
+              </div>
+            )}
             <dl className="mt-1 flex flex-col gap-1 text-body">
               <MoneyRow label={t('board_subtotal')} value={money(shown.subtotal)} />
               {nonZero(shown.discount) && <MoneyRow label={t('board_discount')} value={`−${money(shown.discount)}`} />}

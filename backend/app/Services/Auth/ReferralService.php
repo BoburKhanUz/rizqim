@@ -98,9 +98,12 @@ class ReferralService
      * Never: cash (nobody can confirm it was paid), and Click / Payme / Uzum / Paynet into the store's own account (a
      * store knows the key its own callbacks are signed with, so it can report a payment that never happened).
      *
-     * A paid order refunded later still counts (`refunded` payment status): it was paid when it earned the bonus.
+     * Keshbek (payment_owner PLATFORM) counts: it is taken from the platform's own balance ledger, nothing a store can
+     * report. A paid order refunded later still counts (`refunded` payment status): it was paid when it earned the bonus.
      *
-     * To also grant the bonus for cash orders (owner's choice, docs/OPERATIONS.md 31-bo'lim), add as the first line:
+     * This is the only place the rule lives: LedgerService (grant, "first verified delivery") and the admin customer card
+     * (UserCardPresenter::referralBonus) only call it. To also grant the bonus for cash orders (owner's choice,
+     * docs/OPERATIONS.md 31-bo'lim), add this as the method's first line:
      *     if ($order->payment_method === 'cash') { return true; }
      *
      * Reads the order's payments of its own store (other stores' orders: the caller runs it as the login role).

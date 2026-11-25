@@ -127,6 +127,49 @@ class StoreOwnAccountRefundTest extends TestCase
         $this->assertSame(0, $this->reversals($order));
     }
 
+    public function test_a_named_two_person_check_must_really_have_happened(): void
+    {
+        $order = $this->deliveredOrder('click');
+        $asker = $this->makeMember();
+        $refund = fn (\App\Models\User $actor, string $check) => app(OrderStatusService::class)->refund($order->fresh(), $actor, 'Qaytarish', false, $check);
+        $refused = function (callable $call): void {
+            try {
+                $call();
+                $this->fail('Refunded without a real two-person check.');
+            } catch (OrderTransitionException $e) {
+                $this->assertSame('two_person_check', $e->reason);
+            }
+        };
+
+        // A request that does not exist, one of another order, and the asker approving their own request alone
+        $refused(fn () => $refund($asker, 'refund_request:999999'));
+        $other = $this->paidOrder('click', 'STORE', OrderStatus::DELIVERED);
+        $foreign = app(\App\Services\Admin\Orders\RefundRequestService::class)->request($other, $asker, '50000', 'Boshqa buyurtma');
+        $refused(fn () => $refund($this->makeMember(), "refund_request:{$foreign->id}"));
+        $own = app(\App\Services\Admin\Orders\RefundRequestService::class)->request($order, $asker, '50000', 'Taom kelmadi');
+        $refused(fn () => $refund($asker, "refund_request:{$own->id}"));
+        // No cabinet refund waiting, or an unknown check
+        $refused(fn () => $refund($this->makeMember(), 'store_refund_review'));
+        $refused(fn () => $refund($this->makeMember(), 'trust_me'));
+
+        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+        $this->assertSame('5000.00', $this->debt());
+        $this->assertSame(0, $this->reversals($order));
+    }
+
+    public function test_a_cash_order_of_the_same_store_is_refunded_by_one_admin_as_before(): void
+    {
+        // Not store-owned in the sense of decision 4 (no provider account): unchanged (OrderLifecycleRefundTest)
+        $order = $this->makeOrder(OrderStatus::ON_THE_WAY, ['courier_id' => $this->courier->id, 'payment_method' => 'cash', 'payment_owner' => 'STORE']);
+        app(OrderStatusService::class)->transition($order, OrderStatus::DELIVERED, $this->courier);
+        $this->assertSame('5000.00', $this->debt());
+
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        $this->assertTrue(app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati')->changed);
+        $this->assertSame('0.00', $this->debt());
+        $this->assertNull($this->card($order, $this->confirmedSession($this->makeMember()))['refund_by']);
+    }
+
     public function test_neither_the_store_nor_an_admin_intervention_can_refund_or_cancel_a_delivered_order(): void
     {
         $order = $this->deliveredOrder('payme');
@@ -196,10 +239,15 @@ class StoreOwnAccountRefundTest extends TestCase
         $this->assertNotNull($text);
         $this->assertStringContainsString("ovqatxona o'z hisobidan qaytaradi", mb_strtolower($text));
         $this->assertStringNotContainsString('qaytarildi', $text);
+        // ...and so does the app push
+        $push = app(\App\Services\Push\OrderPushMessages::class)->forCustomer($order->fresh());
+        $this->assertSame('Pulni ovqatxona qaytaradi', $push->title);
+        $this->assertStringNotContainsString('qaytarildi', $push->body);
 
         // The store refunds in its Payme cabinet: Payme's cancel arrives, the payment is refunded
         Payment::where('order_id', $order->id)->update(['status' => PaymentStatus::REFUNDED->value, 'cancelled_at' => now()]);
         $this->assertSame(['refund_by' => StoreOwnRefund::REFUND_BY, 'returned' => true], $this->customerOrder($order)['refund']);
+        $this->assertSame('Pul qaytarildi', app(\App\Services\Push\OrderPushMessages::class)->forCustomer($order->fresh())->title);
     }
 
     public function test_a_partial_refund_reverses_its_share_once_and_only_on_the_second_members_approval(): void
@@ -248,6 +296,9 @@ class StoreOwnAccountRefundTest extends TestCase
 
         $order = $held();
         $this->assertSame('5000.00', $this->debt());
+        // The store gave the money back in its own cabinet: labelled, and the customer sees it back
+        $this->assertSame(StoreOwnRefund::REFUND_BY, $this->card($order, $this->confirmedSession($this->makeMember()))['refund_by']);
+        $this->assertSame(['refund_by' => StoreOwnRefund::REFUND_BY, 'returned' => true], $this->customerOrder($order)['refund']);
         $this->assertSame(StoreRefundReviewDecision::PROPOSED, $decisions->approve($order, $first, 'Taklif')['decision']);
         $this->assertSame('5000.00', $this->debt());
         $this->assertSame(StoreRefundReview::APPROVED, $decisions->approve($order, $second, 'Tasdiq')['decision']);

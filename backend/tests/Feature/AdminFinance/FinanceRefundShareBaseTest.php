@@ -165,8 +165,15 @@ class FinanceRefundShareBaseTest extends TestCase
         $this->assertSame('0.00', $this->store->fresh()->debt_balance);
         $this->assertTrue(OrderLedgerReversal::where('order_id', $order->id)->latest('id')->first()->is_full);
 
-        // The order's own refund afterwards finds nothing left to reverse
-        app(OrderStatusService::class)->refund($order->fresh(), null, 'Tizim');
+        // The order's own refund afterwards finds nothing left to reverse. Owner decision 4: on this store-owned order
+        // only a provider-confirmed refund (the system) or a two-person check may run it; a bare system call is refused
+        try {
+            app(OrderStatusService::class)->refund($order->fresh(), null, 'Tizim');
+            $this->fail('A delivered store-owned order is refunded only after a two-person check.');
+        } catch (\App\Services\Order\OrderTransitionException $e) {
+            $this->assertSame('two_person_check', $e->reason);
+        }
+        app(OrderStatusService::class)->refund($order->fresh(), null, 'Payme qaytardi', true);
         $this->assertSame('5000.00', $this->commissionReversed($order));
     }
 

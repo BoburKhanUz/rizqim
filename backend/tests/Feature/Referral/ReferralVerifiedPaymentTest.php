@@ -115,7 +115,7 @@ class ReferralVerifiedPaymentTest extends TestCase
     private function rewards(): array
     {
         return \App\Support\Tenancy\TenantRls::asApp(fn () => StoreTransaction::query()->withoutGlobalScopes()
-            ->where('type', StoreTransactionType::COMMISSION->value)->where('notes', 'like', 'Referral%')
+            ->where('type', StoreTransactionType::REFERRAL_BONUS->value)
             ->orderBy('id')->get(['order_id', 'store_id', 'amount'])
             ->map(fn (StoreTransaction $row) => ['order_id' => (int) $row->order_id, 'store_id' => (int) $row->store_id, 'amount' => (string) $row->amount])->all());
     }
@@ -176,10 +176,10 @@ class ReferralVerifiedPaymentTest extends TestCase
 
         $paylov = $this->deliveredOrder('store_paylov');
 
-        // The store of the verified order pays the 5 000 (debt: 3 commissions + the bonus)
+        // Recorded on the verified order's store ledger, paid by the platform: the debt is the 3 commissions only
         $this->assertSame([['order_id' => $paylov->id, 'store_id' => $this->store->id, 'amount' => '5000.00']], $this->rewards());
         $this->assertSame(5000.0, $this->referrerBalance());
-        $this->assertSame('20000.00', (string) $this->store->fresh()->debt_balance);
+        $this->assertSame('15000.00', (string) $this->store->fresh()->debt_balance);
 
         // The next verified one earns nothing: once per referred customer
         $this->deliveredOrder('store_paylov');
@@ -188,12 +188,59 @@ class ReferralVerifiedPaymentTest extends TestCase
         $this->assertSame(5000.0, $this->referrerBalance());
     }
 
-    public function test_a_platform_collected_order_earns_it_and_its_store_pays(): void
+    public function test_a_platform_collected_order_earns_it_and_the_platform_pays(): void
     {
         $order = $this->deliveredOrder('platform_payme');
 
         $this->assertSame([['order_id' => $order->id, 'store_id' => $this->store->id, 'amount' => '5000.00']], $this->rewards());
         $this->assertSame(5000.0, $this->referrerBalance());
+        // P4-23 netting: the 50 000 collected paid the 5 000 commission, 45 000 reached the wallet; no bonus on the store
+        $this->assertSame(['0.00', '45000.00'], [(string) $this->store->fresh()->debt_balance, (string) $this->store->fresh()->wallet_balance]);
+    }
+
+    /**
+     * Owner decision 3's addition, with numbers: a 50 000 order, commission 5 000. After the first qualifying delivery the
+     * store's debt is 5 000 (the commission alone, never 10 000), the referrer has 5 000 more, and the platform's referral
+     * cost of 5 000 is recorded once — a row that does not move the store's balance. A retry, a second booking and the
+     * next delivery change nothing of it.
+     */
+    public function test_the_platform_pays_the_bonus_and_the_store_only_its_commission(): void
+    {
+        $order = $this->deliveredOrder('store_paylov');
+
+        $this->assertSame('5000.00', (string) $this->store->fresh()->debt_balance);
+        $this->assertSame(5000.0, $this->referrerBalance());
+        $row = StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value)->sole();
+        // amount: what the platform paid; the store's debt is the same before and after it (its commission, 5 000)
+        $this->assertSame(['5000.00', '5000.00', '5000.00'], [(string) $row->amount, (string) $row->balance_before, (string) $row->balance_after]);
+        $this->assertSame("Referral bonus paid by the platform for referred user #{$this->customer->id}", $row->notes);
+        $this->assertSame(1, StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)->count());
+
+        app(LedgerService::class)->processOrderDelivered($order);
+        app(\App\Services\Finance\SettlementRecoveryService::class)->book($order);
+        $this->deliveredOrder('platform_click');
+
+        $this->assertCount(1, $this->rewards());
+        $this->assertSame(5000.0, $this->referrerBalance());
+        // The second order's 50 000 settlement pays its own 5 000 commission and the first one's 5 000 debt (netting):
+        // 40 000 reach the wallet. Had the store been charged the bonus, 5 000 more would have been taken (35 000)
+        $this->assertSame(['0.00', '40000.00'], [(string) $this->store->fresh()->debt_balance, (string) $this->store->fresh()->wallet_balance]);
+    }
+
+    public function test_a_legacy_store_charged_bonus_still_counts_as_granted(): void
+    {
+        // Before owner decision 3's addition the store paid it: a commission row with the referral note (kept as is)
+        $earlier = $this->deliveredOrder('cash');
+        StoreTransaction::create([
+            'store_id' => $this->store->id, 'type' => StoreTransactionType::COMMISSION->value, 'amount' => '5000.00',
+            'balance_before' => '5000.00', 'balance_after' => '10000.00', 'reference_id' => $earlier->uuid, 'order_id' => $earlier->id,
+            'notes' => "Referral cashback reward cost for referred user #{$this->customer->id}",
+        ]);
+
+        $this->deliveredOrder('platform_click');
+
+        $this->assertSame([], $this->rewards());
+        $this->assertSame(0.0, $this->referrerBalance());
     }
 
     public function test_a_platform_order_paid_only_after_delivery_earns_it_when_the_payment_lands_once(): void

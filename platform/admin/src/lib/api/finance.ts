@@ -229,7 +229,9 @@ export interface NewAdjustment {
 export interface MonthlyReport {
   period: string;
   timezone: string;
-  totals: { orders: number; gmv: string; commission: string; commission_refunded: string; subscription: string; total: string };
+  // Owner decision 3: referral bonuses RIZQIM paid out of its own income in the month (its cost), and what is left after
+  // them (`net` = total − referral_bonuses)
+  totals: { orders: number; gmv: string; commission: string; commission_refunded: string; subscription: string; total: string; referral_count?: number; referral_bonuses?: string; net?: string };
   channels: { channel: string; label: string; orders: number; gmv: string; commission: string; commission_refunded: string }[];
   subscriptions: { invoices: number; invoiced: string; paid: string; outstanding: string };
   stores: { store: Named; orders: number; gmv: string; commission: string; commission_by_channel: Record<string, string>; subscription: string; total: string }[];

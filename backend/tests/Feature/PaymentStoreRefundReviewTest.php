@@ -228,8 +228,12 @@ class PaymentStoreRefundReviewTest extends TestCase
     public function test_a_refund_rizqim_made_first_is_not_held_when_the_store_then_returns_the_money_through_payme(): void
     {
         $order = $this->deliveredOrder();
-        $admin = $this->makeMember(PlatformRole::SUPERADMIN);
-        app(OrderStatusService::class)->refund($order, $admin, 'Mijoz shikoyati');
+        // Owner decision 4: RIZQIM refunds a delivered store-owned order only through a two-person check (one member
+        // asks, another approves); a single admin's direct refund is refused (StoreOwnAccountRefundTest)
+        $refunds = app(\App\Services\Admin\Orders\RefundRequestService::class);
+        $request = $refunds->request($order, $this->makeMember(PlatformRole::SUPERADMIN), '50000', 'Mijoz shikoyati');
+        $refunds->approve($request, $this->makeMember(PlatformRole::SUPERADMIN), 'Tasdiq');
+        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
         $this->assertEquals(0, (float) $this->store->fresh()->debt_balance);
         $rows = $this->ledgerRows();
 

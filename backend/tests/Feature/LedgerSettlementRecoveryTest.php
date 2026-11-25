@@ -90,11 +90,12 @@ class LedgerSettlementRecoveryTest extends TestCase
      */
     private function booked(Order $order): array
     {
-        $rows = StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::COMMISSION->value)->get();
+        $rows = StoreTransaction::where('order_id', $order->id)->get();
 
         return [
-            'commission' => $rows->filter(fn ($row) => !str_starts_with((string) $row->notes, 'Referral'))->count(),
-            'referral' => $rows->filter(fn ($row) => str_starts_with((string) $row->notes, 'Referral'))->count(),
+            'commission' => $rows->filter(fn ($row) => $row->type === StoreTransactionType::COMMISSION)->count(),
+            // Owner decision 3's addition: the platform pays the bonus (a referral_bonus row), the store's debt never moves
+            'referral' => $rows->filter(fn ($row) => $row->type === StoreTransactionType::REFERRAL_BONUS)->count(),
             'debt' => (string) $this->store->fresh()->debt_balance,
             'referrer' => (float) $this->referrer->fresh()->balance,
         ];
@@ -131,7 +132,8 @@ class LedgerSettlementRecoveryTest extends TestCase
 
         $this->retry();
 
-        $booked = ['commission' => 1, 'referral' => 1, 'debt' => '10000.00', 'referrer' => 5000.0];
+        // 5 000 commission only: the 5 000 bonus is the platform's, not on the store's debt
+        $booked = ['commission' => 1, 'referral' => 1, 'debt' => '5000.00', 'referrer' => 5000.0];
         $this->assertSame($booked, $this->booked($order));
         $order->refresh();
         $this->assertNull($order->settlement_failed_at);
@@ -157,7 +159,7 @@ class LedgerSettlementRecoveryTest extends TestCase
 
         $this->retry();
 
-        $this->assertSame(['commission' => 1, 'referral' => 1, 'debt' => '15000.00', 'referrer' => 5000.0], $this->booked($first));
+        $this->assertSame(['commission' => 1, 'referral' => 1, 'debt' => '10000.00', 'referrer' => 5000.0], $this->booked($first));
         $this->assertSame(0, $this->booked($second)['referral']);
     }
 

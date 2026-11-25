@@ -211,6 +211,21 @@ function Overview({ user }: { user: UserCard }) {
               ...(profile.courier_type ? [[t('customers_courierType'), profile.courier_type.label] as [string, ReactNode]] : []),
               [t('customers_referredBy'), profile.referred_by ? <Link href={`/users/${profile.referred_by.id}`} className="font-bold text-brand hover:underline">{profile.referred_by.name}</Link> : '—'],
               [t('customers_referrals'), String(profile.referrals)],
+              ...(profile.referral_bonus
+                ? [
+                    [
+                      t('customers_referralBonus'),
+                      <span key="referral-bonus" data-testid="referral-bonus" className="flex flex-col gap-0.5">
+                        <span className={profile.referral_bonus.status === 'pending' ? 'font-bold text-warning-soft-fg' : 'text-fg'}>{profile.referral_bonus.label}</span>
+                        {profile.referral_bonus.order && (
+                          <Link href={`/orders/${profile.referral_bonus.order.uuid}`} className="font-bold text-brand hover:underline">
+                            {t('customers_referralBonusOrder', { code: profile.referral_bonus.order.short_code ?? profile.referral_bonus.order.uuid })}
+                          </Link>
+                        )}
+                      </span>,
+                    ] as [string, ReactNode],
+                  ]
+                : []),
               [t('customers_createdAt'), when(profile.created_at)],
             ]}
           />

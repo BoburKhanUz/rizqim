@@ -80,6 +80,7 @@ function makeOrder(over: Partial<StaffOrder> = {}): StaffOrder {
 const detailOf = (order: StaffOrder): StaffOrderDetail => ({
   ...order,
   status_history: [{ from_status: null, status: 'new', created_at: order.created_at }],
+  refund_by: null,
 });
 
 function renderBoard(permissions = OWNER, ui: ReactElement = <OrdersBoard />) {
@@ -316,6 +317,39 @@ describe('the orders board', () => {
     renderBoard();
     await user.click(await screen.findByRole('button', { name: "Yana ko'rsatish" }));
     await waitFor(() => expect(within(column('Bugun yakunlangan')).getAllByRole('article')).toHaveLength(2));
+  });
+
+  // Owner decision 4: money paid into the store's own account is the store's to give back
+  it("says in the order's detail that the store refunds it from its own account", async () => {
+    const user = userEvent.setup();
+    const order = makeOrder({ status: 'canceled', payment_method: 'click', payment_status: 'paid' });
+    mockFetch({
+      ...signIn(OWNER),
+      'GET /api/v1/staff/orders': serveOrders([], [order]),
+      [`GET /api/v1/staff/orders/${order.uuid}`]: () => ok({ ...detailOf(order), refund_by: 'store_own_account' }),
+    });
+    renderBoard();
+    await user.click(await screen.findByRole('button', { name: `#${order.short_code} buyurtmani ochish` }));
+    const drawer = await screen.findByRole('dialog', { name: `Buyurtma #${order.short_code}` });
+
+    expect(await within(drawer).findByText("Pulni ovqatxona o'z hisobidan qaytaradi")).toBeInTheDocument();
+    expect(within(drawer).getByText(/to'lov tizimi kabinetingizdan qaytaring/)).toBeInTheDocument();
+  });
+
+  it('says nothing of it for any other order', async () => {
+    const user = userEvent.setup();
+    const order = makeOrder({ status: 'delivered' });
+    mockFetch({
+      ...signIn(OWNER),
+      'GET /api/v1/staff/orders': serveOrders([], [order]),
+      [`GET /api/v1/staff/orders/${order.uuid}`]: () => ok(detailOf(order)),
+    });
+    renderBoard();
+    await user.click(await screen.findByRole('button', { name: `#${order.short_code} buyurtmani ochish` }));
+    const drawer = await screen.findByRole('dialog', { name: `Buyurtma #${order.short_code}` });
+    await within(drawer).findByText('Yangi');
+
+    expect(within(drawer).queryByTestId('order-refund-by-store')).not.toBeInTheDocument();
   });
 
   it('offers a retry when the board cannot load', async () => {

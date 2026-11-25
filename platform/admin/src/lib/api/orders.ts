@@ -101,8 +101,13 @@ export interface RefundExecution {
   payment_method: string;
   automatic_amount: string;
   manual_amount: string;
-  provider_refund: 'manual' | 'none';
+  provider_refund: 'manual' | 'none' | 'paylov';
+  /** Owner decision 4: the manual part is the store's to give back from its own account (null: the approver's, as before) */
+  refund_by?: RefundBy | null;
 }
+
+/** Owner decision 4: who gives the money back — the store, from its own provider account (RIZQIM holds none of it) */
+export type RefundBy = 'store_own_account';
 
 export interface RefundRequest {
   id: number;
@@ -117,6 +122,8 @@ export interface RefundRequest {
   decided_at: string | null;
   decision_note: string | null;
   execution: RefundExecution | null;
+  /** Owner decision 4: the store refunds it from its own account (also on a request not decided yet), else null */
+  refund_by: RefundBy | null;
   mine: boolean;
   can_decide: boolean;
 }
@@ -184,6 +191,8 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
     // Wave P: Paylov only (null otherwise): whether Paylov confirmed the payment yet, and its full refund through Paylov
     confirmation?: 'unconfirmed' | 'confirmed' | 'rejected' | 'mismatch' | 'cancelled' | null;
     provider_refund?: 'requested' | 'retrying' | 'done' | 'failed' | null;
+    /** Owner decision 4: a refund of this payment is recorded and the store gives it back from its own account */
+    refund_by?: RefundBy | null;
     created_at: string | null;
   }[];
   refunds: { paid: string; refunded: string; refundable: string; requests: RefundRequest[] };
@@ -195,6 +204,8 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
   /** The latest store refund review (null when none) and all of them, the latest first */
   store_refund_review: StoreRefundReview | null;
   store_refund_reviews: StoreRefundReview[];
+  /** Owner decision 4: `store_own_account` once a refund of money paid into the store's own account is recorded */
+  refund_by?: RefundBy | null;
   actions: {
     can_intervene: boolean;
     can_cancel: boolean;

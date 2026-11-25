@@ -57,6 +57,24 @@ class ManagementFinanceHistoryApiTest extends TestCase
         Payment::create(['order_id' => $foreignOrder->id, 'provider' => 'click', 'amount' => 999, 'status' => 'paid']);
     }
 
+    public function test_a_referral_bonus_the_platform_paid_is_no_row_of_the_stores_money(): void
+    {
+        // Owner decision 3's addition: the platform pays the bonus (a referral_bonus row that never moved the debt);
+        // a legacy one the store was charged (a commission row with the referral note) stays on its statement
+        $order = $this->makeOrder(OrderStatus::DELIVERED, ['payment_method' => 'click']);
+        StoreTransaction::forceCreate(['store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => '5000.00', 'balance_before' => '5000.00', 'balance_after' => '5000.00',
+            'order_id' => $order->id, 'notes' => 'Referral bonus paid by the platform for referred user #1']);
+        StoreTransaction::forceCreate(['store_id' => $this->store->id, 'type' => 'commission', 'amount' => '5000.00', 'balance_before' => '0.00', 'balance_after' => '5000.00',
+            'order_id' => $order->id, 'notes' => 'Referral cashback reward cost for referred user #2']);
+
+        $ledger = $this->as($this->owner, 'GET', '/api/v1/owner/finance/ledger')->assertOk()->json('data.data');
+        $this->assertSame(['commission'], array_column($ledger, 'type'));
+        $this->as($this->owner, 'GET', '/api/v1/owner/finance/ledger?type=referral_bonus')->assertStatus(422);
+        $this->app['auth']->forgetGuards();
+        $legacy = $this->as($this->owner, 'GET', '/api/v1/owner/finance')->assertOk()->json('data.ledger_transactions');
+        $this->assertSame(['commission'], array_column($legacy, 'type'));
+    }
+
     public function test_the_owner_reads_the_ledger_and_wallet_paginated(): void
     {
         $this->seedMoney();
