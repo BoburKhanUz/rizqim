@@ -27,14 +27,27 @@ Schedule::command('payments:paylov-reconcile')->everyFiveMinutes()->withoutOverl
 Schedule::job(new RetryFailedSettlementsJob)->everyTenMinutes()->withoutOverlapping(30);
 
 // After the automatic retries gave up and the cause is fixed: books the given orders (ids or uuids) once more
-Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered orders whose booking failed}', function (SettlementRecoveryService $settlements) {
+Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered orders whose booking failed} {--confirm-unbooked : also book a paid order that has no settlement and no retry marker, once finance adjustments were checked}', function (SettlementRecoveryService $settlements) {
+    $refused = false;
     foreach ($this->argument('orders') as $key) {
         $order = Order::where(ctype_digit((string) $key) ? 'id' : 'uuid', $key)->first();
 
         if ($order && $order->settlement_failed_at === null
-            && SettlementRecoveryService::unbookedLatePayments()->whereKey($order->id)->exists()) {
-            // Review H1: paid, never credited, and not even marked: booked as the provider's repeated completion would
-            $settlements->bookAfterPayment($order->id, SettlementRecoveryService::CATCH_UP_RETRY)
+            && SettlementRecoveryService::unbookedPaidOrders()->whereKey($order->id)->exists()) {
+            // Review H1: paid, never credited, and not even marked. Review (double credit): finance may have credited it
+            // by hand already (an adjustment carries no order_id), so it is booked only once that was checked
+            if (!$this->option('confirm-unbooked')) {
+                $refused = true;
+                $this->warn("{$key}: paid, but neither credited to the store nor marked for a retry; not booked.");
+                foreach ($settlements->unbookedChecks($order) as $line) {
+                    $this->line($line);
+                }
+                $this->warn("Only if none of them credited this order's money: php artisan orders:retry-settlements {$order->id} --confirm-unbooked");
+
+                continue;
+            }
+            // Booked as the provider's repeated completion would
+            $settlements->bookAfterPayment($order->id, SettlementRecoveryService::CATCH_UP_MANUAL)
                 ? $this->info("{$key}: booked")
                 : $this->error("{$key}: " . ($order->fresh()->settlement_error ?? 'not booked'));
         } elseif (!$order || $order->settlement_failed_at === null) {
@@ -45,6 +58,8 @@ Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered 
             $this->error("{$key}: " . ($order->fresh()->settlement_error ?? 'not booked (no longer delivered)'));
         }
     }
+
+    return $refused ? 1 : 0;
 })->purpose('Book again delivered orders whose ledger booking failed');
 
 // --- P1-23: monthly subscription invoices (docs/BILLING.md); daily so a missed 1st is caught up, idempotent ---

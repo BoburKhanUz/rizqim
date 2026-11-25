@@ -560,6 +560,28 @@ class FinanceDeferredLedgerPartsTest extends TestCase
     }
 
     /**
+     * The same lost settlement booked by hand (`orders:retry-settlements --confirm-unbooked`, the order carries no
+     * marker): the part approved meanwhile gives back its share once, and the request records the reason `manual`.
+     */
+    public function test_the_command_healing_a_lost_late_settlement_records_the_catch_up_reason_manual(): void
+    {
+        $order = $this->deliveredOrder('platform_click_unpaid', ['total_price' => 100000, 'commission_amount' => 10000]);
+        Payment::where('order_id', $order->id)->update(['status' => PaymentStatus::PAID->value, 'paid_at' => now()]);
+        $order->forceFill(['payment_status' => PaymentStatus::PAID->value])->save();
+        $approved = $this->refund($order->fresh(), '50000');
+        $this->assertSame(['5000.00', '0.00'], $this->balances());
+
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id], '--confirm-unbooked' => true])
+            ->expectsOutputToContain('booked')->assertSuccessful();
+
+        [$debt, $wallet] = $this->balances();
+        $this->assertSame('45000.00', Money::of($wallet)->minus($debt)->toString());
+        $execution = OrderRefundRequest::find($approved['id'])->execution;
+        $this->assertSame(['commission' => '5000.00', 'settlement' => '50000.00', 'added_to_debt' => '0.00'], $execution['ledger_reversal']);
+        $this->assertSame('manual', $execution['ledger_reversal_catch_up_reason']);
+    }
+
+    /**
      * Review L1: nothing was booked when the parts were approved and they reach everything paid: the retry books the
      * commission and the settlement, reverses the parts (a full reversal) and only then looks at the referral bonus,
      * which a fully refunded order never earns: no bonus row at all (no +5 000 / −5 000 pair).

@@ -57,8 +57,17 @@ class SettlementRecoveryService
 
     public const CATCH_UP_REPLAY = 'replay';
 
+    /** `orders:retry-settlements --confirm-unbooked`: an unmarked order booked by hand (unbookedPaidOrders) */
+    public const CATCH_UP_MANUAL = 'manual';
+
     /** Review H1: a paid, platform-collected, delivered order with no settlement and no marker is reported after this */
     public const UNBOOKED_AFTER_MINUTES = 15;
+
+    /** Review (query cost): the check and the Today list look only at payments paid in the last this many days */
+    public const UNBOOKED_WINDOW_DAYS = 30;
+
+    /** bookAfterPayment sends the unmarked alert itself, once its outcome is known (recordFailure stays quiet) */
+    private bool $quietUnmarkedAlert = false;
 
     /** The last failure book() recorded (bookAfterPayment names it when even the marker could not be written) */
     private ?Throwable $lastFailure = null;
@@ -135,13 +144,19 @@ class SettlementRecoveryService
      * the payment back. A failure is marked on the order (settlement_failed_at, alerted) and
      * RetryFailedSettlementsJob books it later, exactly once: book() marks what fails inside the booking; anything
      * that escapes it, or a marker book() could not write, is marked here in a transaction of its own (the first one
-     * rolls back whole). Should even that marker fail, this throws (logged critical, alerted): the listener and the
-     * provider's handler see the error, nothing of the booking is committed, and SettlementFailuresCheck reports the
-     * paid order without a settlement (unbookedLatePayments) after UNBOOKED_AFTER_MINUTES. Returns whether it was
-     * booked. $catchUpReason: see book().
+     * rolls back whole). Should even that marker fail, this throws (logged critical, alerted once: here, after the
+     * second attempt, never also from the rolled-back first one): the listener and the provider's handler see the
+     * error, nothing of the booking is committed, and SettlementFailuresCheck reports the paid order without a
+     * settlement (unbookedLatePayments) after UNBOOKED_AFTER_MINUTES. Returns whether it was booked. $catchUpReason:
+     * see book().
      */
     public function bookAfterPayment(int $orderId, string $catchUpReason = self::CATCH_UP_LATE_PAYMENT): bool
     {
+        // Review (one alert): a marker book() could not write is tried again below, so whether the order is left
+        // unmarked is known only then; recordFailure leaves that alert to this method
+        $quiet = $this->quietUnmarkedAlert;
+        $this->quietUnmarkedAlert = true;
+
         try {
             return DB::transaction(function () use ($orderId, $catchUpReason) {
                 $order = Order::whereKey($orderId)->lockForUpdate()->first();
@@ -162,32 +177,45 @@ class SettlementRecoveryService
             });
         } catch (Throwable $e) {
             $error = $e instanceof SettlementNotMarked ? ($e->getPrevious() ?? $e) : $e;
-            $marked = DB::transaction(function () use ($orderId, $error) {
-                $order = Order::whereKey($orderId)->lockForUpdate()->first();
+            try {
+                $marked = DB::transaction(function () use ($orderId, $error) {
+                    $order = Order::whereKey($orderId)->lockForUpdate()->first();
 
-                // Nothing to mark for an order that is not delivered (any more)
-                return !$order || $order->status !== OrderStatus::DELIVERED || $this->recordFailure($order, $error);
-            });
+                    // Nothing to mark for an order that is not delivered (any more)
+                    return !$order || $order->status !== OrderStatus::DELIVERED || $this->recordFailure($order, $error);
+                });
+            } catch (Throwable $markerError) {
+                // recordFailure threw (the transaction aborted, a deadlock): not marked either
+                $marked = false;
+            }
             if (!$marked) {
                 Log::critical("Ledger booking after the late payment of order {$orderId} failed and could not be marked for a retry", ['order_id' => $orderId, 'error' => Str::limit($error->getMessage(), 480)]);
+                $this->alert($this->unmarkedAlert($orderId, $error));
 
                 throw new SettlementNotMarked($error);
             }
 
             return false;
+        } finally {
+            $this->quietUnmarkedAlert = $quiet;
         }
     }
 
     /**
      * Review H1: delivered, platform-collected, paid orders whose money was never credited to the store (no
-     * settlement row, no debt payoff row) and that carry no marker, untouched for UNBOOKED_AFTER_MINUTES: a late
-     * payment's settlement that failed and could not even be marked (bookAfterPayment threw), or one lost before the
-     * fix. SettlementFailuresCheck alerts on them, UnbookedSettlementsSource lists them; `orders:retry-settlements`
-     * books one (bookAfterPayment), as the provider's repeated completion would.
+     * settlement row, no debt payoff row) and that carry no marker: a late payment's settlement that failed and could
+     * not even be marked (bookAfterPayment threw), or one lost before the fix. No time bound: `orders:retry-settlements`
+     * books one of these (with --confirm-unbooked) whenever it was paid; the pre-deploy SQL in docs/OPERATIONS.md is
+     * the same query.
+     *
+     * Review (double credit): finance may have credited such an order by hand already. A manual adjustment
+     * (FinanceAdjustment, its ledger row) carries no order_id and names the order, if at all, only in free text
+     * (`reason`, `notes`), so it cannot be matched reliably and is not excluded here; the command and the alerts say
+     * to check the store's adjustments first.
      *
      * @return \Illuminate\Database\Eloquent\Builder<Order>
      */
-    public static function unbookedLatePayments(): \Illuminate\Database\Eloquent\Builder
+    public static function unbookedPaidOrders(): \Illuminate\Database\Eloquent\Builder
     {
         return Order::query()
             ->where('status', OrderStatus::DELIVERED->value)
@@ -195,13 +223,96 @@ class SettlementRecoveryService
             ->where('payment_status', \App\Enums\PaymentStatus::PAID->value)
             ->whereNull('settlement_failed_at')
             ->where('total_price', '>', 0)
-            ->where('updated_at', '<=', now()->subMinutes(self::UNBOOKED_AFTER_MINUTES))
             ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('store_wallet_transactions')
                 ->whereColumn('store_wallet_transactions.order_id', 'orders.id')
                 ->where('store_wallet_transactions.type', \App\Enums\StoreTransactionType::SETTLEMENT->value))
             ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('store_transactions')
                 ->whereColumn('store_transactions.order_id', 'orders.id')
                 ->where('store_transactions.type', \App\Enums\StoreTransactionType::TOPUP->value));
+    }
+
+    /**
+     * What SettlementFailuresCheck alerts on and UnbookedSettlementsSource lists: unbookedPaidOrders whose payment was
+     * paid (payments.paid_at, written by Click, Payme and Paylov with the paid status) at least UNBOOKED_AFTER_MINUTES
+     * and at most UNBOOKED_WINDOW_DAYS ago. Review (query cost): bounded by the payment's paid time, so neither runs
+     * over every delivered order (payments_paid_at_index); older ones are left to the pre-deploy SQL and the command.
+     * An order paid without a payment row is not reported here.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<Order>
+     */
+    public static function unbookedLatePayments(): \Illuminate\Database\Eloquent\Builder
+    {
+        return self::unbookedPaidOrders()
+            ->whereExists(fn ($query) => $query->select(DB::raw(1))->from('payments')
+                ->whereColumn('payments.order_id', 'orders.id')
+                ->where('payments.status', \App\Enums\PaymentStatus::PAID->value)
+                ->where('payments.paid_at', '>=', now()->subDays(self::UNBOOKED_WINDOW_DAYS))
+                ->where('payments.paid_at', '<=', now()->subMinutes(self::UNBOOKED_AFTER_MINUTES)));
+    }
+
+    /**
+     * What `orders:retry-settlements` prints before it refuses an unbookedPaidOrders order without --confirm-unbooked:
+     * the order, and the store's manual corrections since the order was placed that may have credited its money by
+     * hand (finance adjustments that were not rejected; manual debt / wallet ledger rows without an order, e.g. the
+     * legacy panel's top-ups). Read-only; none of them links to the order, so a person decides.
+     *
+     * @return list<string>
+     */
+    public function unbookedChecks(Order $order): array
+    {
+        $store = \App\Models\Store::withTrashed()->whereKey($order->store_id)->first(['id', 'name']);
+        $paidAt = Payment::where('order_id', $order->id)->where('status', \App\Enums\PaymentStatus::PAID->value)->max('paid_at');
+        $since = $order->created_at ?? now()->subDays(self::UNBOOKED_WINDOW_DAYS);
+        $lines = [
+            "Order #{$order->short_code} (id {$order->id}, {$order->uuid}), store {$order->store_id}" . ($store ? " ({$store->name})" : '')
+                . ', total ' . Money::of((string) $order->total_price)->toString() . ', paid at ' . ($paidAt ?? 'unknown')
+                . ', placed ' . $since->toDateTimeString(),
+            'Check first that finance has not credited it by hand (an adjustment carries no order_id): the store\'s'
+                . " finance adjustments (Moliya → Qo'lda tuzatish) and its debt / wallet ledgers since " . $since->toDateTimeString() . ':',
+        ];
+
+        $adjustments = \App\Models\FinanceAdjustment::where('store_id', $order->store_id)
+            ->where('status', '!=', \App\Models\FinanceAdjustment::REJECTED)
+            ->where('created_at', '>=', $since)
+            ->orderBy('created_at')->orderBy('id')->limit(20)
+            ->get(['uuid', 'kind', 'amount', 'status', 'reason', 'created_at']);
+        foreach ($adjustments as $adjustment) {
+            $lines[] = "  adjustment {$adjustment->uuid} {$adjustment->kind} {$adjustment->amount} ({$adjustment->status}, {$adjustment->created_at}): "
+                . Str::limit((string) $adjustment->reason, 120);
+        }
+
+        $manual = fn (\Illuminate\Database\Eloquent\Builder $rows) => $rows->where('store_id', $order->store_id)
+            ->whereNull('order_id')->whereNull('reference_id')->where('created_at', '>=', $since)
+            ->orderBy('created_at')->orderBy('id')->limit(20)
+            ->get(['id', 'type', 'amount', 'notes', 'created_at']);
+        foreach ([
+            // Adjustment rows written by hand, and the legacy panel's manual top-ups (a member, nothing else linked)
+            'debt' => $manual(\App\Models\StoreTransaction::query()->where(fn ($rows) => $rows
+                ->where('type', \App\Enums\StoreTransactionType::ADJUSTMENT->value)
+                ->orWhere(fn ($topup) => $topup->where('type', \App\Enums\StoreTransactionType::TOPUP->value)->whereNotNull('performed_by')
+                    ->whereNull('payment_id')->whereNull('payout_request_id')->whereNull('subscription_invoice_id')))),
+            'wallet' => $manual(\App\Models\StoreWalletTransaction::query()->where('type', \App\Enums\StoreTransactionType::ADJUSTMENT->value)),
+        ] as $ledger => $rows) {
+            foreach ($rows as $row) {
+                $type = $row->getAttribute('type');
+                $lines[] = "  {$ledger} ledger row {$row->getKey()} " . ($type instanceof \BackedEnum ? $type->value : (string) $type)
+                    . ' ' . $row->getAttribute('amount') . ' (' . $row->getAttribute('created_at') . '): ' . Str::limit((string) $row->getAttribute('notes'), 120);
+            }
+        }
+
+        if (count($lines) === 2) {
+            $lines[] = '  none found';
+        }
+
+        return $lines;
+    }
+
+    /** The latest paid time of an order's paid payments (the age UnbookedSettlementsSource and the check show) */
+    public static function paidAtSubquery(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('payments')->selectRaw('max(payments.paid_at)')
+            ->whereColumn('payments.order_id', 'orders.id')
+            ->where('payments.status', \App\Enums\PaymentStatus::PAID->value);
     }
 
     /**
@@ -333,9 +444,9 @@ class SettlementRecoveryService
             if (self::transactionAborted($markerError) || \App\Support\ConcurrencyFailure::is($markerError)) {
                 throw $e;
             }
-            $this->alert("🚨 Moliya: #{$order->short_code} buyurtmasining hisob-kitobi yozilmadi va qayta urinish belgisi ham "
-                . "yozilmadi: avtomatik qayta urinish bo'lmaydi. Monitoring uni 15 daqiqadan keyin ko'rsatadi; sababini bartaraf "
-                . "etib: php artisan orders:retry-settlements {$order->id}\nXato: " . Str::limit($e->getMessage(), 300));
+            if (!$this->quietUnmarkedAlert) {
+                $this->alert($this->unmarkedAlert((int) $order->id, $e, $order->short_code));
+            }
 
             return false;
         }
@@ -355,6 +466,29 @@ class SettlementRecoveryService
         }
 
         return true;
+    }
+
+    /**
+     * The order is left paid, uncredited and unmarked: no automatic retry. Review (double credit): finance may credit
+     * it by hand meanwhile (an adjustment carries no order_id), so the store's adjustments are checked before the
+     * command books it, and the command asks for --confirm-unbooked.
+     */
+    private function unmarkedAlert(int $orderId, Throwable $e, ?string $shortCode = null): string
+    {
+        if ($shortCode === null) {
+            try {
+                $shortCode = Order::whereKey($orderId)->value('short_code');
+            } catch (Throwable) {
+                // The alert goes out without it
+            }
+        }
+        $label = $shortCode !== null ? "#{$shortCode}" : "#{$orderId}";
+
+        return "🚨 Moliya: {$label} buyurtmasining hisob-kitobi yozilmadi va qayta urinish belgisi ham yozilmadi: avtomatik "
+            . "qayta urinish bo'lmaydi. Monitoring uni 15 daqiqadan keyin ko'rsatadi. Sababini bartaraf eting, so'ng avval "
+            . "do'konning moliya tuzatishlarini (Moliya → Qo'lda tuzatish, hamyon va qarz tuzatishlari) shu buyurtma vaqtidan "
+            . "beri tekshiring: pul qo'lda yozilgan bo'lsa, buyruqni ishga tushirmang. Faqat shundan keyin: "
+            . "php artisan orders:retry-settlements {$orderId} --confirm-unbooked\nXato: " . Str::limit($e->getMessage(), 300);
     }
 
     /** A superadmin alert that never turns a recorded failure into another one (the log line stays) */
