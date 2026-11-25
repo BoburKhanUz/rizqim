@@ -181,7 +181,7 @@ class UserCardPresenter
     }
 
     /**
-     * Owner's rule B on a referrer's card: their bonuses this Asia/Tashkent month (net of clawbacks) of the cap.
+     * Owner's rule B on a referrer's card: their bonuses this Asia/Tashkent month (granted in the month and not taken back: a gross limit, ReferralService::monthlyBonusesOf) of the cap.
      *
      * @return array{count: int, cap: int, label: string}|null
      */

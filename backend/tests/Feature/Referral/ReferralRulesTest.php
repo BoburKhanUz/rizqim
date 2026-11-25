@@ -18,8 +18,8 @@ use Tests\TestCase;
  * The owner's two further rules for the referral bonus (ReferralService::qualifiesForReferralBonus, one place):
  *  - A: the bonus never exceeds what the platform earns on the order: the order's commission as booked
  *    (orders.commission_amount) is at least the bonus (5 000);
- *  - B: at most ReferralService::MONTHLY_CAP_PER_REFERRER (10) bonuses per referrer per Asia/Tashkent month, net of
- *    clawbacks, counted under the referrer's row lock.
+ *  - B: at most ReferralService::MONTHLY_CAP_PER_REFERRER (10) bonuses per referrer per Asia/Tashkent month, granted in
+ *    the month and not taken back (a clawback frees a slot only in its grant's month), counted under the referrer's row lock.
  * An order that fails either neither earns it nor uses the referral up: it stays pending for a later order. Keshbek
  * orders never count as verified (keshbek itself only comes from this bonus).
  */
@@ -156,6 +156,52 @@ class ReferralRulesTest extends TestCase
         $this->friendDelivers($waiting);
         $this->assertSame(10, ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
         $this->assertSame(OrderStatus::REFUNDED, $first->fresh()->status);
+        $this->assertSame(50000.0, $this->referrerBalance());
+    }
+    /**
+     * Review L1: the cap is a gross limit on the grants booked in the month. A clawback frees a slot only in the month
+     * of the grant it reverses: three October bonuses taken back in November do not let November grant thirteen.
+     */
+    public function test_clawbacks_of_last_months_bonuses_free_no_slot_this_month(): void
+    {
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        Carbon::setTestNow(Carbon::parse('2026-10-20 12:00:00', 'Asia/Tashkent'));
+        $this->friendsDeliver(10);
+        $october = array_column($this->rewards(), 'order_id');
+        $this->assertCount(10, $october);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-05 12:00:00', 'Asia/Tashkent'));
+        foreach (array_slice($october, 0, 3) as $orderId) {
+            app(OrderStatusService::class)->refund(\App\Models\Order::findOrFail($orderId), $admin, 'Mijoz shikoyati');
+        }
+        $this->assertSame(35000.0, $this->referrerBalance());
+        $this->assertSame(0, ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
+
+        // November: ten grants, then the cap
+        $this->friendsDeliver(11);
+        $this->assertSame(10, ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
+        $granted = collect($this->rewards())->filter(fn (array $row) => (float) $row['amount'] > 0 && !in_array($row['order_id'], $october, true))->count();
+        $this->assertSame(10, $granted);
+        $this->assertSame(85000.0, $this->referrerBalance());
+        // October still reads as its seven standing grants
+        $this->assertSame(7, ReferralService::monthlyBonusesOf((int) $this->referrer->id, Carbon::parse('2026-10-25 12:00:00', 'Asia/Tashkent')));
+    }
+
+    public function test_a_clawback_in_the_month_of_its_grant_frees_that_months_slot(): void
+    {
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        Carbon::setTestNow(Carbon::parse('2026-10-10 12:00:00', 'Asia/Tashkent'));
+        $this->friendsDeliver(10);
+        [$first] = array_column($this->rewards(), 'order_id');
+        [$waiting] = $this->friendsDeliver(1);
+        $this->assertCount(10, $this->rewards());
+
+        Carbon::setTestNow(Carbon::parse('2026-10-25 12:00:00', 'Asia/Tashkent'));
+        app(OrderStatusService::class)->refund(\App\Models\Order::findOrFail($first), $admin, 'Mijoz shikoyati');
+        $this->assertSame(9, ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
+
+        $this->friendDelivers($waiting);
+        $this->assertSame(10, ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
         $this->assertSame(50000.0, $this->referrerBalance());
     }
 }

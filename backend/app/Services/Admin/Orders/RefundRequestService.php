@@ -307,8 +307,9 @@ class RefundRequestService
             // The store row before the customer's balance (spread raises it for a keshbek share), the order every ledger
             // path takes — store → customer → referrer (LedgerService::grantReferralReward, clawBackReferralReward,
             // reverseDelivery). Taken the other way round, this approval and a delivery of another of the customer's
-            // orders at the same store would deadlock
-            \App\Models\Store::whereKey($order->store_id)->lockForUpdate()->first();
+            // orders at the same store would deadlock. FOR NO KEY UPDATE (Store::ledgerLock, review H1): a keshbek checkout
+            // of the customer (users row, then its order's foreign key check on the store) does not wait on it
+            \App\Models\Store::whereKey($order->store_id)->lock(\App\Models\Store::ledgerLock())->first();
             $amount = Money::of($refund->amount);
             $payments = Payment::where('order_id', $order->id)->orderBy('id')->lockForUpdate()->get();
             $balance = self::balanceOf($payments, self::approvedRequests([(int) $order->id])->get());

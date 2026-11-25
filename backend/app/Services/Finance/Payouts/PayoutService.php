@@ -173,7 +173,7 @@ class PayoutService
     public function complete(PayoutRequest $payout, ?int $performedBy, ?string $note): PayoutRequest
     {
         return DB::transaction(function () use ($payout, $performedBy, $note) {
-            $store = Store::where('id', $payout->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::where('id', $payout->store_id)->lock(Store::ledgerLock())->firstOrFail();
             $amount = Money::of($payout->amount);
             $wallet = Money::of($store->wallet_balance);
 

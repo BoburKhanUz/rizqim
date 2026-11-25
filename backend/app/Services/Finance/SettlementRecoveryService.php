@@ -18,10 +18,17 @@ use Throwable;
 /**
  * Delivery's ledger booking (LedgerService::processOrderDelivered: commission, platform settlement, referral reward)
  * is never silently lost. It runs in a savepoint of the delivery's transaction, so a failure (e.g. a schema mismatch
- * during a deploy) books nothing at all, never half, and the delivery still commits; the order then carries a marker
- * (settlement_failed_at, settlement_error, settlement_attempts), the failure is logged as critical and superadmins are
- * alerted. RetryFailedSettlementsJob books such orders again every 10 minutes, clearing the marker once it succeeds,
- * until config('orders.settlement_retry_max_attempts') bookings failed: then it gives up with a louder alert.
+ * during a deploy, a deadlock or a lock timeout) is rolled back to that savepoint: it books nothing at all, never half,
+ * and the delivery still commits; the order then carries a marker (settlement_failed_at, settlement_error,
+ * settlement_attempts), the failure is logged as critical and superadmins are alerted. RetryFailedSettlementsJob books
+ * such orders again every 10 minutes (a booking that succeeds clears the marker in the same savepoint), until
+ * config('orders.settlement_retry_max_attempts') bookings failed: then it gives up with a louder alert.
+ *
+ * Review H1: a deadlock or serialization failure is rolled back to the savepoint as well (RevisionPostgresConnection::
+ * handleTransactionException; Laravel alone left the caller's whole transaction aborted, and the delivery's "commit"
+ * then silently lost the delivered status, the marker and everything else). Should the caller's transaction be
+ * aborted all the same, so that the marker cannot be written, book() throws: the caller's transaction rolls back
+ * whole and loudly instead of committing nothing while reporting success.
  *
  * Review W2: a part of the order refunded (an approved refund request) while the booking had failed found nothing on
  * the ledger to take back; the booking that succeeds later reverses those parts in the same savepoint
@@ -41,7 +48,13 @@ class SettlementRecoveryService
 
     /**
      * Books a delivered order; callers hold its row lock inside their transaction. Returns whether it was booked; a
-     * failure is recorded on the order instead of being thrown.
+     * failure is rolled back to the booking's savepoint and recorded on the order instead of being thrown, unless even
+     * the marker cannot be written because the caller's transaction is aborted (recordFailure): then it throws.
+     *
+     * Review L5: a booking that succeeds for an order marked by an earlier failure (the retry, or a late payment's
+     * booking: MarkOrderAsPaid) clears the marker in the same savepoint, after everything the marker stood for
+     * (processOrderDelivered: commission, settlement, bonus; the parts refunded meanwhile) is booked: a marker is never
+     * cleared for a booking that did not commit with it.
      */
     public function book(Order $order, ?int $performedBy = null): bool
     {
@@ -50,12 +63,44 @@ class SettlementRecoveryService
                 $this->ledger->processOrderDelivered($order, $performedBy);
                 if ($order->settlement_failed_at !== null) {
                     $this->reverseDeferredParts($order, $performedBy);
+                    $this->clearMarker($order);
                 }
             });
 
             return true;
         } catch (Throwable $e) {
             $this->recordFailure($order, $e);
+
+            return false;
+        }
+    }
+
+    /**
+     * Review H1 (the reviewer's shape for MarkOrderAsPaid): a delivered order's payment landed and its settlement
+     * committed; what delivery would have booked with it (the referral bonus the payment may earn now) is booked here
+     * in a transaction of its own, under the order's row lock, so nothing it does can take the payment or the
+     * settlement back. A failure is marked on the order (settlement_failed_at, alerted) and RetryFailedSettlementsJob
+     * grants it later, exactly once: book() marks what fails inside the booking; anything that escapes it (the
+     * transaction then rolls back whole) is marked here, in a transaction of its own. Returns whether it was booked.
+     */
+    public function bookAfterPayment(int $orderId): bool
+    {
+        try {
+            return DB::transaction(function () use ($orderId) {
+                $order = Order::whereKey($orderId)->lockForUpdate()->first();
+                if (!$order || $order->status !== OrderStatus::DELIVERED) {
+                    return false;
+                }
+
+                return $this->book($order);
+            });
+        } catch (Throwable $e) {
+            DB::transaction(function () use ($orderId, $e) {
+                $order = Order::whereKey($orderId)->lockForUpdate()->first();
+                if ($order && $order->status === OrderStatus::DELIVERED) {
+                    $this->recordFailure($order, $e);
+                }
+            });
 
             return false;
         }
@@ -87,7 +132,7 @@ class SettlementRecoveryService
                 return false;
             }
 
-            $this->clearMarker($order);
+            // book() cleared the marker with the booking
             Log::info("Ledger booking of delivered order {$order->uuid} succeeded on retry");
             $this->alerts->send("✅ Moliya: #{$order->short_code} buyurtmasining hisob-kitobi qayta urinishda yozildi.");
 
@@ -131,7 +176,10 @@ class SettlementRecoveryService
 
     /**
      * Saved in a savepoint of its own: if even the marker cannot be written (e.g. its columns are not migrated yet),
-     * the delivery still commits and the critical log line and the alert remain.
+     * the delivery still commits and the critical log line and the alert remain. Review H1: not when the marker
+     * fails because the caller's transaction is aborted (SQLSTATE 25P02) or on a deadlock / serialization failure:
+     * nothing the caller does can commit any more, so the booking's failure is thrown, and the caller's transaction
+     * rolls back whole and loudly (no after-commit event, the provider or the courier sees the error).
      */
     protected function recordFailure(Order $order, Throwable $e): void
     {
@@ -148,6 +196,9 @@ class SettlementRecoveryService
             ])->save());
         } catch (Throwable $markerError) {
             Log::critical("Could not mark order {$order->uuid} for a ledger booking retry: {$markerError->getMessage()}", $context);
+            if (self::transactionAborted($markerError) || \App\Support\ConcurrencyFailure::is($markerError)) {
+                throw $e;
+            }
         }
 
         $short = Str::limit($e->getMessage(), 300);
@@ -163,6 +214,18 @@ class SettlementRecoveryService
         } else {
             Log::error("Ledger booking retry {$attempts} of delivered order {$order->uuid} failed", $context);
         }
+    }
+
+    /** SQLSTATE 25P02: the transaction is aborted, only a rollback is possible */
+    private static function transactionAborted(Throwable $e): bool
+    {
+        for ($current = $e; $current !== null; $current = $current->getPrevious()) {
+            if ((string) $current->getCode() === '25P02') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function clearMarker(Order $order): void

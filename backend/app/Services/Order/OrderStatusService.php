@@ -199,7 +199,9 @@ class OrderStatusService
             $tracker?->statusChanged($order, $from, $to);
 
             if ($to === OrderStatus::DELIVERED) {
-                // In a savepoint: a failed booking is marked on the order, alerted and retried, never fails the delivery
+                // In a savepoint: a failed booking (a deadlock too, review H1) is rolled back to it, marked on the order,
+                // alerted and retried, never fails the delivery. Only if the marker cannot be written either (the
+                // transaction is aborted) does book() throw: the delivery then rolls back whole, no event is sent
                 $this->settlements->book($order, $actor?->id);
             }
 

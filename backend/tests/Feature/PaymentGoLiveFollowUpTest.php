@@ -178,7 +178,9 @@ class PaymentGoLiveFollowUpTest extends TestCase
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
 
-        $this->assertSame(3, $ledger->calls);
+        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
+        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
+        $this->assertSame(5, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
@@ -229,7 +231,9 @@ class PaymentGoLiveFollowUpTest extends TestCase
         $this->click(1, $order, '50000')->assertOk()->assertJson(['error' => 0, 'error_note' => 'Already confirmed']);
         $this->click(1, $order, '50000')->assertOk()->assertJson(['error' => 0]);
 
-        $this->assertSame(3, $ledger->calls);
+        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
+        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
+        $this->assertSame(5, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
     }

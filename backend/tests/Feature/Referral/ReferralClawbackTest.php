@@ -238,7 +238,8 @@ class ReferralClawbackTest extends TestCase
         $statements = [];
         DB::listen(function ($query) use (&$statements) {
             $sql = strtolower($query->sql);
-            if (str_contains($sql, 'from "stores"') && str_contains($sql, 'for update')) {
+            // Review H1: the ledger's store lock is FOR NO KEY UPDATE (Store::ledgerLock), a checkout's foreign key check does not wait on it
+            if (str_contains($sql, 'from "stores"') && str_contains($sql, 'for no key update')) {
                 $statements[] = 'store';
             } elseif (str_starts_with($sql, 'update "users"') && str_contains($sql, '"balance"')) {
                 $statements[] = 'user';

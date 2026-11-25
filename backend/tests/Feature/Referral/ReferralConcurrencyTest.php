@@ -215,6 +215,53 @@ class ReferralConcurrencyTest extends TestCase
     }
 
     /**
+     * Review H1: a keshbek checkout locks the customer's users row FOR UPDATE and then inserts the order, whose foreign
+     * key check takes FOR KEY SHARE on the store row; a delivery's grant (like its commission and settlement before it)
+     * locks the store row and then the customer's and the referrer's users rows. With the store taken FOR UPDATE the two
+     * waited on each other (40P01). The ledger takes the store FOR NO KEY UPDATE, which a foreign key check does not wait
+     * on: the checkout commits, then the grant goes on. The parent is the checkout (its own connection): it holds the
+     * customer's row, as checkout does first, while the child's delivery reaches the grant and waits on it, and only
+     * then runs the real checkout in the same transaction.
+     */
+    public function test_a_keshbek_checkout_and_a_delivery_grant_of_the_same_customer_at_the_same_store_do_not_deadlock(): void
+    {
+        $this->customer->forceFill(['balance' => 100000])->save();
+        $delivery = $this->paidOrderOnItsWay($this->store, $this->courier);
+        $token = $this->courier->createToken('t')->plainTextToken;
+
+        DB::beginTransaction();
+        User::whereKey($this->customer->id)->lockForUpdate()->first();
+
+        $pid = pcntl_fork();
+        $this->assertNotSame(-1, $pid, 'fork failed');
+        if ($pid === 0) {
+            $this->runChild(0, fn () => $this->bearerJson('POST', "/api/v1/orders/{$delivery->uuid}/complete", $token));
+        }
+
+        usleep(900_000);
+        $checkoutError = null;
+        try {
+            $keshbek = $this->checkout($this->customer, 1, 'keshbek');
+            DB::commit();
+        } catch (\Throwable $e) {
+            $checkoutError = $e;
+            DB::rollBack();
+        }
+        pcntl_waitpid($pid, $status);
+
+        $this->assertNull($checkoutError, (string) $checkoutError);
+        $this->assertSame(200, (int) @file_get_contents("{$this->dir}/status-0"), (string) @file_get_contents("{$this->dir}/error-0"));
+        // Both committed whole: the keshbek order paid from the balance, the delivery booked with its bonus
+        $this->assertSame('keshbek', $keshbek->fresh()->payment_method);
+        $this->assertEquals(50000, (float) $this->customer->fresh()->balance);
+        $delivery->refresh();
+        $this->assertSame(OrderStatus::DELIVERED, $delivery->status);
+        $this->assertNull($delivery->settlement_failed_at, (string) $delivery->settlement_error);
+        $this->assertSame(1, StoreTransaction::query()->withoutGlobalScopes()->where('type', StoreTransactionType::REFERRAL_BONUS->value)->where('order_id', $delivery->id)->count());
+        $this->assertEquals(5000, (float) $this->referrer->fresh()->balance);
+    }
+
+    /**
      * In the child: a connection of its own, the request, the status written to a file, and an exit that skips
      * PHPUnit's shutdown (StoreRatingConcurrencyTest::runChild).
      */

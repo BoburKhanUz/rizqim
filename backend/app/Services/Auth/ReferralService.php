@@ -92,7 +92,7 @@ class ReferralService
 
     /**
      * Owner's rule B: at most this many referral bonuses per referrer per calendar month (Asia/Tashkent, the monthly
-     * revenue report's boundary), net of clawbacks. Change it here (docs/OPERATIONS.md 31-bo'lim); not configurable.
+     * revenue report's boundary), granted in the month and not taken back (monthlyBonusesOf). Change it here (docs/OPERATIONS.md 31-bo'lim); not configurable.
      */
     public const MONTHLY_CAP_PER_REFERRER = 10;
 
@@ -134,26 +134,37 @@ class ReferralService
     }
 
     /**
-     * Owner's rule B: how many referral bonuses the referrer has in the Asia/Tashkent calendar month of $at, net of
-     * clawbacks in that month (a bonus row +1, a clawback row −1, both by the month they were booked in). Reads the
-     * referral_bonus rows of every store (the orders of the customers the referrer invited, soft-deleted ones too):
-     * callers inside a store-bound transaction run it as the login role (LedgerService::grantReferralReward).
+     * Owner's rule B: how many referral bonuses the referrer was granted in the Asia/Tashkent calendar month of $at — a
+     * gross limit on the grants booked in that month (review L1). A clawback frees a slot only in the month of the
+     * grant it reverses: a grant booked in the month and taken back since (whenever) no longer counts there, while a
+     * clawback of an earlier month's grant frees nothing now (counted by booking month, three October bonuses taken back
+     * in November let November grant 13). An order earns the bonus at most once (a refunded order never again), so a
+     * grant is reversed by the clawback row of its own order. Reads the referral_bonus rows of every store (the orders of
+     * the customers the referrer invited, soft-deleted ones too): callers inside a store-bound transaction run it as
+     * the login role (LedgerService::grantReferralReward).
      */
     public static function monthlyBonusesOf(int $referrerId, \Carbon\CarbonInterface $at): int
     {
         [$start, $end] = \App\Services\Finance\Reports\MonthlyRevenueReport::monthBounds(
             \Illuminate\Support\Carbon::instance($at)->setTimezone(\App\Services\Finance\Reports\MonthlyRevenueReport::timezoneName())->format('Y-m')
         );
+        $bonus = \App\Enums\StoreTransactionType::REFERRAL_BONUS->value;
+
         // Every store's rows: the cap is the referrer's across stores (the caller elevates past RLS inside a tenant transaction)
-        $rows = fn () => \App\Models\StoreTransaction::query()->withoutGlobalScope(StoreScope::class)
-            ->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
+        return \App\Models\StoreTransaction::query()->withoutGlobalScope(StoreScope::class)
+            ->where('type', $bonus)
+            ->where('amount', '>', 0)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<', $end)
             // The invited customers' orders at every store, soft-deleted ones too (a deleted order's bonus still counts)
             ->whereIn('order_id', Order::query()->withoutGlobalScope(StoreScope::class)->withTrashed()->select('id')
-                ->whereIn('user_id', User::query()->select('id')->where('referred_by', $referrerId)));
-
-        return $rows()->where('amount', '>', 0)->count() - $rows()->where('amount', '<', 0)->count();
+                ->whereIn('user_id', User::query()->select('id')->where('referred_by', $referrerId)))
+            // Not taken back
+            ->whereNotExists(fn ($back) => $back->selectRaw('1')->from('store_transactions as back')
+                ->whereColumn('back.order_id', 'store_transactions.order_id')
+                ->where('back.type', $bonus)
+                ->where('back.amount', '<', 0))
+            ->count();
     }
 
     /**

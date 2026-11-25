@@ -44,7 +44,7 @@ class LedgerService
 
         return DB::transaction(function () use ($store, $amount, $order, $paymentId, $performedBy) {
             // Lock the store row for update to prevent race conditions
-            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $store->id)->lock(Store::ledgerLock())->firstOrFail();
 
             // Idempotency check: Have we already deducted commission for this order?
             if ($this->hasCommission($order)) {
@@ -119,7 +119,7 @@ class LedgerService
         $amount = Money::of($amount);
 
         return DB::transaction(function () use ($store, $amount, $order, $paymentId, $performedBy) {
-            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $store->id)->lock(Store::ledgerLock())->firstOrFail();
 
             $exists = StoreWalletTransaction::where('store_id', $store->id)
                 ->where('order_id', $order->id)
@@ -160,7 +160,7 @@ class LedgerService
         $amount = Money::of($amount);
 
         return DB::transaction(function () use ($store, $amount, $notes, $referenceId, $performedBy) {
-            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $store->id)->lock(Store::ledgerLock())->firstOrFail();
 
             $balanceBefore = Money::of($lockedStore->debt_balance);
             $balanceAfter = $balanceBefore->minus($amount); // reduce debt
@@ -195,7 +195,7 @@ class LedgerService
     public function creditTopup(StoreTopupRequest $topup, string $providerLabel): StoreTransaction
     {
         return DB::transaction(function () use ($topup, $providerLabel) {
-            $store = Store::where('id', $topup->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::where('id', $topup->store_id)->lock(Store::ledgerLock())->firstOrFail();
 
             $existing = StoreTransaction::where('store_id', $store->id)
                 ->where('type', StoreTransactionType::TOPUP->value)
@@ -233,7 +233,7 @@ class LedgerService
 
         return DB::transaction(function () use ($store, $amount, $cardNumber, $notes) {
             // Lock the store so parallel requests cannot each pass the check and together exceed the wallet.
-            $lockedStore = Store::where('id', $store->id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $store->id)->lock(Store::ledgerLock())->firstOrFail();
             $minReserve = $this->minPayoutReserve($lockedStore);
 
             if (Money::of($lockedStore->wallet_balance)->isLessThan($minReserve)) {
@@ -259,7 +259,7 @@ class LedgerService
      * Everything delivery books for an order: the commission, the platform-collected money to the store, and the
      * referrer's bonus when the order qualifies (grantReferralReward). Idempotent, part by part, so a booking that
      * failed can simply be run again (SettlementRecoveryService); callers run it in a transaction (savepoint) of its
-     * own, so a failure books nothing at all.
+     * own, so a failure books nothing at all (a deadlock too: RevisionPostgresConnection rolls it back to the savepoint).
      */
     public function processOrderDelivered(\App\Models\Order $order, ?int $performedBy = null): void
     {
@@ -304,10 +304,13 @@ class LedgerService
      * and the referral stays open.
      *
      * Runs at delivery (processOrderDelivered) and when a delivered order's payment lands only afterwards
-     * (MarkOrderAsPaid, through SettlementRecoveryService::book). Race-free across stores, retries and concurrent
+     * (MarkOrderAsPaid, through SettlementRecoveryService::bookAfterPayment). Race-free across stores, retries and concurrent
      * deliveries: the store row, then the customer's and the referrer's users rows (one statement in id order,
      * lockCustomerAndReferrer; every ledger path takes the store before any users row) are locked before anything is read, so a second delivery of the same
      * customer, and a delivery of another customer of the same referrer, wait and then see the first one's bonus.
+     * Review H1: the store row is taken FOR NO KEY UPDATE (Store::ledgerLock), like on every ledger path: a keshbek
+     * checkout holds the customer's users row and then inserts its order, whose foreign key check (FOR KEY SHARE on
+     * the store) waited on a FOR UPDATE here while this waited on the users row (40P01).
      * Returns whether it granted now. The caller holds the order's lock inside its transaction.
      */
     public function grantReferralReward(\App\Models\Order $order, ?int $performedBy = null): bool
@@ -318,7 +321,7 @@ class LedgerService
         }
 
         return DB::transaction(function () use ($order, $performedBy) {
-            $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $order->store_id)->lock(Store::ledgerLock())->firstOrFail();
             [$user, $referrer] = $this->lockCustomerAndReferrer((int) $order->user_id);
             if (!$user || !$referrer) {
                 return false;
@@ -378,7 +381,7 @@ class LedgerService
     public function clawBackReferralReward(\App\Models\Order $order, ?int $performedBy = null): bool
     {
         return DB::transaction(function () use ($order, $performedBy) {
-            $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $order->store_id)->lock(Store::ledgerLock())->firstOrFail();
             $bonusRows = fn () => StoreTransaction::where('store_id', $lockedStore->id)->where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value);
             if (!$order->user_id || !$bonusRows()->exists()) {
                 return false;
@@ -535,7 +538,7 @@ class LedgerService
         }
 
         return DB::transaction(function () use ($order, $total, $performedBy) {
-            $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $lockedStore = Store::where('id', $order->store_id)->lock(Store::ledgerLock())->firstOrFail();
 
             if ($this->hasSettlement($order)) {
                 return false;
@@ -594,7 +597,7 @@ class LedgerService
     private function reverseDelivery(\App\Models\Order $order, ?array $share, ?int $performedBy): array
     {
         return DB::transaction(function () use ($order, $share, $performedBy) {
-            $store = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::where('id', $order->store_id)->lock(Store::ledgerLock())->firstOrFail();
             $nothing = ['commission' => Money::zero(), 'settlement' => Money::zero(), 'added_to_debt' => Money::zero()];
             $debtRows = fn () => StoreTransaction::where('store_id', $store->id)->where('order_id', $order->id);
             $walletRows = fn () => StoreWalletTransaction::where('store_id', $store->id)->where('order_id', $order->id);
@@ -823,7 +826,7 @@ class LedgerService
 
         return DB::transaction(function () use ($invoice, $amount, $performedBy) {
             // A deleted store's last months are billed too (as syncStatuses() sees its invoices), never a failing run
-            $store = Store::withTrashed()->where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::withTrashed()->where('id', $invoice->store_id)->lock(Store::ledgerLock())->firstOrFail();
 
             $existing = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();
             if ($existing) {
@@ -860,7 +863,7 @@ class LedgerService
     public function reverseSubscriptionCharge(\App\Models\SubscriptionInvoice $invoice, ?int $performedBy = null, ?string $reason = null): ?StoreTransaction
     {
         return DB::transaction(function () use ($invoice, $performedBy, $reason) {
-            $store = Store::withTrashed()->where('id', $invoice->store_id)->lockForUpdate()->firstOrFail();
+            $store = Store::withTrashed()->where('id', $invoice->store_id)->lock(Store::ledgerLock())->firstOrFail();
 
             $reversal = $this->subscriptionRows($invoice)->where('amount', '<', 0)->first();
             $charge = $this->subscriptionRows($invoice)->where('amount', '>', 0)->first();
