@@ -6,6 +6,7 @@ use App\Support\Database\OwnerConnection;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantRls;
 use Closure;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\PostgresConnection;
 use Illuminate\Database\QueryException;
 use Throwable;
@@ -108,9 +109,25 @@ class RevisionPostgresConnection extends PostgresConnection
         }
     }
 
+    /**
+     * Review H1: Laravel answers a deadlock or serialization failure inside a nested transaction by lowering its
+     * counter and throwing a DeadlockException, without ROLLBACK TO SAVEPOINT (MySQL rolls the whole transaction back
+     * on a deadlock). PostgreSQL does not: it leaves the caller's transaction aborted, so a caller that catches the
+     * exception and goes on (SettlementRecoveryService::book) failed at its next statement with 25P02, or, with
+     * nothing more to say, "committed" a transaction PostgreSQL had rolled back (pdo_pgsql reports success). Here the
+     * level is rolled back to its savepoint first, exactly as for any other exception, and the same DeadlockException
+     * is thrown: the caller's transaction stays usable and keeps what it did outside the savepoint
+     * (tests/Feature/NestedTransactionDeadlockTest).
+     */
     protected function handleTransactionException(Throwable $e, $currentAttempt, $maxAttempts)
     {
         try {
+            if ($this->transactions > 1 && $this->causedByConcurrencyError($e)) {
+                $this->rollBack();
+
+                throw new DeadlockException($e->getMessage(), is_int($e->getCode()) ? $e->getCode() : 0, $e);
+            }
+
             parent::handleTransactionException($e, $currentAttempt, $maxAttempts);
         } finally {
             $this->forgetLeftTenantLevel();
@@ -286,6 +303,7 @@ class RevisionPostgresConnection extends PostgresConnection
     /**
      * The level that took the role is gone without a commit or rollback through this class: Laravel answers a
      * deadlock in a nested transaction by lowering its counter only (DeadlockException, no ROLLBACK TO SAVEPOINT).
+     * handleTransactionException() now rolls such a level back itself; this stays as the safety net.
      */
     private function forgetLeftTenantLevel(): void
     {

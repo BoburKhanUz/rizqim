@@ -1328,9 +1328,11 @@ Bundan tashqari, bonus berish paytida (qulflar ostida, `LedgerService::grantRefe
 
 4. mijozning bonusi hali turmagan bo'lishi kerak (hamma ovqatxonalar bo'yicha, qaytarib olinganlar ayirilgan —
    `LedgerService::referralRewardedNet`; o'chirilgan (soft-delete) buyurtmalar ham hisobga olinadi);
-5. **egasining B qoidasi:** taklif qiluvchining shu Toshkent oyidagi bonuslari (qaytarib olinganlari ayirilgan, oylik
-   hisobotdagi chegara bilan — `MonthlyRevenueReport::monthBounds`) `ReferralService::MONTHLY_CAP_PER_REFERRER` (**10**)
-   dan kam bo'lishi kerak.
+5. **egasining B qoidasi:** taklif qiluvchiga shu Toshkent oyida **berilgan** bonuslar (oylik hisobotdagi chegara bilan —
+   `MonthlyRevenueReport::monthBounds`) `ReferralService::MONTHLY_CAP_PER_REFERRER` (**10**) dan kam bo'lishi kerak.
+   Bu yalpi chegara (review L1): qaytarib olish faqat o'zi qaytargan bonus berilgan oydagi o'rinni bo'shatadi —
+   oktyabrdagi 10 bonusdan 3 tasi noyabrda qaytarib olinsa, noyabr baribir faqat 10 ta beradi (avval −3 dan
+   boshlanib 13 ta berardi); oktyabr ichida qaytarilgan oktyabr bonusi esa oktyabrda bitta o'rin bo'shatadi.
 
 **Mos bo'lmagan buyurtma taklifni «ishlatmaydi».** Tasdiqlanmagan to'lov, 50 000 dan kam summa, bonusdan kam komissiya,
 oylik chegara to'lgan — bularning hech biri bonus bermaydi va taklif kutishda qoladi: keyingi mos buyurtma (oylik
@@ -1353,10 +1355,22 @@ O'zgartirish — shu qiymatni o'zgartirib, testlarni (`tests/Feature/Referral/Re
 
 **Qachon beriladi.** Yetkazilganda (`processOrderDelivered`, hisob-kitob bilan bir savepoint'da; xato bo'lsa hisob-kitob
 kabi qayta uriniladi), yoki to'lov yetkazilgandan keyin tushsa — `MarkOrderAsPaid` da (Paylov: Paylov'dan o'qib
-tasdiqlangan paytda). Kechikkan to'lovda (review 3) do'konga hisob-kitob avval yoziladi, bonus esa **o'z savepoint'ida**
-(`SettlementRecoveryService::book`): bonus xatosi (deadlock, lock timeout) to'lov holatini ham, hisob-kitobni ham bekor
-qilmaydi — buyurtma `settlement_failed_at` bilan belgilanadi, superadminga xabar ketadi va `RetryFailedSettlementsJob`
-uni keyinroq bir marta beradi (provayder javob olgan to'lovni qayta yubormaydi, boshqa qayta urinish yo'q edi).
+tasdiqlangan paytda). Kechikkan to'lovda (review 3, review H1) to'lov holati va do'konga hisob-kitob **avval o'z
+tranzaksiyasida yoziladi va commit qilinadi**, bonus esa shundan keyin **alohida tranzaksiyada**
+(`SettlementRecoveryService::bookAfterPayment` → `book`): bonus xatosi (deadlock, lock timeout) to'lov holatini ham,
+hisob-kitobni ham bekor qila olmaydi — buyurtma `settlement_failed_at` bilan belgilanadi, superadminga xabar ketadi va
+`RetryFailedSettlementsJob` uni keyinroq bir marta beradi (provayder javob olgan to'lovni qayta yubormaydi, boshqa qayta
+urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham shu savepoint'da tozalaydi (review L5).
+
+**Deadlock savepoint'da (review H1).** Laravel ichki (nested) tranzaksiyadagi deadlock / serialization xatosida
+savepoint'ga qaytmasdan `DeadlockException` tashlardi; PostgreSQL esa butun tashqi tranzaksiyani «aborted» holatda
+qoldirardi: belgi (`settlement_failed_at`) yozilmasdi, keyingi «commit» esa hech narsani saqlamay muvaffaqiyat
+qaytarardi (yetkazish holati, komissiya, hisob-kitob jimgina yo'qolardi, after-commit hodisalari esa ketardi). Endi
+`RevisionPostgresConnection::handleTransactionException` bunday darajani avval o'z savepoint'iga qaytaradi
+(`NestedTransactionDeadlockTest`): yetkazishda faqat hisob-kitob savepoint'i (komissiya, hisob-kitob, bonus) bekor
+bo'ladi, yetkazish belgi bilan commit qilinadi va qayta urinishda hammasi bir marta yoziladi. Agar tashqi tranzaksiya
+baribir aborted bo'lsa (belgi yozilmasa, 25P02), `book` xatoni tashlaydi — tranzaksiya butunlay va ochiq bekor bo'ladi,
+hech narsa commit qilinmaydi va hodisa ketmaydi (`ReferralLatePaymentFailureTest`: haqiqiy PostgreSQL 40P01 bilan).
 
 **Bir marta va poyga yo'q.** Qulf tartibi boshqa ledger yo'llari kabi: avval ovqatxona qatori, keyin mijoz va taklif
 qiluvchining `users` qatorlari (bitta so'rovda, id tartibida — bir-birini taklif qilgan ikki akkaunt ham deadlock
@@ -1365,6 +1379,17 @@ taklif qiluvchining ikki do'sti oxirgi (10-) o'rinni ikki marta ololmaydi (`Refe
 fork qilingan jarayonlarda). Hamma ovqatxonalar bo'yicha o'qish RLS'dan login roli bilan o'tadi (`TenantRls::asApp`,
 bitta chaqiriq: faqat ha/yo'q va son qaytadi). `RefundRequestService::approve` ham endi ovqatxona qatorini mijoz
 balansidan (keshbek ulushi) oldin qulflaydi — avval teskari edi va bonus bilan deadlock berishi mumkin edi.
+
+**Ovqatxona qatori `FOR NO KEY UPDATE` bilan qulflanadi (review H1).** Keshbek bilan checkout (`CreateOrderAction`)
+avval mijozning `users` qatorini `FOR UPDATE` qulflaydi, keyin buyurtmani qo'shadi — uning foreign key tekshiruvi
+ovqatxona qatoriga `FOR KEY SHARE` oladi. Bonus/qaytarib olish esa avval ovqatxonani, keyin `users` ni qulflaydi:
+ovqatxona `FOR UPDATE` bo'lganda ikkalasi bir-birini kutib deadlock (40P01) berardi. Endi hamma pul yo'llari
+(`LedgerService` ning barcha ovqatxona qulflari, `RefundRequestService::approve`, `AdjustmentService`,
+`PayoutService::complete`) ovqatxona qatorini `Store::ledgerLock()` — `FOR NO KEY UPDATE` bilan oladi: u o'zi bilan va
+`FOR UPDATE` bilan to'qnashadi (ledger yo'llari bir-birini avvalgidek kutadi, ovqatxonani o'chirish ham kutadi), lekin
+foreign key tekshiruvini kutdirmaydi. Bu yo'llar ovqatxonaning faqat kalit bo'lmagan ustunlarini (`debt_balance`,
+`wallet_balance`, holat...) yozadi; yangi buyurtma qo'shilishini to'xtatib turishga hech bir yo'l tayanmaydi.
+Tekshiruv: `ReferralConcurrencyTest` (ikki ulanish: keshbek checkout va bir vaqtdagi yetkazish bonusi).
 
 **To'liq qaytarilgan buyurtma: bonus qaytarib olinadi (review 1).** Bonus bergan buyurtma to'liq qaytarilsa — qaysi yo'l
 bilan bo'lmasin (butun buyurtma uchun qaytarish so'rovi, tasdiqlangan ovqatxona kassasi qaytarishi, provayder tasdiqlagan
@@ -1430,13 +1455,13 @@ WHERE u.referred_by IS NOT NULL
 ```
 
 (b) Bonussiz taklif qilingan mijozlarning yetkazilgan, lekin hali to'lanmagan onlayn buyurtmalari (to'lov tushsa
-`MarkOrderAsPaid` bonus berishi mumkin):
+`MarkOrderAsPaid` bonus berishi mumkin; naqd va keshbek chiqarib tashlangan — ular hech qachon bonus bermaydi):
 
 ```sql
 SELECT o.payment_method, o.payment_owner, count(*) AS orders, count(DISTINCT o.user_id) AS customers
 FROM orders o JOIN users u ON u.id = o.user_id
 WHERE u.referred_by IS NOT NULL
-  AND o.status = 'delivered' AND o.payment_status <> 'paid' AND o.payment_method NOT IN ('cash')
+  AND o.status = 'delivered' AND o.payment_status <> 'paid' AND o.payment_method NOT IN ('cash', 'keshbek')
   AND o.deleted_at IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM store_transactions st JOIN orders o2 ON o2.id = st.order_id

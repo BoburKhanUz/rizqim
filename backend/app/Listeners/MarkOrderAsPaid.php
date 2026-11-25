@@ -30,7 +30,8 @@ class MarkOrderAsPaid
             return;
         }
 
-        $order = DB::transaction(function () use ($payment) {
+        $bookLate = false;
+        $order = DB::transaction(function () use ($payment, &$bookLate) {
             $order = Order::whereKey($payment->order_id)->lockForUpdate()->first();
 
             if (!$order) {
@@ -42,16 +43,11 @@ class MarkOrderAsPaid
                 $order->update(['payment_status' => PaymentStatus::PAID->value]);
             }
 
-            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent). Owner
-            // decision 3: the payment is verified only now, so the referral bonus it may earn is granted now (once)
+            // Paid only after delivery: delivery skipped the settlement, so credit the store now (idempotent), and it
+            // commits with the payment status before anything else is tried
             if ($order->status === OrderStatus::DELIVERED) {
                 $this->ledger->settlePlatformOrder($order);
-                // Review finding 3: the bonus never undoes the payment or the settlement above. The whole delivery booking
-                // again (commission, settlement: idempotent, already done; the referral bonus) in a savepoint of its own:
-                // a failure (a deadlock, a lock timeout) rolls back only that savepoint, marks the order
-                // (settlement_failed_at, alerted) and RetryFailedSettlementsJob books it again later, granting the bonus
-                // exactly once. A provider does not replay a payment it got an answer for, so nothing else would retry it
-                $this->settlements->book($order);
+                $bookLate = true;
 
                 return null;
             }
@@ -68,6 +64,19 @@ class MarkOrderAsPaid
 
             return $result->changed ? $result->order : null;
         });
+
+        if ($bookLate) {
+            // Owner decision 3: the payment is verified only now, so the referral bonus it may earn is granted now
+            // (once). Review finding 3 and review H1: in a transaction of its own, after the payment and the settlement
+            // committed, so the bonus never undoes either. The whole delivery booking again (commission, settlement:
+            // idempotent, already done; the referral bonus): a failure (a deadlock, a lock timeout) is rolled back,
+            // the order is marked (settlement_failed_at, alerted) and RetryFailedSettlementsJob books it again later,
+            // granting the bonus exactly once. A provider does not replay a payment it got an answer for, so nothing
+            // else would retry it
+            $this->settlements->bookAfterPayment((int) $payment->order_id);
+
+            return;
+        }
 
         if (!$order) {
             return;
