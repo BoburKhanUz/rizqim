@@ -139,6 +139,35 @@ class PaymentGoLiveFollowUpTest extends TestCase
         return $ledger;
     }
 
+    /**
+     * A LedgerService whose first two settlePlatformOrder calls fail (the listener's own settlement and book()'s retry
+     * of it in bookAfterPayment), while the order's retry marker cannot be written either: the first payment call
+     * credits nothing and leaves no marker, so only the provider's replay can heal it. The next calls work.
+     */
+    private function settlementLostOnTheFirstCall(): LedgerService
+    {
+        $ledger = new class(app(SubscriptionDebt::class), app(NettingService::class)) extends LedgerService {
+            public int $calls = 0;
+
+            public function settlePlatformOrder(Order $order, ?int $performedBy = null): bool
+            {
+                if (++$this->calls <= 2) {
+                    throw new \RuntimeException('deadlock detected (simulated, twice)');
+                }
+
+                return parent::settlePlatformOrder($order, $performedBy);
+            }
+        };
+        $this->app->instance(LedgerService::class, $ledger);
+        Order::saving(function (Order $order) use ($ledger) {
+            if ($ledger->calls <= 2 && $order->isDirty('settlement_failed_at') && $order->settlement_failed_at !== null) {
+                throw new \RuntimeException('orders unavailable (simulated): the retry marker cannot be written');
+            }
+        });
+
+        return $ledger;
+    }
+
     /** A PaymentPaid listener that fails once, registered ahead of MarkOrderAsPaid. */
     private function paidListenerFailingOnce(): void
     {
@@ -162,31 +191,34 @@ class PaymentGoLiveFollowUpTest extends TestCase
     {
         $order = $this->order('payme');
         $this->deliverUnpaid($order);
-        $ledger = $this->settlementFailingOnce();
+        $ledger = $this->settlementLostOnTheFirstCall();
         Log::spy();
 
         $this->payme('CreateTransaction', ['id' => 'm1-1', 'time' => 1760000000000, 'amount' => 5000000, 'account' => ['order_id' => $order->uuid]])
             ->assertJsonPath('result.state', 1);
 
-        // The money is taken and committed: the answer is the success, never -32400
+        // The money is taken and committed: the answer is the success, never -32400, though the settlement and even
+        // its retry marker failed (review H1: the listener throws, the handler logs it)
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2)->assertJsonMissingPath('error');
         $this->assertSame(PaymentStatus::PAID, Payment::where('provider_transaction_id', 'm1-1')->sole()->status);
-        // Review H1: the failed settlement is booked again in the same listener (bookAfterPayment → book), so the
-        // store is credited at once and nothing reaches the provider's handler
+        $this->assertSame(0, $this->settlements($order));
+        $this->assertNull($order->fresh()->settlement_failed_at);
+        $this->assertEquals(0, (float) $this->store->fresh()->wallet_balance);
+        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains((string) $message, 'PaymentPaid'));
+
+        // Payme's replay of the performed transaction (or a manual re-send) fires the event again: the store is
+        // credited, once
+        $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
         $this->assertSame(1, $this->settlements($order));
-        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Settlement of the late payment'));
-        Log::shouldNotHaveReceived('error', [\Mockery::on(fn ($message) => str_contains((string) $message, 'PaymentPaid'))]);
-
-        // Payme's replay of the performed transaction (or a manual re-send) fires the event again: the store is credited
-        $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
 
-        // The failed call and its retry in book(), then twice per replay: the settlement itself and, review finding 3,
-        // the delivery booking run again in its own savepoint (SettlementRecoveryService::book), a no-op each time
+        // The two failed calls, then twice per replay: the settlement itself and the delivery booking run again in
+        // its own savepoint (SettlementRecoveryService::book), a no-op
         $this->assertSame(6, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
+        $this->assertNull($order->fresh()->settlement_failed_at);
     }
 
     public function test_payme_new_order_is_auto_accepted_on_the_replay_after_a_listener_failure(): void

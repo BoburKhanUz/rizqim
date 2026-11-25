@@ -138,7 +138,7 @@ docker compose exec -T backend tar czf - -C /var/www/html/storage/app . > backup
 | Fon ishlari | Shu monitorda kalit so'z `"status":"ok"` | 5 daqiqa `ok` bo'lmasa (scheduler/navbat muammosi) |
 | Xatolar | Sentry (1-bo'lim) | Yangi xato turi, xatolar keskin oshishi |
 | Navbat | `/health` dagi `default_backlog`, `reports_backlog` (ichki tarmoqdan yoki `X-Health-Token` bilan); `failed_jobs` jadvali: `docker compose exec -u www-data backend php artisan queue:failed` | Backlog o'smoqda; `failed_jobs` bo'sh emas |
-| Moliyaviy xato | Settlement xatolari `TELEGRAM_SUPERADMIN_CHAT_ID` ga keladi; `php artisan orders:retry-settlements` | Har bir xabar |
+| Moliyaviy xato | Settlement xatolari `TELEGRAM_SUPERADMIN_CHAT_ID` ga keladi; `php artisan orders:retry-settlements` (belgisiz buyurtma — avval moliya tuzatishlarini tekshirib, `--confirm-unbooked` bilan; «Kechikkan to'lovning hisob-kitobi yiqilsa») | Har bir xabar |
 | Zaxira yangiligi | `find backups -name '*.dump' -mmin -1560 \| grep -q .` (26 soat ichida dump bor) cron'da | Dump yo'q yoki `docker compose logs backup` da `XATO` |
 | Disk | `df -h`, `docker system df`; Postgres volume va `backups/` hajmi | 80% dan oshsa |
 | Redis xotira | `docker compose exec redis redis-cli info memory` (parol bo'lsa `-a`) | `used_memory` konteyner xotirasiga yaqinlashsa. `maxmemory-policy` ni `allkeys-*` qilmang (navbat kalitlari o'chadi) |
@@ -1373,7 +1373,8 @@ so'rovning jamlangan ulushi minus buyurtmaning reversal qatorlari allaqachon qay
 yozilmaydi (hammasi buyurtma qulfi ostida). O'z qatori bor so'rovning qo'shimcha qatori `order_refund_request_id = null`,
 `components.catch_up_for_request = <id>` bilan yoziladi; `is_full` buyurtmada bittadan ko'p bo'lmaydi. So'rovga
 `execution.ledger_reversal_caught_up_at` (vaqt) va `ledger_reversal_catch_up_reason` (`retry` — belgili buyurtmaning
-qayta urinishi; `late_payment` — kechikkan to'lovning hisob-kitobi; `replay` — provayderning takroriy xabari) yoziladi;
+qayta urinishi; `late_payment` — kechikkan to'lovning hisob-kitobi; `replay` — provayderning takroriy xabari; `manual` —
+belgisiz buyurtmani `orders:retry-settlements --confirm-unbooked` qo'lda yozdi) yoziladi;
 eski `ledger_reversal_on_retry: true` endi yozilmaydi (eski so'rovlarda qoladi, uni hech narsa o'qimaydi).
 `FinanceDeferredLedgerPartsTest`.
 
@@ -1402,15 +1403,36 @@ ya'ni provayder qayta yubormaydi. Avval `settlePlatformOrder` xatosi tinglovchi 
 hisob-kitob o'z savepoint'ida (`settleLatePayment`); xato tutiladi va `bookAfterPayment` → `book` uni qayta yozadi, yana
 yiqilsa buyurtma `settlement_failed_at` bilan belgilanadi (superadminga xabar, `RetryFailedSettlementsJob` 10 daqiqada).
 Belgining o'zi ham yozilmasa `bookAfterPayment` o'z tranzaksiyasida yana urinadi, bo'lmasa **`SettlementNotMarked`
-tashlaydi** (critical log «could not be marked for a retry», superadminga «avtomatik qayta urinish bo'lmaydi» xabari);
+tashlaydi** (critical log «could not be marked for a retry», superadminga «avtomatik qayta urinish bo'lmaydi» xabari —
+bir marta, ikkinchi urinish natijasi ma'lum bo'lgandan keyin);
 hisob-kitobdan hech narsa commit qilinmagan. Provayder javobi o'zgarmaydi (u log'ga `... PaymentPaid listener failed`
 yozadi): Complete/Perform'ga xato javob provayderga to'lovni muvaffaqiyatsiz deb ko'rsatishi mumkin edi, bizda esa u
 allaqachon `paid`. Bunday buyurtmani monitoring topadi: `settlement_failures` qoidasining ikkinchi topilmasi (subject
 `unmarked`) va «Bugun»dagi «To'langan, lekin do'konga yozilmagan» guruhi (`UnbookedSettlementsSource`) — yetkazilgan,
-`payment_owner = PLATFORM`, `payment_status = paid`, belgisiz, settlement / qarz to'lovi qatori yo'q, 15 daqiqadan beri
-o'zgarmagan buyurtmalar (`SettlementRecoveryService::unbookedLatePayments`). Sababini bartaraf etib:
-`php artisan orders:retry-settlements <id>` (belgisiz bunday buyurtmani ham yozadi) yoki provayderning takroriy
-Complete/Perform'i. `FinanceLatePaymentSettlementFailureTest`.
+`payment_owner = PLATFORM`, `payment_status = paid`, belgisiz, settlement / qarz to'lovi qatori yo'q, to'lovi
+(`payments.paid_at`) 15 daqiqadan oldin va 30 kundan keyin tushgan buyurtmalar
+(`SettlementRecoveryService::unbookedLatePayments`; oyna `payments_paid_at_index` orqali o'qiladi — har monitoring
+yurishida barcha yetkazilgan buyurtmalar ko'rib chiqilmaydi; to'lov qatorisiz «to'langan» buyurtma bu yerda chiqmaydi).
+30 kundan eskilarini quyidagi (ii) so'rov topadi. Admin paneldagi «qayta urinish» tugmasi bunday buyurtmani **yozmaydi**
+(u faqat belgili buyurtmalar uchun) — ataylab: pastdagi tekshiruvsiz bir bosishda ikki marta yozish xavfi bor.
+
+**Belgisiz buyurtmani qo'lda yozish (ikki marta yozmaslik uchun).** Moliya bunday buyurtmaning pulini do'konga
+allaqachon qo'lda yozgan bo'lishi mumkin: qo'lda tuzatishda (`finance_adjustments`, uning ledger qatori) `order_id`
+yo'q, buyurtma faqat erkin matnda (`reason`, `notes`) tilga olinishi mumkin — shuning uchun monitoring ularni
+ajrata olmaydi va buyurtma ro'yxatda qolaveradi. Avval sababini bartaraf eting, so'ng:
+
+1. `php artisan orders:retry-settlements <id>` — **bayroqsiz** belgisiz buyurtmani yozmaydi: buyurtmani (do'kon,
+   summa, to'lov vaqti) va buyurtma berilgandan beri do'konning qo'lda tuzatishlarini (Moliya → Qo'lda tuzatish:
+   rad etilmaganlari; buyurtmasiz qo'lda `adjustment` qatorlari qarz va hamyon ledger'ida; eski paneldan qo'lda
+   top-up'lar) chiqaradi va 1 kodi bilan tugaydi.
+2. Ularni va do'konning qarz / hamyon ledger'ini (Moliya → do'kon) shu buyurtma vaqtidan beri tekshiring: shu
+   buyurtmaning puli (masalan, `wallet_credit` 90 000 «Click to'lovi yozilmagan») qo'lda yozilgan bo'lsa, buyruqni
+   **ishga tushirmang** — buyurtma ro'yxatda qoladi, buni moliya bilan kelishing.
+3. Faqat hech biri bu buyurtmani yozmagan bo'lsa: `php artisan orders:retry-settlements <id> --confirm-unbooked` —
+   bir marta yozadi (`bookAfterPayment`, catch-up sababi `manual`), qayta ishga tushirilsa hech narsa qilmaydi.
+
+Belgili buyurtmalar (`settlement_failed_at`) avvalgidek bayroqsiz yoziladi. Provayderning takroriy Complete/Perform'i
+ham belgisiz buyurtmani yozadi. `FinanceLatePaymentSettlementFailureTest`.
 
 **Deploydan oldin (faqat o'qish).** Shu o'zgarish bilan nimaga tegishini oldindan sanash uchun:
 
@@ -1440,9 +1462,13 @@ WHERE o.status = 'delivered'
 ```
 
 (i) dagi legacy bo'lmaganlari — yozuvi yiqilgan paytda tasdiqlangan qismlar (`ledger_reversal_deferred: true`): ular
-o'sha buyurtma yozilganda qaytariladi. (ii) dagilar — deploydan keyin 15 daqiqada monitoring ko'rsatadi; har birini
-`orders:retry-settlements <id>` bilan yozish mumkin (u yozilgandan keyin o'sha orada tasdiqlangan qismlarning ulushini
-ham qaytaradi).
+o'sha buyurtma yozilganda qaytariladi. (ii) dagilar — to'lovi oxirgi 30 kunda tushganlarini deploydan keyin 15 daqiqada
+monitoring ko'rsatadi (eskilari faqat shu so'rovda). Ularning puli moliya tomonidan qo'lda yozilgan bo'lishi mumkin
+(tuzatishda `order_id` yo'q): har biri uchun **avval** do'konning moliya tuzatishlarini tekshiring —
+`php artisan orders:retry-settlements <id>` (bayroqsiz) buyurtmani va do'konning o'sha vaqtdan beri qo'lda
+tuzatishlarini chiqaradi, hech narsa yozmaydi; yuqoridagi «Belgisiz buyurtmani qo'lda yozish». Faqat hech biri bu
+buyurtmani yozmagan bo'lsa: `php artisan orders:retry-settlements <id> --confirm-unbooked` (u yozilgandan keyin o'sha
+orada tasdiqlangan qismlarning ulushini ham qaytaradi, sababi `manual`).
 
 **Deadlock savepoint'da (review H1).** Laravel ichki (nested) tranzaksiyadagi deadlock / serialization xatosida
 savepoint'ga qaytmasdan `DeadlockException` tashlardi; PostgreSQL esa butun tashqi tranzaksiyani «aborted» holatda

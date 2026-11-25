@@ -240,38 +240,46 @@ class PaylovWebhookTest extends TestCase
         foreach ([OrderStatus::ACCEPTED, OrderStatus::PREPARING, OrderStatus::DELIVERED] as $status) {
             app(OrderStatusService::class)->transition($order->fresh(), $status, null);
         }
+        // The first two settlements fail (the listener's own and book()'s retry of it) and the retry marker cannot be
+        // written either: the first Perform credits nothing and leaves no marker, only the replay can heal it
         $ledger = new class(app(SubscriptionDebt::class), app(NettingService::class)) extends LedgerService {
             public int $calls = 0;
 
             public function settlePlatformOrder(Order $order, ?int $performedBy = null): bool
             {
-                if (++$this->calls === 1) {
-                    throw new \RuntimeException('deadlock detected (simulated, once)');
+                if (++$this->calls <= 2) {
+                    throw new \RuntimeException('deadlock detected (simulated, twice)');
                 }
 
                 return parent::settlePlatformOrder($order, $performedBy);
             }
         };
         $this->app->instance(LedgerService::class, $ledger);
+        Order::saving(function (Order $order) use ($ledger) {
+            if ($ledger->calls <= 2 && $order->isDirty('settlement_failed_at') && $order->settlement_failed_at !== null) {
+                throw new \RuntimeException('orders unavailable (simulated): the retry marker cannot be written');
+            }
+        });
         Log::spy();
         $txn = (string) Str::uuid();
 
         $this->perform($order, $txn)->assertOk()->assertExactJson(self::answer());
         $this->assertSame(PaymentStatus::PAID, $this->paylovPayment($txn)->status);
-        // Review H1: the failed settlement is booked again in the same listener (bookAfterPayment → book), so the
-        // store is credited at once and nothing reaches the provider's handler
+        $this->assertSame(0, $this->settlements($order));
+        $this->assertNull($order->fresh()->settlement_failed_at);
+        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains((string) $message, 'PaymentPaid'));
+
+        // Paylov's repeated Perform credits the store, once
+        $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->assertSame(1, $this->settlements($order));
-        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Settlement of the late payment'));
-        Log::shouldNotHaveReceived('error', [\Mockery::on(fn ($message) => str_contains((string) $message, 'PaymentPaid'))]);
-
-        $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->perform($order, $txn)->assertExactJson(self::answer());
 
-        // The failed call and its retry in book(), then twice per replay: the settlement itself and, review finding 3,
-        // the delivery booking run again in its own savepoint (SettlementRecoveryService::book), a no-op each time
+        // The two failed calls, then twice per replay: the settlement itself and the delivery booking run again in
+        // its own savepoint (SettlementRecoveryService::book), a no-op
         $this->assertSame(6, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
+        $this->assertNull($order->fresh()->settlement_failed_at);
     }
 
     public function test_a_new_order_is_auto_accepted_once(): void

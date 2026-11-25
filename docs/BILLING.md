@@ -179,7 +179,8 @@ RIZQIM ovqatxona uchun yig'gan pul ovqatxonaga yetishidan oldin uning qarzini yo
    (`order_ledger_reversals`). Yetkazilgan buyurtmaning hisob-kitobi yozilmay qolgan paytda (`settlement_failed_at`)
    tasdiqlangan qism ledger'da qaytaradigan narsa topmaydi (`execution.ledger_reversal_deferred`): hisob-kitobni yozgan
    qayta urinish (`SettlementRecoveryService`) o'sha zahoti shunday har qismni qaytaradi — jamlanib, har so'rov bir marta,
-   go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_caught_up_at`, `ledger_reversal_catch_up_reason`;
+   go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_caught_up_at`, `ledger_reversal_catch_up_reason`:
+   `retry`, `late_payment`, `replay` yoki `manual` — belgisiz buyurtmani `orders:retry-settlements --confirm-unbooked` yozdi;
    faqat belgili buyurtmaning qayta urinishida yoki biror qism birinchi marta yozilganda; P4-23 dan oldingi so'rovlar hech
    qachon — docs/OPERATIONS.md). Hisob-kitobning bir qismi
    (masalan, kechikkan to'lovning hisob-kitobi) turgan paytda tasdiqlangan qism keyin yozilgan qismdan (komissiya) ham

@@ -270,11 +270,171 @@ class FinanceLatePaymentSettlementFailureTest extends TestCase
         $storeOwned->forceFill(['payment_status' => PaymentStatus::PAID->value, 'payment_owner' => 'STORE'])->saveQuietly();
         $missing = $this->deliveredUnpaid();
         $missing->forceFill(['payment_status' => PaymentStatus::PAID->value])->saveQuietly();
+        Payment::create(['order_id' => $missing->id, 'provider' => 'click', 'amount' => 100000, 'status' => PaymentStatus::PAID, 'paid_at' => now()]);
 
         $this->travel(16)->minutes();
 
         $this->assertSame([$missing->uuid], $this->unmarkedFindings());
         $this->assertSame(1, app(UnbookedSettlementsSource::class)->collect(5)['count']);
         $this->assertNotNull($unpaid);
+    }
+
+    private const SUPERADMIN_CHAT = '-100700700';
+
+    private function configureAlerts(): void
+    {
+        config(['services.telegram.bot_token' => '123456:late-pay-token', 'services.telegram.superadmin_chat_id' => self::SUPERADMIN_CHAT]);
+    }
+
+    /** @return \Illuminate\Support\Collection<int, string> the superadmin alerts queued so far */
+    private function alerts(): \Illuminate\Support\Collection
+    {
+        return Queue::pushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => ($job->params['chat_id'] ?? null) === self::SUPERADMIN_CHAT)
+            ->map(fn (SendTelegramRequest $job) => (string) $job->params['text'])->values();
+    }
+
+    /**
+     * Neither the settlement nor the marker could be written when Click's Complete landed; both repaired since. The
+     * order is paid, delivered, uncredited and unmarked: nothing books it by itself.
+     */
+    private function unbookedUnmarked(): Order
+    {
+        $order = $this->deliveredUnpaid();
+        $this->failSettlements();
+        $this->failMarker();
+        $this->clickComplete($order)->assertJson(['error' => 0]);
+        $this->repairMarker();
+        $this->repairSettlements();
+        $order->refresh();
+        $this->assertSame(PaymentStatus::PAID, $order->payment_status);
+        $this->assertNull($order->settlement_failed_at);
+        $this->assertSame([[], []], $this->settlementRows($order));
+
+        return $order;
+    }
+
+    /**
+     * Review (double credit): finance may already have credited such an order by hand (a manual adjustment carries no
+     * order_id). The command refuses an unmarked, unbooked order without --confirm-unbooked: it books nothing, names
+     * what it found and the checks to make (the store's adjustments since the order). With the flag it books it once;
+     * the catch-up reason is `manual`.
+     */
+    public function test_the_command_refuses_an_unmarked_unbooked_order_without_confirmation_and_books_it_once_with_it(): void
+    {
+        $order = $this->unbookedUnmarked();
+        $adjustment = \App\Models\FinanceAdjustment::forceCreate([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(), 'store_id' => $this->store->id, 'kind' => 'wallet_credit',
+            'amount' => '90000.00', 'reason' => 'Click to\'lovi do\'konga yozilmagan edi', 'status' => \App\Models\FinanceAdjustment::APPLIED,
+            'applied_at' => now(),
+        ]);
+        $this->travel(16)->minutes();
+        $rows = $this->ledgerRows();
+
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id]])
+            ->expectsOutputToContain('--confirm-unbooked')
+            ->expectsOutputToContain((string) $adjustment->uuid)
+            ->assertFailed();
+        $this->assertSame($rows, $this->ledgerRows(), 'nothing is booked without --confirm-unbooked');
+        $this->assertSame(['10000.00', '0.00'], $this->balances());
+        $this->assertNull($order->fresh()->settlement_failed_at);
+
+        $this->artisan('orders:retry-settlements', ['orders' => [$order->uuid], '--confirm-unbooked' => true])
+            ->expectsOutputToContain('booked')->assertSuccessful();
+        $this->assertSame([['90000.00'], ['-10000.00']], $this->settlementRows($order));
+        $this->assertSame(['0.00', '90000.00'], $this->balances());
+
+        // Again: nothing left to book
+        $rows = $this->ledgerRows();
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id], '--confirm-unbooked' => true])
+            ->expectsOutputToContain('no failed ledger booking');
+        $this->assertSame($rows, $this->ledgerRows());
+        $this->assertSame([], $this->unmarkedFindings());
+    }
+
+    /** A marked order: the command books it as before, without the flag, once. */
+    public function test_the_command_books_a_marked_order_without_confirmation_once(): void
+    {
+        $order = $this->deliveredUnpaid();
+        $this->failSettlements();
+        $this->clickComplete($order)->assertJson(['error' => 0]);
+        $this->assertNotNull($order->fresh()->settlement_failed_at);
+        $this->repairSettlements();
+
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id]])->expectsOutputToContain('booked')->assertSuccessful();
+        $this->assertNull($order->fresh()->settlement_failed_at);
+        $this->assertSame([['90000.00'], ['-10000.00']], $this->settlementRows($order));
+
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id]])->expectsOutputToContain('no failed ledger booking');
+        $this->assertSame([['90000.00'], ['-10000.00']], $this->settlementRows($order));
+        $this->assertSame(['0.00', '90000.00'], $this->balances());
+    }
+
+    /**
+     * The marker could not be written in book()'s transaction nor in bookAfterPayment's own: one alert, sent once the
+     * outcome is known, saying to check the store's adjustments first and only then run the command with the flag.
+     */
+    public function test_an_unmarkable_late_settlement_alerts_superadmins_once_with_the_checks_to_make(): void
+    {
+        $this->configureAlerts();
+        $order = $this->unbookedUnmarked();
+
+        $alerts = $this->alerts()->filter(fn (string $text) => str_contains($text, '#' . $order->short_code))->values();
+        $this->assertCount(1, $alerts, 'one alert for one unmarkable failure: ' . $alerts->implode(' | '));
+        $this->assertStringContainsString("orders:retry-settlements {$order->id} --confirm-unbooked", $alerts[0]);
+        $this->assertStringContainsString('tuzatish', $alerts[0]);
+    }
+
+    /**
+     * Review (query cost): the check and the Today list look at payments paid in the last 30 days (and 15 minutes ago
+     * at least), by the payment's paid time; the command still finds an older one (the pre-deploy SQL lists them all).
+     */
+    public function test_unbooked_orders_are_reported_by_the_payments_paid_time_within_30_days(): void
+    {
+        $order = $this->unbookedUnmarked();
+        $payment = Payment::where('order_id', $order->id)->sole();
+
+        // Paid 5 minutes ago (the order itself untouched for an hour): not yet
+        $order->forceFill(['updated_at' => now()->subHour()])->saveQuietly();
+        $payment->forceFill(['paid_at' => now()->subMinutes(5)])->saveQuietly();
+        $this->assertSame([], $this->unmarkedFindings());
+
+        $payment->forceFill(['paid_at' => now()->subDays(20)])->saveQuietly();
+        $this->assertSame([$order->uuid], $this->unmarkedFindings());
+
+        $payment->forceFill(['paid_at' => now()->subDays(31)])->saveQuietly();
+        $this->assertSame([], $this->unmarkedFindings());
+        $this->assertSame(0, app(UnbookedSettlementsSource::class)->collect(5)['count']);
+
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id]])->expectsOutputToContain('--confirm-unbooked')->assertFailed();
+        $this->artisan('orders:retry-settlements', ['orders' => [(string) $order->id], '--confirm-unbooked' => true])->expectsOutputToContain('booked')->assertSuccessful();
+        $this->assertSame([['90000.00'], ['-10000.00']], $this->settlementRows($order));
+    }
+
+    /** The Today item: the admin retry button cannot book it; the subtitle names the check and the server command. */
+    public function test_the_attention_item_names_the_check_and_the_server_command(): void
+    {
+        $order = $this->unbookedUnmarked();
+        $this->travel(16)->minutes();
+
+        $item = app(UnbookedSettlementsSource::class)->collect(5)['items'][0];
+        $this->assertStringContainsString("php artisan orders:retry-settlements {$order->id} --confirm-unbooked", (string) $item->subtitle);
+        $this->assertStringContainsString('tuzatish', (string) $item->subtitle);
+        $this->assertStringContainsString('server', (string) $item->subtitle);
+    }
+
+    /**
+     * Review (query cost): the window is read through payments_paid_at_index (paid payments by paid time), never by
+     * reading every payment; EXPLAIN of the query the check and the Today list run.
+     */
+    public function test_the_window_reads_payments_through_the_paid_at_index(): void
+    {
+        $query = \App\Services\Finance\SettlementRecoveryService::unbookedLatePayments()->toBase()->selectRaw('count(*)');
+
+        $plan = DB::transaction(function () use ($query) {
+            DB::statement('SET LOCAL enable_seqscan = off');
+
+            return implode("\n", array_column(array_map(fn ($row) => (array) $row, DB::select('EXPLAIN ' . $query->toSql(), $query->getBindings())), 'QUERY PLAN'));
+        });
+        $this->assertStringContainsString('payments_paid_at_index', $plan);
     }
 }

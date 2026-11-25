@@ -12,9 +12,11 @@ use App\Services\Finance\SettlementRecoveryService;
  * partial index keeps this off the table). Cleared by SettlementRecoveryService when the booking succeeds.
  *
  * Review H1: a second finding (subject `unmarked`) for the delivered, platform-collected, paid orders whose money was
- * never credited to the store and that carry no marker, untouched for 15 minutes
+ * never credited to the store and that carry no marker, paid between 15 minutes and 30 days ago
  * (SettlementRecoveryService::unbookedLatePayments): a late payment's settlement that failed when even the marker
- * could not be written. No retry books those by itself; the same threshold applies.
+ * could not be written. No retry books those by itself; the same threshold applies. Finance may have credited one by
+ * hand already (an adjustment carries no order_id): docs/OPERATIONS.md, check the adjustments, then
+ * `orders:retry-settlements <id> --confirm-unbooked`.
  */
 class SettlementFailuresCheck implements AlertCheck
 {
@@ -38,13 +40,15 @@ class SettlementFailuresCheck implements AlertCheck
         $unmarked = SettlementRecoveryService::unbookedLatePayments();
         $unmarkedCount = (clone $unmarked)->count();
         if ($unmarkedCount >= $rule->threshold) {
-            $oldest = (clone $unmarked)->min('updated_at');
+            $oldest = (clone $unmarked)->toBase()->selectSub(SettlementRecoveryService::paidAtSubquery(), 'paid_at')
+                ->orderBy('paid_at')->limit(1)->value('paid_at');
 
             $findings[] = new AlertFinding('unmarked', "{$unmarkedCount} ta to'langan buyurtma puli do'konga yozilmadi (qayta urinish belgisisiz)", [
                 'count' => $unmarkedCount,
                 'threshold' => $rule->threshold,
-                'oldest_updated_at' => $oldest !== null ? \Illuminate\Support\Carbon::parse($oldest)->toIso8601String() : null,
-                'orders' => (clone $unmarked)->orderBy('updated_at')->orderBy('id')->limit(5)->pluck('uuid')->all(),
+                'oldest_paid_at' => $oldest !== null ? \Illuminate\Support\Carbon::parse((string) $oldest)->toIso8601String() : null,
+                'orders' => (clone $unmarked)->select('orders.*')->selectSub(SettlementRecoveryService::paidAtSubquery(), 'paid_at')
+                    ->orderBy('paid_at')->orderBy('id')->limit(5)->pluck('uuid')->all(),
             ]);
         }
 
