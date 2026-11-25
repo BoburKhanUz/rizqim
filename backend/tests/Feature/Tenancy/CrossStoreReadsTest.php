@@ -43,11 +43,17 @@ class CrossStoreReadsTest extends TestCase
         return StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value)->count();
     }
 
-    public function test_the_referral_reward_follows_the_customers_first_delivery_at_any_store(): void
+    public function test_the_referral_reward_follows_the_customers_bonus_at_any_store(): void
     {
-        // The customer's first order was delivered at another store: this one, at the courier's store, is not the first
+        // The customer's bonus was earned at another store: this delivery, at the courier's store (row-level security
+        // bound to it), must still see it and grant nothing
         $other = $this->makeStore('Boshqa');
-        $this->payThroughPaylov($this->makeOrder(OrderStatus::DELIVERED, ['store_id' => $other->id, 'branch_id' => $this->makeBranch($other, 'Boshqa filial')->id]));
+        $earlier = $this->payThroughPaylov($this->makeOrder(OrderStatus::DELIVERED, ['store_id' => $other->id, 'branch_id' => $this->makeBranch($other, 'Boshqa filial')->id]));
+        StoreTransaction::create([
+            'store_id' => $other->id, 'type' => StoreTransactionType::REFERRAL_BONUS->value, 'amount' => '5000.00',
+            'balance_before' => '0.00', 'balance_after' => '0.00', 'reference_id' => $earlier->uuid, 'order_id' => $earlier->id,
+            'notes' => \App\Services\Finance\LedgerService::referralBonusNote((int) $this->customer->id),
+        ]);
 
         $this->assertSame(0, $this->referralRewards($this->deliverByCourier()));
     }

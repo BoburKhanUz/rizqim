@@ -584,7 +584,19 @@ class PaylovPayments
                 return ['refunded', $locked];
             }
 
-            if ($order->status === OrderStatus::DELIVERED) {
+            if ($order->status === OrderStatus::DELIVERED && self::partOfAnApprovedPartialRequest($refund, $order)) {
+                // Review finding 4: the cancel of a share an approved refund request gave back (RefundRequestService::spread
+                // asked Paylov for this payment, the request was not for the whole order): its ledger share was reversed
+                // on approval, so only the payment is refunded here — never the whole order (no commission nobody approved)
+                if (!Payment::where('order_id', $order->id)->where('status', PaymentStatus::PAID->value)->exists()) {
+                    $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+                }
+                Log::info("Paylov gave back the approved part of delivered order {$order->uuid}: only the payment is refunded", [
+                    'order_id' => $order->id,
+                    'payment_id' => $locked->id,
+                    'refund_reason' => $refund['reason'] ?? null,
+                ]);
+            } elseif ($order->status === OrderStatus::DELIVERED) {
                 $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
                 app(OrderStatusService::class)->refund($order, null, "Paylov to'lovni mijozga qaytardi.", true);
                 Log::warning("Paylov refund after delivery for order {$order->uuid}: order refunded", [
@@ -618,6 +630,24 @@ class PaylovPayments
         }
 
         return $outcome;
+    }
+
+    /**
+     * Review finding 4: whether the payment's refund was asked for by an approved refund request that did not refund
+     * the whole order (payload.paylov.refund.reason `refund_request_<id>`, set by RefundRequestService::spread; a request
+     * for the whole order goes through OrderStatusService::refund, reason `order_refunded`).
+     *
+     * @param  array<string, mixed>  $refund  payload.paylov.refund as it was before this cancel
+     */
+    private static function partOfAnApprovedPartialRequest(array $refund, Order $order): bool
+    {
+        if (preg_match('/^refund_request_(\d+)$/', (string) ($refund['reason'] ?? ''), $match) !== 1) {
+            return false;
+        }
+        $request = \App\Models\OrderRefundRequest::query()->whereKey((int) $match[1])->where('order_id', $order->id)->first(['id', 'status', 'execution']);
+
+        return $request !== null && $request->status === \App\Models\OrderRefundRequest::APPROVED
+            && ($request->execution['mode'] ?? null) !== 'order_refunded';
     }
 
     /**

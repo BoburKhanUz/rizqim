@@ -61,5 +61,5 @@ export function makeStaffOrder(over: Partial<StaffOrder> = {}): StaffOrder {
 }
 
 export function makeStaffOrderDetail(over: Partial<StaffOrderDetail> = {}): StaffOrderDetail {
-  return { ...makeStaffOrder(), status_history: [{ from_status: null, status: 'new', created_at: '2026-10-20T10:00:00+05:00' }], refund_by: null, ...over };
+  return { ...makeStaffOrder(), status_history: [{ from_status: null, status: 'new', created_at: '2026-10-20T10:00:00+05:00' }], refund_by: null, refund_returned: null, ...over };
 }

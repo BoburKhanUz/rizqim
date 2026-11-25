@@ -15,7 +15,7 @@ part 'data371.g.dart';
 @JsonSerializable()
 class Data371 {
   const Data371({
-    required this.discount,
+    required this.deliveryPrice,
     required this.shortCode,
     required this.status,
     required this.statusLabel,
@@ -27,8 +27,8 @@ class Data371 {
     required this.paymentMethod,
     required this.paymentStatus,
     required this.subtotal,
+    required this.discount,
     required this.uuid,
-    required this.deliveryPrice,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.totalPrice,
@@ -39,8 +39,8 @@ class Data371 {
     required this.cancelReason,
     required this.cancelNote,
     required this.customer,
-    required this.refundBy,
-    required this.courier,
+    required this.delivery,
+    required this.refundReturned,
     required this.itemsTotal,
     required this.itemsReady,
     required this.items,
@@ -52,7 +52,8 @@ class Data371 {
     required this.closedAt,
     required this.waitingSeconds,
     required this.statusHistory,
-    required this.delivery,
+    required this.refundBy,
+    required this.courier,
   });
 
   factory Data371.fromJson(Map<String, Object?> json) =>
@@ -123,6 +124,8 @@ class Data371 {
   final List<StatusHistory> statusHistory;
   @JsonKey(name: 'refund_by')
   final String? refundBy;
+  @JsonKey(name: 'refund_returned')
+  final bool? refundReturned;
 
   Map<String, Object?> toJson() => _$Data371ToJson(this);
 }

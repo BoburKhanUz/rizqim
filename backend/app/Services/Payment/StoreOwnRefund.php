@@ -17,12 +17,28 @@ use App\Models\Payment;
  *
  * The label never changes the money: commission on a delivered store-owned order is reversed only after a two-person
  * check (OrderStatusService::refund, RefundRequestService, StoreRefundReviewDecision).
+ *
+ * Review finding 5: such a refund is `returned` (done: "Ovqatxona o'z hisobidan qaytardi") once every such payment is
+ * seen back — the provider's cancel arrived (refunded / cancelled), or, for providers that never confirm a refund
+ * (Click, Uzum, Paynet; Paylov after its cancel failed for good), a platform member marked it done by hand
+ * (markReturned: payload `refunded_manually_by`, never the provider's status).
  */
 final class StoreOwnRefund
 {
     public const REFUND_BY = 'store_own_account';
 
     public const LABEL = "Pulni ovqatxona o'z hisobidan qaytaradi";
+
+    /** Review finding 5: the done state of LABEL. */
+    public const RETURNED_LABEL = "Pulni ovqatxona o'z hisobidan qaytardi";
+
+    /** Payload keys of a refund a platform member marked done by hand (markReturned). */
+    public const MANUAL_BY = 'refunded_manually_by';
+
+    public const MANUAL_AT = 'refunded_manually_at';
+
+    /** How many approved manual shares (manual_refund_approved) the mark covered: a later approved share is not done yet. */
+    public const MANUAL_COVERS = 'refunded_manually_covers';
 
     /**
      * Whether the order is "store-owned" in the sense of owner decision 4: paid online straight into the store's own
@@ -84,14 +100,32 @@ final class StoreOwnRefund
     }
 
     /**
-     * What the customer sees of such a refund (GET /orders, their own orders): `returned` once every such payment is
-     * seen back (the provider's cancel arrived: the payment is refunded or cancelled), until then false ("the
-     * restaurant refunds it"). Null when there is no such refund.
+     * Whether this payment's money is seen back: the provider's cancel arrived (refunded or cancelled), or a platform
+     * member marked the store's refund done by hand and no approved share came after that mark.
+     */
+    public static function returned(Payment $payment): bool
+    {
+        if (in_array($payment->status, [PaymentStatus::REFUNDED, PaymentStatus::CANCELLED], true)) {
+            return true;
+        }
+
+        return self::markedReturned($payment);
+    }
+
+    /** Whether a platform member marked this payment's store refund done by hand, covering every approved share. */
+    public static function markedReturned(Payment $payment): bool
+    {
+        return is_numeric($payment->payload[self::MANUAL_BY] ?? null)
+            && (int) ($payment->payload[self::MANUAL_COVERS] ?? 0) >= count((array) ($payment->payload['manual_refund_approved'] ?? []));
+    }
+
+    /**
+     * The order's store refunds recorded on payments the store must give back (refundRecorded and isStores).
      *
      * @param  iterable<Payment>  $payments  the order's payments
-     * @return array{refund_by: string, returned: bool}|null
+     * @return list<Payment>
      */
-    public static function forCustomer(Order $order, iterable $payments): ?array
+    public static function recorded(Order $order, iterable $payments): array
     {
         $recorded = [];
         foreach ($payments as $payment) {
@@ -99,13 +133,63 @@ final class StoreOwnRefund
                 $recorded[] = $payment;
             }
         }
-        if ($recorded === []) {
-            return null;
+
+        return $recorded;
+    }
+
+    /**
+     * Whether the order's store refund is done (every recorded payment returned); null when there is none. The admin
+     * card and the partner order detail show RETURNED_LABEL then, never the instruction to refund (a store that
+     * already refunded must not be told to refund again).
+     *
+     * @param  iterable<Payment>  $payments  the order's payments
+     */
+    public static function returnedOf(Order $order, iterable $payments): ?bool
+    {
+        $recorded = self::recorded($order, $payments);
+
+        return $recorded === [] ? null : collect($recorded)->every(fn (Payment $payment) => self::returned($payment));
+    }
+
+    /**
+     * What the customer sees of such a refund (GET /orders, their own orders): `returned` once every such payment is
+     * seen back (returned()), until then false ("the restaurant refunds it"). Null when there is no such refund.
+     *
+     * @param  iterable<Payment>  $payments  the order's payments
+     * @return array{refund_by: string, returned: bool}|null
+     */
+    public static function forCustomer(Order $order, iterable $payments): ?array
+    {
+        $returned = self::returnedOf($order, $payments);
+
+        return $returned === null ? null : ['refund_by' => self::REFUND_BY, 'returned' => $returned];
+    }
+
+    /**
+     * The payments a platform member may mark as given back by the store by hand (markReturned): the store's own,
+     * whose refund was decided — a share of an approved refund request (manual_refund_approved), or a refund flagged
+     * by a cancel or a refund of the order (manual_refund_required on a cancelled, rejected or refunded order; Paylov's
+     * cancel that failed for good) — and not seen back yet. `reason`: null (some to mark), `already` (all done),
+     * `not_store_own_refund` (RIZQIM collected it, or nothing of it is the store's to give back) or
+     * `no_approved_refund` (no refund decided for it yet).
+     *
+     * @param  iterable<Payment>  $payments  the order's payments
+     * @return array{reason: string|null, payments: list<Payment>}
+     */
+    public static function markable(Order $order, iterable $payments): array
+    {
+        if (!self::isStoreOwned($order)) {
+            return ['reason' => 'not_store_own_refund', 'payments' => []];
         }
+        $closed = in_array($order->status, [\App\Enums\OrderStatus::REFUNDED, \App\Enums\OrderStatus::CANCELED, \App\Enums\OrderStatus::REJECTED], true);
+        $decided = array_values(array_filter(self::recorded($order, $payments), fn (Payment $payment) => !empty($payment->payload['manual_refund_approved'])
+            || (!empty($payment->payload['manual_refund_required']) && ($closed || ($payment->payload['manual_refund_reason'] ?? null) === 'paylov_cancel_failed'))));
+        if ($decided === []) {
+            return ['reason' => 'no_approved_refund', 'payments' => []];
+        }
+        $open = array_values(array_filter($decided, fn (Payment $payment) => !self::returned($payment)));
 
-        $returned = collect($recorded)->every(fn (Payment $payment) => in_array($payment->status, [PaymentStatus::REFUNDED, PaymentStatus::CANCELLED], true));
-
-        return ['refund_by' => self::REFUND_BY, 'returned' => $returned];
+        return ['reason' => $open === [] ? 'already' : null, 'payments' => $open];
     }
 
     /**

@@ -8,6 +8,7 @@ import {
   useDecideRefund,
   useDecideStoreRefund,
   useFixStatus,
+  useMarkStoreRefunded,
   useMessageOrder,
   useRequestRefund,
   useUpdateSla,
@@ -277,6 +278,25 @@ export function StoreRefundReviewDialog({ order, action, onDone, onClose }: { or
           },
         )
       }
+    />
+  );
+}
+
+// Review 5: the store gave the money back from its own account; Click / Uzum / Paynet never confirm a refund to RIZQIM
+export function MarkStoreRefundedDialog({ order, onDone, onClose }: { order: OrderCard; onDone: (message: string) => void; onClose: () => void }) {
+  const t = useT();
+  const mark = useMarkStoreRefunded();
+  const [key] = useState(idempotencyKey);
+  return (
+    <ReasonForm
+      title={t('orders_markStoreRefunded')}
+      text={t('orders_markStoreRefundedText')}
+      submitLabel={t('orders_markStoreRefundedSubmit')}
+      busy={mark.isPending}
+      error={mark.error ? errorText(mark.error, t) : null}
+      reasonError={fieldError(mark.error, 'reason')}
+      onClose={onClose}
+      onSubmit={(reason) => mark.mutate({ uuid: order.uuid, reason, key }, { onSuccess: () => onDone(t('orders_markStoreRefundedDone')) })}
     />
   );
 }

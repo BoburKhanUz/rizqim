@@ -369,7 +369,11 @@ export default function CustomerProfile() {
       <div className="grid grid-cols-2 gap-3">
         <Card>
           <span className="block text-footnote text-fg-muted">{t('profileCashback')}</span>
-          <p className="mt-1 text-headline font-bold text-fg">{formatMoney(user?.balance ?? 0, language)}</p>
+          {/* Review 1: a referral bonus taken back after it was spent leaves a debt (below zero), paid off by the next bonus */}
+          <p data-testid="profile-cashback" className={`mt-1 text-headline font-bold ${(user?.balance ?? 0) < 0 ? 'text-danger' : 'text-fg'}`}>
+            {(user?.balance ?? 0) < 0 ? `−${formatMoney(Math.abs(user?.balance ?? 0), language)}` : formatMoney(user?.balance ?? 0, language)}
+          </p>
+          {(user?.balance ?? 0) < 0 && <p className="mt-1 text-caption text-fg-muted">{t('profileCashbackDebt')}</p>}
         </Card>
         <Card>
           <span className="block text-footnote text-fg-muted">{t('profileOrdersLabel')}</span>
@@ -511,7 +515,7 @@ export default function CustomerProfile() {
 
       <Section title={t('inviteTitle')}>
         <Card className="flex flex-col gap-3">
-          <p className="text-footnote text-fg">{t('inviteText', { amount: formatMoney(5000, language) })}</p>
+          <p className="text-footnote text-fg">{t('inviteText', { amount: formatMoney(5000, language), min: formatMoney(50000, language) })}</p>
           {user?.id && (
             <div className="flex items-center justify-between gap-3 rounded-control bg-surface-2 py-1 pl-3 pr-1">
               <span className="select-text text-body font-medium text-fg-muted">rizqim_{user.id}</span>

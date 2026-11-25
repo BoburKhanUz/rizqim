@@ -193,6 +193,10 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
     provider_refund?: 'requested' | 'retrying' | 'done' | 'failed' | null;
     /** Owner decision 4: a refund of this payment is recorded and the store gives it back from its own account */
     refund_by?: RefundBy | null;
+    /** Review 5: that refund is done (the provider's cancel arrived, or a member marked it); null when there is none */
+    refund_returned?: boolean | null;
+    /** Review 5: marked done by hand by a member ("Ovqatxona pulni qaytardi"), never the provider's confirmation */
+    refunded_manually?: { by: Actor | null; at: string | null } | null;
     created_at: string | null;
   }[];
   refunds: { paid: string; refunded: string; refundable: string; requests: RefundRequest[] };
@@ -206,6 +210,8 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
   store_refund_reviews: StoreRefundReview[];
   /** Owner decision 4: `store_own_account` once a refund of money paid into the store's own account is recorded */
   refund_by?: RefundBy | null;
+  /** Review 5: that refund is done (every such payment seen back); null when there is none */
+  refund_returned?: boolean | null;
   actions: {
     can_intervene: boolean;
     can_cancel: boolean;
@@ -219,6 +225,8 @@ export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'
     can_decide_store_refund: boolean;
     /** ... and may approve it: false for the member who proposed it (four eyes) */
     can_approve_store_refund: boolean;
+    /** Review 5: "Ovqatxona pulni qaytardi" — the store's own refund was decided and is not seen back yet */
+    can_mark_store_refunded?: boolean;
   };
 }
 
@@ -291,6 +299,10 @@ export const decideRefund = (id: number, decision: 'approve' | 'reject', reason:
 export type StoreRefundDecision = 'approve' | 'dismiss';
 export const decideStoreRefund = (uuid: string, decision: StoreRefundDecision, reason: string, key: string) =>
   data<OrderCard>(call('POST', `/orders/${encodeURIComponent(uuid)}/store-refund-review/${decision}`, { body: { reason }, headers: { 'Idempotency-Key': key } }));
+
+// Review 5: one member records that the store gave the money back from its own account (no ledger change). Answers the card.
+export const markStoreRefunded = (uuid: string, reason: string, key: string) =>
+  data<OrderCard>(call('POST', `/orders/${encodeURIComponent(uuid)}/store-own-refund/returned`, { body: { reason }, headers: { 'Idempotency-Key': key } }));
 
 export const listRefundRequests = (status: 'pending' | 'all', signal?: AbortSignal) =>
   data<{ data: QueuedRefundRequest[]; next_cursor: string | null }>(call('GET', '/refund-requests', { query: { status, per_page: 50 }, signal }));
@@ -367,6 +379,9 @@ export function useDecideStoreRefund() {
     onSettled: () => client.invalidateQueries({ queryKey: ORDER_KEYS.all }),
   });
 }
+
+export const useMarkStoreRefunded = () =>
+  useOrderWrite(({ uuid, reason, key }: { uuid: string; reason: string; key: string }) => markStoreRefunded(uuid, reason, key), (input) => input.uuid);
 
 export function useUpdateSla() {
   const client = useQueryClient();

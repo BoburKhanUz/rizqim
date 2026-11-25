@@ -72,7 +72,9 @@ abstract class StaffOrdersApi {
   /// Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order.
   /// of another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`.
   /// once a refund of money paid into the store's own provider account was recorded (the store gives it back from its.
-  /// own cabinet: RIZQIM holds none of it), else null.
+  /// own cabinet: RIZQIM holds none of it), else null; `refund_returned` whether that refund is done (the provider's.
+  /// cancel arrived, or a RIZQIM team member recorded the store's refund: show "refunded", never "refund it" again),.
+  /// null when there is no such refund.
   ///
   /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/staff/orders/{uuid}')

@@ -17,9 +17,10 @@ use Illuminate\Support\Facades\DB;
  * - returned: the parts approved refund requests gave back (payload.refunded_to_balance_parts) and what a cancellation
  *   gave back (payload.refunded_to_balance; after partial refunds only the rest, refunded_to_balance_by_requests set),
  *   plus;
- * - referral bonus: 5 000 for the first verified delivered order of each customer they invited (LedgerService: a
+ * - referral bonus: 5 000 for the qualifying delivered order of each customer they invited (LedgerService: a
  *   platform-paid REFERRAL_BONUS row, or before owner decision 3's addition a store-charged commission row with the
- *   referral note; both are read), plus.
+ *   referral note; both are read), plus; and a bonus taken back on the full refund of that order (a negative
+ *   REFERRAL_BONUS row), minus.
  *
  * The newest $limit entries; older history is not needed to read the balance (the balance itself is shown).
  */
@@ -75,7 +76,10 @@ class KeshbekHistory
         foreach ($rewards as $reward) {
             $entries[] = $this->entry(
                 'referral',
-                "Do'st taklifi uchun bonus (" . $reward->friend . ')',
+                // Review finding 1: a negative row is the bonus taken back on the full refund of the order that earned it
+                Money::of((string) $reward->amount)->isNegative()
+                    ? "Do'st taklifi bonusi qaytarib olindi (" . $reward->friend . ", #{$reward->short_code} qaytarildi)"
+                    : "Do'st taklifi uchun bonus (" . $reward->friend . ')',
                 Money::of((string) $reward->amount),
                 null,
                 $this->time($reward->created_at),

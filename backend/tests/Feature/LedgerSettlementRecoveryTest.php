@@ -58,11 +58,20 @@ class LedgerSettlementRecoveryTest extends TestCase
         DB::statement('ALTER TABLE store_transactions RENAME COLUMN balance_after_renamed TO balance_after');
     }
 
-    private function deliver(bool $verified = true): Order
+    private function deliver(bool $platformCollected = false): Order
     {
-        // Owner decision 3: paid in a way the platform verified (Paylov's read-back), so it earns the referral bonus
+        // Owner decision 3: paid in a way the platform verified, so it earns the referral bonus: Paylov's read-back of
+        // the store's own account (the ledger is the commission alone), or the platform's own Click account
         $order = $this->makeOrder(OrderStatus::ON_THE_WAY, ['courier_id' => $this->courier->id]);
-        if ($verified) {
+        if ($platformCollected) {
+            $order->forceFill(['payment_method' => 'click', 'payment_owner' => 'PLATFORM', 'payment_status' => 'paid'])->save();
+            \App\Models\Payment::create([
+                'order_id' => $order->id, 'store_id' => $order->store_id, 'merchant_scope' => \App\Models\Payment::merchantScopeOf($order),
+                'provider' => 'click', 'provider_transaction_id' => 'click-' . \Illuminate\Support\Str::random(12),
+                'amount' => $order->total_price, 'status' => 'paid', 'paid_at' => now(),
+            ]);
+            $order->refresh();
+        } else {
             $order = $this->payThroughPaylov($order);
         }
 
@@ -148,19 +157,21 @@ class LedgerSettlementRecoveryTest extends TestCase
         $this->assertCount(2, $this->alerts());
     }
 
-    public function test_a_retry_after_the_customers_next_delivery_still_rewards_the_first_order_once(): void
+    public function test_a_retry_after_the_customers_next_delivery_grants_nothing_more(): void
     {
         $this->breakLedger();
         $first = $this->deliver();
         $this->repairLedger();
 
+        // The bonus is for a qualifying order, not "the first delivery": the referral was still open, so the next
+        // qualifying delivery earns it; the first one's booking, retried later, books its commission and nothing more
         $second = $this->deliver();
-        $this->assertSame(['commission' => 1, 'referral' => 0, 'debt' => '5000.00', 'referrer' => 0.0], $this->booked($second));
+        $this->assertSame(['commission' => 1, 'referral' => 1, 'debt' => '5000.00', 'referrer' => 5000.0], $this->booked($second));
 
         $this->retry();
 
-        $this->assertSame(['commission' => 1, 'referral' => 1, 'debt' => '10000.00', 'referrer' => 5000.0], $this->booked($first));
-        $this->assertSame(0, $this->booked($second)['referral']);
+        $this->assertSame(['commission' => 1, 'referral' => 0, 'debt' => '10000.00', 'referrer' => 5000.0], $this->booked($first));
+        $this->assertSame(1, $this->booked($second)['referral']);
     }
 
     public function test_it_gives_up_after_the_configured_attempts_with_a_louder_alert(): void
@@ -192,15 +203,24 @@ class LedgerSettlementRecoveryTest extends TestCase
 
     public function test_an_order_refunded_before_the_retry_is_not_booked_any_more(): void
     {
+        // Platform-collected and verified: had its booking succeeded it would have earned the bonus (a single admin may
+        // still refund such an order)
         $this->breakLedger();
-        $order = $this->deliver(verified: false);
+        $order = $this->deliver(platformCollected: true);
         $this->repairLedger();
+        $this->assertTrue(\App\Services\Auth\ReferralService::qualifiesForReferralBonus($order));
         $admin = $this->makeStaff(\App\Enums\UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
         app(OrderStatusService::class)->refund($order, $admin, 'Mijoz shikoyati');
 
         $this->retry();
 
+        // Neither the commission, nor the settlement, nor the referral bonus: the refunded order earns nothing
         $this->assertSame(['commission' => 0, 'referral' => 0, 'debt' => '0.00', 'referrer' => 0.0], $this->booked($order));
+        $this->assertSame('0.00', (string) $this->store->fresh()->wallet_balance);
         $this->assertNull($order->fresh()->settlement_failed_at);
+        // ...nor later, when the referred customer's next order is delivered: that one earns it
+        $this->deliver();
+        $this->assertSame(5000.0, (float) $this->referrer->fresh()->balance);
+        $this->assertSame(0, $this->booked($order)['referral']);
     }
 }

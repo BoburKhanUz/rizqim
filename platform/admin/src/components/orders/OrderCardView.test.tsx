@@ -181,6 +181,59 @@ describe('OrderCardView', () => {
     expect(within(screen.getByTestId('refund-7')).queryByText(/to'lov tizimi kabinetida yoki naqd/)).not.toBeInTheDocument();
   });
 
+  // Review finding 5: a refund the store already made reads as done, never as an instruction to refund again
+  it('says the store refunded it once the money is seen back, and offers no mark', async () => {
+    const done = card({
+      status: 'refunded',
+      status_label: 'Qaytarildi',
+      refund_by: 'store_own_account',
+      refund_returned: true,
+      payments: [{ uuid: 'p1', provider: 'payme', amount: '50000.00', status: 'refunded', paid_at: null, manual_refund_required: false, manual_refund_approved: [], refund_by: 'store_own_account', refund_returned: true, refunded_manually: null, created_at: null }],
+    });
+    setup({ [`GET /orders/${UUID}`]: () => ok(done) });
+    expect(await screen.findByTestId('order-refund-by-store-done')).toHaveTextContent("Pulni ovqatxona o'z hisobidan qaytardi");
+    expect(screen.queryByTestId('order-refund-by-store')).not.toBeInTheDocument();
+    expect(screen.queryByText("Pulni ovqatxona o'z hisobidan qaytaradi")).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ovqatxona pulni qaytardi' })).not.toBeInTheDocument();
+  });
+
+  it('lets one member mark that the store gave the money back (Click: no provider confirmation)', async () => {
+    const payment = { uuid: 'p1', provider: 'click', amount: '50000.00', status: 'paid', paid_at: null, manual_refund_required: false, manual_refund_approved: [{ refund_request_id: 7, amount: '50000.00', approved_at: null }], refund_by: 'store_own_account' as const, refund_returned: false, refunded_manually: null, created_at: null };
+    const pending = card({
+      status: 'refunded',
+      status_label: 'Qaytarildi',
+      refund_by: 'store_own_account',
+      refund_returned: false,
+      payments: [payment],
+      actions: { ...card().actions, can_mark_store_refunded: true },
+    });
+    const marked = card({
+      ...pending,
+      refund_returned: true,
+      payments: [{ ...payment, refund_returned: true, refunded_manually: { by: { id: 40, name: 'Operator 1', role: 'Moliya', team: true }, at: new Date(NOW).toISOString() } }],
+      actions: { ...pending.actions, can_mark_store_refunded: false },
+    });
+    let done = false;
+    const { user, callsTo } = setup({
+      [`GET /orders/${UUID}`]: () => ok(done ? marked : pending),
+      [`POST /orders/${UUID}/store-own-refund/returned`]: () => {
+        done = true;
+        return ok(marked, { message: 'Belgilandi: ovqatxona pulni mijozga qaytardi.' });
+      },
+    });
+    expect(await screen.findByTestId('order-refund-by-store')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Ovqatxona pulni qaytardi' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ovqatxona pulni qaytardi' });
+    expect(within(dialog).getByText(/komissiyaga tegmaydi/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Ovqatxona chekini yubordi');
+    await user.click(within(dialog).getByRole('button', { name: 'Belgilash' }));
+
+    await vi.waitFor(() => expect(callsTo('POST', `/orders/${UUID}/store-own-refund/returned`)[0]?.body).toEqual({ reason: 'Ovqatxona chekini yubordi' }));
+    expect(await screen.findByText("Belgilandi: ovqatxona pulni mijozga qaytardi.")).toBeInTheDocument();
+    expect(await screen.findByTestId('order-refund-by-store-done')).toBeInTheDocument();
+    expect(screen.getByText(/Qo'lda belgilandi: Operator 1/)).toBeInTheDocument();
+  });
+
   it('says nothing of it on an order the platform collected', async () => {
     setup();
     await screen.findByRole('heading', { name: 'Buyurtma #ORD-AB12CD' });
@@ -206,7 +259,7 @@ describe('OrderCardView', () => {
   });
 
   it('offers no action buttons to a viewer', async () => {
-    setup({ [`GET /orders/${UUID}`]: () => ok(card({ actions: { can_intervene: false, can_cancel: false, cancel_reasons: [], transitions: [], message_store: false, message_customer: false, can_request_refund: false, can_approve_refund: false, can_decide_store_refund: false, can_approve_store_refund: false } })) }, ['admin.orders.view']);
+    setup({ [`GET /orders/${UUID}`]: () => ok(card({ actions: { can_intervene: false, can_cancel: false, cancel_reasons: [], transitions: [], message_store: false, message_customer: false, can_request_refund: false, can_approve_refund: false, can_decide_store_refund: false, can_approve_store_refund: false, can_mark_store_refunded: false } })) }, ['admin.orders.view']);
     expect(await screen.findByText("Sizda faqat ko'rish ruxsati bor.")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ovqatxonaga yozish' })).not.toBeInTheDocument();
   });

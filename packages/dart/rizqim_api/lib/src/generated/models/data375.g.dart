@@ -7,7 +7,7 @@ part of 'data375.dart';
 // **************************************************************************
 
 Data375 _$Data375FromJson(Map<String, dynamic> json) => Data375(
-  discount: json['discount'] as String,
+  deliveryPrice: json['delivery_price'] as String,
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   statusLabel: json['status_label'] as String,
@@ -19,8 +19,8 @@ Data375 _$Data375FromJson(Map<String, dynamic> json) => Data375(
   paymentMethod: json['payment_method'] as String,
   paymentStatus: json['payment_status'] as String,
   subtotal: json['subtotal'] as String,
+  discount: json['discount'] as String,
   uuid: json['uuid'] as String,
-  deliveryPrice: json['delivery_price'] as String,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   totalPrice: json['total_price'] as String,
@@ -33,10 +33,10 @@ Data375 _$Data375FromJson(Map<String, dynamic> json) => Data375(
   customer: json['customer'] == null
       ? null
       : Customer6.fromJson(json['customer'] as Map<String, dynamic>),
-  refundBy: json['refund_by'] as String?,
-  courier: json['courier'] == null
+  delivery: json['delivery'] == null
       ? null
-      : Courier6.fromJson(json['courier'] as Map<String, dynamic>),
+      : Delivery9.fromJson(json['delivery'] as Map<String, dynamic>),
+  refundReturned: json['refund_returned'] as bool?,
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
@@ -52,9 +52,10 @@ Data375 _$Data375FromJson(Map<String, dynamic> json) => Data375(
   statusHistory: (json['status_history'] as List<dynamic>)
       .map((e) => StatusHistory2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  delivery: json['delivery'] == null
+  refundBy: json['refund_by'] as String?,
+  courier: json['courier'] == null
       ? null
-      : Delivery9.fromJson(json['delivery'] as Map<String, dynamic>),
+      : Courier6.fromJson(json['courier'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data375ToJson(Data375 instance) => <String, dynamic>{
@@ -96,4 +97,5 @@ Map<String, dynamic> _$Data375ToJson(Data375 instance) => <String, dynamic>{
   'waiting_seconds': instance.waitingSeconds,
   'status_history': instance.statusHistory,
   'refund_by': instance.refundBy,
+  'refund_returned': instance.refundReturned,
 };

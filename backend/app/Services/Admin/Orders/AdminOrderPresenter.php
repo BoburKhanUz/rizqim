@@ -235,6 +235,13 @@ class AdminOrderPresenter
                 'provider_refund' => $payment->provider === 'paylov' && is_string($payment->payload['paylov']['refund']['status'] ?? null) ? $payment->payload['paylov']['refund']['status'] : null,
                 // Owner decision 4: who gives this payment's money back when a refund of it is recorded
                 'refund_by' => StoreOwnRefund::refundRecorded($payment) && StoreOwnRefund::isStores($order, $payment) ? StoreOwnRefund::REFUND_BY : null,
+                // Review finding 5: that refund is done (the provider's cancel arrived, or marked by hand); null: none
+                'refund_returned' => StoreOwnRefund::refundRecorded($payment) && StoreOwnRefund::isStores($order, $payment) ? StoreOwnRefund::returned($payment) : null,
+                // Marked done by hand by a platform member ("Ovqatxona pulni qaytardi"), never the provider's confirmation
+                'refunded_manually' => is_numeric($payment->payload[StoreOwnRefund::MANUAL_BY] ?? null) ? [
+                    'by' => self::actor(\App\Models\User::query()->find((int) $payment->payload[StoreOwnRefund::MANUAL_BY])),
+                    'at' => is_string($payment->payload[StoreOwnRefund::MANUAL_AT] ?? null) ? $payment->payload[StoreOwnRefund::MANUAL_AT] : null,
+                ] : null,
                 'created_at' => $payment->created_at?->toIso8601String(),
             ])->all(),
             // Wave P: provider refunds on the store's own cashbox waiting for (or given) a manager's decision
@@ -244,6 +251,9 @@ class AdminOrderPresenter
             // Owner decision 4: `store_own_account` once a refund of money paid into the store's own account was
             // recorded (the store gives it back from there, RIZQIM holds none of it), else null
             'refund_by' => StoreOwnRefund::of($order, $order->payments),
+            // Review finding 5: whether that refund is done (every such payment seen back: "Ovqatxona o'z hisobidan
+            // qaytardi"); null when there is none
+            'refund_returned' => StoreOwnRefund::returnedOf($order, $order->payments),
             'refunds' => [
                 'paid' => $balance['paid']->toString(),
                 'refunded' => $balance['refunded']->toString(),
@@ -296,6 +306,9 @@ class AdminOrderPresenter
                 'can_request_refund' => $can(AdminPermission::ORDERS_REFUND_REQUEST) && $this->refunds->canRequest($order)
                     && $balance['refundable']->isPositive() && !$base['refund_pending'],
                 'can_approve_refund' => $can(AdminPermission::ORDERS_REFUND_APPROVE),
+                // Review finding 5: "Ovqatxona pulni qaytardi" (POST /admin/orders/{uuid}/store-own-refund/returned)
+                'can_mark_store_refunded' => $can(AdminPermission::ORDERS_REFUND_APPROVE)
+                    && StoreOwnRefund::markable($order, $order->payments)['reason'] === null,
             ],
         ]);
     }

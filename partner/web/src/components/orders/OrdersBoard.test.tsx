@@ -81,6 +81,7 @@ const detailOf = (order: StaffOrder): StaffOrderDetail => ({
   ...order,
   status_history: [{ from_status: null, status: 'new', created_at: order.created_at }],
   refund_by: null,
+  refund_returned: null,
 });
 
 function renderBoard(permissions = OWNER, ui: ReactElement = <OrdersBoard />) {
@@ -334,6 +335,24 @@ describe('the orders board', () => {
 
     expect(await within(drawer).findByText("Pulni ovqatxona o'z hisobidan qaytaradi")).toBeInTheDocument();
     expect(within(drawer).getByText(/to'lov tizimi kabinetingizdan qaytaring/)).toBeInTheDocument();
+  });
+
+  // Review finding 5: once the money is seen back the store is told it is done, never to refund it again
+  it("says the store already refunded it once the refund is done, without the instruction to refund", async () => {
+    const user = userEvent.setup();
+    const order = makeOrder({ status: 'refunded', payment_method: 'payme', payment_status: 'refunded' });
+    mockFetch({
+      ...signIn(OWNER),
+      'GET /api/v1/staff/orders': serveOrders([], [order]),
+      [`GET /api/v1/staff/orders/${order.uuid}`]: () => ok({ ...detailOf(order), refund_by: 'store_own_account', refund_returned: true }),
+    });
+    renderBoard();
+    await user.click(await screen.findByRole('button', { name: `#${order.short_code} buyurtmani ochish` }));
+    const drawer = await screen.findByRole('dialog', { name: `Buyurtma #${order.short_code}` });
+
+    expect(await within(drawer).findByText("Pulni ovqatxona o'z hisobidan qaytardi")).toBeInTheDocument();
+    expect(within(drawer).queryByText("Pulni ovqatxona o'z hisobidan qaytaradi")).not.toBeInTheDocument();
+    expect(within(drawer).queryByText(/kabinetingizdan qaytaring/)).not.toBeInTheDocument();
   });
 
   it('says nothing of it for any other order', async () => {

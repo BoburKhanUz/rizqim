@@ -32,7 +32,31 @@ class MonthlyRevenueReport
 
     public function timezone(): string
     {
+        return self::timezoneName();
+    }
+
+    /** The report's month boundary time zone (config billing.timezone, Asia/Tashkent). */
+    public static function timezoneName(): string
+    {
         return (string) config('billing.timezone', 'Asia/Tashkent');
+    }
+
+    /**
+     * The report's month (Y-m, in timezoneName()) as [start, end) timestamps in the app's time zone, formatted for a
+     * created_at comparison. The one boundary helper: the report and the referral cap
+     * (ReferralService::monthlyBonusesOf) use it.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function monthBounds(string $period): array
+    {
+        $tz = self::timezoneName();
+        $appTz = (string) config('app.timezone');
+
+        return [
+            Carbon::createFromFormat('!Y-m', $period, $tz)->setTimezone($appTz)->format('Y-m-d H:i:s'),
+            Carbon::createFromFormat('!Y-m', $period, $tz)->addMonthNoOverflow()->setTimezone($appTz)->format('Y-m-d H:i:s'),
+        ];
     }
 
     /**
@@ -142,11 +166,14 @@ class MonthlyRevenueReport
         $total = $commission->plus($subscriptions['invoiced']);
 
         // Owner decision 3's addition: the platform's own cost — referral bonuses it paid, booked in the month
+        // Review finding 1: a bonus taken back (a full refund of the order that earned it) is a negative row booked in
+        // the month of the clawback: it nets the sum out, and counts −1
+        [$referralStart, $referralEnd] = self::monthBounds($period);
         $referral = DB::table('store_transactions')
             ->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
-            ->where('created_at', '>=', $start->format('Y-m-d H:i:s'))
-            ->where('created_at', '<', $end->format('Y-m-d H:i:s'))
-            ->selectRaw('COUNT(*) AS rewards, COALESCE(SUM(amount), 0) AS paid')
+            ->where('created_at', '>=', $referralStart)
+            ->where('created_at', '<', $referralEnd)
+            ->selectRaw('COALESCE(SUM(CASE WHEN amount > 0 THEN 1 WHEN amount < 0 THEN -1 ELSE 0 END), 0) AS rewards, COALESCE(SUM(amount), 0) AS paid')
             ->first();
         $referralPaid = Money::of((string) ($referral->paid ?? '0'));
 

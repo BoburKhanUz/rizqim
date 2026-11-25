@@ -219,7 +219,7 @@ class OrderLifecycleRefundTest extends TestCase
         $this->assertSame(['debt' => [], 'wallet' => []], $this->refundRows($order));
     }
 
-    public function test_a_refunded_first_order_keeps_its_referral_reward_and_the_next_order_earns_none(): void
+    public function test_a_refunded_first_order_gives_its_referral_reward_back_and_the_next_order_earns_it(): void
     {
         $referrer = $this->makeCustomer();
         $customer = $this->makeCustomer();
@@ -242,10 +242,11 @@ class OrderLifecycleRefundTest extends TestCase
 
         app(OrderStatusService::class)->refund($first, $this->admin, 'Mijoz shikoyati');
 
-        // Only the commission and the settlement are reversed; the referral reward stays (the platform paid it)
-        $this->assertEquals(5000, (float) $referrer->fresh()->balance);
+        // The commission and the settlement are reversed; review finding 1: the referral bonus is taken back too
+        $this->assertEquals(0, (float) $referrer->fresh()->balance);
         $this->assertSame(['0.00', '0.00'], $this->storeBalances());
 
+        // The referral is open again: the next qualifying order earns it, once
         $paidOrder();
 
         $this->assertEquals(5000, (float) $referrer->fresh()->balance);

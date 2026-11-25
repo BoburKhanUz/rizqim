@@ -270,10 +270,15 @@ class OrderStatusService
         }
 
         if (preg_match('/^refund_request:(\d+)$/', $check, $match) === 1) {
-            return \App\Models\OrderRefundRequest::query()->whereKey((int) $match[1])->where('order_id', $order->id)
+            $request = \App\Models\OrderRefundRequest::query()->whereKey((int) $match[1])->where('order_id', $order->id)
                 ->where('status', \App\Models\OrderRefundRequest::PENDING)
-                ->where('requested_by', '!=', $actor->id)
-                ->exists();
+                ->first(['id', 'requested_by']);
+            // Review finding 7: an asker whose account was deleted (requested_by NULL) is no "different person"
+            if ($request !== null && $request->requested_by === null) {
+                throw self::requesterMissing();
+            }
+
+            return $request !== null && (int) $request->requested_by !== (int) $actor->id;
         }
 
         if ($check === 'store_refund_review') {
@@ -287,6 +292,20 @@ class OrderStatusService
         }
 
         return false;
+    }
+
+    /**
+     * Review finding 7: a refund request whose asker's account was deleted cannot be the first person of a two-person
+     * check; the admin makes a new request (and another member approves it).
+     */
+    public static function requesterMissing(): OrderTransitionException
+    {
+        return new OrderTransitionException(
+            "Bu so'rovni yaratgan xodimning akkaunti o'chirilgan: ikki kishilik tekshiruv bajarilmaydi. "
+            . "So'rovni rad eting va yangi qaytarish so'rovini yarating — uni boshqa xodim tasdiqlaydi.",
+            422,
+            'requester_missing',
+        );
     }
 
     /**

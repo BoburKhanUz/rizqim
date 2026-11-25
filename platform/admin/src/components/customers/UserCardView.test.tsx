@@ -60,6 +60,22 @@ describe('UserCardView', () => {
     expect(within(await screen.findByTestId('referral-bonus')).getByRole('link', { name: 'Buyurtma #AB12CD' })).toHaveAttribute('href', '/orders/ab12cd34-1111-4222-8333-444455556666');
   });
 
+  // Owner's rule B: the referrer's own card shows how many bonuses of the monthly cap they have this month
+  it("shows the referrer's bonuses this month of the cap", async () => {
+    const base = userCard();
+    setup({ 'GET /users/7': () => ok(userCard({ profile: { ...base.profile, referral_month: { count: 10, cap: 10, label: 'Bu oy: 10/10' } } })) });
+    expect(await screen.findByTestId('referral-month')).toHaveTextContent('Bu oy: 10/10');
+  });
+
+  // Review 1: a bonus taken back after it was spent leaves a debt: shown as one, never as money to spend
+  it('shows a negative keshbek balance as a debt', async () => {
+    const base = userCard();
+    const { user } = setup({ 'GET /users/7': () => ok(userCard({ keshbek: { ...base.keshbek, balance: '-5000.00' } })) });
+    await user.click(await screen.findByRole('tab', { name: 'Keshbek' }));
+    expect(screen.getByTestId('keshbek-balance')).toHaveTextContent(/Qarz: 5.000.so'm/);
+    expect(screen.getByText(/keyingi bonusdan yopiladi/)).toBeInTheDocument();
+  });
+
   it('shows no referral bonus row for a customer nobody invited', async () => {
     setup();
     await screen.findByRole('heading', { name: 'Olim Egamov', level: 1 });
