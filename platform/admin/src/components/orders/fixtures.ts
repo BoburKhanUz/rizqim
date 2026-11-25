@@ -122,6 +122,7 @@ export function card(overrides: Partial<OrderCard> = {}): OrderCard {
       can_approve_refund: false,
       can_decide_store_refund: false,
       can_approve_store_refund: false,
+      can_mark_store_refunded: false,
     },
     ...overrides,
   };

@@ -102,7 +102,8 @@ price_lock = migratsiyadan keyingi birinchi oy eski narxdan qimmat bo'lmasin (fa
   yozuvlari (qarzga va hamyondan), shu buyurtmalar bo'yicha keyinchalik qaytarilgan komissiya ayiriladi (to'liq
   qaytarishda — hammasi, qisman qaytarishda — faqat qaytarilgan ulushi, buyurtma butunlay chiqarilmaydi); referal
   mukofoti komissiya emas (eski, restoran to'lagan `commission` + izohli yozuv ham; yangilari `referral_bonus` turida —
-  RIZQIM to'laydi, OPERATIONS.md 31-bo'lim).
+  RIZQIM to'laydi, buyurtma to'liq qaytarilsa −5 000 yozuv bilan qaytarib olinadi, faqat komissiyasi bonusdan kam
+  bo'lmagan buyurtma uchun beriladi; OPERATIONS.md 31-bo'lim).
   Aynan 1 000 000 — chegirma yo'q, 1 000 000,01 — bor. Faqat asosiy narxga (qo'shimcha qurilmalarga emas).
 - Sinov = hisob-faktura yo'q; summa 0 bo'lsa ham chiqmaydi.
 

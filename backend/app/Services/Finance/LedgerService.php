@@ -257,7 +257,7 @@ class LedgerService
 
     /**
      * Everything delivery books for an order: the commission, the platform-collected money to the store, and the
-     * referrer's reward for a referred customer's first delivered order. Idempotent, part by part, so a booking that
+     * referrer's bonus when the order qualifies (grantReferralReward). Idempotent, part by part, so a booking that
      * failed can simply be run again (SettlementRecoveryService); callers run it in a transaction (savepoint) of its
      * own, so a failure books nothing at all.
      */
@@ -281,48 +281,68 @@ class LedgerService
         $this->grantReferralReward($order, $performedBy);
     }
 
-    /** The referral bonus: 5 000 ball to the referrer, paid by the platform out of its commission income. */
-    public const REFERRAL_REWARD = 5000;
+    /** The referral bonus (ReferralService::BONUS): ball to the referrer, paid by the platform out of its commission income. */
+    public const REFERRAL_REWARD = \App\Services\Auth\ReferralService::BONUS;
 
-    /** The smallest order total that earns the referral bonus. */
-    public const REFERRAL_MIN_ORDER = 50000;
+    /** The smallest order total that earns the referral bonus (ReferralService::MIN_ORDER). */
+    public const REFERRAL_MIN_ORDER = \App\Services\Auth\ReferralService::MIN_ORDER;
+
+    /** The note of a clawed-back referral bonus begins with this (referralClawbackNote). */
+    public const REFERRAL_CLAWBACK_NOTE = 'Referral bonus taken back';
 
     /**
-     * The referrer's bonus for a referred customer's first delivered order whose payment the platform verified (owner
-     * decision 3, ReferralService::paymentVerifiedByPlatform): 5 000 ball to the referrer, paid by the platform out of
-     * its commission income (owner decision 3's addition): a REFERRAL_BONUS row on the order's store ledger records it
-     * (the platform's cost, `amount`) without moving the store's debt or wallet. An order the platform could not
-     * verify (cash, the store's own Click / Payme / Uzum / Paynet) neither earns it nor uses it up: the next verified
-     * delivery still does. The first verified delivery uses it up whatever it earns (below 50 000: nothing, as before).
+     * The referrer's bonus for a referred customer's delivered order that qualifies (ReferralService::
+     * qualifiesForReferralBonus: at least 50 000, a payment the platform verified, a commission that covers the bonus):
+     * 5 000 ball to the referrer, paid by the platform out of its commission income (owner decision 3's addition): a
+     * REFERRAL_BONUS row on the order's store ledger records it (the platform's cost, `amount`) without moving the
+     * store's debt or wallet. An order that does not qualify neither earns it nor uses the referral up.
+     *
+     * Exactly once per referred customer net of clawbacks (referralRewardedNet): once a bonus stands, no other order
+     * earns one; a full refund of the order that earned it takes it back (clawBackReferralReward) and the referral is
+     * open again for a later order. An order whose bonus was taken back, or that is no longer paid, never earns it.
+     * Rule B: at most ReferralService::MONTHLY_CAP_PER_REFERRER per referrer per month; at the cap nothing is granted
+     * and the referral stays open.
      *
      * Runs at delivery (processOrderDelivered) and when a delivered order's payment lands only afterwards
-     * (MarkOrderAsPaid). Exactly once per referred customer, across stores, retries and concurrent deliveries: the
-     * customer's users row is locked (after the store row, as every ledger path) before anything is read, so a second
-     * delivery waits and then sees the first one's bonus. Returns whether it granted now. The caller holds the order's
-     * lock inside its transaction.
+     * (MarkOrderAsPaid, through SettlementRecoveryService::book). Race-free across stores, retries and concurrent
+     * deliveries: the store row, then the customer's and the referrer's users rows (one statement in id order,
+     * lockCustomerAndReferrer; every ledger path takes the store before any users row) are locked before anything is read, so a second delivery of the same
+     * customer, and a delivery of another customer of the same referrer, wait and then see the first one's bonus.
+     * Returns whether it granted now. The caller holds the order's lock inside its transaction.
      */
     public function grantReferralReward(\App\Models\Order $order, ?int $performedBy = null): bool
     {
-        if (!$order->user_id || $order->status !== \App\Enums\OrderStatus::DELIVERED
-            || Money::of($order->total_price)->isLessThan(self::REFERRAL_MIN_ORDER)
-            || !\App\Services\Auth\ReferralService::paymentVerifiedByPlatform($order)) {
+        if (!$order->user_id || $order->status !== \App\Enums\OrderStatus::DELIVERED || $order->payment_status !== PaymentStatus::PAID
+            || !\App\Services\Auth\ReferralService::qualifiesForReferralBonus($order)) {
             return false;
         }
 
-        // Store row first, then the users rows, like every other ledger path; both or neither
         return DB::transaction(function () use ($order, $performedBy) {
             $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
-            $user = \App\Models\User::whereKey($order->user_id)->lockForUpdate()->first();
-            if (!$user || !$user->referred_by || !$this->referralStillOpenFor($order)) {
+            [$user, $referrer] = $this->lockCustomerAndReferrer((int) $order->user_id);
+            if (!$user || !$referrer) {
                 return false;
             }
 
-            $referrer = \App\Models\User::find($user->referred_by);
-            if (!$referrer) {
+            // A refunded order (its bonus taken back, or parts that reached everything paid) never earns it again
+            if (StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value)->where('amount', '<', 0)->exists()
+                || \App\Models\OrderLedgerReversal::where('order_id', $order->id)->where('is_full', true)->exists()) {
                 return false;
             }
 
-            // 1. Award the cashback points to the referrer
+            // M4: the customer's orders, and the referrer's other customers' orders, at every store. Stage 3: as the
+            // login role, because inside the delivery's tenant transaction row-level security hides the other stores'
+            // rows whatever the scope says (the reward would be paid again at every store). Only a boolean and a
+            // number leave the callback, nothing of another store's order or payment
+            [$rewarded, $thisMonth] = \App\Support\Tenancy\TenantRls::asApp(fn () => [
+                $this->referralRewardedNet((int) $user->id),
+                \App\Services\Auth\ReferralService::monthlyBonusesOf((int) $referrer->id, now()),
+            ]);
+            if ($rewarded || $thisMonth >= \App\Services\Auth\ReferralService::MONTHLY_CAP_PER_REFERRER) {
+                return false;
+            }
+
+            // 1. Award the cashback points to the referrer (a negative balance left by a clawback is paid off first)
             $referrer->increment('balance', self::REFERRAL_REWARD);
 
             // 2. Owner decision 3 (addition): the platform pays it out of its commission income, the store is never
@@ -343,6 +363,84 @@ class LedgerService
 
             return true;
         });
+    }
+
+    /**
+     * Review finding 1: the bonus the order earned goes back when the order is fully refunded (reverseDelivery, in the
+     * reversal's transaction): the referrer's balance −5 000 and a compensating REFERRAL_BONUS row (amount −5 000, no
+     * effect on the store's balances, the note naming the referred customer and the order), so the monthly report nets
+     * it out in the month it happens. Exactly once: only while the order's bonus rows still add up to more than 0,
+     * under the locks the grant takes (store, then customer and referrer). The referrer's balance may go below zero (keshbek
+     * checkout needs the whole total on the balance, so a debt pays for nothing; the next bonus pays it off). The
+     * referral is then open again for the customer. A legacy bonus the store paid (a commission row with the referral
+     * note) is not taken back: RIZQIM never paid it. Returns whether it took the bonus back now.
+     */
+    public function clawBackReferralReward(\App\Models\Order $order, ?int $performedBy = null): bool
+    {
+        return DB::transaction(function () use ($order, $performedBy) {
+            $lockedStore = Store::where('id', $order->store_id)->lockForUpdate()->firstOrFail();
+            $bonusRows = fn () => StoreTransaction::where('store_id', $lockedStore->id)->where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value);
+            if (!$order->user_id || !$bonusRows()->exists()) {
+                return false;
+            }
+
+            [, $referrer] = $this->lockCustomerAndReferrer((int) $order->user_id);
+            // Read under the locks: a concurrent clawback of the same order committed first is seen here
+            if (!Money::of((string) $bonusRows()->sum('amount'))->isPositive()) {
+                return false;
+            }
+            if (!$referrer) {
+                // The referrer's account is gone with the points: nothing to take back from
+                Log::warning("Referral bonus of refunded order {$order->uuid} not taken back: the referrer no longer exists");
+
+                return false;
+            }
+
+            $referrer->decrement('balance', self::REFERRAL_REWARD);
+            $balance = Money::of($lockedStore->debt_balance)->toString();
+            StoreTransaction::create([
+                'store_id' => $lockedStore->id,
+                'type' => StoreTransactionType::REFERRAL_BONUS->value,
+                'amount' => Money::of(self::REFERRAL_REWARD)->negated()->toString(),
+                'balance_before' => $balance,
+                'balance_after' => $balance,
+                'reference_id' => $order->uuid,
+                'order_id' => $order->id,
+                'performed_by' => $performedBy,
+                'notes' => self::referralClawbackNote((int) $order->user_id, (string) $order->short_code),
+            ]);
+
+            return true;
+        });
+    }
+
+    /**
+     * Locks the referred customer's and the referrer's users rows, after the store row the caller locked, both in one
+     * statement in id order: two customers who referred each other (referred_by can be set on an existing account by
+     * a later invite link) can then never deadlock a grant against a grant or a clawback. Returns [customer, referrer];
+     * the referrer is null when the customer has none (any more).
+     *
+     * @return array{0: \App\Models\User|null, 1: \App\Models\User|null}
+     */
+    private function lockCustomerAndReferrer(int $customerId): array
+    {
+        $referrerId = \App\Models\User::whereKey($customerId)->value('referred_by');
+        $locked = \App\Models\User::whereKey(array_values(array_filter([$customerId, $referrerId !== null ? (int) $referrerId : null])))
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        $customer = $locked->get($customerId);
+        // Read again under the lock: the referrer is the one locked, or none
+        $referrer = $customer !== null && $customer->referred_by !== null && (int) $customer->referred_by === (int) $referrerId
+            ? $locked->get((int) $referrerId) : null;
+
+        return [$customer, $referrer];
+    }
+
+    /**
+     * The note of a taken-back bonus ("Referral bonus taken back for referred user #12: order #AB12 refunded").
+     */
+    public static function referralClawbackNote(int $referredUserId, string $shortCode): string
+    {
+        return self::REFERRAL_CLAWBACK_NOTE . " for referred user #{$referredUserId}: order #{$shortCode} refunded";
     }
 
     /** The note of a legacy, store-charged referral reward ("Referral cashback reward cost for referred user #12"). */
@@ -400,53 +498,21 @@ class LedgerService
     }
 
     /**
-     * Whether this order may still earn the customer's referral bonus: none was booked for any order of the customer at
-     * any store (once per referred customer — also when a later-paid earlier delivery is verified after a later one
-     * earned it), and no other order of the customer whose payment the platform verified was delivered before this one
-     * (a refunded one was delivered too, and one without a recorded delivery counts as earlier). Decided by the order of
-     * the delivered status history rows, so a booking retried after the customer's next order was delivered still sees
-     * this one as the first. Owner decision 3: an order the platform could not verify
-     * (ReferralService::paymentVerifiedByPlatform: cash, the store's own Click / Payme / Uzum / Paynet) is no earlier
-     * delivery: it never uses the referral up.
+     * Whether the referred customer's referral bonus stands: the platform-paid bonus rows on the customer's orders at
+     * every store (soft-deleted orders too) add up to more than 0 — a bonus taken back on a full refund cancels its
+     * grant, and the referral is open again —, or a legacy bonus the store paid exists (never taken back). Callers
+     * inside a store-bound transaction run it as the login role (grantReferralReward).
      */
-    private function referralStillOpenFor(\App\Models\Order $order): bool
+    public function referralRewardedNet(int $customerId): bool
     {
-        $delivered = \App\Enums\OrderStatus::DELIVERED->value;
-        $deliveredAs = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', $delivered)->min('id');
-        // The customer's orders at every store (see below why)
-        $customerOrders = fn () => \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
-            ->select('id')->where('user_id', $order->user_id);
+        // The customer's orders at every store, soft-deleted ones too: a bonus is the platform's, once per customer
+        $customerOrders = fn () => \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->withTrashed()
+            ->select('id')->where('user_id', $customerId);
+        // Their bonus rows at every store (the caller elevates past RLS inside a tenant transaction)
+        $rows = fn () => StoreTransaction::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->whereIn('order_id', $customerOrders());
 
-        // M4: the customer's orders at every store (the platform's bonus, once per referred customer), also when a
-        // store's staff deliver. Stage 3: as the login role, because inside the delivery's tenant transaction row-level
-        // security hides the other stores' rows whatever the scope says (the reward would be paid again at every
-        // store). Only two booleans leave the callback, nothing of another store's order or payment
-        return \App\Support\Tenancy\TenantRls::asApp(function () use ($order, $delivered, $deliveredAs, $customerOrders) {
-            // A reward booked at any store: the bonus is the platform's, once per referred customer
-            // Both shapes: a platform-paid bonus, and a legacy one charged to a store before owner decision 3's addition
-            $rewarded = self::whereReferralRewardOf(StoreTransaction::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class), (int) $order->user_id)
-                ->whereIn('order_id', $customerOrders())
-                ->exists();
-            if ($rewarded) {
-                return false;
-            }
-
-            // Any of the customer's orders at every store delivered before this one and verified. The verified-payment
-            // rule is ReferralService::paymentVerifiedByPlatform alone (no SQL pre-filter): widening it widens this too
-            $earlierVerified = \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
-                ->where('user_id', $order->user_id)
-                ->whereKeyNot($order->id)
-                ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
-                ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(
-                    'statusHistories',
-                    fn ($history) => $history->where('status', $delivered)->where('id', '>', $deliveredAs)
-                ))
-                ->orderBy('id')
-                ->get(['id', 'store_id', 'payment_method', 'payment_owner', 'payment_status'])
-                ->contains(fn (\App\Models\Order $earlier) => \App\Services\Auth\ReferralService::paymentVerifiedByPlatform($earlier));
-
-            return !$earlierVerified;
-        });
+        return Money::of((string) $rows()->where('type', StoreTransactionType::REFERRAL_BONUS->value)->sum('amount'))->isPositive()
+            || $rows()->where('type', StoreTransactionType::COMMISSION->value)->where('notes', self::referralNote($customerId))->exists();
     }
 
     /**
@@ -497,7 +563,7 @@ class LedgerService
      * from (wallet and/or debt), and a platform-collected order's money comes back from the store: a debt payoff
      * (keshbek, and since P4-23 Click and Payme too) onto the debt again — reopening the subscription invoices it had
      * paid —, the wallet settlement out of the wallet, and whatever the wallet no longer holds added to the debt
-     * instead of overdrawing it. The referral reward stays (see processOrderDelivered). P4-23: after parts reversed
+     * instead of overdrawing it. Review finding 1: the referral bonus the order earned is taken back (clawBackReferralReward). P4-23: after parts reversed
      * through reverseDeliveredOrderShare only the rest is reversed. Callers hold the order lock; StoreBalanceLow, if
      * the debt now blocks the store, fires after commit.
      *
@@ -659,6 +725,12 @@ class LedgerService
                     ],
                     'performed_by' => $performedBy,
                 ]);
+            }
+
+            // Review finding 1: the order is fully refunded (its own refund, or parts that reached everything paid): the
+            // referral bonus it earned goes back in this same transaction, once (store → customer → referrer locks)
+            if ($isFull) {
+                $this->clawBackReferralReward($order, $performedBy);
             }
 
             return [

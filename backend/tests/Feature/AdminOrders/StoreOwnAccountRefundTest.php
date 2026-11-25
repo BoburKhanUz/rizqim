@@ -364,4 +364,204 @@ class StoreOwnAccountRefundTest extends TestCase
         $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
         $this->assertTrue(app(OrderStatusService::class)->refund($other, $admin, 'Mijoz shikoyati')->changed);
     }
+
+    /**
+     * Review finding 4, the reviewers' scenario: a 50 000 order paid Paylov 30 000 + Payme 20 000 into the store's own
+     * accounts. The store's Payme cabinet refund is dismissed (commission kept), then a refund request for the Paylov
+     * 30 000 is approved by two members: 3 000 of the 5 000 commission goes back (debt 2 000) and RIZQIM asks Paylov
+     * for the 30 000. Paylov's cancel then arrives: that is the approved part coming back, never a refund of the whole
+     * order — the debt stays 2 000 and the order stays delivered.
+     */
+    public function test_paylovs_cancel_of_an_approved_partial_refund_request_never_refunds_the_whole_order(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake([SendTelegramRequest::class, \App\Jobs\RefundPaylovPayment::class]);
+        $order = $this->makeOrder(OrderStatus::ON_THE_WAY, [
+            'courier_id' => $this->courier->id,
+            'payment_method' => 'paylov',
+            'payment_owner' => 'STORE',
+            'payment_status' => PaymentStatus::PAID->value,
+        ]);
+        $paylov = Payment::create([
+            'order_id' => $order->id, 'store_id' => $order->store_id, 'merchant_scope' => Payment::merchantScopeOf($order),
+            'provider' => 'paylov', 'provider_transaction_id' => 'paylov-' . Str::random(12), 'amount' => '30000.00',
+            'status' => PaymentStatus::PAID->value, 'paid_at' => now(),
+            'payload' => ['paylov' => ['state' => 'confirmed', 'confirmed_at' => now()->toIso8601String(), 'refused' => null]],
+        ]);
+        $payme = Payment::create([
+            'order_id' => $order->id, 'store_id' => $order->store_id, 'merchant_scope' => Payment::merchantScopeOf($order),
+            'provider' => 'payme', 'provider_transaction_id' => 'payme-' . Str::random(12), 'amount' => '20000.00',
+            'status' => PaymentStatus::PAID->value, 'paid_at' => now(),
+        ]);
+        $this->assertTrue(app(OrderStatusService::class)->transition($order->fresh(), OrderStatus::DELIVERED, $this->courier)->changed);
+        $this->assertSame('5000.00', $this->debt());
+
+        // The store's Payme cabinet refund of the 20 000, dismissed: the commission stays
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $payme) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->first();
+            $payment = Payment::whereKey($payme->id)->lockForUpdate()->first();
+            $payment->update(['status' => PaymentStatus::REFUNDED, 'cancelled_at' => now()]);
+            app(StoreRefundReview::class)->hold($locked, $payment, 'payme', 5);
+        });
+        app(StoreRefundReviewDecision::class)->dismiss($order->fresh(), $this->makeMember(), 'Ovqatxona o\'z hisobidan');
+        $this->assertSame('5000.00', $this->debt());
+
+        // 30 000 asked by one member, approved by another
+        $requests = app(\App\Services\Admin\Orders\RefundRequestService::class);
+        $request = $requests->request($order->fresh(), $this->makeMember(), '30000', 'Taom kelmadi');
+        $requests->approve($request, $this->makeMember(), 'Tasdiq');
+        $this->assertSame('2000.00', $this->debt());
+        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+
+        // Paylov confirms the cancel RIZQIM asked for
+        $this->assertSame('refunded', app(\App\Services\Payment\Paylov\PaylovPayments::class)->applyCancel($paylov->fresh(), 'merchant'));
+
+        $this->assertSame(PaymentStatus::REFUNDED, $paylov->fresh()->status);
+        $this->assertSame('2000.00', $this->debt());
+        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+        $this->assertSame(PaymentStatus::REFUNDED, $order->fresh()->payment_status);
+        $this->assertSame(1, $this->reversals($order));
+    }
+
+    /**
+     * Review finding 7: a request whose asker's account was deleted (requested_by NULL) is no two-person check — the
+     * deleted asker is not "a different person". Approving it is refused with a clear message (make a new request),
+     * whole or partial, and so is a direct refund naming it.
+     */
+    public function test_a_request_whose_asker_was_deleted_cannot_be_approved_and_says_to_make_a_new_one(): void
+    {
+        $requests = app(\App\Services\Admin\Orders\RefundRequestService::class);
+        foreach (['50000', '20000'] as $amount) {
+            $order = $this->deliveredOrder('click');
+            $request = $requests->request($order, $this->makeMember(), $amount, 'Taom kelmadi');
+            \App\Models\OrderRefundRequest::whereKey($request->id)->update(['requested_by' => null]);
+
+            try {
+                $requests->approve($request->fresh(), $this->makeMember(), 'Tasdiq');
+                $this->fail('Approved a request nobody asked for any more.');
+            } catch (\App\Services\Admin\Orders\AdminOrderException $e) {
+                $this->assertSame('requester_missing', $e->reason, $amount);
+                $this->assertSame(422, $e->status);
+                $this->assertStringContainsString("yangi qaytarish so'rovini yarating", $e->getMessage());
+            }
+            $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+            $this->assertSame(0, $this->reversals($order));
+
+            try {
+                app(OrderStatusService::class)->refund($order->fresh(), $this->makeMember(), 'Qaytarish', false, "refund_request:{$request->id}");
+                $this->fail('Refunded on a request nobody asked for any more.');
+            } catch (OrderTransitionException $e) {
+                $this->assertSame('requester_missing', $e->reason);
+                $this->assertStringContainsString("yangi qaytarish so'rovini yarating", $e->getMessage());
+            }
+            $this->store->forceFill(['debt_balance' => '0.00'])->save();
+        }
+    }
+
+    private function staffOrder(Order $order): array
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->actingAs($this->owner, 'sanctum')->getJson("/api/v1/staff/orders/{$order->uuid}")->assertOk()->json('data');
+    }
+
+    /**
+     * Review finding 5: a payment already seen back (the provider's cancel arrived, or the store's cabinet refund) is
+     * "done" everywhere — the admin card, its payment, the partner order detail and the customer's order — never an
+     * instruction to refund again.
+     */
+    public function test_a_store_owned_payment_already_refunded_reads_as_done_everywhere(): void
+    {
+        $order = $this->deliveredOrder('payme');
+        [$asker, $approver] = $this->twoMembers();
+        $id = $this->adminJson('POST', "/orders/{$order->uuid}/refund-requests", $asker, ['amount' => '50000', 'reason' => 'Taom kelmadi'])->json('data.id');
+        $this->adminJson('POST', "/refund-requests/{$id}/approve", $approver, ['reason' => 'Tasdiq'])->assertOk();
+
+        $card = $this->card($order, $approver);
+        $this->assertSame([StoreOwnRefund::REFUND_BY, false, false], [$card['refund_by'], $card['refund_returned'], $card['payments'][0]['refund_returned']]);
+        $this->assertSame([StoreOwnRefund::REFUND_BY, false], [$this->staffOrder($order)['refund_by'], $this->staffOrder($order)['refund_returned']]);
+
+        // The store refunds in its Payme cabinet: Payme's cancel arrives
+        Payment::where('order_id', $order->id)->update(['status' => PaymentStatus::REFUNDED->value, 'cancelled_at' => now()]);
+
+        $card = $this->card($order, $approver);
+        $this->assertSame([StoreOwnRefund::REFUND_BY, true, true], [$card['refund_by'], $card['refund_returned'], $card['payments'][0]['refund_returned']]);
+        $this->assertSame([StoreOwnRefund::REFUND_BY, true], [$this->staffOrder($order)['refund_by'], $this->staffOrder($order)['refund_returned']]);
+        $this->assertTrue($this->customerOrder($order)['refund']['returned']);
+        $this->assertFalse($card['actions']['can_mark_store_refunded']);
+    }
+
+    /**
+     * Review finding 5: Click, Uzum, Paynet (and Paylov once its cancel failed for good) send no refund confirmation, so
+     * one platform member marks the store's refund done ("Ovqatxona pulni qaytardi"): audited, idempotent, the ledger
+     * and the commission untouched (the two-person flow decided those), marked as done by hand (refunded_manually_by),
+     * never as if the provider had confirmed it.
+     */
+    public function test_one_member_marks_a_store_owned_refund_done_without_touching_the_ledger(): void
+    {
+        $order = $this->deliveredOrder('click');
+        [$asker, $approver] = $this->twoMembers();
+        $id = $this->adminJson('POST', "/orders/{$order->uuid}/refund-requests", $asker, ['amount' => '50000', 'reason' => 'Taom kelmadi'])->json('data.id');
+        $this->adminJson('POST', "/refund-requests/{$id}/approve", $approver, ['reason' => 'Tasdiq'])->assertOk();
+        $this->assertSame('0.00', $this->debt());
+        $this->assertTrue($this->card($order, $approver)['actions']['can_mark_store_refunded']);
+        $this->assertFalse($this->customerOrder($order)['refund']['returned']);
+
+        $member = $this->makeMember();
+        $token = $this->confirmedSession($member);
+        $response = $this->adminJson('POST', "/orders/{$order->uuid}/store-own-refund/returned", $token, ['reason' => "Ovqatxona Click kabinetidan qaytardi, chek bor"])
+            ->assertOk();
+        $this->assertSame("Belgilandi: ovqatxona pulni mijozga qaytardi.", $response->json('message'));
+        $card = $response->json('data');
+        $this->assertSame([StoreOwnRefund::REFUND_BY, true, true], [$card['refund_by'], $card['refund_returned'], $card['payments'][0]['refund_returned']]);
+        $this->assertSame($member->id, $card['payments'][0]['refunded_manually']['by']['id']);
+        $this->assertNotNull($card['payments'][0]['refunded_manually']['at']);
+        $this->assertFalse($card['actions']['can_mark_store_refunded']);
+
+        $payment = Payment::where('order_id', $order->id)->sole();
+        // Not the provider's confirmation: the payment's own status is left as the provider reported it
+        $this->assertSame(PaymentStatus::PAID, $payment->status);
+        $this->assertSame((int) $member->id, (int) $payment->payload['refunded_manually_by']);
+        $this->assertTrue($this->customerOrder($order)['refund']['returned']);
+        $this->assertTrue($this->staffOrder($order)['refund_returned']);
+        // The ledger and the commission are what the two-person flow left
+        $this->assertSame('0.00', $this->debt());
+        $this->assertSame(1, $this->reversals($order));
+        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
+        $audit = \App\Models\AuditLog::where('action', 'admin.orders.store_own_refund.returned')->sole();
+        $this->assertSame((int) $member->id, (int) $audit->user_id);
+        $this->assertNotNull($audit->created_at);
+
+        // Idempotent: a second mark changes nothing
+        $this->adminJson('POST', "/orders/{$order->uuid}/store-own-refund/returned", $token, ['reason' => 'Yana bir bor'])
+            ->assertOk()->assertJsonPath('message', "Allaqachon belgilangan: ovqatxona pulni qaytargan.");
+        $this->assertSame($payment->payload, $payment->fresh()->payload);
+        $this->assertSame('0.00', $this->debt());
+    }
+
+    public function test_the_store_refunded_mark_is_refused_without_an_approved_store_owned_refund(): void
+    {
+        $token = $this->confirmedSession($this->makeMember());
+        $mark = fn (Order $order) => $this->adminJson('POST', "/orders/{$order->uuid}/store-own-refund/returned", $token, ['reason' => 'Ovqatxona qaytardi']);
+
+        // A store-owned order with no refund at all, and one whose refund request is still waiting
+        $delivered = $this->deliveredOrder('click');
+        $mark($delivered)->assertStatus(422)->assertJsonPath('code', 'no_approved_refund');
+        $this->adminJson('POST', "/orders/{$delivered->uuid}/refund-requests", $this->confirmedSession($this->makeMember()), ['amount' => '50000', 'reason' => 'Taom kelmadi'])->assertCreated();
+        $mark($delivered)->assertStatus(422)->assertJsonPath('code', 'no_approved_refund');
+
+        // A platform-collected order, refunded: RIZQIM returns that money itself
+        $platform = $this->deliveredOrder('click', 'PLATFORM');
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        app(OrderStatusService::class)->refund($platform, $admin, 'Mijoz shikoyati');
+        $mark($platform)->assertStatus(422)->assertJsonPath('code', 'not_store_own_refund');
+
+        foreach ([$delivered, $platform] as $order) {
+            $this->assertNull(Payment::where('order_id', $order->id)->sole()->payload['refunded_manually_by'] ?? null);
+        }
+        $this->assertSame(0, \App\Models\AuditLog::where('action', 'admin.orders.store_own_refund.returned')->count());
+
+        // Without the refunds permission: 403
+        $viewer = $this->confirmedSession($this->makeMember(\App\Enums\PlatformRole::SUPPORT));
+        $this->adminJson('POST', "/orders/{$delivered->uuid}/store-own-refund/returned", $viewer, ['reason' => 'Ovqatxona qaytardi'])->assertForbidden();
+    }
 }

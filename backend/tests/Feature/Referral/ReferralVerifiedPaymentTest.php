@@ -23,11 +23,13 @@ use Tests\Feature\OrderLifecycleFixtures;
 use Tests\TestCase;
 
 /**
- * Owner decision 3: the referral bonus (5 000 ball to the referrer, its cost charged to the store of the qualifying
- * order, as before) is granted only for an order whose payment the platform itself verified
+ * Owner decision 3: the referral bonus (5 000 ball to the referrer, paid by the platform: a referral_bonus row with no
+ * effect on the store's balances) is granted only for an order whose payment the platform itself verified
  * (ReferralService::paymentVerifiedByPlatform): an online payment into the platform's own merchant account, or a
- * Paylov payment (the store's own account too) settled on Paylov's read-back. Cash and store-owned Click / Payme /
- * Uzum / Paynet never earn it, and never use the referral up: a later verified order still earns it, exactly once.
+ * Paylov payment (the store's own account too) settled on Paylov's read-back. Cash, keshbek and store-owned Click /
+ * Payme / Uzum / Paynet never earn it, and never use the referral up: a later verified order still earns it, exactly
+ * once. The commission and monthly-cap rules are in ReferralRulesTest, the clawback on a full refund in
+ * ReferralClawbackTest.
  *
  * Numbers: 50 000 so'm orders, commission 5 000 (10 %).
  */
@@ -35,8 +37,7 @@ class ReferralVerifiedPaymentTest extends TestCase
 {
     use RefreshDatabase;
     use OrderLifecycleFixtures;
-
-    private User $referrer;
+    use ReferralOrders;
 
     protected function setUp(): void
     {
@@ -47,82 +48,6 @@ class ReferralVerifiedPaymentTest extends TestCase
         $this->store->forceFill(['credit_limit' => -1000000])->save();
         $this->referrer = $this->makeCustomer();
         $this->customer->forceFill(['referred_by' => $this->referrer->id])->save();
-    }
-
-    /**
-     * An order on its way, paid as $how says, delivered by the courier.
-     *
-     * @param  'cash'|'platform_click'|'platform_payme'|'store_click'|'store_payme'|'store_uzum'|'store_paynet'|'store_paylov'|'platform_paylov'|'store_paylov_unconfirmed'|'platform_click_unpaid'|'keshbek'  $how
-     */
-    private function deliveredOrder(string $how, array $attributes = [], ?Store $store = null): Order
-    {
-        $order = $this->paidOrder($how, $attributes, $store);
-        $courier = $store === null ? $this->courier : $this->makeStaff(\App\Enums\UserRole::COURIER, null, $store);
-        $order->forceFill(['courier_id' => $courier->id])->saveQuietly();
-        $this->assertTrue(app(OrderStatusService::class)->transition($order, OrderStatus::DELIVERED, $courier)->changed);
-
-        return $order->fresh();
-    }
-
-    private function paidOrder(string $how, array $attributes = [], ?Store $store = null): Order
-    {
-        [$owner, $method] = match ($how) {
-            'cash' => ['STORE', 'cash'],
-            'keshbek' => ['PLATFORM', 'keshbek'],
-            'platform_click', 'platform_click_unpaid' => ['PLATFORM', 'click'],
-            'platform_payme' => ['PLATFORM', 'payme'],
-            'platform_paylov' => ['PLATFORM', 'paylov'],
-            'store_click' => ['STORE', 'click'],
-            'store_payme' => ['STORE', 'payme'],
-            'store_uzum' => ['STORE', 'uzum'],
-            'store_paynet' => ['STORE', 'paynet'],
-            'store_paylov', 'store_paylov_unconfirmed' => ['STORE', 'paylov'],
-        };
-        $paid = $method !== 'cash' && $how !== 'platform_click_unpaid';
-        $store ??= $this->store;
-        $order = $this->makeOrder(OrderStatus::ON_THE_WAY, array_merge([
-            'store_id' => $store->id,
-            'branch_id' => $store->is($this->store) ? $this->branch->id : $this->makeBranch($store, 'Filial ' . Str::random(4))->id,
-            'payment_method' => $method,
-            'payment_owner' => $owner,
-            'payment_status' => $paid ? PaymentStatus::PAID->value : PaymentStatus::PENDING->value,
-        ], $attributes));
-        if ($method !== 'cash') {
-            $payload = match ($how) {
-                'store_paylov', 'platform_paylov' => ['paylov' => ['state' => PaylovPayments::STATE_CONFIRMED, 'confirmed_at' => now()->toIso8601String(), 'refused' => null]],
-                'store_paylov_unconfirmed' => ['paylov' => ['state' => PaylovPayments::STATE_UNCONFIRMED]],
-                default => null,
-            };
-            Payment::create([
-                'order_id' => $order->id,
-                'store_id' => $order->store_id,
-                'merchant_scope' => Payment::merchantScopeOf($order),
-                'provider' => $method,
-                'provider_transaction_id' => $method === 'keshbek' ? null : 'txn-' . Str::random(10),
-                'amount' => $order->total_price,
-                'status' => $paid ? PaymentStatus::PAID->value : PaymentStatus::PENDING->value,
-                'paid_at' => $paid ? now() : null,
-                'payload' => $payload,
-            ]);
-        }
-
-        return $order->fresh();
-    }
-
-    /**
-     * @return list<array{order_id: int, store_id: int, amount: string}>
-     */
-    private function rewards(): array
-    {
-        return \App\Support\Tenancy\TenantRls::asApp(fn () => StoreTransaction::query()->withoutGlobalScopes()
-            ->where('type', StoreTransactionType::REFERRAL_BONUS->value)
-            ->orderBy('id')->get(['order_id', 'store_id', 'amount'])
-            ->map(fn (StoreTransaction $row) => ['order_id' => (int) $row->order_id, 'store_id' => (int) $row->store_id, 'amount' => (string) $row->amount])->all());
-    }
-
-    private function referrerBalance(): float
-    {
-        return (float) $this->referrer->fresh()->balance;
     }
 
     public function test_which_payments_the_platform_verified(): void
@@ -139,7 +64,8 @@ class ReferralVerifiedPaymentTest extends TestCase
             'platform_payme' => true,
             'platform_paylov' => true,
             'store_paylov' => true,
-            'keshbek' => true,
+            // Review finding 2: keshbek only comes from this bonus; counting it would chain bonuses
+            'keshbek' => false,
         ];
 
         foreach ($expected as $how => $verified) {
@@ -258,14 +184,14 @@ class ReferralVerifiedPaymentTest extends TestCase
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
     }
 
-    public function test_the_first_verified_delivery_uses_the_referral_up_even_below_the_minimum(): void
+    public function test_a_verified_order_below_the_minimum_does_not_use_it_up_either(): void
     {
-        // Unchanged rule: the bonus is for the first (now: first verified) delivered order, and only from 50 000
+        // The bonus is for the first qualifying order (from 50 000): a smaller one earns nothing and leaves it open
         $this->deliveredOrder('platform_click', ['total_price' => 30000, 'commission_amount' => 3000]);
-        $this->deliveredOrder('platform_click');
+        $order = $this->deliveredOrder('platform_click');
 
-        $this->assertSame([], $this->rewards());
-        $this->assertSame(0.0, $this->referrerBalance());
+        $this->assertSame([['order_id' => $order->id, 'store_id' => $this->store->id, 'amount' => '5000.00']], $this->rewards());
+        $this->assertSame(5000.0, $this->referrerBalance());
     }
 
     public function test_an_unverified_order_below_the_minimum_does_not_use_it_up(): void
@@ -296,18 +222,19 @@ class ReferralVerifiedPaymentTest extends TestCase
         $this->assertSame(5000.0, $this->referrerBalance());
     }
 
-    public function test_a_fully_refunded_verified_order_keeps_its_bonus_and_the_next_one_earns_none(): void
+    public function test_a_fully_refunded_verified_order_gives_its_bonus_back_and_the_next_one_earns_it(): void
     {
-        // Kept as before (OrderLifecycleRefundTest): the refund reverses the commission, not the bonus
+        // Review finding 1 (ReferralClawbackTest): the refund takes the bonus back, the referral is open again
         $first = $this->deliveredOrder('platform_click');
         $this->assertCount(1, $this->rewards());
 
         $admin = $this->makeStaff(\App\Enums\UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
         app(OrderStatusService::class)->refund($first, $admin, 'Mijoz shikoyati');
         $this->assertSame(OrderStatus::REFUNDED, $first->fresh()->status);
+        $this->assertSame(0.0, $this->referrerBalance());
 
-        $this->deliveredOrder('platform_click');
-        $this->assertCount(1, $this->rewards());
+        $next = $this->deliveredOrder('platform_click');
+        $this->assertSame(['order_id' => $next->id, 'store_id' => $this->store->id, 'amount' => '5000.00'], $this->rewards()[2]);
         $this->assertSame(5000.0, $this->referrerBalance());
     }
 }

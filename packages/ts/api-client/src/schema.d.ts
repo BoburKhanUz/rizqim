@@ -2189,6 +2189,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/orders/{uuid}/store-own-refund/returned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a store's own refund as done
+         * @description "Ovqatxona pulni qaytardi": the store returned the customer's money from its own Click / Payme / Uzum / Paynet /
+         *     Paylov account (checked with the store: a receipt, the store's cabinet). Each such payment of the order whose refund
+         *     was decided (an approved refund request's share, or a refund flagged by the order's cancel or refund) is marked done
+         *     by hand (`payments[].refunded_manually`), never as the provider's confirmation (its `status` stays). The customer's
+         *     order then reads refunded (`refund.returned` true), the admin card and the partner order detail
+         *     `refund_returned: true`. The ledger and the commission are not touched: the two-person flow decided them. One
+         *     member is enough; marking again changes nothing (200). 422 `not_store_own_refund` for money RIZQIM collected (it
+         *     refunds that itself), 422 `no_approved_refund` when no refund of the store's money was decided yet. `reason` is
+         *     required. Answers the order card. Stores have no such action.
+         */
+        post: operations["admin.orders.store_own_refund.returned"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/orders/{uuid}/store-refund-review/approve": {
         parameters: {
             query?: never;
@@ -4708,7 +4736,7 @@ export interface paths {
          *     ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`
          *     (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the
          *     restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back
-         *     — else null). Staff lists (floor staff's own till orders included) do not.
+         *     or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
          */
         get: operations["order.index"];
         put?: never;
@@ -12227,7 +12255,9 @@ export interface paths {
          * @description Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order
          *     of another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`
          *     once a refund of money paid into the store's own provider account was recorded (the store gives it back from its
-         *     own cabinet: RIZQIM holds none of it), else null.
+         *     own cabinet: RIZQIM holds none of it), else null; `refund_returned` whether that refund is done (the provider's
+         *     cancel arrived, or a RIZQIM team member recorded the store's refund: show "refunded", never "refund it" again),
+         *     null when there is no such refund.
          */
         get: operations["staffOrder.show"];
         put?: never;
@@ -21097,6 +21127,61 @@ export interface operations {
                 };
             };
             /** @description Not allowed from the current status (illegal, stale, use_cancel, use_refund_request) or no courier (courier) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.orders.store_own_refund.returned": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description No such order (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not the store's money (not_store_own_refund) or no refund decided (no_approved_refund) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -61648,6 +61733,7 @@ export interface operations {
                                 created_at: string | null;
                             }[];
                             refund_by: string | null;
+                            refund_returned: boolean | null;
                         };
                     };
                 };
@@ -62124,6 +62210,7 @@ export interface operations {
                                 created_at: string | null;
                             }[];
                             refund_by: string | null;
+                            refund_returned: boolean | null;
                         };
                     };
                 };

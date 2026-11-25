@@ -37,7 +37,7 @@ abstract class OrdersApi {
   /// ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`.
   /// (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the.
   /// restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back.
-  /// — else null). Staff lists (floor staff's own till orders included) do not.
+  /// or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
   ///
   /// [scope] - Omit for the full legacy list.
   ///

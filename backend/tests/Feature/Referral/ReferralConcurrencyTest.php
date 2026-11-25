@@ -83,10 +83,11 @@ class ReferralConcurrencyTest extends TestCase
     /**
      * A 50 000 order of the referred customer on its way with $courier, paid into the platform's own Click account.
      */
-    private function paidOrderOnItsWay(Store $store, User $courier): Order
+    private function paidOrderOnItsWay(Store $store, User $courier, ?User $customer = null): Order
     {
         $branchId = $store->is($this->store) ? $this->branch->id : (int) $courier->branch_id;
         $order = $this->makeOrder(OrderStatus::ON_THE_WAY, [
+            'user_id' => ($customer ?? $this->customer)->id,
             'store_id' => $store->id,
             'branch_id' => $branchId,
             'courier_id' => $courier->id,
@@ -150,6 +151,67 @@ class ReferralConcurrencyTest extends TestCase
             $this->assertSame(['0.00', '45000.00'], [(string) $store->fresh()->debt_balance, (string) $store->fresh()->wallet_balance]);
         }
         $this->assertEquals(5000, (float) $this->referrer->fresh()->balance);
+    }
+
+    /**
+     * Owner's rule B under real concurrency: the referrer has 9 bonuses this month; two OTHER customers they invited
+     * deliver at the same moment at two stores. Only one may take the 10th slot: LedgerService::grantReferralReward
+     * counts the month under the referrer's users row lock, so the second waits and then sees 10. The parent holds the
+     * referrer's row meanwhile, so both deliveries have counted (or wait to count) before either commits.
+     */
+    public function test_two_friends_delivering_at_once_never_take_the_last_monthly_slot_twice(): void
+    {
+        $this->assertSame(10, \App\Services\Auth\ReferralService::MONTHLY_CAP_PER_REFERRER);
+        // 9 bonuses booked this month for 9 earlier friends
+        for ($i = 0; $i < 9; $i++) {
+            $friend = $this->users[] = $this->makeCustomer();
+            $friend->forceFill(['referred_by' => $this->referrer->id])->save();
+            $earlier = $this->makeOrder(OrderStatus::DELIVERED, ['user_id' => $friend->id]);
+            StoreTransaction::create([
+                'store_id' => $this->store->id, 'type' => StoreTransactionType::REFERRAL_BONUS->value, 'amount' => '5000.00',
+                'balance_before' => '0.00', 'balance_after' => '0.00', 'reference_id' => $earlier->uuid, 'order_id' => $earlier->id,
+                'notes' => \App\Services\Finance\LedgerService::referralBonusNote((int) $friend->id),
+            ]);
+        }
+        $this->referrer->forceFill(['balance' => 45000])->save();
+        $this->assertSame(9, \App\Services\Auth\ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
+
+        $other = $this->users[] = $this->makeCustomer();
+        $other->forceFill(['referred_by' => $this->referrer->id])->save();
+        $secondCourier = $this->makeStaff(UserRole::COURIER, $this->makeBranch($this->second, 'Ikkinchi filial'), $this->second);
+        $deliveries = [
+            [$this->paidOrderOnItsWay($this->store, $this->courier), $this->courier->createToken('t')->plainTextToken],
+            [$this->paidOrderOnItsWay($this->second, $secondCourier, $other), $secondCourier->createToken('t')->plainTextToken],
+        ];
+
+        $pids = [];
+        DB::beginTransaction();
+        User::whereKey($this->referrer->id)->lockForUpdate()->first();
+
+        foreach ($deliveries as $i => [$order, $token]) {
+            $pid = pcntl_fork();
+            $this->assertNotSame(-1, $pid, 'fork failed');
+            if ($pid === 0) {
+                $this->runChild($i, fn () => $this->bearerJson('POST', "/api/v1/orders/{$order->uuid}/complete", $token));
+            }
+            $pids[] = $pid;
+        }
+
+        usleep(900_000);
+        DB::commit();
+        foreach ($pids as $pid) {
+            pcntl_waitpid($pid, $status);
+        }
+
+        $statuses = array_map(fn (int $i) => (int) @file_get_contents("{$this->dir}/status-{$i}"), array_keys($deliveries));
+        $this->assertSame([200, 200], $statuses, (string) @file_get_contents("{$this->dir}/error-0") . @file_get_contents("{$this->dir}/error-1"));
+        foreach ($deliveries as [$order]) {
+            $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
+            $this->assertNull($order->fresh()->settlement_failed_at);
+        }
+
+        $this->assertSame(10, \App\Services\Auth\ReferralService::monthlyBonusesOf((int) $this->referrer->id, now()));
+        $this->assertEquals(50000, (float) $this->referrer->fresh()->balance);
     }
 
     /**

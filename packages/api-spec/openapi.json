@@ -21549,6 +21549,111 @@
                 ]
             }
         },
+        "/v1/admin/orders/{uuid}/store-own-refund/returned": {
+            "post": {
+                "operationId": "admin.orders.store_own_refund.returned",
+                "description": "\"Ovqatxona pulni qaytardi\": the store returned the customer's money from its own Click / Payme / Uzum / Paynet /\nPaylov account (checked with the store: a receipt, the store's cabinet). Each such payment of the order whose refund\nwas decided (an approved refund request's share, or a refund flagged by the order's cancel or refund) is marked done\nby hand (`payments[].refunded_manually`), never as the provider's confirmation (its `status` stays). The customer's\norder then reads refunded (`refund.returned` true), the admin card and the partner order detail\n`refund_returned: true`. The ledger and the commission are not touched: the two-person flow decided them. One\nmember is enough; marking again changes nothing (200). 422 `not_store_own_refund` for money RIZQIM collected (it\nrefunds that itself), 422 `no_approved_refund` when no refund of the store's money was decided yet. `reason` is\nrequired. Answers the order card. Stores have no such action.",
+                "summary": "Mark a store's own refund as done",
+                "tags": [
+                    "Admin"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such order (not_found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Not the store's money (not_store_own_refund) or no refund decided (no_approved_refund)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/orders/{uuid}/store-refund-review/approve": {
             "post": {
                 "operationId": "admin.orders.store_refund_review.approved",
@@ -42200,7 +42305,7 @@
         "/v1/orders": {
             "get": {
                 "operationId": "order.index",
-                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.\n\nWave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a\n9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the\nstore's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:\nready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`\n(owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the\nrestaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back\n— else null). Staff lists (floor staff's own till orders included) do not.",
+                "description": "The orders the user may see: a customer's own, a courier's deliveries, the store's (owner) or the branch's\n(manager), newest first, with the relations the apps show. Without `scope`: every order, unpaginated (kept for\napp versions from before scopes). `scope=active`: the orders still in progress (at most 200; `meta.truncated`\nsays more exist). `scope=history`: finished orders (delivered, canceled, rejected, refunded), keyset-paginated:\nsend `meta.next_cursor` back as `cursor` until it is null.\n\nWave P (receipts): a customer's own orders (the customer role only) also carry `seller` ({legal_name, tin (a\n9-digit STIR or null), legal_address, phone, complaint_contact}: the seller when the order was placed, or the\nstore's current details for an older order) and `receipts` (list of {uuid, type: sale|refund, status:\nready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`\n(owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the\nrestaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back\nor a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.",
                 "summary": "List orders",
                 "tags": [
                     "Orders"
@@ -169806,7 +169911,7 @@
         "/v1/staff/orders/{uuid}": {
             "get": {
                 "operationId": "staffOrder.show",
-                "description": "Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order\nof another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`\nonce a refund of money paid into the store's own provider account was recorded (the store gives it back from its\nown cabinet: RIZQIM holds none of it), else null.",
+                "description": "Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order\nof another store or of a branch the caller does not work in. Owner decision 4: `refund_by` is `store_own_account`\nonce a refund of money paid into the store's own provider account was recorded (the store gives it back from its\nown cabinet: RIZQIM holds none of it), else null; `refund_returned` whether that refund is done (the provider's\ncancel arrived, or a RIZQIM team member recorded the store's refund: show \"refunded\", never \"refund it\" again),\nnull when there is no such refund.",
                 "summary": "One order for staff (detail)",
                 "tags": [
                     "Staff orders"
@@ -170282,6 +170387,12 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "refund_returned": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -170322,7 +170433,8 @@
                                                 "closed_at",
                                                 "waiting_seconds",
                                                 "status_history",
-                                                "refund_by"
+                                                "refund_by",
+                                                "refund_returned"
                                             ]
                                         }
                                     },
@@ -172324,6 +172436,12 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "refund_returned": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -172364,7 +172482,8 @@
                                                 "closed_at",
                                                 "waiting_seconds",
                                                 "status_history",
-                                                "refund_by"
+                                                "refund_by",
+                                                "refund_returned"
                                             ]
                                         }
                                     },

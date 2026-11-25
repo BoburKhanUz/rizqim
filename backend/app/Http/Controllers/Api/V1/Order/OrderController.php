@@ -80,7 +80,7 @@ class OrderController extends Controller
      * ready|pending|unavailable, provider, url, issued_at}; `url` only ever an https ofd.soliq.uz link) and `refund`
      * (owner decision 4: {refund_by: store_own_account, returned: bool} when a refund of money paid into the
      * restaurant's own account was recorded — the restaurant gives it back, `returned` once the provider shows it back
-     * — else null). Staff lists (floor staff's own till orders included) do not.
+     * or a RIZQIM team member recorded the restaurant's refund — else null). Staff lists (floor staff's own till orders included) do not.
      */
     #[QueryParameter('scope', description: 'Omit for the full legacy list.', type: "'active'|'history'")]
     #[QueryParameter('per_page', description: 'Only with `scope=history`: page size, 1-50 (larger values are capped at 50).', type: 'int', default: OrderQueryService::HISTORY_DEFAULT_PER_PAGE)]

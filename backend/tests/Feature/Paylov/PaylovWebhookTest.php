@@ -264,7 +264,9 @@ class PaylovWebhookTest extends TestCase
         $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->perform($order, $txn)->assertExactJson(self::answer());
 
-        $this->assertSame(3, $ledger->calls);
+        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
+        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
+        $this->assertSame(5, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
     }

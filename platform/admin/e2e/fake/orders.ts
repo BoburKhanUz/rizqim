@@ -380,6 +380,7 @@ export class FakeOrders {
       store_refund_review: reviews[0] ?? null,
       store_refund_reviews: reviews,
       refund_by: null,
+      refund_returned: null,
       actions: {
         can_intervene: intervene,
         can_cancel: intervene && active,
@@ -391,6 +392,7 @@ export class FakeOrders {
         can_approve_refund: can('admin.orders.refund_approve'),
         can_decide_store_refund: can('admin.orders.refund_approve') && reviewPending,
         can_approve_store_refund: can('admin.orders.refund_approve') && reviewPending && reviews[0]?.proposed_by !== actor.id,
+        can_mark_store_refunded: false,
       },
     }
   }

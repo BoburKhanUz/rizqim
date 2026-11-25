@@ -298,6 +298,17 @@ class RefundRequestService
             }
 
             $order = Order::whereKey($refund->order_id)->lockForUpdate()->firstOrFail();
+            // Review finding 7: a delivered store-owned order's commission goes back only after two people; an asker
+            // whose account was deleted is nobody (whole or partial request alike: make a new request)
+            if ($refund->requested_by === null && $order->status === OrderStatus::DELIVERED && \App\Services\Payment\StoreOwnRefund::isStoreOwned($order)) {
+                $missing = \App\Services\Order\OrderStatusService::requesterMissing();
+                throw new AdminOrderException($missing->getMessage(), $missing->reason, 422);
+            }
+            // The store row before the customer's balance (spread raises it for a keshbek share), the order every ledger
+            // path takes — store → customer → referrer (LedgerService::grantReferralReward, clawBackReferralReward,
+            // reverseDelivery). Taken the other way round, this approval and a delivery of another of the customer's
+            // orders at the same store would deadlock
+            \App\Models\Store::whereKey($order->store_id)->lockForUpdate()->first();
             $amount = Money::of($refund->amount);
             $payments = Payment::where('order_id', $order->id)->orderBy('id')->lockForUpdate()->get();
             $balance = self::balanceOf($payments, self::approvedRequests([(int) $order->id])->get());

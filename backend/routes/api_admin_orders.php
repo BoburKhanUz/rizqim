@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
 use App\Http\Controllers\Api\V1\Admin\AdminOrderInterventionController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundRequestController;
+use App\Http\Controllers\Api\V1\Admin\AdminStoreOwnRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminStoreRefundReviewController;
 use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
@@ -56,4 +57,11 @@ Route::middleware(['admin.can:orders.refund_approve', 'admin.recent'])->group(fu
         ->whereUuid('uuid')
         ->middleware(EnsureIdempotency::class . ':admin.store_refund_review.dismiss')
         ->name('orders.store_refund_review.dismissed');
+
+    // Review finding 5: the store gave back, from its own account, money RIZQIM never held and the provider confirms no
+    // refund (Click, Uzum, Paynet; Paylov after its cancel failed): one member records it; no ledger change
+    Route::post('/orders/{uuid}/store-own-refund/returned', [AdminStoreOwnRefundController::class, 'returned'])
+        ->whereUuid('uuid')
+        ->middleware(EnsureIdempotency::class . ':admin.store_own_refund.returned')
+        ->name('orders.store_own_refund.returned');
 });

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Ban, ClipboardList, ExternalLink, MessageSquare, RefreshCw, ShieldAlert, Undo2, Wrench } from 'lucide-react';
+import { ArrowLeft, Ban, CheckCircle2, ClipboardList, ExternalLink, MessageSquare, RefreshCw, ShieldAlert, Undo2, Wrench } from 'lucide-react';
 import { Button, Card, CardSkeletons, cx, EmptyState, formatOrderCode, IconButton, InlineError, Notice, PageHeader, Pill, Section, StatusBadge } from '@rizqim/ui';
 import { ApiError } from '@/lib/api/client';
 import { ORDER_KEYS, useOrder, type OrderCard, type RefundRequest } from '@/lib/api/orders';
@@ -12,7 +12,7 @@ import { when } from '@/lib/format';
 import { OPS_EVENTS, usePlatformOps } from '@/lib/realtime';
 import { useCan } from '../AuthProvider';
 import { useT } from '../I18nProvider';
-import { CancelDialog, DecideRefundDialog, MessageDialog, RefundRequestDialog, StatusDialog, StoreRefundReviewDialog } from './OrderDialogs';
+import { CancelDialog, DecideRefundDialog, MarkStoreRefundedDialog, MessageDialog, RefundRequestDialog, StatusDialog, StoreRefundReviewDialog } from './OrderDialogs';
 import { exactMoney, money, STAGE_LABEL } from './ordersModel';
 import { SlaBadge } from './SlaBadge';
 import { StoreRefundReviewSection, type StoreRefundAction } from './StoreRefundReviewSection';
@@ -24,7 +24,8 @@ type Dialog =
   | { kind: 'message'; to: 'store' | 'customer' }
   | { kind: 'refund' }
   | { kind: 'decide'; request: RefundRequest; decision: 'approve' | 'reject' }
-  | { kind: 'store-refund'; action: StoreRefundAction };
+  | { kind: 'store-refund'; action: StoreRefundAction }
+  | { kind: 'store-refunded' };
 
 // The order card (/orders/[uuid]): everything about one marketplace order and what the member may do to it. The buttons are
 // the ones the backend offers this member now (`actions`); each opens a dialog that asks for a reason. Refreshed by its
@@ -94,7 +95,7 @@ export function OrderCardView({ uuid }: { uuid: string }) {
   };
   const actions = order.actions;
   const anyAction =
-    actions.can_cancel || (actions.can_intervene && actions.transitions.length > 0) || actions.message_store || actions.message_customer || actions.can_request_refund || actions.can_decide_store_refund;
+    actions.can_cancel || (actions.can_intervene && actions.transitions.length > 0) || actions.message_store || actions.message_customer || actions.can_request_refund || actions.can_decide_store_refund || actions.can_mark_store_refunded;
 
   return (
     <>
@@ -113,11 +114,18 @@ export function OrderCardView({ uuid }: { uuid: string }) {
             <SlaBadge sla={order.sla} now={now} />
             {order.refund_pending && <Pill tone="warning">{t('orders_refundPending')}</Pill>}
             {order.manual_refund_required && <Pill tone="danger">{t('orders_manualRefund')}</Pill>}
-            {order.refund_by === 'store_own_account' && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
+            {order.refund_by === 'store_own_account' && order.refund_returned !== true && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
+            {order.refund_by === 'store_own_account' && order.refund_returned === true && <Pill tone="success">{t('orders_refundByStoreDone')}</Pill>}
           </div>
-          {order.refund_by === 'store_own_account' && (
+          {/* Review 5: once the money is seen back the instruction goes: a store that refunded is never told to refund again */}
+          {order.refund_by === 'store_own_account' && order.refund_returned !== true && (
             <p className="text-footnote text-warning-soft-fg" data-testid="order-refund-by-store">
               {t('orders_refundByStoreHint')}
+            </p>
+          )}
+          {order.refund_by === 'store_own_account' && order.refund_returned === true && (
+            <p className="text-footnote text-success-soft-fg" data-testid="order-refund-by-store-done">
+              {t('orders_refundByStoreDone')}
             </p>
           )}
           <p className="break-words text-footnote text-fg">
@@ -151,6 +159,11 @@ export function OrderCardView({ uuid }: { uuid: string }) {
                 {t('orders_requestRefund')}
               </Button>
             )}
+            {actions.can_mark_store_refunded && (
+              <Button variant="secondary" icon={CheckCircle2} onClick={() => setDialog({ kind: 'store-refunded' })}>
+                {t('orders_markStoreRefunded')}
+              </Button>
+            )}
           </div>
           {!anyAction && <p className="text-footnote text-fg-muted">{can('orders.intervene') ? t('orders_noActions') : t('orders_viewOnly')}</p>}
         </Card>
@@ -172,6 +185,7 @@ export function OrderCardView({ uuid }: { uuid: string }) {
       {dialog?.kind === 'status' && <StatusDialog order={order} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'message' && <MessageDialog order={order} to={dialog.to} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'refund' && <RefundRequestDialog order={order} onDone={done} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'store-refunded' && <MarkStoreRefundedDialog order={order} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'store-refund' && <StoreRefundReviewDialog order={order} action={dialog.action} onDone={done} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'decide' && <DecideRefundDialog orderUuid={order.uuid} request={dialog.request} decision={dialog.decision} onDone={done} onClose={() => setDialog(null)} />}
     </>
@@ -315,7 +329,13 @@ function MoneySection({ order, onDecide }: { order: OrderCard; onDecide: (reques
                   <span className="text-fg">{exactMoney(payment.amount)}</span>
                   <Pill tone={payment.status === 'paid' ? 'success' : payment.status === 'refunded' ? 'neutral' : 'warning'}>{payment.status}</Pill>
                   {payment.manual_refund_required && <Pill tone="danger">{t('orders_paymentManual')}</Pill>}
-                  {payment.refund_by === 'store_own_account' && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
+                  {payment.refund_by === 'store_own_account' && payment.refund_returned !== true && <Pill tone="warning">{t('orders_refundByStore')}</Pill>}
+                  {payment.refund_by === 'store_own_account' && payment.refund_returned === true && <Pill tone="success">{t('orders_refundByStoreDone')}</Pill>}
+                  {payment.refunded_manually && (
+                    <span className="text-caption text-fg-muted">
+                      {t('orders_refundedManually', { name: payment.refunded_manually.by?.name ?? '—', time: when(payment.refunded_manually.at) })}
+                    </span>
+                  )}
                   {payment.confirmation === 'unconfirmed' && <Pill tone="warning">{t('orders_paylovUnconfirmed')}</Pill>}
                   {payment.confirmation === 'mismatch' && <Pill tone="danger">{t('orders_paylovMismatch')}</Pill>}
                   {(payment.provider_refund === 'requested' || payment.provider_refund === 'retrying') && <Pill tone="warning">{t('orders_paylovRefunding')}</Pill>}

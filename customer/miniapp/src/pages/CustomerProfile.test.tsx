@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
@@ -43,5 +43,35 @@ describe('CustomerProfile: refreshing the user', () => {
     expect(user?.name).toBe('Yangi Ism');
     expect(user?.balance).toBe(125000);
     expect(typeof user?.balance).toBe('number');
+  });
+});
+
+// Review finding 1: a referral bonus taken back after the referrer spent it leaves the balance below zero
+describe('CustomerProfile: a negative keshbek balance', () => {
+  it('shows it as a debt the next bonus pays off, never as spendable money', async () => {
+    get.mockImplementation((url) => {
+      if (url === '/user') {
+        return Promise.resolve({
+          data: { success: true, data: { user: makeUser({ balance: '-5000.00' }), store: null, sms_verification_required: false } },
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: url === '/locations' ? { regions: [], districts: [] } : [] } });
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <CustomerProfile />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await flush();
+
+    expect(useAuthStore.getState().user?.balance).toBe(-5000);
+    const amount = screen.getByTestId('profile-cashback');
+    expect(amount.textContent).toMatch(/^−\s?5\s?000/);
+    expect(amount.className).toContain('text-danger');
+    expect(screen.getByText(/keyingi bonusdan yopiladi/)).toBeTruthy();
+    // Review 6: the invite names the minimum order
+    expect(document.body.textContent).toMatch(/kamida 50\s000/);
   });
 });

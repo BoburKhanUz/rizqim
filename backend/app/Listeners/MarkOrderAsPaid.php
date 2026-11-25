@@ -15,7 +15,8 @@ class MarkOrderAsPaid
 {
     public function __construct(
         protected OrderStatusService $orderStatus,
-        protected LedgerService $ledger
+        protected LedgerService $ledger,
+        protected \App\Services\Finance\SettlementRecoveryService $settlements,
     ) {}
 
     /**
@@ -45,9 +46,12 @@ class MarkOrderAsPaid
             // decision 3: the payment is verified only now, so the referral bonus it may earn is granted now (once)
             if ($order->status === OrderStatus::DELIVERED) {
                 $this->ledger->settlePlatformOrder($order);
-                // Exactly once per referred customer (under the customer's row lock); a failure fails the listener like
-                // the settlement's, and the provider's replay of the payment grants it then
-                $this->ledger->grantReferralReward($order);
+                // Review finding 3: the bonus never undoes the payment or the settlement above. The whole delivery booking
+                // again (commission, settlement: idempotent, already done; the referral bonus) in a savepoint of its own:
+                // a failure (a deadlock, a lock timeout) rolls back only that savepoint, marks the order
+                // (settlement_failed_at, alerted) and RetryFailedSettlementsJob books it again later, granting the bonus
+                // exactly once. A provider does not replay a payment it got an answer for, so nothing else would retry it
+                $this->settlements->book($order);
 
                 return null;
             }
