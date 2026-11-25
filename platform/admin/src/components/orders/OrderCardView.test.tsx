@@ -214,13 +214,49 @@ describe('OrderCardView: the store refund review', () => {
     setup({ [`GET /orders/${UUID}`]: () => ok({ ...held(), payment_method: 'paylov', store_refund_review: review, store_refund_reviews: [review] }) });
     const block = await section();
     expect(within(block).getByText(/o'zining Paylov kabinetidan mijozga qaytardi/)).toBeInTheDocument();
-    expect(within(block).getByText(/Ovqatxonaning Paylov kabinetida pul haqiqatan/)).toBeInTheDocument();
     expect(within(block).getByText(/^Paylov · ovqatxona qaytardi/)).toBeInTheDocument();
     expect(within(block).queryByText(/Payme/)).not.toBeInTheDocument();
+    // Review: Paylov confirmed the money went back itself; the manager (no access to the store's cabinet) decides only the
+    // commission, and there is no "request the store sent itself" (Payme's case)
+    expect(within(block).getByText(/Pul mijozga qaytganini Paylov o'zi tasdiqlagan/)).toBeInTheDocument();
+    expect(within(block).getByText(/faqat RIZQIM komissiyasini hal qilasiz/)).toBeInTheDocument();
+    expect(within(block).queryByText(/kabinetida pul haqiqatan/)).not.toBeInTheDocument();
+    expect(within(block).queryByText(/o'zi yuborgan so'rov/)).not.toBeInTheDocument();
+    expect(within(block).queryByRole('alert')).not.toBeInTheDocument();
 
     await userEvent.click(within(block).getByRole('button', { name: 'Qaytarishni taklif qilish' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/Paylov kabinetida haqiqatan qaytganini/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Pul mijozga qaytganini Paylov tasdiqlagan\. RIZQIM komissiyasini bekor qilishni taklif qilasizmi/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/kabinetida haqiqatan qaytganini/)).not.toBeInTheDocument();
+  });
+
+  it("keeps Payme's text: check the store's Payme cabinet, dismiss a request the store sent itself", async () => {
+    setup({ [`GET /orders/${UUID}`]: () => ok(held()) });
+    const block = await section();
+    expect(within(block).getByText(/Ovqatxonaning Payme kabinetida pul haqiqatan mijozga qaytganini tekshiring/)).toBeInTheDocument();
+    expect(within(block).getByText(/Ovqatxona o'zi yuborgan so'rov/)).toBeInTheDocument();
+    await userEvent.click(within(block).getByRole('button', { name: 'Qaytarishni taklif qilish' }));
+    expect(within(await screen.findByRole('dialog')).getByText(/Payme kabinetida haqiqatan qaytganini tekshirdingizmi/)).toBeInTheDocument();
+  });
+
+  it('confirms a Paylov refund with its own text', async () => {
+    const review = storeRefundReview({ provider: 'paylov', reason_code: null, proposed_by: 40, proposed_at: new Date(NOW).toISOString() });
+    setup({ [`GET /orders/${UUID}`]: () => ok({ ...held(), payment_method: 'paylov', store_refund_review: review, store_refund_reviews: [review] }) });
+    const block = await section();
+    await userEvent.click(within(block).getByRole('button', { name: 'Tasdiqlash' }));
+    expect(within(await screen.findByRole('dialog')).getByText(/Pulni mijozga Paylov allaqachon qaytargan \(Paylov tasdiqlagan\)/)).toBeInTheDocument();
+  });
+
+  // Review: a Paylov cancel naming another amount than the payment, and one first reported before delivery
+  it('warns when the amount Paylov reported differs from the payment, and says the cancel came before delivery', async () => {
+    const review = storeRefundReview({ provider: 'paylov', reason_code: null, amount: '50000.00', reported_amount: '20000.00', paylov_amount: '20000.00', amount_mismatch: true, reported_before_delivery: true });
+    setup({ [`GET /orders/${UUID}`]: () => ok({ ...held(), payment_method: 'paylov', store_refund_review: review, store_refund_reviews: [review] }) });
+    const block = await section();
+    const alert = within(block).getByRole('alert');
+    expect(alert).toHaveTextContent("Qaytarilgan summa to'lov summasidan farq qiladi — tasdiqlashdan oldin tekshiring.");
+    expect(alert).toHaveTextContent(/20.000.so'm/);
+    expect(alert).toHaveTextContent(/50.000.so'm/);
+    expect(within(block).getByText(/buyurtma yetkazilishidan oldin xabar qilgan/)).toBeInTheDocument();
   });
 
   it('proposes the refund with a reason and an Idempotency-Key, then shows it waits for another member', async () => {

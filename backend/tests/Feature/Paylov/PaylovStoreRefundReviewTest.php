@@ -129,6 +129,11 @@ class PaylovStoreRefundReviewTest extends TestCase
         $this->assertSame('pending', $review['status']);
         $this->assertSame('paylov', $review['provider']);
         $this->assertNull($review['reason']);
+        // Review: the amounts Paylov reported (the webhook and the read-back), the whole payment here
+        $this->assertSame(5000000, $review['reported_amount_tiyin']);
+        $this->assertSame(5000000, $review['paylov_amount_tiyin']);
+        $this->assertFalse($review['amount_mismatch']);
+        $this->assertFalse($review['reported_before_delivery']);
         $this->assertTrue($payment->payload['refunded_after_delivery']);
         $this->assertSame(1, AuditLog::where('action', 'order.store_refund_held')->where('model_id', $order->id)->count());
         Log::shouldHaveReceived('critical')->once()->withArgs(fn ($message, $context = []) => ($context['provider'] ?? null) === 'paylov'
@@ -156,6 +161,10 @@ class PaylovStoreRefundReviewTest extends TestCase
             ->assertJsonPath('data.store_refund_review.provider', 'paylov')
             ->assertJsonPath('data.store_refund_review.status', 'pending')
             ->assertJsonPath('data.store_refund_review.reason_code', null)
+            ->assertJsonPath('data.store_refund_review.amount_mismatch', false)
+            ->assertJsonPath('data.store_refund_review.reported_amount', '50000.00')
+            ->assertJsonPath('data.store_refund_review.paylov_amount', '50000.00')
+            ->assertJsonPath('data.store_refund_review.reported_before_delivery', false)
             ->assertJsonPath('data.actions.can_decide_store_refund', true);
     }
 
@@ -347,5 +356,193 @@ class PaylovStoreRefundReviewTest extends TestCase
         $this->assertNull($order->store_refund_review_at);
         $this->assertSame(PaymentStatus::PAID, $order->payment_status);
         $this->assertSame(PaymentStatus::PAID, $this->payment($txn)->status);
+    }
+
+    // ── Review fixes ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    public function test_a_cancel_naming_another_amount_than_the_payment_is_marked_on_the_review(): void
+    {
+        // The webhook names 20 000 of the 50 000 (a partial refund in the cabinet?), Paylov's read-back the same
+        $txn = (string) Str::uuid();
+        $order = $this->deliveredOrder($txn);
+        $this->paylovStatus = 'cancel';
+        $this->paylovAmount = 2000000;
+        $this->cancelWebhook($order, $txn, 2000000, $this->own)->assertOk();
+
+        $review = StoreRefundReview::of($this->payment($txn));
+        $this->assertSame('pending', $review['status']);
+        $this->assertSame(2000000, $review['reported_amount_tiyin']);
+        $this->assertSame(2000000, $review['paylov_amount_tiyin']);
+        $this->assertTrue($review['amount_mismatch']);
+        // Held as before, nothing reversed
+        $this->assertSame('5000.00', (string) $this->store->fresh()->debt_balance);
+
+        $member = $this->makeMember(PlatformRole::FINANCE);
+        $this->adminJson('GET', "/orders/{$order->uuid}", $this->confirmedSession($member))->assertOk()
+            ->assertJsonPath('data.store_refund_review.amount_mismatch', true)
+            ->assertJsonPath('data.store_refund_review.reported_amount', '20000.00')
+            ->assertJsonPath('data.store_refund_review.paylov_amount', '20000.00')
+            ->assertJsonPath('data.store_refund_reviews.0.amount_mismatch', true);
+
+    }
+
+    public function test_a_cancel_whose_read_back_names_another_amount_is_marked_too(): void
+    {
+        // The whole amount in the webhook but another one read back: still a mismatch
+        $txn = (string) Str::uuid();
+        $other = $this->deliveredOrder($txn);
+        $this->paylovStatus = 'cancel';
+        $this->paylovAmount = 4999900;
+        $this->cancelWebhook($other, $txn, account: $this->own)->assertOk();
+        $review = StoreRefundReview::of($this->payment($txn));
+        $this->assertSame(5000000, $review['reported_amount_tiyin']);
+        $this->assertSame(4999900, $review['paylov_amount_tiyin']);
+        $this->assertTrue($review['amount_mismatch']);
+    }
+
+    public function test_a_cancel_reported_while_paylov_was_unreachable_before_delivery_is_held_once_confirmed(): void
+    {
+        $order = $this->paylovOrder($this->store, ['payment_owner' => 'STORE', 'branch_id' => $this->branch->id]);
+        $txn = (string) Str::uuid();
+        $this->perform($order, $txn, account: $this->own)->assertExactJson(self::answer());
+
+        // The cancel arrives while the order is in progress, but Paylov cannot be asked: nothing is applied yet
+        $this->paylovStatus = 'connection';
+        $this->cancelWebhook($order, $txn, account: $this->own)->assertOk();
+        $this->assertSame(PaymentStatus::PAID, $this->payment($txn)->status);
+        $this->assertIsString($this->payment($txn)->payload['paylov']['cancel_reported_at']);
+
+        // The order is delivered meanwhile: 5 000 on the debt
+        $this->travel(10)->minutes();
+        foreach ([OrderStatus::PREPARING, OrderStatus::DELIVERED] as $status) {
+            app(OrderStatusService::class)->transition($order->fresh(), $status, null);
+        }
+        $this->assertSame('5000.00', (string) $this->store->fresh()->debt_balance);
+        $rows = $this->ledgerRows();
+
+        // The re-check confirms the cancel: held, the debt unchanged, and the review says it was reported before delivery
+        $this->travel(10)->minutes();
+        $this->paylovStatus = 'cancel';
+        app(\App\Services\Payment\Paylov\PaylovReconciler::class)->run();
+
+        $order->refresh();
+        $payment = $this->payment($txn);
+        $this->assertSame(PaymentStatus::REFUNDED, $payment->status);
+        $this->assertSame(OrderStatus::DELIVERED, $order->status);
+        $this->assertNotNull($order->store_refund_review_at);
+        $this->assertSame('5000.00', (string) $this->store->fresh()->debt_balance);
+        $this->assertSame($rows, $this->ledgerRows());
+        $review = StoreRefundReview::of($payment);
+        $this->assertSame('pending', $review['status']);
+        $this->assertTrue($review['reported_before_delivery']);
+        $this->assertSame(5000000, $review['reported_amount_tiyin']);
+        $this->assertFalse($review['amount_mismatch']);
+        $this->assertArrayNotHasKey('cancel_reported_at', $payment->payload['paylov']);
+
+        $member = $this->makeMember(PlatformRole::FINANCE);
+        $this->adminJson('GET', "/orders/{$order->uuid}", $this->confirmedSession($member))->assertOk()
+            ->assertJsonPath('data.store_refund_review.reported_before_delivery', true);
+    }
+
+    public function test_a_cancel_after_rizqims_own_refund_failed_is_not_held(): void
+    {
+        // RIZQIM's payment/cancel was refused for good while the order stayed delivered (as a refused perform's refund
+        // does): the payment is flagged for a manual refund. Paylov's cancel then is that refund done in the panel
+        $txn = (string) Str::uuid();
+        $order = $this->deliveredOrder($txn);
+        $payment = $this->payment($txn);
+        $payload = $payment->payload;
+        $payload['paylov']['refund'] = ['status' => PaylovPayments::REFUND_REQUESTED, 'reason' => 'refund_request_1', 'requested_at' => now()->toIso8601String()];
+        $payment->forceFill(['payload' => $payload])->save();
+        $this->paylovCancelError = 'transaction_not_available_for_cancel_forever';
+        $this->assertSame('manual', app(PaylovPayments::class)->refund((int) $payment->id));
+        $this->assertSame(PaylovPayments::REFUND_FAILED, $this->payment($txn)->payload['paylov']['refund']['status']);
+        $this->assertTrue($this->payment($txn)->payload['manual_refund_required']);
+
+        $this->cabinetRefund($order, $txn);
+
+        $order->refresh();
+        $this->assertNull($order->store_refund_review_at);
+        $this->assertNull(StoreRefundReview::of($this->payment($txn)));
+        $this->assertSame(OrderStatus::REFUNDED, $order->status);
+        $this->assertSame('0.00', (string) $this->store->fresh()->debt_balance);
+        $this->assertSame(1, OrderLedgerReversal::where('order_id', $order->id)->count());
+
+        // The same with only the manual flag left (no refund state)
+        $this->paylovStatus = 'payed';
+        $txn = (string) Str::uuid();
+        $other = $this->deliveredOrder($txn);
+        $payment = $this->payment($txn);
+        $payment->forceFill(['payload' => array_merge($payment->payload, ['manual_refund_required' => true, 'manual_refund_reason' => 'paylov_cancel_failed'])])->save();
+        $this->cabinetRefund($other, $txn);
+        $this->assertNull($other->fresh()->store_refund_review_at);
+        $this->assertSame(OrderStatus::REFUNDED, $other->fresh()->status);
+    }
+
+    /**
+     * The real path: a delivered store-owned order paid 20 000 by keshbek and 30 000 by Paylov, a full refund request
+     * asked and approved by two members (RefundRequestService), then Paylov's cancel webhook for RIZQIM's own
+     * payment/cancel: never held, the commission reversed exactly once (whichever comes first, the job or the webhook).
+     */
+    public function test_a_refund_request_approved_by_two_members_then_paylovs_webhook_is_never_held(): void
+    {
+        foreach (['webhook_first', 'job_first'] as $variant) {
+            $this->paylovStatus = 'payed';
+            $order = $this->paylovOrder($this->store, ['payment_owner' => 'STORE', 'branch_id' => $this->branch->id, 'total_price' => '30000.00']);
+            $txn = (string) Str::uuid();
+            $this->perform($order, $txn, account: $this->own)->assertExactJson(self::answer());
+            // The keshbek part of the same order
+            $order->forceFill(['total_price' => '50000.00', 'commission_amount' => 5000])->save();
+            Payment::create([
+                'order_id' => $order->id,
+                'provider' => 'keshbek',
+                'amount' => '20000.00',
+                'status' => PaymentStatus::PAID->value,
+                'payload' => [],
+            ]);
+            $debtBefore = (string) $this->store->fresh()->debt_balance;
+            foreach ([OrderStatus::PREPARING, OrderStatus::DELIVERED] as $status) {
+                app(OrderStatusService::class)->transition($order->fresh(), $status, null);
+            }
+            $this->assertSame(5000.0, (float) $this->store->fresh()->debt_balance - (float) $debtBefore, $variant);
+
+            $requester = $this->makeMember(PlatformRole::SUPPORT);
+            $approver = $this->makeMember(PlatformRole::FINANCE);
+            $service = app(RefundRequestService::class);
+            $request = $service->request($order->fresh(), $requester, '50000', 'Mijoz shikoyati');
+            // The job (RefundPaylovPayment, queued after the commit) is run by hand, before or after the webhook
+            Bus::fake([\App\Jobs\RefundPaylovPayment::class]);
+            $approved = $service->approve($request, $approver, 'Tasdiq')['request'];
+            $this->assertSame('approved', $approved->status, $variant);
+            // A full request of a delivered order nothing of which went back yet takes the order's own refund path
+            // (OrderStatusService::refund): the spread is never reached for it, as Paylov takes only the whole refundable
+            $this->assertSame('order_refunded', $approved->execution['mode'], $variant);
+            $kinds = collect($approved->execution['allocations'])->pluck('kind', 'provider')->all();
+            $this->assertSame('provider', $kinds['paylov'], $variant);
+            // The keshbek part of a non-keshbek order is not given back to the balance by OrderStatusService::refundKeshbek
+            // (it reads the order's payment_method): flagged for a manual refund. Checkout never makes such an order.
+            $this->assertSame('manual', $kinds['keshbek'], $variant);
+
+            if ($variant === 'webhook_first') {
+                // Paylov's webhook for RIZQIM's own payment/cancel arrives before the job's answer is read
+                $this->cabinetRefund($order, $txn);
+                (new \App\Jobs\RefundPaylovPayment((int) $this->payment($txn)->id))->handle(app(PaylovPayments::class));
+            } else {
+                Bus::assertDispatched(\App\Jobs\RefundPaylovPayment::class, fn ($job) => $job->paymentId === (int) $this->payment($txn)->id);
+                (new \App\Jobs\RefundPaylovPayment((int) $this->payment($txn)->id))->handle(app(PaylovPayments::class));
+                $this->assertSame(PaymentStatus::REFUNDED, $this->payment($txn)->status, $variant);
+                $this->cabinetRefund($order, $txn);
+            }
+
+            $order->refresh();
+            $this->assertNull($order->store_refund_review_at, $variant);
+            $this->assertNull(StoreRefundReview::of($this->payment($txn)), $variant);
+            $this->assertSame(OrderStatus::REFUNDED, $order->status, $variant);
+            $this->assertSame(PaymentStatus::REFUNDED, $this->payment($txn)->status, $variant);
+            // The commission reversed exactly once
+            $this->assertSame((float) $debtBefore, (float) $this->store->fresh()->debt_balance, $variant);
+            $this->assertSame(1, OrderLedgerReversal::where('order_id', $order->id)->count(), $variant);
+            $this->assertSame(0, \App\Support\Money::of((string) OrderLedgerReversal::where('order_id', $order->id)->sole()->components['commission_debt'])->compareTo(\App\Support\Money::of('5000')), $variant);
+        }
     }
 }

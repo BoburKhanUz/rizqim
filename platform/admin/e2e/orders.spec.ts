@@ -165,14 +165,18 @@ test('a review decided meanwhile answers 409 in words and the card refreshes', a
 test("a refund from the store's own Paylov cabinet is named Paylov and dismissing it keeps the commission", async ({ page, api, signIn }) => {
   const held = heldStoreRefundOrder()
   held.payment_method = 'paylov'
-  held.storeRefunds![0] = { ...held.storeRefunds![0]!, provider: 'paylov', reason_code: null }
+  held.storeRefunds![0] = { ...held.storeRefunds![0]!, provider: 'paylov', reason_code: null, reported_amount: '20000.00', paylov_amount: '20000.00', amount_mismatch: true, reported_before_delivery: true }
   api.orders.orders.push(held)
   await openSignedIn(page, signIn, `/orders/${held.uuid}`, 'aziza@rizqim.uz', { confirmed: true })
   const block = page.getByRole('region', { name: 'Ovqatxona kassasidan qaytarish' })
   await expect(block).toContainText("o'zining Paylov kabinetidan mijozga qaytardi")
-  await expect(block).toContainText('Ovqatxonaning Paylov kabinetida pul haqiqatan')
   await expect(block).toContainText('Paylov · ovqatxona qaytardi')
   await expect(block).not.toContainText('Payme')
+  // Review: Paylov's own text (Paylov confirmed the money went back; only the commission is decided), and the amount warning
+  await expect(block).toContainText("Pul mijozga qaytganini Paylov o'zi tasdiqlagan")
+  await expect(block).not.toContainText('kabinetida pul haqiqatan')
+  await expect(block.getByRole('alert')).toContainText("Qaytarilgan summa to'lov summasidan farq qiladi — tasdiqlashdan oldin tekshiring.")
+  await expect(block).toContainText('buyurtma yetkazilishidan oldin xabar qilgan')
   if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/admin-store-refund-paylov.png`, fullPage: false })
   await block.getByRole('button', { name: 'Rad etish' }).click()
   const dismiss = page.getByRole('dialog', { name: 'Qaytarishni rad etish' })

@@ -155,6 +155,12 @@ export interface StoreRefundReview {
   decided_at: string | null;
   decided_by: number | null;
   note: string | null;
+  // Review (Paylov): what the cancel webhook and Paylov's read-back said went back (so'm, null when not said); a mismatch with
+  // the payment's amount is warned about; the cancel first reported while the order was still in progress
+  reported_amount?: string | null;
+  paylov_amount?: string | null;
+  amount_mismatch?: boolean;
+  reported_before_delivery?: boolean;
 }
 
 export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'> {

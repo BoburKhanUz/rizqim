@@ -15,7 +15,9 @@ import {
   PAYLOV_WEBHOOK_URL,
   paylovCallbackPasswordTooShort,
   platformCredentialFields,
+  platformCredentialLimited,
   providerAvailable,
+  providerFieldErrors,
   PROVIDERS,
   unavailableReason,
   type MerchantProvider,
@@ -81,28 +83,26 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         }
         const feeMessage = getApiFieldError(err, 'payment_settings.delivery_fee');
         if (feeMessage) next.delivery_fee = feeMessage;
-        for (const key of ['merchant_id', ...PAYLOV_SECRETS]) {
-          const message = getApiFieldError(err, `payment_settings.paylov.${key}`);
-          if (message) next[`paylov_${key}`] = message;
-        }
-        for (const provider of MERCHANT_PROVIDERS) {
-          for (const key of ['merchant_id', 'service_id', 'secret_key']) {
-            const message = getApiFieldError(err, `payment_settings.${provider}.${key}`);
-            if (message) next[`${provider}_${key}`] = message;
+        // The inputs this form renders for the providers' own keys; a refused field without one is said above the button
+        const rendered = new Set<string>();
+        if (paylovKeys) for (const key of ['merchant_id', ...PAYLOV_SECRETS]) rendered.add(`paylov_${key}`);
+        if (ownAccount) {
+          for (const provider of MERCHANT_PROVIDERS) {
+            if (!providerAvailable(settings.payment_settings?.[provider])) continue;
+            for (const key of [...MERCHANT_FIELDS[provider], 'secret_key']) rendered.add(`${provider}_${key}`);
           }
         }
-        // Owner decision 1: RIZQIM's own credential, said in the panel's language under each field it names (one this form
-        // does not show is said above the button)
+        // Owner decision 1: RIZQIM's own credential, said in the panel's language (never the server's Uzbek sentence)
+        const platform = new Set(platformCredentialFields(err).map(([provider, key]) => `${provider}_${key}`));
         let hidden: string | null = null;
-        for (const [provider, key] of platformCredentialFields(err)) {
-          const text = t('settings_platformCredential', { name: t(`settings_provider_${provider as Provider}`) });
-          const shown = (provider === 'paylov' && paylovKeys) || (ownAccount && (MERCHANT_PROVIDERS as readonly string[]).includes(provider) && providerAvailable(settings.payment_settings?.[provider as MerchantProvider]));
-          if (shown && (provider !== 'paylov' || key === 'merchant_id' || (PAYLOV_SECRETS as readonly string[]).includes(key))) next[`${provider}_${key}`] = text;
-          else {
-            delete next[`${provider}_${key}`];
-            hidden ??= text;
-          }
+        for (const [provider, key, message] of providerFieldErrors(err)) {
+          const id = `${provider}_${key}`;
+          const text = platform.has(id) ? t('settings_platformCredential', { name: t(`settings_provider_${provider}`) }) : message;
+          if (rendered.has(id)) next[id] = text;
+          else hidden ??= text;
         }
+        // Review: too many refusals of RIZQIM's credential: no credential changes for a while (429)
+        if (platformCredentialLimited(err)) hidden = t('settings_platformCredentialLimited');
         setErrors(next);
         setFormError(hidden ?? (Object.keys(next).length === 0 ? errorText(err, t) : null));
       },

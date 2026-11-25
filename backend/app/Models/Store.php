@@ -421,6 +421,7 @@ class Store extends Model
                 \App\Services\Payment\PlatformCredentialGuard::assertNone(
                     $store->exists ? static::normalizePaymentSettings($store->getOriginal('payment_settings') ?? []) : [],
                     is_array($store->payment_settings) ? $store->payment_settings : [],
+                    $store->exists ? (int) $store->id : null,
                 );
             }
 

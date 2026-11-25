@@ -205,3 +205,25 @@ export function platformCredentialFields(err: unknown): [string, string][] {
   }
   return fields;
 }
+
+// Review: every refused payment_settings.<provider>.<field> of a 422 as [provider, field, the server's first message], so a
+// field the form renders no input for (Click's merchant_user_id, a provider section not shown) is said above the button.
+export function providerFieldErrors(err: unknown): [Provider, string, string][] {
+  if (!isStaffApiError(err) || err.status !== 422 || !err.errors) return [];
+  const rows: [Provider, string, string][] = [];
+  for (const [key, value] of Object.entries(err.errors)) {
+    const match = /^payment_settings\.([a-z]+)\.([a-z_]+)$/.exec(key);
+    if (!match || !(PROVIDERS as readonly string[]).includes(match[1]!)) continue;
+    const message = Array.isArray(value) ? value.find((line) => typeof line === 'string') : value;
+    if (typeof message === 'string') rows.push([match[1] as Provider, match[2]!, message]);
+  }
+  return rows;
+}
+
+// Review: after too many refusals of RIZQIM's own credential (5 in 24 h) the store changes no credential until the window
+// passes: 429, reason `platform_credential_limited` (other settings still save)
+export const PLATFORM_CREDENTIAL_LIMITED = 'platform_credential_limited';
+
+export function platformCredentialLimited(err: unknown): boolean {
+  return isStaffApiError(err) && err.status === 429 && err.reason === PLATFORM_CREDENTIAL_LIMITED;
+}

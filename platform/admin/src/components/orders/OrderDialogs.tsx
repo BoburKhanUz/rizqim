@@ -241,8 +241,8 @@ export function DecideRefundDialog({
 // Wave P: approve (a proposal, or a second member's confirmation) or dismiss a refund the store made from its own cashbox.
 // The backend decides which approval it is; the notice follows the card it answers.
 const STORE_REFUND_DIALOG = {
-  propose: { title: 'orders_storeRefundProposeTitle', text: 'orders_storeRefundProposeText', submit: 'orders_storeRefundProposeSubmit', decision: 'approve', tone: 'primary' },
-  confirm: { title: 'orders_storeRefundConfirmTitle', text: 'orders_storeRefundConfirmText', submit: 'orders_storeRefundConfirm', decision: 'approve', tone: 'primary' },
+  propose: { title: 'orders_storeRefundProposeTitle', text: 'orders_storeRefundProposeText', paylovText: 'orders_storeRefundProposeTextPaylov', submit: 'orders_storeRefundProposeSubmit', decision: 'approve', tone: 'primary' },
+  confirm: { title: 'orders_storeRefundConfirmTitle', text: 'orders_storeRefundConfirmText', paylovText: 'orders_storeRefundConfirmTextPaylov', submit: 'orders_storeRefundConfirm', decision: 'approve', tone: 'primary' },
   dismiss: { title: 'orders_storeRefundDismissTitle', text: 'orders_storeRefundDismissText', submit: 'orders_storeRefundDismiss', decision: 'dismiss', tone: 'danger' },
 } as const;
 
@@ -251,13 +251,15 @@ export function StoreRefundReviewDialog({ order, action, onDone, onClose }: { or
   const decide = useDecideStoreRefund();
   const [key] = useState(idempotencyKey);
   const copy = STORE_REFUND_DIALOG[action];
+  // Review: Paylov confirmed the money went back itself; its texts ask only about RIZQIM's commission
+  const paylov = order.store_refund_review?.provider === 'paylov';
   const amount = exactMoney(order.store_refund_reviews.filter((review) => review.status === 'pending').reduce((sum, review) => sum + Number(review.amount), 0) || order.store_refund_review?.amount);
   const code = decide.error instanceof ApiError ? decide.error.code : '';
   const error = !decide.error ? null : code === 'four_eyes' ? t('orders_storeRefundFourEyes') : code === 'no_store_refund_review' ? t('orders_storeRefundGone') : errorText(decide.error, t);
   return (
     <ReasonForm
       title={t(copy.title)}
-      text={t(copy.text, { amount, provider: providerName(order.store_refund_review?.provider ?? null) })}
+      text={t(paylov && 'paylovText' in copy ? copy.paylovText : copy.text, { amount, provider: providerName(order.store_refund_review?.provider ?? null) })}
       submitLabel={t(copy.submit)}
       tone={copy.tone}
       busy={decide.isPending}

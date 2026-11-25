@@ -682,12 +682,22 @@ yuboradi; maxfiy kalit hech qachon qaytmaydi (`has_secret_key`, Paylov'da `has_c
 qoldiradi. Paylov `callback_password` (webhook paroli) kamida 16 belgi — qisqasi 422
 (`payment_settings.paylov.callback_password`: «Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.»).
 **Platforma kaliti — do'konniki emas (egasining 1-qarori).** O'z hisobi kalitlaridan biri RIZQIM platformasining shu
-tizimdagi o'sha kalitiga teng bo'lsa (Tizim → To'lov tizimlari'dagi qiymat, bo'lmasa `.env`; bo'sh joylarsiz, doimiy vaqtda
-solishtiriladi) — 422, `code` va `data.reason`: `platform_credential`, `data.fields` — rad etilgan maydonlar
-(`payment_settings.payme.secret_key`...), har birida o'zbekcha xabar; qiymatning o'zi javobda ham, logda ham yo'q, hech
-narsa saqlanmaydi. Tekshiriladigan maydonlar: Payme `merchant_id`, `secret_key`; Click `service_id`, `merchant_id`,
-`secret_key`, `merchant_user_id`; Paylov yettala kaliti; Uzum `merchant_id` (platformaning `merchant_id` yoki
-`terminal_id` siga), `secret_key`; Paynet `merchant_id`, `secret_key`. Qoida `Store` modelida (`PlatformCredentialGuard`):
+tizimdagi o'sha kalitiga teng bo'lsa (Tizim → To'lov tizimlari'dagi qiymat, bo'lmasa `.env`; doimiy vaqtda solishtiriladi)
+— 422, `code` va `data.reason`: `platform_credential`, `data.fields` — rad etilgan maydonlar
+(`payment_settings.payme.secret_key`...), har birida o'zbekcha xabar; qiymatning o'zi javobda ham, logda ham yo'q (log:
+faqat `store_id` va maydon nomlari), hech narsa saqlanmaydi. Tekshiriladigan maydonlar: Payme `merchant_id`, `secret_key`;
+Click `service_id`, `merchant_id`, `secret_key`; Paylov `merchant_id`, `consumer_key`, `consumer_secret`, `password`,
+`callback_password`; Uzum `merchant_id` (platformaning `merchant_id` yoki `terminal_id` siga), `secret_key`; Paynet
+`merchant_id`, `secret_key`. Past entropiyali loginlar (Paylov `username`, `callback_login`, Click `merchant_user_id`)
+yolg'iz o'zi rad etish sababi emas. Identifikatorlar (`merchant_id`, `service_id`, `terminal_id`, `consumer_key`) har
+qanday Unicode bo'sh joy, nol kenglikdagi va boshqaruv belgilarisiz, katta-kichik harf farqisiz, faqat raqamli bo'lsa
+boshidagi nollarsiz solishtiriladi; maxfiy kalitlar aniq (faqat chetidagi bo'sh joy olib tashlanadi). Bitta do'kon 24 soatda
+5 marta `platform_credential` olgach, oyna o'tguncha kalitni o'zgartiradigan har saqlash — **429**, `code` va `data.reason`:
+`platform_credential_limited`, `data.retry_after` (soniya), `Retry-After` sarlavhasi; kalitga tegmaydigan saqlash
+cheklanmaydi. **Identifikator formati:** yangi yuborilgan `merchant_id`, `service_id` yoki `consumer_key` da bo'sh joy,
+boshqaruv yoki ko'rinmas belgi yoki `& ; = ? # /` bo'lsa — oddiy 422 validatsiya xatosi shu maydonda (`data.reason:
+validation`); boshqa format talab qilinmaydi, saqlangan va o'zgarmay qayta yuborilgan qiymat tekshirilmaydi. Hamkor paneli
+o'zi ko'rsatmaydigan maydon xatosini (masalan Click `merchant_user_id`) va 429 ni «Saqlash» tugmasi ustida aytadi. Qoida `Store` modelida (`PlatformCredentialGuard`):
 do'kon sozlamasini yozadigan har qanday yo'l (shu endpoint, admin vositalari, `StoreProvisioner`, seeder, import)
 undan o'tolmaydi. Faqat **hozir yuborilgan yangi** qiymat tekshiriladi: avval saqlangan va qayta yuborilmagan (bo'sh,
 yulduzchali yoki o'zgarmagan) qiymat saqlashni to'xtatmaydi va o'zgartirilmaydi — bunday do'konlarni
@@ -3317,7 +3327,11 @@ sifatida keladi (kabinetdan qilinganda), Click qaytarish API (`payment/reversal`
 **Ovqatxona kassasidan qaytarish (wave P; Paylov — egasining 2-qarori).** Quyidagi Payme uchun yozilgan; ovqatxonaning o'z
 Paylov kabinetida qilingan va Paylov tasdiqlagan qaytarish (`transaction.cancel`, «Paylov» bo'limi) ham xuddi shunday
 tekshiruvga qo'yiladi va xuddi shu endpointlar bilan hal qilinadi (`provider: paylov`, `reason` yo'q, Paylov'ga javob
-odatdagidek `0`). Ovqatxona o'z Payme kassasiga pul yig'sa (`payment_owner: STORE`), Payme
+odatdagidek `0`). Paylov tekshiruvida kartaning `store_refund_review` (va `store_refund_reviews[]`) qo'shimcha maydonlari:
+`reported_amount` (webhook `amount_in_tiyin`, so'mda, yo'q bo'lsa `null`), `paylov_amount` (Paylov'dan o'qilgan
+`amount_in_tiyin`, so'mda), `amount_mismatch` (ulardan biri to'lov summasidan farq qiladi — kartada ogohlantirish;
+tasdiqlash baribir to'liq qaytaradi), `reported_before_delivery` (bekor qilish birinchi marta buyurtma yetkazilishidan oldin
+xabar qilingan, Paylov keyin tasdiqlagan). Payme tekshiruvida ular `null`/`false`. Ovqatxona o'z Payme kassasiga pul yig'sa (`payment_owner: STORE`), Payme
 Merchant API chaqiruvlarini tasdiqlaydigan kalitni ovqatxonaning o'zi biladi (u kalitni hamkor panelida kiritgan), Payme
 Merchant API'da esa tranzaksiyani qayta tekshirish usuli yo'q. Shuning uchun yetkazilgan (komissiyasi yozilgan) buyurtmaning
 bajarilgan tranzaksiyasiga kelgan `CancelTransaction` — haqiqiy kabinet qaytarishimi yoki ovqatxonaning o'zi yuborgan

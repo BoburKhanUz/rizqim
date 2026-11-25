@@ -270,6 +270,8 @@ export const management = defineSection({
     settings_paylovCallbackPassword: 'Webhook paroli (callback password)',
     settings_paylovCallbackPasswordShort: "Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.",
     // Owner decision 1: 422 platform_credential (a credential that is RIZQIM's own)
+    // Review: 429 platform_credential_limited (5 refusals in 24 h)
+    settings_platformCredentialLimited: "To'lov kalitlarini kiritishga urinishlar juda ko'p bo'ldi. Kalitlarni keyinroq (24 soat ichida) qayta kiriting; boshqa sozlamalarni hozir ham saqlash mumkin.",
     settings_platformCredential: "Bu RIZQIM platformasining kaliti: o'z hisobingiz uchun uni kiritib bo'lmaydi, mijozlar puli platforma hisobiga tushib qoladi. {{name}} kabinetingizdagi o'z kalitingizni kiriting.",
     settings_paylovWebhookTitle: "Paylov'ga beriladigan manzil",
     settings_paylovWebhookText: "Paylov kabinetida (yoki Paylov xodimiga) Callback URL va Cancel webhook URL sifatida shu bitta manzilni bering. Webhook login va parolini o'zingiz yarating (parol uzun va tasodifiy, kamida 16 belgi), shu yerga yozing va Paylov'ga xavfsiz kanal orqali bering.",
@@ -621,6 +623,7 @@ export const management = defineSection({
     settings_paylovCallbackLogin: 'Логин вебхука (callback login)',
     settings_paylovCallbackPassword: 'Пароль вебхука (callback password)',
     settings_paylovCallbackPasswordShort: 'Пароль вебхука Paylov должен быть не короче 16 символов.',
+    settings_platformCredentialLimited: 'Слишком много попыток ввести платёжные ключи. Введите ключи позже (в течение 24 часов); остальные настройки можно сохранить и сейчас.',
     settings_platformCredential: 'Это ключ самой платформы RIZQIM: его нельзя указать для своего счёта, иначе деньги клиентов придут на счёт платформы. Введите свой ключ из кабинета {{name}}.',
     settings_paylovWebhookTitle: 'Адрес для Paylov',
     settings_paylovWebhookText: 'Укажите в кабинете Paylov (или передайте сотруднику Paylov) этот адрес как Callback URL и Cancel webhook URL. Логин и пароль вебхука придумайте сами (пароль длинный и случайный, не короче 16 символов), введите здесь и передайте Paylov по защищённому каналу.',
@@ -971,6 +974,7 @@ export const management = defineSection({
     settings_paylovCallbackLogin: 'Webhook login (callback login)',
     settings_paylovCallbackPassword: 'Webhook password (callback password)',
     settings_paylovCallbackPasswordShort: 'The Paylov webhook password must be at least 16 characters long.',
+    settings_platformCredentialLimited: 'Too many attempts to enter payment keys. Enter the keys again later (within 24 hours); other settings can still be saved now.',
     settings_platformCredential: "This is RIZQIM's own platform key: it cannot be entered for your own account, or your customers' money would reach the platform's account. Enter your own key from your {{name}} cabinet.",
     settings_paylovWebhookTitle: 'The address to give Paylov',
     settings_paylovWebhookText: 'Give this one address to Paylov (in its cabinet or to a Paylov employee) as both the Callback URL and the Cancel webhook URL. Make up the webhook login and password yourself (a long random password, at least 16 characters), enter them here and give them to Paylov over a secure channel.',

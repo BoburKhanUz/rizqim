@@ -447,7 +447,7 @@ class PaylovPayments
      * (applied), noop (applied before: a retry), not_cancelled (Paylov says otherwise: logged, ignored) or unverified
      * (Paylov did not answer: `cancel_reported_at` is kept and the scheduled re-check asks again).
      */
-    public function verifyCancel(Payment $payment, ?int $cancelTime = null): string
+    public function verifyCancel(Payment $payment, ?int $cancelTime = null, ?int $reportedTiyin = null): string
     {
         $payment = Payment::with('order')->find($payment->id);
         if (!$payment || !in_array($payment->status, [PaymentStatus::PENDING, PaymentStatus::PAID], true)) {
@@ -462,7 +462,7 @@ class PaylovPayments
         if ($status === null) {
             $reported = self::state($payment)['cancel_reported_at'] ?? null;
             if (!is_string($reported)) {
-                $this->note($payment, ['cancel_reported_at' => now()->toIso8601String(), 'cancel_reported_time' => $cancelTime]);
+                $this->note($payment, ['cancel_reported_at' => now()->toIso8601String(), 'cancel_reported_time' => $cancelTime, 'cancel_reported_tiyin' => $reportedTiyin]);
             } elseif (now()->subMinutes(self::CANCEL_STALE_MINUTES)->gt(\Illuminate\Support\Carbon::parse($reported))
                 && $this->noteOnce((int) $payment->id, 'cancel_alerted_at')) {
                 Log::critical('Paylov cancel webhook still not confirmed by Paylov after an hour: check the transaction in the Paylov business panel', [
@@ -479,13 +479,21 @@ class PaylovPayments
         }
 
         if (in_array($status, self::CANCELLED_STATUSES, true) && self::accountMatches($transaction, $payment) !== false) {
-            $time = $cancelTime ?? (is_numeric(self::state($payment)['cancel_reported_time'] ?? null) ? (int) self::state($payment)['cancel_reported_time'] : null);
+            $state = self::state($payment);
+            $time = $cancelTime ?? (is_numeric($state['cancel_reported_time'] ?? null) ? (int) $state['cancel_reported_time'] : null);
+            // Review: what Paylov said was given back (the first webhook's amount_in_tiyin and the read-back's), and
+            // when the cancel was first reported, for the manager's review (StoreRefundReview::hold)
+            $firstReported = is_string($state['cancel_reported_at'] ?? null) ? $state['cancel_reported_at'] : null;
 
-            return $this->applyCancel($payment, 'webhook', $time);
+            return $this->applyCancel($payment, 'webhook', $time, [
+                'reported_amount_tiyin' => $firstReported !== null && is_int($state['cancel_reported_tiyin'] ?? null) ? $state['cancel_reported_tiyin'] : $reportedTiyin,
+                'paylov_amount_tiyin' => self::wholeTiyin($transaction['amount_in_tiyin'] ?? null),
+                'cancel_first_reported_at' => $firstReported,
+            ]);
         }
 
         // Paylov says the money is still there (or the transaction is another order's): a forged or mistaken cancel
-        $this->note($payment, [], ['cancel_reported_at', 'cancel_reported_time']);
+        $this->note($payment, [], ['cancel_reported_at', 'cancel_reported_time', 'cancel_reported_tiyin']);
         Log::warning('Paylov cancel webhook not confirmed by Paylov: ignored', [
             'payment_id' => $payment->id,
             'order_id' => $payment->order_id,
@@ -523,10 +531,12 @@ class PaylovPayments
      * registers its refund receipt itself, held or not). Returns closed, refunded or noop.
      *
      * @param  'merchant'|'webhook'  $by
+     * @param  array{reported_amount_tiyin?: int|null, paylov_amount_tiyin?: int|null, cancel_first_reported_at?: string|null}  $report  what the
+     *         webhook and Paylov's read-back said (verifyCancel), recorded on a held review
      */
-    public function applyCancel(Payment $payment, string $by, ?int $cancelTime = null): string
+    public function applyCancel(Payment $payment, string $by, ?int $cancelTime = null, array $report = []): string
     {
-        [$outcome, $refunded] = DB::transaction(function () use ($payment, $by, $cancelTime) {
+        [$outcome, $refunded] = DB::transaction(function () use ($payment, $by, $cancelTime, $report) {
             $order = $payment->order_id ? Order::whereKey($payment->order_id)->lockForUpdate()->first() : null;
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
             if (!$locked) {
@@ -540,7 +550,7 @@ class PaylovPayments
             ];
 
             if ($locked->status === PaymentStatus::PENDING) {
-                $this->write($locked, ['status' => PaymentStatus::CANCELLED, 'cancelled_at' => now()], ['state' => self::STATE_CANCELLED] + $cancel, ['cancel_reported_at']);
+                $this->write($locked, ['status' => PaymentStatus::CANCELLED, 'cancelled_at' => now()], ['state' => self::STATE_CANCELLED] + $cancel, ['cancel_reported_at', 'cancel_reported_tiyin']);
 
                 return ['closed', null];
             }
@@ -555,7 +565,7 @@ class PaylovPayments
             $requestedByRizqim = self::refundRequestedByRizqim($locked);
             $this->write($locked, ['status' => PaymentStatus::REFUNDED, 'cancelled_at' => now()], $cancel + [
                 'refund' => array_merge($refund, ['status' => self::REFUND_DONE, 'done_at' => now()->toIso8601String()]),
-            ], ['cancel_reported_at']);
+            ], ['cancel_reported_at', 'cancel_reported_tiyin']);
 
             // Money taken for an order that could not take it never was the order's
             if (($state['refused'] ?? null) !== null || $order === null) {
@@ -568,7 +578,8 @@ class PaylovPayments
                 // (verifyCancel), but the store decides refunds on its own account: as Payme's CancelTransaction,
                 // shown refunded (payment and order payment status), the order stays delivered, RIZQIM's commission
                 // and ledger untouched until a manager approves or dismisses it (StoreRefundReview)
-                app(StoreRefundReview::class)->hold($order, $locked, 'paylov', null);
+                // Review: the amounts Paylov reported and when it first did go on the review (never what approve reverses)
+                app(StoreRefundReview::class)->hold($order, $locked, 'paylov', null, $report);
 
                 return ['refunded', $locked];
             }
