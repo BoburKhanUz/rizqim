@@ -138,7 +138,8 @@ export interface SlaTimelineStage {
   late_by_minutes: number;
 }
 
-// Wave P (docs/API.md "Ovqatxona kassasidan qaytarish"): a Payme cancel signed with the store's own key on a delivered order.
+// Wave P (docs/API.md "Ovqatxona kassasidan qaytarish"): a Payme cancel signed with the store's own key on a delivered order,
+// or (owner decision 2) a refund made in the store's own Paylov cabinet that Paylov confirmed (`provider` says which).
 // The customer sees it refunded, RIZQIM keeps its commission until the team decides. Ids only for the members (their names
 // are on the card's audit entries of the same decision).
 export interface StoreRefundReview {
@@ -154,6 +155,12 @@ export interface StoreRefundReview {
   decided_at: string | null;
   decided_by: number | null;
   note: string | null;
+  // Review (Paylov): what the cancel webhook and Paylov's read-back said went back (so'm, null when not said); a mismatch with
+  // the payment's amount is warned about; the cancel first reported while the order was still in progress
+  reported_amount?: string | null;
+  paylov_amount?: string | null;
+  amount_mismatch?: boolean;
+  reported_before_delivery?: boolean;
 }
 
 export interface OrderCard extends Omit<OrderRow, 'store' | 'branch' | 'courier'> {

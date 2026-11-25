@@ -56,7 +56,7 @@ export interface FakeStoreRefund {
   provider: string
   payment_uuid: string
   amount: string
-  reason_code: number
+  reason_code: number | null
   reported_at: string
   proposed_by: number | null
   proposed_at: string | null
@@ -64,6 +64,11 @@ export interface FakeStoreRefund {
   decided_at: string | null
   decided_by: number | null
   note: string | null
+  /** Review (Paylov): the amounts Paylov reported, a mismatch with the payment, a cancel reported before delivery */
+  reported_amount?: string | null
+  paylov_amount?: string | null
+  amount_mismatch?: boolean
+  reported_before_delivery?: boolean
 }
 
 /** A delivered order of a store with its own Payme cashbox, whose payment the store cancelled from its cabinet */

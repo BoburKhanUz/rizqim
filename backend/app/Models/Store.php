@@ -415,6 +415,16 @@ class Store extends Model
                 $store->payment_settings = static::normalizePaymentSettings($store->payment_settings);
             }
 
+            // Owner decision 1: never the platform's own provider credentials as the store's (every write path: this
+            // hook; a value already stored and not submitted again is not judged here, payments:own-credentials-check)
+            if (!$store->exists || $store->isDirty('payment_settings')) {
+                \App\Services\Payment\PlatformCredentialGuard::assertNone(
+                    $store->exists ? static::normalizePaymentSettings($store->getOriginal('payment_settings') ?? []) : [],
+                    is_array($store->payment_settings) ? $store->payment_settings : [],
+                    $store->exists ? (int) $store->id : null,
+                );
+            }
+
             // Two-way sync: JSON payment_settings.working_hours <-> open_time/close_time columns
             
             // 1. JSON -> Columns

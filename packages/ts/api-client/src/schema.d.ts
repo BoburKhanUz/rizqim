@@ -2200,7 +2200,7 @@ export interface paths {
         /**
          * Approve a store's provider refund
          * @description Two members (four eyes, as refund requests): the money did go back to the customer (checked in the store's Payme
-         *     cabinet). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
+         *     or Paylov cabinet: `store_refund_review.provider`). The first member's approval is a proposal: the review keeps waiting (`store_refund_review.status`
          *     `pending`, `proposed_by` set) and nothing is booked. A DIFFERENT member's approval refunds the order through
          *     RIZQIM's own refund path — delivered → refunded, the commission and anything delivery booked reversed once,
          *     nothing flagged for a manual refund (the provider already returned it). The proposer approving again: 403
@@ -8258,6 +8258,17 @@ export interface paths {
          *     merchant account, `paylov` takes merchant_id, consumer_key, consumer_secret, username, password, callback_login and
          *     callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back
          *     (has_consumer_secret...).
+         *
+         *     Owner decision 1: an own-account credential equal to the platform's own one for that provider (Payme merchant_id /
+         *     secret_key, Click service_id / merchant_id / secret_key, Paylov merchant_id / consumer_key / consumer_secret /
+         *     password / callback_password; never a login alone) is a 422 with `code` and `data.reason` `platform_credential`
+         *     and `data.fields` (the refused field names, never a value); nothing is saved. Identifiers are compared without
+         *     spaces or invisible characters, case-insensitively, a number without its leading zeros. Only a value sent now is
+         *     judged: one already stored and not sent again never blocks a save (App\Services\Payment\PlatformCredentialGuard,
+         *     run by the Store model on every write). After 5 such refusals in 24 hours a save that changes a credential is a
+         *     429 `platform_credential_limited` (`data.retry_after` seconds) until the window passes; one that changes none is not
+         *     limited. A new merchant_id / service_id / consumer_key with whitespace, a control or invisible character or any of
+         *     & ; = ? # / is a 422 on that field.
          *
          *     P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
          *     PUT /owner/fiscal/settings takes them; left out = kept.
@@ -40055,6 +40066,15 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+            429: {
+                headers: {
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "ownerSettings.upload": {

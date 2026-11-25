@@ -360,7 +360,11 @@ class AdminOrderPresenter
      * an earlier decision is never hidden by a later one. Ids and codes only: never a key or the provider's payload.
      * A pending one with `proposed_by` set waits for a second member's approval (four eyes).
      *
-     * @return list<array{status: string, provider: string|null, payment_uuid: string, amount: string, reason_code: int|null, reported_at: string|null, proposed_by: int|null, proposed_at: string|null, proposal_note: string|null, decided_at: string|null, decided_by: int|null, note: string|null}>
+     * Review (Paylov): `reported_amount` / `paylov_amount` — what the cancel webhook and Paylov's read-back said went
+     * back (so'm, null when not said), `amount_mismatch` — either is not the payment's amount, `reported_before_delivery`
+     * — the cancel was first reported while the order was still in progress (applied once Paylov answered).
+     *
+     * @return list<array{status: string, provider: string|null, payment_uuid: string, amount: string, reason_code: int|null, reported_at: string|null, proposed_by: int|null, proposed_at: string|null, proposal_note: string|null, decided_at: string|null, decided_by: int|null, note: string|null, reported_amount: string|null, paylov_amount: string|null, amount_mismatch: bool, reported_before_delivery: bool}>
      */
     private function storeRefundReviews(Order $order): array
     {
@@ -385,6 +389,10 @@ class AdminOrderPresenter
                     'decided_at' => $string($review, 'decided_at'),
                     'decided_by' => $int($review, 'decided_by'),
                     'note' => $string($review, 'note'),
+                    'reported_amount' => is_int($review['reported_amount_tiyin'] ?? null) ? \App\Support\Money::fromTiyin($review['reported_amount_tiyin'])->toString() : null,
+                    'paylov_amount' => is_int($review['paylov_amount_tiyin'] ?? null) ? \App\Support\Money::fromTiyin($review['paylov_amount_tiyin'])->toString() : null,
+                    'amount_mismatch' => ($review['amount_mismatch'] ?? false) === true,
+                    'reported_before_delivery' => ($review['reported_before_delivery'] ?? false) === true,
                 ];
             })
             ->values()

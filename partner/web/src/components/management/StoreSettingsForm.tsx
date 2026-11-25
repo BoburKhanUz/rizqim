@@ -14,7 +14,10 @@ import {
   PAYLOV_SECRETS,
   PAYLOV_WEBHOOK_URL,
   paylovCallbackPasswordTooShort,
+  platformCredentialFields,
+  platformCredentialLimited,
   providerAvailable,
+  providerFieldErrors,
   PROVIDERS,
   unavailableReason,
   type MerchantProvider,
@@ -80,12 +83,28 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         }
         const feeMessage = getApiFieldError(err, 'payment_settings.delivery_fee');
         if (feeMessage) next.delivery_fee = feeMessage;
-        for (const key of ['merchant_id', ...PAYLOV_SECRETS]) {
-          const message = getApiFieldError(err, `payment_settings.paylov.${key}`);
-          if (message) next[`paylov_${key}`] = message;
+        // The inputs this form renders for the providers' own keys; a refused field without one is said above the button
+        const rendered = new Set<string>();
+        if (paylovKeys) for (const key of ['merchant_id', ...PAYLOV_SECRETS]) rendered.add(`paylov_${key}`);
+        if (ownAccount) {
+          for (const provider of MERCHANT_PROVIDERS) {
+            if (!providerAvailable(settings.payment_settings?.[provider])) continue;
+            for (const key of [...MERCHANT_FIELDS[provider], 'secret_key']) rendered.add(`${provider}_${key}`);
+          }
         }
+        // Owner decision 1: RIZQIM's own credential, said in the panel's language (never the server's Uzbek sentence)
+        const platform = new Set(platformCredentialFields(err).map(([provider, key]) => `${provider}_${key}`));
+        let hidden: string | null = null;
+        for (const [provider, key, message] of providerFieldErrors(err)) {
+          const id = `${provider}_${key}`;
+          const text = platform.has(id) ? t('settings_platformCredential', { name: t(`settings_provider_${provider}`) }) : message;
+          if (rendered.has(id)) next[id] = text;
+          else hidden ??= text;
+        }
+        // Review: too many refusals of RIZQIM's credential: no credential changes for a while (429)
+        if (platformCredentialLimited(err)) hidden = t('settings_platformCredentialLimited');
         setErrors(next);
-        setFormError(Object.keys(next).length === 0 ? errorText(err, t) : null);
+        setFormError(hidden ?? (Object.keys(next).length === 0 ? errorText(err, t) : null));
       },
     });
   };
@@ -196,7 +215,7 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         </Card>
         {ownAccount &&
           MERCHANT_PROVIDERS.filter((provider) => providerAvailable(settings.payment_settings?.[provider])).map((provider) => (
-            <MerchantFields key={provider} provider={provider} draft={draft} onChange={(field, value) => setDraft((previous) => ({ ...previous, merchant: { ...previous.merchant, [provider]: { ...previous.merchant[provider], [field]: value } } }))} />
+            <MerchantFields key={provider} provider={provider} draft={draft} errors={errors} onChange={(field, value) => setDraft((previous) => ({ ...previous, merchant: { ...previous.merchant, [provider]: { ...previous.merchant[provider], [field]: value } } }))} />
           ))}
         {paylovKeys && (
           <PaylovFields
@@ -222,7 +241,17 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
 
 // P4-32: the store's own merchant keys of one provider (own account only). The secret is never shown: an empty field keeps the
 // stored one, a typed one replaces it.
-function MerchantFields({ provider, draft, onChange }: { provider: MerchantProvider; draft: SettingsDraft; onChange: (field: 'merchant_id' | 'service_id' | 'secret_key', value: string) => void }) {
+function MerchantFields({
+  provider,
+  draft,
+  errors,
+  onChange,
+}: {
+  provider: MerchantProvider;
+  draft: SettingsDraft;
+  errors: Record<string, string>;
+  onChange: (field: 'merchant_id' | 'service_id' | 'secret_key', value: string) => void;
+}) {
   const { t } = useI18n();
   const keys = draft.merchant[provider];
   const name = t(`settings_provider_${provider}`);
@@ -232,11 +261,11 @@ function MerchantFields({ provider, draft, onChange }: { provider: MerchantProvi
       <p className="text-footnote text-fg-muted">{t('settings_merchantHint')}</p>
       <div className="grid gap-4 sm:grid-cols-2">
         {MERCHANT_FIELDS[provider].map((field) => (
-          <Field key={field} label={t(field === 'service_id' ? 'settings_serviceId' : 'settings_merchantId', { name })}>
+          <Field key={field} label={t(field === 'service_id' ? 'settings_serviceId' : 'settings_merchantId', { name })} error={errors[`${provider}_${field}`]}>
             {(props) => <input {...props} type="text" autoComplete="off" spellCheck={false} maxLength={255} value={keys[field]} onChange={(event) => onChange(field, event.target.value)} className={fieldClass} />}
           </Field>
         ))}
-        <Field label={t('settings_secretKey', { name })} hint={keys.hasSecret ? t('settings_secretKeyStored') : t('settings_secretKeyMissing')}>
+        <Field label={t('settings_secretKey', { name })} hint={keys.hasSecret ? t('settings_secretKeyStored') : t('settings_secretKeyMissing')} error={errors[`${provider}_secret_key`]}>
           {(props) => <input {...props} type="password" autoComplete="new-password" spellCheck={false} maxLength={255} value={keys.secret_key} onChange={(event) => onChange('secret_key', event.target.value)} className={fieldClass} />}
         </Field>
       </div>

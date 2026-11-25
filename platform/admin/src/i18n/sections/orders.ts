@@ -195,12 +195,20 @@ export const orders = defineSection({
     orders_approved: "Tasdiqlandi.",
     orders_rejected: "So'rov rad etildi.",
 
-    // Wave P: a refund the store made from its own Payme cabinet (docs/API.md "Ovqatxona kassasidan qaytarish")
+    // Wave P: a refund the store made from its own Payme or (owner decision 2) Paylov cabinet (docs/API.md "Ovqatxona
+    // kassasidan qaytarish"); {{provider}} is the review's provider
     orders_storeRefund: 'Ovqatxona kassasidan qaytarish',
     orders_storeRefundExplain:
-      "Ovqatxona bu buyurtma pulini o'zining Payme kabinetidan mijozga qaytardi. Mijoz uchun to'lov qaytarilgan, buyurtma esa yetkazilgan holatda qoladi. RIZQIM komissiyasi qaror chiqarilguncha saqlanadi.",
+      "Ovqatxona bu buyurtma pulini o'zining {{provider}} kabinetidan mijozga qaytardi. Mijoz uchun to'lov qaytarilgan, buyurtma esa yetkazilgan holatda qoladi. RIZQIM komissiyasi qaror chiqarilguncha saqlanadi.",
     orders_storeRefundHow:
-      "Ovqatxonaning Payme kabinetida pul haqiqatan mijozga qaytganini tekshiring. Qaytgan bo'lsa — tasdiqlang: bitta xodim taklif qiladi, boshqa xodim tasdiqlaydi, keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi. Ovqatxona o'zi yuborgan so'rov yoki o'z hisobidan qilgan qaytarish bo'lsa — rad eting, komissiya saqlanadi.",
+      "Ovqatxonaning {{provider}} kabinetida pul haqiqatan mijozga qaytganini tekshiring. Qaytgan bo'lsa — tasdiqlang: bitta xodim taklif qiladi, boshqa xodim tasdiqlaydi, keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi. Ovqatxona o'zi yuborgan so'rov yoki o'z hisobidan qilgan qaytarish bo'lsa — rad eting, komissiya saqlanadi.",
+    // Review: Paylov's own texts. Paylov itself confirmed the money went back (RIZQIM read it back from Paylov), the manager
+    // has no access to the store's Paylov cabinet: only RIZQIM's commission is decided
+    orders_storeRefundHowPaylov:
+      "Pul mijozga qaytganini Paylov o'zi tasdiqlagan (RIZQIM buni Paylov'dan o'qib tekshirgan): ovqatxona kabinetini tekshirish shart emas. Siz faqat RIZQIM komissiyasini hal qilasiz. Komissiya bekor qilinishi kerak bo'lsa — tasdiqlang: bitta xodim taklif qiladi, boshqa xodim tasdiqlaydi, keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi. Komissiya saqlanishi kerak bo'lsa — rad eting.",
+    orders_storeRefundAmountMismatch: "Qaytarilgan summa to'lov summasidan farq qiladi — tasdiqlashdan oldin tekshiring.",
+    orders_storeRefundAmounts: "Paylov xabarida: {{reported}} · Paylov ma'lumotida: {{paylov}} · to'lov: {{amount}}",
+    orders_storeRefundBeforeDelivery: "Paylov bu bekor qilishni buyurtma yetkazilishidan oldin xabar qilgan (o'shanda tasdiqlab bo'lmagan, Paylov keyin tasdiqladi).",
     orders_storeRefundPending: 'Qaror kutilmoqda',
     orders_storeRefundApproved: 'Tasdiqlandi',
     orders_storeRefundDismissed: 'Rad etildi',
@@ -216,11 +224,15 @@ export const orders = defineSection({
     orders_storeRefundDismiss: 'Rad etish',
     orders_storeRefundProposeTitle: 'Qaytarishni taklif qilish',
     orders_storeRefundProposeText:
-      "{{amount}}. Pul ovqatxona kabinetida haqiqatan qaytganini tekshirdingizmi? Taklifingizni boshqa xodim tasdiqlaganidan keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi.",
+      "{{amount}}. Pul ovqatxonaning {{provider}} kabinetida haqiqatan qaytganini tekshirdingizmi? Taklifingizni boshqa xodim tasdiqlaganidan keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi.",
+    orders_storeRefundProposeTextPaylov:
+      "{{amount}}. Pul mijozga qaytganini Paylov tasdiqlagan. RIZQIM komissiyasini bekor qilishni taklif qilasizmi? Taklifingizni boshqa xodim tasdiqlaganidan keyin buyurtma «Qaytarildi» bo'ladi va komissiya bekor qilinadi.",
     orders_storeRefundProposeSubmit: 'Taklif qilish',
     orders_storeRefundConfirmTitle: 'Qaytarishni tasdiqlash (ikkinchi xodim)',
     orders_storeRefundConfirmText:
-      "{{amount}}. Buyurtma «Qaytarildi» bo'ladi, komissiya bekor qilinadi va ovqatxonaga yozilgan hamma narsa bir marta qaytariladi. Pul mijozga ovqatxona kabinetidan allaqachon qaytgan: qo'lda hech narsa qaytarilmaydi.",
+      "{{amount}}. Buyurtma «Qaytarildi» bo'ladi, komissiya bekor qilinadi va ovqatxonaga yozilgan hamma narsa bir marta qaytariladi. Pul mijozga ovqatxonaning {{provider}} kabinetidan allaqachon qaytgan: qo'lda hech narsa qaytarilmaydi.",
+    orders_storeRefundConfirmTextPaylov:
+      "{{amount}}. Buyurtma «Qaytarildi» bo'ladi, RIZQIM komissiyasi bekor qilinadi va ovqatxonaga yozilgan hamma narsa bir marta qaytariladi. Pulni mijozga Paylov allaqachon qaytargan (Paylov tasdiqlagan): qo'lda hech narsa qaytarilmaydi.",
     orders_storeRefundDismissTitle: 'Qaytarishni rad etish',
     orders_storeRefundDismissText:
       "{{amount}}. RIZQIM komissiyasi saqlanadi, buyurtma yetkazilgan holatda qoladi. Kutilayotgan taklif ham yopiladi.",

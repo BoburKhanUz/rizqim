@@ -245,12 +245,13 @@ class PaylovWebhookController extends Controller
 
         $tiyin = PaylovPayments::wholeTiyin($params['amount_in_tiyin'] ?? null);
         if ($tiyin !== null && $tiyin !== Money::of($payment->amount)->toTiyin()) {
-            // A cancel is always the whole transaction (cancel-payment has no amount): checked with Paylov, but worth a look
+            // A cancel is always the whole transaction (cancel-payment has no amount): checked with Paylov, but worth a look;
+            // a held review records it (amount_mismatch: StoreRefundReview::hold)
             Log::warning('Paylov cancel webhook names another amount than the payment', ['payment_id' => $payment->id, 'amount_in_tiyin' => $tiyin]);
         }
 
         $cancelTime = is_numeric($params['cancel_time'] ?? null) ? (int) $params['cancel_time'] : null;
-        $this->payments->verifyCancel($payment, $cancelTime);
+        $this->payments->verifyCancel($payment, $cancelTime, $tiyin);
 
         return $this->answer($id, ...self::OK);
     }

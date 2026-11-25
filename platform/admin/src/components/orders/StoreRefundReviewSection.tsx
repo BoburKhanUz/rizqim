@@ -25,7 +25,7 @@ function memberNames(order: OrderCard): Map<number, string> {
   return names;
 }
 
-// Wave P: a refund the store made from its own Payme cabinet on a delivered order (docs/API.md "Ovqatxona kassasidan
+// Wave P: a refund the store made from its own Payme or (owner decision 2) Paylov cabinet on a delivered order (docs/API.md "Ovqatxona kassasidan
 // qaytarish"). The customer already has the money back; RIZQIM keeps its commission until the team decides: approving takes
 // two members (a proposal, then a different member's confirmation), dismissing one. The buttons follow `actions`.
 export function StoreRefundReviewSection({ order, onAction }: { order: OrderCard; onAction: (action: StoreRefundAction) => void }) {
@@ -42,8 +42,8 @@ export function StoreRefundReviewSection({ order, onAction }: { order: OrderCard
   return (
     <Section title={t('orders_storeRefund')}>
       <Card className="flex flex-col gap-3 border-warning-soft-fg/40">
-        <p className="text-footnote text-fg">{t('orders_storeRefundExplain')}</p>
-        {pending && <p className="text-footnote text-fg-muted">{t('orders_storeRefundHow')}</p>}
+        <p className="text-footnote text-fg">{t('orders_storeRefundExplain', { provider: providerName(latest.provider) })}</p>
+        {pending && <p className="text-footnote text-fg-muted">{latest.provider === 'paylov' ? t('orders_storeRefundHowPaylov') : t('orders_storeRefundHow', { provider: providerName(latest.provider) })}</p>}
 
         <ul className="flex flex-col gap-3 border-t border-line pt-3">
           {order.store_refund_reviews.map((review, index) => (
@@ -53,6 +53,19 @@ export function StoreRefundReviewSection({ order, onAction }: { order: OrderCard
                 <Pill tone={STATUS[review.status]?.tone ?? 'neutral'}>{t(STATUS[review.status]?.label ?? 'orders_storeRefundPending')}</Pill>
               </span>
               <span className="text-caption text-fg-muted">{t('orders_storeRefundReported', { provider: providerName(review.provider), time: when(review.reported_at) })}</span>
+              {review.amount_mismatch && (
+                <span role="alert" className="flex flex-col gap-0.5 rounded-control bg-warning-soft px-2 py-1 text-caption font-bold text-warning-soft-fg">
+                  <span>{t('orders_storeRefundAmountMismatch')}</span>
+                  <span className="font-normal">
+                    {t('orders_storeRefundAmounts', {
+                      reported: review.reported_amount ? exactMoney(review.reported_amount) : '—',
+                      paylov: review.paylov_amount ? exactMoney(review.paylov_amount) : '—',
+                      amount: exactMoney(review.amount),
+                    })}
+                  </span>
+                </span>
+              )}
+              {review.reported_before_delivery && <span className="text-caption text-fg-muted">{t('orders_storeRefundBeforeDelivery')}</span>}
               {review.proposed_by !== null && (
                 <span className="break-words text-caption text-fg-muted">
                   {t('orders_storeRefundProposedBy', { name: member(review.proposed_by), time: when(review.proposed_at) })}

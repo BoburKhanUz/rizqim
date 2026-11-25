@@ -38,6 +38,16 @@ class OwnerSettingsController extends Controller
     /** Review 2 (L4): the shortest webhook (callback) password an owner may set for its own Paylov account */
     private const PAYLOV_CALLBACK_PASSWORD_MIN = 16;
 
+    /** Review: refusals of a platform credential a store may get per window (a guess oracle otherwise) */
+    public const PLATFORM_CREDENTIAL_REFUSALS = 5;
+
+    public const PLATFORM_CREDENTIAL_WINDOW_SECONDS = 86400;
+
+    public const PLATFORM_CREDENTIAL_LIMITED = 'platform_credential_limited';
+
+    /** Review: an identifier goes into a checkout link as it is (PaymentProviderSwitch): none of these in it */
+    private const IDENTIFIER_FORBIDDEN = '/[\s\p{Z}\p{C}&;=?#\/]/u';
+
     /** Wave P: the own-account keys an owner may save per provider (Paylov's: PaylovAccount::KEYS) */
     private const OWN_FIELDS = ['merchant_id', 'service_id', 'secret_key'];
 
@@ -122,6 +132,17 @@ class OwnerSettingsController extends Controller
      * callback_password (every one of them, or Paylov orders are paid to the platform); none of them is ever sent back
      * (has_consumer_secret...).
      *
+     * Owner decision 1: an own-account credential equal to the platform's own one for that provider (Payme merchant_id /
+     * secret_key, Click service_id / merchant_id / secret_key, Paylov merchant_id / consumer_key / consumer_secret /
+     * password / callback_password; never a login alone) is a 422 with `code` and `data.reason` `platform_credential`
+     * and `data.fields` (the refused field names, never a value); nothing is saved. Identifiers are compared without
+     * spaces or invisible characters, case-insensitively, a number without its leading zeros. Only a value sent now is
+     * judged: one already stored and not sent again never blocks a save (App\Services\Payment\PlatformCredentialGuard,
+     * run by the Store model on every write). After 5 such refusals in 24 hours a save that changes a credential is a
+     * 429 `platform_credential_limited` (`data.retry_after` seconds) until the window passes; one that changes none is not
+     * limited. A new merchant_id / service_id / consumer_key with whitespace, a control or invisible character or any of
+     * & ; = ? # / is a 422 on that field.
+     *
      * P3-11: optional `tin` (9 digits), `tax_regime` (vat | vat_simplified | turnover) and `fiscal_settings`, as
      * PUT /owner/fiscal/settings takes them; left out = kept.
      *
@@ -166,6 +187,25 @@ class OwnerSettingsController extends Controller
             return $this->error('Do\'kon topilmadi.', [], 404);
         }
 
+        // Review: an own-account identifier (merchant_id, service_id, consumer_key) goes into the checkout link as it is
+        // (PaymentProviderSwitch joins it into the query): no whitespace, control or invisible character, none of
+        // & ; = ? # /. No provider-specific format is imposed. Only a value sent now is judged: the one already stored,
+        // sent back unchanged, never blocks a save (nor does one a platform-account store sends, which is not saved).
+        // (as stored: never what an earlier refused save left on this instance)
+        $storedSettings = Store::normalizePaymentSettings($store->getOriginal('payment_settings') ?? []);
+        $identifier = function (string $attribute, mixed $value, \Closure $fail) use ($store, $storedSettings) {
+            if (!is_string($value) || $store->payment_account_type !== 'own_account') {
+                return;
+            }
+            $stored = data_get($storedSettings, substr($attribute, strlen('payment_settings.')));
+            if (is_string($stored) && trim($stored) === trim($value)) {
+                return;
+            }
+            if (preg_match(self::IDENTIFIER_FORBIDDEN, trim($value)) === 1) {
+                $fail("Bu identifikatorda bo'sh joy, ko'rinmas belgi yoki & ; = ? # / belgilari bo'lishi mumkin emas: uni kabinetingizdan aynan nusxalang.");
+            }
+        };
+
         $request->validate([
             // P2-12: the store's name and timezone (the panel's settings page edits them too); left out = kept
             'name' => 'sometimes|required|string|max:255',
@@ -188,11 +228,11 @@ class OwnerSettingsController extends Controller
             'payment_settings.working_hours' => 'nullable|array',
             'payment_settings.working_hours.open' => 'nullable|string',
             'payment_settings.working_hours.close' => 'nullable|string',
-            'payment_settings.*.merchant_id' => 'nullable|string|max:255',
-            'payment_settings.*.service_id' => 'nullable|string|max:255',
+            'payment_settings.*.merchant_id' => ['nullable', 'string', 'max:255', $identifier],
+            'payment_settings.*.service_id' => ['nullable', 'string', 'max:255', $identifier],
             'payment_settings.*.secret_key' => 'nullable|string|max:255',
             // Wave P: Paylov's own-account keys
-            'payment_settings.*.consumer_key' => 'nullable|string|max:255',
+            'payment_settings.*.consumer_key' => ['nullable', 'string', 'max:255', $identifier],
             'payment_settings.*.consumer_secret' => 'nullable|string|max:255',
             'payment_settings.*.username' => 'nullable|string|max:255',
             'payment_settings.*.password' => 'nullable|string|max:255',
@@ -227,7 +267,7 @@ class OwnerSettingsController extends Controller
         // P3-11: TIN, tax regime and fiscal settings (validated before anything is saved)
         $fiscalUpdate = \App\Domain\Fiscal\FiscalSettings::validatedUpdate($request->only(['tin', 'tax_regime', 'fiscal_settings']), $store);
 
-        $currentSettings = $store->payment_settings ?? [];
+        $currentSettings = $storedSettings;
         $newSettings = $request->payment_settings ?? [];
 
         foreach (Store::unavailablePaymentMethods() as $method) {
@@ -270,19 +310,29 @@ class OwnerSettingsController extends Controller
             }
         }
 
-        $store->update([
-            'logo' => $request->logo,
-            'banner' => $request->banner,
-            'description' => $request->description,
-            'address' => $request->address,
-            'location_url' => $request->location_url,
-            'is_open' => $request->is_open,
-            'min_order_amount' => $request->min_order_amount ?? 0,
-            'payment_settings' => $currentSettings,
-        ] + ($request->has('phone') ? ['phone' => $request->phone] : []) // a client that never sends phone keeps it
-            + $request->only(['name', 'timezone']) // P2-12
-            + $fiscalUpdate // P3-11
-            + $sellerUpdate); // Wave P (receipts)
+        // Review: a store whose saves were refused as the platform's credential PLATFORM_CREDENTIAL_REFUSALS times in the
+        // window changes no credential until it passes (429 platform_credential_limited); a save that changes none is
+        // not limited. Counted per store (cache-backed RateLimiter), only on a refusal.
+        $limiterKey = 'platform-credential-refusals:' . $store->id;
+        $changesCredentials = \App\Services\Payment\PlatformCredentialGuard::changed($storedSettings, Store::normalizePaymentSettings($currentSettings)) !== [];
+        if ($changesCredentials && \Illuminate\Support\Facades\RateLimiter::tooManyAttempts($limiterKey, self::PLATFORM_CREDENTIAL_REFUSALS)) {
+            $retryAfter = max(1, \Illuminate\Support\Facades\RateLimiter::availableIn($limiterKey));
+
+            return response()->json([
+                'success' => false,
+                'message' => "To'lov kalitlarini kiritishga urinishlar juda ko'p bo'ldi. To'lov kalitlarini " . (int) ceil($retryAfter / 3600) . " soatdan so'ng qayta o'zgartirishingiz mumkin; boshqa sozlamalarni hozir ham saqlash mumkin.",
+                'code' => self::PLATFORM_CREDENTIAL_LIMITED,
+                'data' => ['reason' => self::PLATFORM_CREDENTIAL_LIMITED, 'retry_after' => $retryAfter],
+            ], 429, ['Retry-After' => (string) $retryAfter]);
+        }
+
+        try {
+            $this->saveStore($store, $request, $currentSettings, $fiscalUpdate, $sellerUpdate);
+        } catch (\App\Services\Payment\PlatformCredentialException $e) {
+            \Illuminate\Support\Facades\RateLimiter::hit($limiterKey, self::PLATFORM_CREDENTIAL_WINDOW_SECONDS);
+
+            throw $e;
+        }
 
         if ($sellerUpdate !== [] && $sellerBefore != $sellerUpdate) {
             app(\App\Services\Audit\AuditLogger::class)->record('store.seller_details_updated', $store, $sellerBefore, $sellerUpdate);
@@ -308,6 +358,28 @@ class OwnerSettingsController extends Controller
         $branch->update($branchUpdate);
 
         return $this->success($store, 'Do\'kon sozlamalari muvaffaqiyatli yangilandi.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $paymentSettings
+     * @param  array<string, mixed>  $fiscalUpdate
+     * @param  array<string, string|null>  $sellerUpdate
+     */
+    private function saveStore(Store $store, Request $request, array $paymentSettings, array $fiscalUpdate, array $sellerUpdate): void
+    {
+        $store->update([
+            'logo' => $request->logo,
+            'banner' => $request->banner,
+            'description' => $request->description,
+            'address' => $request->address,
+            'location_url' => $request->location_url,
+            'is_open' => $request->is_open,
+            'min_order_amount' => $request->min_order_amount ?? 0,
+            'payment_settings' => $paymentSettings,
+        ] + ($request->has('phone') ? ['phone' => $request->phone] : []) // a client that never sends phone keeps it
+            + $request->only(['name', 'timezone']) // P2-12
+            + $fiscalUpdate // P3-11
+            + $sellerUpdate); // Wave P (receipts)
     }
 
     /**

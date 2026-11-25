@@ -209,6 +209,98 @@ describe('SettingsView: the store tab', () => {
     expect(await screen.findByText("Paylov webhook paroli kamida 16 belgidan iborat bo'lishi kerak.")).toBeInTheDocument();
   });
 
+  // Owner decision 1: a store may not save RIZQIM's own provider credentials as its own (422 platform_credential, the field
+  // names in data.fields); the panel says so under each field, in its own language, never echoing a value
+  const platformRefusal = (fields: string[]) =>
+    refusal('Xato', 422, {
+      code: 'platform_credential',
+      errors: Object.fromEntries(fields.map((field) => [field, ['Bu RIZQIM platformasining kaliti.']])),
+      data: { reason: 'platform_credential', fields },
+    });
+
+  it("decision 1: a credential that is RIZQIM's own is refused under its field, for Payme, Click and Paylov", async () => {
+    const own = {
+      ...ownPaylov(),
+      payment_settings: { ...ownPaylov().payment_settings, click: { enabled: true, service_id: '111', merchant_id: '222', has_secret_key: true }, payme: { enabled: true, has_secret_key: false } },
+    };
+    const { calls } = base({
+      'GET /api/v1/owner/settings': () => ok(own),
+      'POST /api/v1/owner/settings': () =>
+        platformRefusal(['payment_settings.payme.secret_key', 'payment_settings.click.service_id', 'payment_settings.paylov.consumer_secret']),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    await typing.type(await screen.findByLabelText('Payme maxfiy kaliti'), 'platformaniki');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1));
+
+    const text = "Bu RIZQIM platformasining kaliti: o'z hisobingiz uchun uni kiritib bo'lmaydi, mijozlar puli platforma hisobiga tushib qoladi. {{name}} kabinetingizdagi o'z kalitingizni kiriting.";
+    for (const [label, name] of [['Payme maxfiy kaliti', 'Payme'], ['Click Service ID', 'Click'], ['Paylov Consumer secret', 'Paylov']] as const) {
+      const input = screen.getByLabelText(label);
+      expect(input, label).toHaveAttribute('aria-invalid', 'true');
+      expect(input, label).toHaveAccessibleDescription(text.replace('{{name}}', name));
+    }
+    // Never the server's generic sentence as a form error, never the typed value
+    expect(screen.queryByText('Bu RIZQIM platformasining kaliti.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/platformaniki/)).not.toBeInTheDocument();
+  });
+
+  it('decision 1: the refusal is said in the panel language', async () => {
+    base({
+      'GET /api/v1/owner/settings': () => ok({ ...SETTINGS, payment_account_type: 'own_account', payment_settings: { ...SETTINGS.payment_settings, payme: { enabled: true, has_secret_key: false } } }),
+      'POST /api/v1/owner/settings': () => platformRefusal(['payment_settings.payme.merchant_id']),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />, 'ru');
+    await typing.click(await screen.findByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText('Это ключ самой платформы RIZQIM: его нельзя указать для своего счёта, иначе деньги клиентов придут на счёт платформы. Введите свой ключ из кабинета Payme.')).toBeInTheDocument();
+  });
+
+  // Review: a refused field this form renders no input for (Click's merchant_user_id, a provider not shown) is said above the
+  // button, never lost
+  it('says a refused field with no input of its own above the button', async () => {
+    const own = { ...ownPaylov(), payment_settings: { ...ownPaylov().payment_settings, click: { enabled: true, service_id: '111', merchant_id: '222', has_secret_key: true } } };
+    base({
+      'GET /api/v1/owner/settings': () => ok(own),
+      'POST /api/v1/owner/settings': () => refusal('Xato', 422, { errors: { 'payment_settings.click.service_id': ['Service ID xato.'], 'payment_settings.click.merchant_user_id': ["Bu identifikatorda bo'sh joy bo'lishi mumkin emas."] }, data: { reason: 'validation' } }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />);
+    await typing.click(await screen.findByRole('button', { name: 'Saqlash' }));
+    // The shown field under its input, the other one above the button
+    await waitFor(() => expect(screen.getByLabelText('Click Service ID')).toHaveAccessibleDescription('Service ID xato.'));
+    expect(screen.getByText("Bu identifikatorda bo'sh joy bo'lishi mumkin emas.")).toBeInTheDocument();
+  });
+
+  it("says RIZQIM's own credential for a field with no input above the button, in the panel's language", async () => {
+    base({
+      'GET /api/v1/owner/settings': () => ok(ownPaylov()),
+      'POST /api/v1/owner/settings': () =>
+        refusal('Xato', 422, { code: 'platform_credential', errors: { 'payment_settings.click.merchant_user_id': ['x'] }, data: { reason: 'platform_credential', fields: ['payment_settings.click.merchant_user_id'] } }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />, 'en');
+    await typing.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByText("This is RIZQIM's own platform key: it cannot be entered for your own account, or your customers' money would reach the platform's account. Enter your own key from your Click cabinet.")).toBeInTheDocument();
+  });
+
+  // Review: after 5 refusals in 24 h the store changes no credential for a while (429 platform_credential_limited)
+  it.each([
+    ['uz', 'Saqlash', "To'lov kalitlarini kiritishga urinishlar juda ko'p bo'ldi. Kalitlarni keyinroq (24 soat ichida) qayta kiriting; boshqa sozlamalarni hozir ham saqlash mumkin."],
+    ['ru', 'Сохранить', 'Слишком много попыток ввести платёжные ключи. Введите ключи позже (в течение 24 часов); остальные настройки можно сохранить и сейчас.'],
+    ['en', 'Save', 'Too many attempts to enter payment keys. Enter the keys again later (within 24 hours); other settings can still be saved now.'],
+  ] as const)('says the credential limit in %s', async (locale, button, text) => {
+    base({
+      'GET /api/v1/owner/settings': () => ok(ownPaylov()),
+      'POST /api/v1/owner/settings': () => refusal('Juda kop', 429, { code: 'platform_credential_limited', data: { reason: 'platform_credential_limited', retry_after: 80000 } }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<SettingsView />, locale);
+    await typing.click(await screen.findByRole('button', { name: button }));
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.queryByText('Juda kop')).not.toBeInTheDocument();
+  });
+
   it('Wave P: no Paylov keys for a store on the platform account, nor while RIZQIM has Paylov switched off', async () => {
     base({ 'GET /api/v1/owner/settings': () => ok({ ...ownPaylov(), payment_account_type: 'platform_account' }) });
     const { unmount } = renderPage(<SettingsView />);

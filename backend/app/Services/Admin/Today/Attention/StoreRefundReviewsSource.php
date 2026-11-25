@@ -8,7 +8,7 @@ use App\Services\Admin\Attention\AttentionItem;
 
 /**
  * Wave P: provider refunds on a store's own cashbox of a delivered order (a Payme CancelTransaction signed with the
- * store's own key) that keep RIZQIM's commission until a manager approves or dismisses them
+ * store's own key, or a refund in the store's own Paylov cabinet) that keep RIZQIM's commission until a manager approves or dismisses them
  * (orders.store_refund_review_at, partial index; App\Services\Payment\StoreRefundReview). Always critical: platform
  * money waits on the decision.
  */

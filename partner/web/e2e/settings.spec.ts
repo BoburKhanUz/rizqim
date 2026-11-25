@@ -86,3 +86,22 @@ test("the seller's details: legal name and STIR shown, legal address and complai
   await page.reload()
   await expect(page.getByRole('region', { name: "Sotuvchi ma'lumotlari" }).getByLabel('Yuridik manzil')).toHaveValue("Toshkent sh., Mirobod t., Amir Temur ko'chasi 1")
 })
+
+// Owner decision 1: a store may not save RIZQIM's own provider credentials as its own (422 platform_credential): the panel
+// says so under the field, in its language, nothing is saved; the store's own key then saves
+test("RIZQIM's own Payme key is refused under its field and nothing is saved", async ({ page, api, signIn, reverb }) => {
+  void reverb
+  await openSignedIn(page, signIn, '/settings')
+  const secret = page.getByLabel('Payme maxfiy kaliti')
+  await secret.fill('rizqim-platform-payme-key')
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click()
+  await expect(secret).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText("Bu RIZQIM platformasining kaliti: o'z hisobingiz uchun uni kiritib bo'lmaydi, mijozlar puli platforma hisobiga tushib qoladi. Payme kabinetingizdagi o'z kalitingizni kiriting.")).toBeVisible()
+  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/partner-settings-platform-credential.png`, fullPage: false })
+  expect(api.storeSettings.payment.payme).toMatchObject({ secret_key: 'payme-secret' })
+
+  await secret.fill('osh-markazi-own-payme-key')
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click()
+  await expect(page.getByText('Sozlamalar saqlandi.')).toBeVisible()
+  expect(api.storeSettings.payment.payme).toMatchObject({ secret_key: 'osh-markazi-own-payme-key' })
+})

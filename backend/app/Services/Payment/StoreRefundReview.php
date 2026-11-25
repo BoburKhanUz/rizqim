@@ -28,6 +28,11 @@ use Illuminate\Support\Facades\Log;
  * the commission reversed once), dismiss (one member) keeps the commission. The order is then never payable again
  * (moneyWentBack), so the store cannot raise the review once more by re-paying and cancelling.
  *
+ * Owner decision 2: Paylov's verified transaction.cancel of a payment into the store's own Paylov account is held the
+ * same way (PaylovPayments::applyCancel), unless RIZQIM itself asked Paylov for that refund (payment/cancel requested:
+ * PaylovPayments::refundRequestedByRizqim). Paylov's cancel is read back from Paylov first, so the money did go back;
+ * what stays the store's to answer for is whether RIZQIM's commission goes back with it. Its `reason` is null.
+ *
  * A refund RIZQIM itself made first (the order is `refunded`: admin refund, approved refund request) is not held:
  * the provider's cancel then only gives the money back it was flagged for. Platform-owned orders keep their own rule
  * (their key is RIZQIM's: PaymeWebhookController refuses a cancel while the store holds the money).
@@ -64,18 +69,41 @@ final class StoreRefundReview
 
     /**
      * Records the provider's refund of a paid payment without touching RIZQIM's ledger. The caller holds the order's
-     * and the payment's locks inside its transaction and has already marked the payment `refunded`.
+     * and the payment's locks inside its transaction and has already marked the payment `refunded`. Paylov's $report
+     * (PaylovPayments::verifyCancel): the amounts its webhook and its read-back named (`amount_mismatch` when either is
+     * not the payment's) and when the cancel was first reported (`reported_before_delivery`) go on the review.
+     *
+     * @param  array{reported_amount_tiyin?: int|null, paylov_amount_tiyin?: int|null, cancel_first_reported_at?: string|null}  $report
      */
-    public function hold(Order $order, Payment $payment, string $provider, ?int $reason): void
+    public function hold(Order $order, Payment $payment, string $provider, ?int $reason, array $report = []): void
     {
+        $review = [
+            'status' => self::PENDING,
+            'provider' => $provider,
+            'reason' => $reason,
+            'reported_at' => now()->toIso8601String(),
+        ];
+        $mismatch = false;
+        if ($provider === 'paylov') {
+            // Review: Paylov's cancel names an amount (the webhook) and its read-back another; either one that is not the
+            // payment's is shown to the manager (amount_mismatch). Approving still reverses what it always did.
+            $tiyin = Money::of($payment->amount)->toTiyin();
+            $reported = is_int($report['reported_amount_tiyin'] ?? null) ? $report['reported_amount_tiyin'] : null;
+            $readBack = is_int($report['paylov_amount_tiyin'] ?? null) ? $report['paylov_amount_tiyin'] : null;
+            $mismatch = ($reported !== null && $reported !== $tiyin) || ($readBack !== null && $readBack !== $tiyin);
+            $first = is_string($report['cancel_first_reported_at'] ?? null) ? $report['cancel_first_reported_at'] : null;
+            $review += [
+                'reported_amount_tiyin' => $reported,
+                'paylov_amount_tiyin' => $readBack,
+                'amount_mismatch' => $mismatch,
+                'cancel_first_reported_at' => $first,
+                'reported_before_delivery' => $first !== null && self::reportedBeforeDelivery($order, $first),
+            ];
+        }
+
         $payment->update(['payload' => array_merge($payment->payload ?? [], [
             'refunded_after_delivery' => true,
-            self::KEY => [
-                'status' => self::PENDING,
-                'provider' => $provider,
-                'reason' => $reason,
-                'reported_at' => now()->toIso8601String(),
-            ],
+            self::KEY => $review,
         ])]);
 
         $order->forceFill([
@@ -89,7 +117,7 @@ final class StoreRefundReview
             ['payment_status' => PaymentStatus::PAID->value],
             ['payment_status' => PaymentStatus::REFUNDED->value],
             // `payme_reason`, not `*_code`: AuditRedactor drops code-named keys as secrets
-            ['short_code' => $order->short_code, 'provider' => $provider, 'payme_reason' => $reason, 'payment_id' => (int) $payment->id, 'amount' => Money::of($payment->amount)->toString()],
+            ['short_code' => $order->short_code, 'provider' => $provider, 'payme_reason' => $reason, 'payment_id' => (int) $payment->id, 'amount' => Money::of($payment->amount)->toString(), 'amount_mismatch' => $mismatch],
             ['actor' => null],
         );
 
@@ -102,7 +130,24 @@ final class StoreRefundReview
             'payment_id' => $paymentId,
             'store_id' => $storeId,
             'payme_reason' => $reason,
+            'amount_mismatch' => $mismatch,
         ]));
+    }
+
+    /**
+     * Review: whether the cancel was first reported (cancel_reported_at) before the order's first delivery.
+     */
+    private static function reportedBeforeDelivery(Order $order, string $firstReported): bool
+    {
+        $delivered = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', OrderStatus::DELIVERED->value)->min('created_at');
+        if ($delivered === null) {
+            return false;
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($firstReported)->lt(\Illuminate\Support\Carbon::parse((string) $delivered));
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
