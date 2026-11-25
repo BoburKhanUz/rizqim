@@ -4257,8 +4257,9 @@ hisob-faktura yozuvida `subscription_invoice_id` va izohda raqami, komissiya qis
   `gave_up`, `error`); `POST .../{uuid}/retry {reason}` — `SettlementRecoveryService::retry` (har 10 daqiqadagi ish bilan bir
   yo'l, urinishlar tugagan bo'lsa ham): `{booked, order}` (`order: null` — yozildi yoki endi yetkazilgan emas).
   Hisob-kitob yozilmagan paytda tasdiqlangan qisman qaytarishlar (`execution.ledger_reversal_deferred: true`) shu yozuv
-  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi,
-  `ledger_reversal_on_retry: true`).
+  bilan bir tranzaksiyada qaytariladi (jamlanib, har so'rov bir marta; so'rovning `execution.ledger_reversal` i yangilanadi —
+  so'rov jami qaytargani —, `ledger_reversal_on_retry: true`); hisob-kitob qisman turgan paytda tasdiqlangan qism keyin
+  yozilgan qismdan ham faqat qolgan ulushini qaytaradi.
 - `GET /admin/finance/balances?filter=all|debt|over_limit|subscription_debt|wallet&q=&page=&per_page=` — `wallet_balance,
   debt_balance, subscription_debt, commission_debt, credit_limit, over_limit` (faqat **komissiya qarzi** limitdan oshsa),
   `is_order_locked, pending_payouts`; `totals` — hamma do'konlar bo'yicha.

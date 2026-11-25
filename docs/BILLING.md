@@ -179,7 +179,9 @@ RIZQIM ovqatxona uchun yig'gan pul ovqatxonaga yetishidan oldin uning qarzini yo
    (`order_ledger_reversals`). Yetkazilgan buyurtmaning hisob-kitobi yozilmay qolgan paytda (`settlement_failed_at`)
    tasdiqlangan qism ledger'da qaytaradigan narsa topmaydi (`execution.ledger_reversal_deferred`): hisob-kitobni yozgan
    qayta urinish (`SettlementRecoveryService`) o'sha zahoti shunday har qismni qaytaradi — jamlanib, har so'rov bir marta,
-   go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_on_retry`).
+   go'yo u hisob-kitobdan keyin tasdiqlangandek (`execution.ledger_reversal_on_retry`). Hisob-kitobning bir qismi
+   (masalan, kechikkan to'lovning hisob-kitobi) turgan paytda tasdiqlangan qism keyin yozilgan qismdan (komissiya) ham
+   o'z ulushini qaytaradi: har qism bo'yicha qolgani (`LedgerService::reverseOutstandingShare`, docs/OPERATIONS.md).
    Wave P: ovqatxonaning **o'z kassasi** orqali kelgan qaytarish (o'z kaliti bilan imzolangan Payme `CancelTransaction`,
    yetkazilgan buyurtma) komissiyani o'zi qaytarmaydi: to'lov «qaytarilgan», ledger o'zgarmaydi, komissiya faqat **ikki
    xil** xodim Boshqaruv markazida tasdiqlasa (`POST /admin/orders/{uuid}/store-refund-review/approve`: birinchisi taklif,

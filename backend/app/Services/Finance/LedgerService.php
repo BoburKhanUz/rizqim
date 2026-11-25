@@ -587,11 +587,29 @@ class LedgerService
      */
     public function reverseDeliveredOrderShare(\App\Models\Order $order, int $refundRequestId, Money $refunded, Money $paid, ?int $performedBy = null): array
     {
-        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid], $performedBy);
+        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid, 'catch_up' => false], $performedBy);
     }
 
     /**
-     * @param  array{request: int, refunded: Money, paid: Money}|null  $share  null: the whole order
+     * A part of the booking was deferred when refund requests were approved (settlement_failed_at: e.g. the late
+     * payment's settlement was booked but the commission was not) and is booked now: reverse, per part of the booking,
+     * what is still outstanding of this request's cumulative share — its target ($refunded of $paid of what is booked
+     * now) less what the order's reversal rows already took back. Unlike reverseDeliveredOrderShare it runs for a
+     * request that already has its reversal row and after a full one: what that row reversed is counted, so nothing is
+     * reversed twice and nothing booked later is missed; nothing outstanding, nothing booked and no row. The row it
+     * adds names the request in `components.catch_up_for_request` when the request already has its own row (one row
+     * per request, unique), and is `is_full` only when the order has no full reversal yet (one per order). Callers hold
+     * the order lock (SettlementRecoveryService::reverseDeferredParts).
+     *
+     * @return array{commission: Money, settlement: Money, added_to_debt: Money}
+     */
+    public function reverseOutstandingShare(\App\Models\Order $order, int $refundRequestId, Money $refunded, Money $paid, ?int $performedBy = null): array
+    {
+        return $this->reverseDelivery($order, ['request' => $refundRequestId, 'refunded' => $refunded, 'paid' => $paid, 'catch_up' => true], $performedBy);
+    }
+
+    /**
+     * @param  array{request: int, refunded: Money, paid: Money, catch_up: bool}|null  $share  null: the whole order
      * @return array{commission: Money, settlement: Money, added_to_debt: Money}
      */
     private function reverseDelivery(\App\Models\Order $order, ?array $share, ?int $performedBy): array
@@ -603,8 +621,10 @@ class LedgerService
             $walletRows = fn () => StoreWalletTransaction::where('store_id', $store->id)->where('order_id', $order->id);
 
             $reversals = \App\Models\OrderLedgerReversal::where('order_id', $order->id)->lockForUpdate()->get();
-            if ($reversals->contains(fn ($reversal) => $reversal->is_full)
-                || ($share !== null && $reversals->contains(fn ($reversal) => (int) $reversal->order_refund_request_id === $share['request']))) {
+            $hasFull = $reversals->contains(fn ($reversal) => $reversal->is_full);
+            $hasOwnRow = $share !== null && $reversals->contains(fn ($reversal) => (int) $reversal->order_refund_request_id === $share['request']);
+            // A catch-up (reverseOutstandingShare) takes only the difference to its target, whatever was reversed before
+            if (!($share['catch_up'] ?? false) && ($hasFull || $hasOwnRow)) {
                 return $nothing;
             }
             // Reversed before P4-23 (all at once, with no record): nothing is left to reverse
@@ -717,15 +737,16 @@ class LedgerService
                 \App\Models\OrderLedgerReversal::create([
                     'order_id' => $order->id,
                     'store_id' => $store->id,
-                    'order_refund_request_id' => $share['request'] ?? null,
-                    'is_full' => $isFull,
+                    // A catch-up of a request that has its own row names it in the components (one row per request)
+                    'order_refund_request_id' => $hasOwnRow ? null : ($share['request'] ?? null),
+                    'is_full' => $isFull && !$hasFull,
                     'refunded_total' => $share !== null ? $share['refunded']->toString() : null,
                     'paid_total' => $share !== null ? $share['paid']->toString() : null,
                     'components' => array_map(fn (Money $amount) => $amount->toString(), $delta) + [
                         'payoff_invoices' => array_map(fn (Money $amount) => $amount->toString(), $deltaInvoices),
                         'added_to_debt' => $shortfall->toString(),
                         'invoices_reopened' => $reopened,
-                    ],
+                    ] + ($hasOwnRow ? ['catch_up_for_request' => $share['request']] : []),
                     'performed_by' => $performedBy,
                 ]);
             }

@@ -1362,6 +1362,19 @@ hisob-kitobni ham bekor qila olmaydi — buyurtma `settlement_failed_at` bilan b
 `RetryFailedSettlementsJob` uni keyinroq bir marta beradi (provayder javob olgan to'lovni qayta yubormaydi, boshqa qayta
 urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham shu savepoint'da tozalaydi (review L5).
 
+**Kechiktirilgan qismlar va qaytarishlar.** Hisob-kitob qisman turgan paytda (masalan, kechikkan to'lovning hisob-kitobi
+yozilgan, komissiya esa hali ham yozilmayapti) tasdiqlangan qisman qaytarish faqat turgan qismni qaytaradi va
+`order_ledger_reversals` qatorini yozadi. Avval qayta urinish bunday so'rovni «qaytarilgan» deb o'tkazib yuborardi —
+keyin yozilgan komissiyaning qaytarilgan ulushi do'konga qaytmasdi (100 000 li buyurtma, 10 000 komissiya, yarmi
+qaytarilgan → do'kondan 5 000 emas, 10 000 olinardi). Endi har muvaffaqiyatli `book` (`reverseDeferredParts` →
+`LedgerService::reverseOutstandingShare`) yetkazilgandan keyin tasdiqlangan har so'rov uchun, tasdiqlangan tartibda,
+hisob-kitobning har qismidan (komissiya, hisob-kitob, qarz to'lovi) **qolgan** ulushni qaytaradi: hozir yozilgandan
+so'rovning jamlangan ulushi minus buyurtmaning reversal qatorlari allaqachon qaytargani. Qolgan narsa bo'lmasa hech narsa
+yozilmaydi (qayta urinish, takror hodisa — idempotent; hammasi buyurtma qulfi ostida). O'z qatori bor so'rovning
+qo'shimcha qatori `order_refund_request_id = null`, `components.catch_up_for_request = <id>` bilan yoziladi; `is_full`
+buyurtmada bittadan ko'p bo'lmaydi. Qismlar jami to'langanga yetgan bo'lsa komissiya to'liq qaytadi va referal bonusi
+berilmaydi (`is_full` qator bor). `FinanceDeferredLedgerPartsTest`.
+
 **Deadlock savepoint'da (review H1).** Laravel ichki (nested) tranzaksiyadagi deadlock / serialization xatosida
 savepoint'ga qaytmasdan `DeadlockException` tashlardi; PostgreSQL esa butun tashqi tranzaksiyani «aborted» holatda
 qoldirardi: belgi (`settlement_failed_at`) yozilmasdi, keyingi «commit» esa hech narsani saqlamay muvaffaqiyat

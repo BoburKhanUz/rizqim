@@ -4,7 +4,6 @@ namespace App\Services\Finance;
 
 use App\Enums\OrderStatus;
 use App\Models\Order;
-use App\Models\OrderLedgerReversal;
 use App\Models\OrderRefundRequest;
 use App\Models\Payment;
 use App\Services\Admin\Orders\RefundRequestService;
@@ -33,6 +32,10 @@ use Throwable;
  * Review W2: a part of the order refunded (an approved refund request) while the booking had failed found nothing on
  * the ledger to take back; the booking that succeeds later reverses those parts in the same savepoint
  * (reverseDeferredParts: cumulative, each request once, as if each had been approved after the booking).
+ * A part approved while the booking stood only in part (the late payment's settlement booked by MarkOrderAsPaid, the
+ * commission still failing) reversed only that part and recorded its reversal row; the booking that succeeds later
+ * reverses the rest of its share (the outstanding reversal per part of the booking: its share of what is booked now
+ * less what the order's reversal rows took back), so every approved share is applied to every part exactly once.
  */
 class SettlementRecoveryService
 {
@@ -61,8 +64,10 @@ class SettlementRecoveryService
         try {
             DB::transaction(function () use ($order, $performedBy) {
                 $this->ledger->processOrderDelivered($order, $performedBy);
+                // Whatever this booking added (a deferred commission, a late settlement), the parts refunded since
+                // delivery take their share of it now; nothing outstanding moves nothing
+                $this->reverseDeferredParts($order, $performedBy);
                 if ($order->settlement_failed_at !== null) {
-                    $this->reverseDeferredParts($order, $performedBy);
                     $this->clearMarker($order);
                 }
             });
@@ -141,10 +146,14 @@ class SettlementRecoveryService
     }
 
     /**
-     * The approved parts of a delivered order without a ledger reversal (approved while nothing was booked), in the
-     * order they were approved: each takes back its share of what is booked now, pro-rata of everything given back up to
-     * it of what was paid at delivery (RefundRequestService::deliveryShareOf), exactly as its approval would have after the booking. Records what it took
-     * back on the request (`execution.ledger_reversal`, `ledger_reversal_on_retry`).
+     * Every part of a delivered order approved after its delivery takes back, of each part of the booking (commission,
+     * settlement, debt payoff), what is still outstanding of its share, in the order the parts were approved: its
+     * cumulative share (pro-rata of everything given back up to it of what was paid at delivery,
+     * RefundRequestService::deliveryShareOf) of what is booked now, less what the order's reversal rows already took
+     * back (LedgerService::reverseOutstandingShare). A part approved while nothing was booked takes all of its share; a
+     * part approved while only some of the booking stood (the late payment's settlement booked, the commission still
+     * failing) reversed that some then and takes the rest of its share now; a part reversed in full takes nothing.
+     * Records what the request took back in all (`execution.ledger_reversal`, `ledger_reversal_on_retry`).
      */
     protected function reverseDeferredParts(Order $order, ?int $performedBy): void
     {
@@ -153,22 +162,28 @@ class SettlementRecoveryService
         }
 
         $approved = RefundRequestService::approvedRequests([(int) $order->id])->get();
-        $reversed = OrderLedgerReversal::where('order_id', $order->id)->whereNotNull('order_refund_request_id')
-            ->pluck('order_refund_request_id')->map(fn ($id) => (int) $id)->all();
-        $deferred = $approved->filter(fn (OrderRefundRequest $request) => ($request->execution['order_status_before'] ?? null) === OrderStatus::DELIVERED->value
-            && !in_array((int) $request->id, $reversed, true));
-        if ($deferred->isEmpty()) {
+        $parts = $approved->filter(fn (OrderRefundRequest $request) => ($request->execution['order_status_before'] ?? null) === OrderStatus::DELIVERED->value);
+        if ($parts->isEmpty()) {
             return;
         }
 
         $payments = Payment::where('order_id', $order->id)->orderBy('id')->get(['id', 'provider', 'amount', 'status', 'payload', 'cancelled_at']);
-        foreach ($deferred as $request) {
+        foreach ($parts as $request) {
             // Security review F1: the share of what was paid at delivery (payments refunded before it take no part)
             $upTo = RefundRequestService::deliveryShareOf($order, $payments, $approved->filter(fn (OrderRefundRequest $other) => (int) $other->id <= (int) $request->id));
-            $taken = $this->ledger->reverseDeliveredOrderShare($order, (int) $request->id, $upTo['refunded'], $upTo['paid'], $performedBy);
+            $taken = $this->ledger->reverseOutstandingShare($order, (int) $request->id, $upTo['refunded'], $upTo['paid'], $performedBy);
+            if (collect($taken)->every(fn (Money $value) => $value->isZero())) {
+                continue;
+            }
 
+            // What the request took back in all: at its approval (if anything was booked then) and now
+            $before = (array) ($request->execution['ledger_reversal'] ?? []);
+            $total = [];
+            foreach ($taken as $key => $value) {
+                $total[$key] = $value->plus((string) ($before[$key] ?? '0'))->toString();
+            }
             $request->forceFill(['execution' => array_merge($request->execution ?? [], [
-                'ledger_reversal' => array_map(fn (Money $value) => $value->toString(), $taken),
+                'ledger_reversal' => $total,
                 'ledger_reversal_on_retry' => true,
             ])])->save();
         }
