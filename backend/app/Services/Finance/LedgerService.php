@@ -260,8 +260,26 @@ class LedgerService
      * referrer's bonus when the order qualifies (grantReferralReward). Idempotent, part by part, so a booking that
      * failed can simply be run again (SettlementRecoveryService); callers run it in a transaction (savepoint) of its
      * own, so a failure books nothing at all (a deadlock too: RevisionPostgresConnection rolls it back to the savepoint).
+     * The production path (SettlementRecoveryService::book) runs its parts itself, with the refunded parts' catch-up
+     * between the settlement and the bonus (review L1); this keeps the whole sequence for direct callers.
      */
     public function processOrderDelivered(\App\Models\Order $order, ?int $performedBy = null): void
+    {
+        $this->bookCommissionAndSettlement($order, $performedBy);
+
+        // 3. Referral reward; a failure fails the whole booking, which is then retried like any other
+        $this->grantReferralReward($order, $performedBy);
+    }
+
+    /**
+     * The first two parts of processOrderDelivered: the commission and the platform-collected money to the store,
+     * each at most once. Returns which of them it booked now (false: booked before, or nothing to book). Review L1:
+     * SettlementRecoveryService::book runs the parts refunded meanwhile between these and the referral bonus, so an
+     * order whose parts reached everything paid never earns the bonus only to have it taken back at once.
+     *
+     * @return array{commission: bool, settlement: bool}
+     */
+    public function bookCommissionAndSettlement(\App\Models\Order $order, ?int $performedBy = null): array
     {
         $store = $order->store;
         // Charge the snapshot taken at order time as-is (0 is valid); the rate is only a fallback for an in-memory order without the attribute.
@@ -270,15 +288,16 @@ class LedgerService
             : Money::of($order->total_price)->percent($this->commissionRateOf($order, $store)); // the same resolved rate as checkout
 
         // 1. Always deduct commission for every order to log the commission transaction
+        $commission = false;
         if ($commissionAmount->isPositive() && !$this->hasCommission($order)) {
             $this->deductCommission($store, $commissionAmount, $order, null, $performedBy);
+            $commission = true;
         }
 
         // 2. Settle full amount if collected by the platform
-        $this->settlePlatformOrder($order, $performedBy);
+        $settlement = $this->settlePlatformOrder($order, $performedBy);
 
-        // 3. Referral reward; a failure fails the whole booking, which is then retried like any other
-        $this->grantReferralReward($order, $performedBy);
+        return ['commission' => $commission, 'settlement' => $settlement];
     }
 
     /** The referral bonus (ReferralService::BONUS): ball to the referrer, paid by the platform out of its commission income. */

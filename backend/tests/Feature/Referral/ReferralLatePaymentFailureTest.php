@@ -263,13 +263,13 @@ class ReferralLatePaymentFailureTest extends TestCase
         $this->app->singleton(SettlementRecoveryService::class, fn ($app) => new class($app->make(LedgerService::class), $app->make(\App\Services\Notifications\SuperadminAlertService::class)) extends SettlementRecoveryService {
             public static bool $throw = true;
 
-            public function book(Order $order, ?int $performedBy = null): bool
+            public function book(Order $order, ?int $performedBy = null, string $catchUpReason = self::CATCH_UP_RETRY): bool
             {
                 if (self::$throw) {
                     throw new \RuntimeException('the booking blew up');
                 }
 
-                return parent::book($order, $performedBy);
+                return parent::book($order, $performedBy, $catchUpReason);
             }
         });
         $this->app->forgetInstance(\App\Listeners\MarkOrderAsPaid::class);

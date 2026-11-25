@@ -665,7 +665,7 @@ class PaylovPayments
                 return;
             }
 
-            event(new PaymentPaid($payment));
+            event(new PaymentPaid($payment, $replay));
         } catch (\Throwable $e) {
             Log::error('Paylov PaymentPaid listener failed after the payment was committed: ' . $e->getMessage(), [
                 'payment_id' => $payment->id,

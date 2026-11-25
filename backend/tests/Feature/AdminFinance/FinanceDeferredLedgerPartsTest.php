@@ -211,7 +211,10 @@ class FinanceDeferredLedgerPartsTest extends TestCase
         // The request says what it took back in all, and what of it only the retry could
         $execution = OrderRefundRequest::find($approved['id'])->execution;
         $this->assertSame(['commission' => '5000.00', 'settlement' => '50000.00', 'added_to_debt' => '0.00'], $execution['ledger_reversal']);
-        $this->assertTrue($execution['ledger_reversal_on_retry']);
+        // Review L2: when and why the rest was caught up (no more `ledger_reversal_on_retry: true` for every catch-up)
+        $this->assertNotNull($execution['ledger_reversal_caught_up_at'] ?? null);
+        $this->assertSame('retry', $execution['ledger_reversal_catch_up_reason'] ?? null);
+        $this->assertArrayNotHasKey('ledger_reversal_on_retry', $execution);
 
         // Retried again (the job, the late payment's event replayed): nothing moves
         $rows = $this->ledgerRows();
@@ -402,5 +405,183 @@ class FinanceDeferredLedgerPartsTest extends TestCase
         $this->assertSame(0.0, $this->referrerBalance());
         $this->assertSame('0.00', $this->netCommission($order));
         $this->assertSame(['0.00', '0.00'], $this->balances());
+    }
+    /** Commission and settlement rows refused, then allowed again (nothing at all is booked while it is installed). */
+    private function deliveredWithNothingBooked(string $how): Order
+    {
+        $this->failCommissions();
+        $order = $this->deliveredOrder($how, ['total_price' => 100000, 'commission_amount' => 10000]);
+        $this->assertNotNull($order->settlement_failed_at);
+        $this->assertSame(['0.00', '0.00'], $this->balances());
+
+        return $order;
+    }
+
+    /**
+     * An approval written before P4-23 (6ce13ffb, 28.10.2026): the part was given back to the customer but the ledger
+     * was never touched, and the request says nothing about it (no `execution.ledger_reversal`), no reversal row.
+     */
+    private function legacyApprovedRequest(Order $order, string $amount): OrderRefundRequest
+    {
+        $payment = Payment::where('order_id', $order->id)->sole();
+
+        return OrderRefundRequest::forceCreate([
+            'order_id' => $order->id,
+            'store_id' => $order->store_id,
+            'amount' => $amount,
+            'status' => OrderRefundRequest::APPROVED,
+            'reason' => 'Eski qaytarish',
+            'decided_at' => now()->subMonth(),
+            'execution' => [
+                'mode' => 'manual',
+                'order_status_before' => OrderStatus::DELIVERED->value,
+                'order_status_after' => OrderStatus::DELIVERED->value,
+                'payment_method' => $order->payment_method,
+                'automatic_amount' => '0.00',
+                'manual_amount' => $amount,
+                'allocations' => [['payment_id' => $payment->id, 'provider' => $payment->provider, 'amount' => $amount, 'kind' => 'manual']],
+            ],
+        ]);
+    }
+
+    private function replayPaymentPaid(Order $order): void
+    {
+        event(new PaymentPaid(Payment::where('order_id', $order->id)->sole()->fresh(), true));
+    }
+
+    /** Review M1 (a): a fully booked order with a legacy approval: a replayed PaymentPaid moves nothing. */
+    public function test_a_legacy_approval_on_a_fully_booked_order_is_not_reversed_by_a_replayed_payment(): void
+    {
+        $order = $this->deliveredOrder('platform_click', ['total_price' => 100000, 'commission_amount' => 10000]);
+        $this->assertSame(['0.00', '90000.00'], $this->balances());
+        $legacy = $this->legacyApprovedRequest($order, '50000');
+
+        $rows = $this->ledgerRows();
+        $this->replayPaymentPaid($order);
+        app(\App\Services\Finance\SettlementRecoveryService::class)->bookAfterPayment($order->id);
+
+        $this->assertSame($rows, $this->ledgerRows());
+        $this->assertSame(['0.00', '90000.00'], $this->balances());
+        $this->assertSame('10000.00', $this->netCommission($order));
+        $this->assertArrayNotHasKey('ledger_reversal', $legacy->fresh()->execution);
+    }
+
+    /**
+     * Review M1, the legacy rule: even when the catch-up runs (a retry of a failed booking), a request without
+     * `execution.ledger_reversal` and without a reversal row is never reversed by it (it predates the mechanism).
+     */
+    public function test_a_legacy_approval_is_not_reversed_by_the_retry_of_a_failed_booking(): void
+    {
+        $order = $this->deliveredWithNothingBooked('platform_click');
+        $this->legacyApprovedRequest($order, '50000');
+
+        $this->repairCommissions();
+        $this->retry();
+
+        $this->assertNull($order->fresh()->settlement_failed_at);
+        $this->assertSame([], $this->reversals($order));
+        $this->assertSame('10000.00', $this->netCommission($order));
+        $this->assertSame(['0.00', '90000.00'], $this->balances());
+    }
+
+    /**
+     * Review M1 (b): a normal booked order with a part reversed at its approval: a replayed PaymentPaid moves nothing.
+     */
+    public function test_a_replayed_payment_on_a_booked_order_moves_nothing(): void
+    {
+        $order = $this->deliveredOrder('platform_click', ['total_price' => 100000, 'commission_amount' => 10000]);
+        $this->refund($order, '50000');
+        $this->assertSame(['0.00', '45000.00'], $this->balances());
+
+        $rows = $this->ledgerRows();
+        $this->replayPaymentPaid($order);
+        $this->assertSame($rows, $this->ledgerRows());
+        $this->assertSame(['0.00', '45000.00'], $this->balances());
+
+    }
+
+    /**
+     * Review M1 (b): before c69e3bef a part approved while only the settlement was booked reversed only the settlement,
+     * the retry booked the whole commission and skipped the request, and finance gave the 5 000 back by hand (an
+     * adjustment carries no order_id). A replayed PaymentPaid must not give it back a second time.
+     */
+    public function test_a_replayed_payment_on_an_order_corrected_by_hand_moves_nothing(): void
+    {
+        $order = $this->platformOrderWithDeferredCommission();
+        $this->refund($order, '50000');
+        $this->repairCommissions();
+        app(\App\Services\Finance\LedgerService::class)->processOrderDelivered($order->fresh());
+        $order->forceFill(['settlement_failed_at' => null, 'settlement_error' => null, 'settlement_attempts' => 0])->save();
+        $this->assertSame(['0.00', '40000.00'], $this->balances());
+        $store = $this->store->fresh();
+        StoreWalletTransaction::create([
+            'store_id' => $store->id, 'type' => StoreTransactionType::ADJUSTMENT->value, 'amount' => '5000.00',
+            'balance_before' => (string) $store->wallet_balance, 'balance_after' => '45000.00',
+            'notes' => 'Manual correction: commission share of a refunded part',
+        ]);
+        $store->forceFill(['wallet_balance' => '45000.00'])->save();
+
+        $rows = $this->ledgerRows();
+        $this->replayPaymentPaid($order);
+        $this->assertSame($rows, $this->ledgerRows());
+        $this->assertSame(['0.00', '45000.00'], $this->balances());
+    }
+
+    /**
+     * Review M1 (c): the H1 state (the late payment's settlement lost without a marker, before the fix) with a part
+     * approved meanwhile (it reversed its commission share): the replayed payment books the settlement and reverses
+     * the part's share of it at once. The store keeps 50 000 less 5 000 commission.
+     */
+    public function test_a_replay_that_heals_a_lost_late_settlement_applies_the_parts_approved_meanwhile(): void
+    {
+        $order = $this->deliveredOrder('platform_click_unpaid', ['total_price' => 100000, 'commission_amount' => 10000]);
+        $this->assertSame(['10000.00', '0.00'], $this->balances());
+        Payment::where('order_id', $order->id)->update(['status' => PaymentStatus::PAID->value, 'paid_at' => now()]);
+        $order->forceFill(['payment_status' => PaymentStatus::PAID->value])->save();
+
+        $approved = $this->refund($order->fresh(), '50000');
+        $this->assertSame(['commission' => '5000.00', 'settlement' => '0.00', 'added_to_debt' => '0.00'], $approved['execution']['ledger_reversal']);
+        $this->assertSame(['5000.00', '0.00'], $this->balances());
+
+        $this->replayPaymentPaid($order);
+
+        [$debt, $wallet] = $this->balances();
+        $this->assertSame('45000.00', Money::of($wallet)->minus($debt)->toString());
+        $this->assertSame('5000.00', $this->netCommission($order));
+        $this->assertSame([[(int) $approved['id'], false, '5000.00', '0.00'], [(int) $approved['id'], false, '0.00', '50000.00']], $this->reversals($order));
+        $execution = OrderRefundRequest::find($approved['id'])->execution;
+        $this->assertSame(['commission' => '5000.00', 'settlement' => '50000.00', 'added_to_debt' => '0.00'], $execution['ledger_reversal']);
+        $this->assertSame('replay', $execution['ledger_reversal_catch_up_reason']);
+
+        $rows = $this->ledgerRows();
+        $this->replayPaymentPaid($order);
+        $this->retry();
+        $this->assertSame($rows, $this->ledgerRows());
+    }
+
+    /**
+     * Review L1: nothing was booked when the parts were approved and they reach everything paid: the retry books the
+     * commission and the settlement, reverses the parts (a full reversal) and only then looks at the referral bonus,
+     * which a fully refunded order never earns: no bonus row at all (no +5 000 / −5 000 pair).
+     */
+    public function test_parts_reaching_the_whole_while_nothing_was_booked_leave_no_bonus_rows_at_all(): void
+    {
+        $this->referrer = $this->makeCustomer();
+        $this->customer->forceFill(['referred_by' => $this->referrer->id])->save();
+        $order = $this->deliveredWithNothingBooked('platform_click');
+
+        $this->refund($order, '50000');
+        $this->refund($order->fresh(), '50000');
+        $this->assertSame([], $this->reversals($order));
+
+        $this->repairCommissions();
+        $this->retry();
+        $this->retry();
+
+        $this->assertSame([], $this->rewards());
+        $this->assertSame(0.0, $this->referrerBalance());
+        $this->assertSame('0.00', $this->netCommission($order));
+        $this->assertSame(['0.00', '0.00'], $this->balances());
+        $this->assertSame(1, OrderLedgerReversal::where('order_id', $order->id)->where('is_full', true)->count());
     }
 }

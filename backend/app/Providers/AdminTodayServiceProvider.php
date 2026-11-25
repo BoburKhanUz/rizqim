@@ -11,6 +11,7 @@ use App\Services\Admin\Today\Attention\PendingPayoutsSource;
 use App\Services\Admin\Today\Attention\SettlementFailuresSource;
 use App\Services\Admin\Today\Attention\StoreRefundReviewsSource;
 use App\Services\Admin\Today\Attention\StuckTopupsSource;
+use App\Services\Admin\Today\Attention\UnbookedSettlementsSource;
 use App\Services\Admin\Today\PlatformStats;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +26,7 @@ class AdminTodayServiceProvider extends ServiceProvider
     {
         $this->app->tag([
             SettlementFailuresSource::class,
+            UnbookedSettlementsSource::class,
             FailedFiscalReceiptsSource::class,
             OfflineTerminalsSource::class,
             OverdueInvoicesSource::class,
