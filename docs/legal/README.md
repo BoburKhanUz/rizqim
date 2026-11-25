@@ -1,6 +1,9 @@
 # Maxfiylik siyosati va foydalanish shartlari: huquqiy asoslar
 
 Sahifalar: `https://rizqim.uz/maxfiylik` va `https://rizqim.uz/shartlar` (versiya 1.0, kuchga kirgan sana 23.11.2026).
+Maxfiylik siyosatining 1.1 tahriri (8-bo'lim: Mini App statistikasi va xato hisobotlari) **loyiha**: e'lon sanasi
+`privacy.meta` da `[E'LON SANASI]` bo'lib turibdi, pastdagi "1.1 tahriri" bo'limini ko'ring. Shartlar o'zgarmagan
+(`legal.meta`; faqat 15-bo'limdagi havola raqami 10 dan 11 ga).
 Matnlarning yagona manbasi: `infra/landing/site/i18n/uz.js` va `ru.js` (`privacy.*`, `terms.*`, `legal.*` kalitlari);
 HTML ga `node infra/landing/tests/check.mjs --sync` bilan yoziladi. Kompaniya rekvizitlari: `infra/landing/site/site.config.js`.
 
@@ -15,8 +18,9 @@ oldin yurist ko'rib chiqishi tavsiya etiladi (pastda).
 | Maxfiylik 2, 4 (tarkib, uchinchi shaxslar) | O'RQ-547: 31-modda (mulkdor va operator majburiyatlari: zarur va yetarli tarkib, uchinchi shaxsga berish haqida xabardor qilish, mas'ul shaxs) | o'sha |
 | Maxfiylik 5 (Telegram, xorijiy xizmatlar) | O'RQ-547: 15-modda (transchegaraviy uzatish: adekvat himoyasiz davlatga faqat subyekt roziligi bilan), 27-1-modda | o'sha |
 | Maxfiylik 6 (saqlash joyi va muddati) | O'RQ-547: 10, 17-moddalar (muddat maqsadga erishilguncha, so'ng yo'q qilish), 27-1-modda | o'sha |
-| Maxfiylik 9 (huquqlar) | O'RQ-547: 30-modda (bilish, ma'lumot olish, rozilikni qaytarib olish, to'xtatish talabi, organ yoki sudga shikoyat) | o'sha |
-| Maxfiylik 10 (restoran mehmonlari) | O'RQ-547: mulkdor va operator tushunchalari (restoran mulkdor, RIZQIM uning topshirig'i bilan ishlaydi) | o'sha |
+| Maxfiylik 8 (statistika, xato hisobotlari) | O'RQ-547: 10, 17-moddalar (muddat), 15-modda (Sentry: transchegaraviy), 21-modda (rozilik), 31-modda; pastdagi "1.1 tahriri" | o'sha |
+| Maxfiylik 10 (huquqlar) | O'RQ-547: 30-modda (bilish, ma'lumot olish, rozilikni qaytarib olish, to'xtatish talabi, organ yoki sudga shikoyat) | o'sha |
+| Maxfiylik 11 (restoran mehmonlari) | O'RQ-547: mulkdor va operator tushunchalari (restoran mulkdor, RIZQIM uning topshirig'i bilan ishlaydi) | o'sha |
 | Shartlar 1 (oferta, aksept) | Fuqarolik kodeksi (1-qism): 367 (oferta), 369 (ommaviy oferta), 370 (aksept) | https://lex.uz/docs/111181 |
 | Shartlar 1, 3, 16 (savdo maydonchasi, til, o'zgartirish) | "Elektron tijorat to'g'risida" O'RQ-792 (29.09.2022): 13-modda (maydoncha operatori qoidalarni ko'rsatadi, o'zgartirishni kamida 30 kun oldin e'lon qiladi), 14-15, 19-moddalar (elektron shartnoma, aksept harakat bilan), 21-modda (davlat tilida) | https://lex.uz/docs/6213428 (rus: https://lex.uz/ru/docs/6213428) |
 | Shartlar 3, 5 (sotuvchi haqida ma'lumot, narx) | "Iste'molchilarning huquqlarini himoya qilish to'g'risida" (26.04.1996, 221-I): 5-modda (sotuvchi nomi, manzili), 8-modda (ko'rsatilgan tovar oferta), 28-1-modda (axborot tizimlari orqali savdo: sotuvchi nomi, manzili, shikoyat tartibi, narx va yetkazish narxi shartnomadan oldin); O'RQ-792: 16-modda | https://lex.uz/docs/14643 (rus: https://lex.uz/ru/docs/14643) |
@@ -100,3 +104,66 @@ ular ishga tushsa matnga qo'shing.
   imkonini talab qiladi (31-modda): e-pochta yoki Telegram orqali so'rov shu talabni qoplaydi, lekin ichki tartib kerak.
 - **Javob muddatlari** sahifada "qonunchilikda belgilangan muddatlarda" deb yozilgan; aniq kun soni yurist bilan
   belgilansa, matnga qo'shilsin.
+
+## 1.1 tahriri: Mini App statistikasi va xato hisobotlari (loyiha)
+
+`docs/ANALYTICS_PLAN.md` 6-bo'lim 1-qadam. Statistika ikki joyda o'chiq turibdi va **shu tahrir e'lon qilinguncha
+yoqilmaydi**: server `ANALYTICS_ENABLED` (`backend/config/analytics.php`, standart `false`) va Mini App build'i
+`VITE_ANALYTICS_ENABLED` (`customer/miniapp/src/lib/analytics.ts`, standart o'chiq).
+
+**Nima o'zgardi.** Yangi 8-bo'lim "Ilovadan foydalanish statistikasi va xato hisobotlari"; eski 8-13-bo'limlar 9-14
+bo'ldi (ichki havolalar: 1 va 10-bo'limlarda "14-bo'lim", shartlarning 15-bo'limida "11-bo'lim"). Qisqa ko'rsatkichlar
+qo'shildi: 2-bo'lim (yig'iladigan ma'lumot), 4-bo'lim (restoranga umumlashtirilgan raqamlar va doimiy mijozlar
+ro'yxatidagi niqoblangan ism/telefon), 5-bo'lim (Sentry, 8-bo'limga havola), 6-bo'lim (3 oy), 7-bo'lim (sessionStorage,
+"statistika faqat o'z serverlarimizda"). Sahifa sarlavhasi alohida kalitda (`privacy.meta`, versiya 1.1): shartlar
+sahifasining `legal.meta` si o'zgarmadi, chunki shartlarni o'zgartirish 30 kun oldin e'lon qilinadi.
+
+**Matn tayanadigan kod.**
+
+| Matndagi gap | Kod |
+|---|---|
+| Faqat kirgan mijoz; xodim, restoranga bog'langan va RIZQIM jamoasi hisoblari, bloklangan hisob yozilmaydi | `EventIngestor::excluded()`; Mini App `useAnalytics.ts` `isTrackedUser`, `useAnalyticsAuth` |
+| Hodisalar ro'yxati (12 ta) va ularning maydonlari | `App\Domain\Analytics\AnalyticsEvent::spec()`; Mini App `analyticsClient.ts` `SPEC` |
+| Saqlanadigan ustunlar: vaqt (server va klient), sessiya, hodisa uid, user_id (tokendan), hodisa, manba, platforma, versiya, store/product/order id, campaign_id (hozircha bo'sh), props (≤ 512 bayt) | migratsiya `2026_12_08_100000_create_analytics_events_table.php`; `EventIngestor::ingest()`, `row()` |
+| Havolaning o'zi saqlanmaydi, faqat turi (`start_kind`); kampaniya kodi ham saqlanmaydi | `StartParam`, `StartKind`; `EventIngestor::row()` (`unset($props['campaign_code'])`) |
+| IP, User-Agent, Telegram ID, erkin matn saqlanmaydi; IP faqat limit kaliti sifatida HMAC bilan, Redis'da 1 daqiqa | `EventIngestor` docblock, `EventController` (`ENVELOPE_KEYS`), `AnalyticsLimits::ipKey()` |
+| Qidiruv matni yuborilmaydi, faqat natijalar soni va uzunligi | `useAnalytics.ts` `useTrackSearch`; `AnalyticsEvent::SEARCH` |
+| Sessiya: tasodifiy UUID, 30 daqiqa harakatsizlik, sessionStorage `rz_session`, localStorage'ga hech narsa yozilmaydi | `analyticsClient.ts` (`SESSION_KEY`, `SESSION_IDLE_MS`) |
+| 3 oy (joriy oy + oldingi ikki oy), arxivsiz o'chiriladi | `config/partitions.php` `analytics_events` (`ANALYTICS_EVENTS_MONTHS`, `archive => false`); `docs/OPERATIONS.md` 20-bo'lim |
+| Batafsil yozuvlarni hech qaysi ekran o'qimaydi | `ANALYTICS_PLAN.md` A.2 ("jobs only"); `RevisionMap` `NONE`; `analytics_events` ni o'qiydigan endpoint yo'q |
+| Restoran va RIZQIM jamoasi faqat umumlashtirilgan raqamlarni ko'radi; doimiy mijozlar ro'yxatida niqoblangan ism/telefon | **hali qurilmagan** (reja 16, 14-qadamlar; A.2, A.8; ega qarori 2 = A) |
+| Kunlik yig'indilar shaxssiz va muddatsiz | **hali qurilmagan** (reja 4.1, 16-qadam: `analytics_funnel_daily`, `analytics_product_daily`) |
+| Sentry: foydalanuvchi bog'lanmaydi, tozalanadi, tana/sarlavha/cookie yo'q; serverda 5 % so'rov tezligi | `customer/miniapp/src/lib/sentry.ts`; `backend/config/sentry.php` (`send_default_pii => false`, `SENTRY_TRACES_SAMPLE_RATE` 0.05); `backend/app/Support/SentryScrubber.php`; `docs/OPERATIONS.md` 1-bo'lim |
+
+**Yurist uchun savollar.**
+
+- [YURIST: Statistika uchun asos 1-bo'limdagi umumiy rozilik ("Platformadan foydalanib rozilik berasiz"). O'RQ-547
+  21-moddasi bo'yicha bu yetarlimi yoki statistika uchun alohida rozilik yoki voz kechish (opt-out) imkoni kerakmi?]
+- [YURIST: Doimiy mijozlar ro'yxatida restoranga qisqartirilgan ism va niqoblangan telefon ko'rsatiladi. Bu
+  restoranga shaxsga doir ma'lumot berish (31-modda) hisoblanadimi va buyurtmani bajarishdan tashqari yangi maqsad
+  uchun alohida rozilik kerakmi?]
+- [YURIST: Sentry xorijiy xizmat. Xato hisobotlari tozalangan va hisobga bog'lanmagan bo'lsa ham, 15-modda
+  (transchegaraviy uzatish) ularga tatbiq etiladimi; Telegram kabi rozilik asosi yetarlimi?]
+- [YURIST: Kunlik umumlashtirilgan raqamlar "muddatsiz". Kam sonli kataklar (kuniga 1-2 sessiyali restoran) shaxsni
+  aniqlashga imkon bermasligi uchun minimal chegara kerakmi; 10-modda bo'yicha muddatsiz saqlash maqbulmi?]
+- [YURIST: 13-bo'lim "muhim o'zgarishlar haqida oldindan xabar beramiz" deydi. Statistikani qo'shish muhim
+  o'zgarishmi; qancha oldin va qaysi kanal orqali xabar berish kerak?]
+- [YURIST: "O'zbekistondagi serverlarda" degan gap (6 va 8-bo'limlar) server va zaxira (S3) provayderi tanlanganidan
+  keyin tasdiqlansin: `docs/SERVER_SETUP.md` 1-bo'lim provayder va joyni egaga qoldiradi.]
+
+**Egasi qiladigan ishlar (statistikani yoqishdan oldin).**
+
+1. Matnni yurist bilan ko'rib chiqing, `privacy.meta` dagi `[E'LON SANASI]` / `[ДАТА ПУБЛИКАЦИИ]` ni e'lon kuni bilan
+   almashtiring, so'ng `node infra/landing/tests/check.mjs --sync` va `docker compose up -d --build landing`.
+2. Sentry ishlatilsa: tashkilot hududini (AQSh yoki Yevropa Ittifoqi; sentry.io da tashkilot yaratishda tanlanadi) va
+   tarifdagi saqlash muddatini 8-bo'limdagi `[SENTRY HUDUDI]` / `[SENTRY SAQLASH MUDDATI]` (rus: `[РЕГИОН SENTRY]` /
+   `[СРОК ХРАНЕНИЯ SENTRY]`) o'rniga yozing; loyiha sozlamalarida "Prevent Storing of IP Addresses" ni yoqing. Sentry
+   ishlatilmasa, 5 va 8-bo'limdagi Sentry gaplarini olib tashlash mumkin.
+3. Rekvizitlar (yuqoridagi 1-band) to'ldirilmaguncha 14-bo'limda "[egasi kiritadi]" turadi: statistikani ular
+   to'ldirilmasdan yoqmang, aks holda foydalanuvchi so'rov yubora olmaydi.
+4. Foydalanuvchilarga Telegram bot orqali yangi tahrir haqida xabar bering (13-bo'lim), keyin `ANALYTICS_ENABLED=1`
+   va `VITE_ANALYTICS_ENABLED=true`.
+5. Statistika yozuvlarini o'chirish so'rovi uchun ichki tartib: hozir kodda tugma ham, buyruq ham yo'q. Qo'lda:
+   `DELETE FROM analytics_events WHERE user_id = <id>` (zaxira nusxalarda 6-bo'limdagi muddat tugaguncha qoladi).
+   Bitta hisob uchun statistikani to'xtatish (opt-out) imkoni ham yo'q: hisobni bloklash uni to'xtatadi, lekin butun
+   Platformani yopadi.
