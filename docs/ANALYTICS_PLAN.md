@@ -461,6 +461,12 @@ ma'nosiz, ularni orqaga to'ldirish istalgan payt ishlaydi.
 
 ## 9. Maxfiylik siyosatidagi o'zgarishlar
 
+**Holat (25.11.2026, `p-privacy-analytics`):** matn loyihasi yozildi — siyosatning 1.1 tahriri, yangi 8-bo'lim
+"Ilovadan foydalanish statistikasi va xato hisobotlari" (uz, ru) va 2, 4-7-bo'limlarda qisqa havolalar; quyidagi
+bandlarning o'rniga shu bo'lim ishlatildi. Faqat qurilgan narsa (2-3-qadamlar, Sentry) va ega qarorlari (1 = 3 oy,
+2 = A, 3 = yo'q) yozilgan; sayt statistikasi (5-qadam) va o'z xato endpointimiz (6-8-qadamlar) ular qurilganda
+qo'shiladi. E'lon qilishdan oldingi ishlar va yurist savollari: [legal/README.md](legal/README.md), "1.1 tahriri".
+
 1-qadamda `infra/landing/site/i18n/uz.js` (va xuddi shu ma'noda `ru.js`) ga; `docs/legal/README.md` ning "Sahifalar
 mahsulotning haqiqiy ishiga tayanadi" bandiga shu faktlar va muddatlar qo'shiladi. Yurist ko'rigi tavsiya etiladi.
 

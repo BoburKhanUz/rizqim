@@ -6,6 +6,7 @@ use Sentry\Breadcrumb;
 use Sentry\Event;
 use Sentry\EventHint;
 use Sentry\ExceptionDataBag;
+use Sentry\Tracing\Span;
 use Sentry\UserDataBag;
 
 /**
@@ -14,6 +15,13 @@ use Sentry\UserDataBag;
  * payment keys, card number, tokens...) and by VALUE (Bearer/Sanctum tokens, Telegram bot tokens in Bot API URLs,
  * Telegram initData strings, Uzbek and international phone numbers, card numbers that pass the Luhn check) so a
  * secret that ended up inside an exception message or a SQL string is masked as well.
+ *
+ * Two more rules, so that a report says nothing about who the customer is (privacy policy s8, docs/legal/README.md):
+ * - the incoming request keeps only its method and its URL without query string and fragment (no headers, cookies,
+ *   body or URL parameters), and HTTP breadcrumbs and spans lose their query string (Nominatim ?q=<address>). The SDK
+ *   already collects none of this with config/sentry.php `data_collection`; this is the second line of defence;
+ * - breadcrumb data (log context: Log::warning('...', ['order_id' => ...])) masks the keys that point at a person:
+ *   account, order and store ids, names, addresses, coordinates and search text (BREADCRUMB_KEY_*). Messages stay.
  *
  * Static methods only: config/sentry.php stores [SentryScrubber::class, '...'] callables, which survive
  * `php artisan config:cache` (closures do not).
@@ -32,6 +40,22 @@ final class SentryScrubber
     /** A key equal to one of these is masked (too short or too common to match as a fragment). */
     private const KEY_EXACT = ['code', 'pan', 'key', 'hash', 'sign', 'auth', 'pin', 'expiry', 'exp'];
 
+    /** Breadcrumb data keys equal to one of these (normalized as in isSensitiveKey) are masked as well. */
+    private const BREADCRUMB_KEY_EXACT = [
+        'userid', 'customerid', 'orderid', 'storeid', 'courierid', 'staffid', 'chatid', 'telegramid', 'tgid', 'tguserid',
+        'name', 'firstname', 'lastname', 'fullname', 'username', 'lat', 'lng', 'lon', 'latitude', 'longitude',
+        'location', 'coords', 'coordinates', 'q', 'query', 'search', 'searchquery', 'term',
+    ];
+
+    /** ... and so are breadcrumb data keys containing one of these. */
+    private const BREADCRUMB_KEY_FRAGMENTS = ['address', 'email', 'comment'];
+
+    /** Data keys of HTTP breadcrumbs and spans that hold a URL: their query string and fragment are dropped. */
+    private const HTTP_URL_KEYS = ['url', 'url.full', 'http.url'];
+
+    /** The only parts of the incoming request that are kept. */
+    private const REQUEST_KEYS = ['url', 'method'];
+
     public static function beforeSend(Event $event, ?EventHint $hint = null): Event
     {
         return self::scrubEvent($event);
@@ -43,9 +67,9 @@ final class SentryScrubber
 
         foreach ($event->getSpans() as $span) {
             if ($span->getDescription() !== null) {
-                $span->setDescription(self::scrubString($span->getDescription()));
+                $span->setDescription(self::withoutUrlQueries(self::scrubString($span->getDescription())));
             }
-            $span->setData(self::scrubArray($span->getData()));
+            self::replaceSpanData($span, self::withoutHttpQuery(self::scrubArray($span->getData())));
         }
 
         return $event;
@@ -57,16 +81,26 @@ final class SentryScrubber
             $breadcrumb = $breadcrumb->withMessage(self::scrubString($breadcrumb->getMessage()));
         }
 
-        foreach (self::scrubArray($breadcrumb->getMetadata()) as $name => $value) {
-            $breadcrumb = $breadcrumb->withMetadata((string) $name, $value);
-        }
+        $metadata = self::withoutHttpQuery(self::scrubArray($breadcrumb->getMetadata(), 0, true));
 
-        return $breadcrumb;
+        // withMetadata() cannot remove a key (http.query), so the breadcrumb is rebuilt
+        return new Breadcrumb(
+            $breadcrumb->getLevel(),
+            $breadcrumb->getType(),
+            $breadcrumb->getCategory(),
+            $breadcrumb->getMessage(),
+            $metadata,
+            $breadcrumb->getTimestamp(),
+        );
     }
 
     public static function scrubEvent(Event $event): Event
     {
-        $event->setRequest(self::scrubArray($event->getRequest()));
+        $request = array_intersect_key($event->getRequest(), array_flip(self::REQUEST_KEYS));
+        if (isset($request['url']) && is_string($request['url'])) {
+            $request['url'] = self::withoutQuery($request['url']);
+        }
+        $event->setRequest(self::scrubArray($request));
         $event->setExtra(self::scrubArray($event->getExtra()));
 
         foreach ($event->getContexts() as $name => $context) {
@@ -114,7 +148,7 @@ final class SentryScrubber
      * @param  array<mixed>  $data
      * @return array<mixed>
      */
-    public static function scrubArray(array $data, int $depth = 0): array
+    public static function scrubArray(array $data, int $depth = 0, bool $breadcrumb = false): array
     {
         if ($depth > 12) {
             return [];
@@ -122,10 +156,10 @@ final class SentryScrubber
 
         $clean = [];
         foreach ($data as $key => $value) {
-            if (is_string($key) && self::isSensitiveKey($key)) {
+            if (is_string($key) && (self::isSensitiveKey($key) || ($breadcrumb && self::isIdentifyingKey($key)))) {
                 $clean[$key] = self::MASK;
             } elseif (is_array($value)) {
-                $clean[$key] = self::scrubArray($value, $depth + 1);
+                $clean[$key] = self::scrubArray($value, $depth + 1, $breadcrumb);
             } elseif (is_string($value)) {
                 $clean[$key] = self::scrubString($value, is_string($key) && self::isUrlKey($key));
             } else {
@@ -205,6 +239,65 @@ final class SentryScrubber
         }
 
         return false;
+    }
+
+    /** A breadcrumb data key that points at a customer: account/order/store id, name, address, location, search text. */
+    public static function isIdentifyingKey(string $key): bool
+    {
+        $normalized = strtolower((string) preg_replace('/[^A-Za-z0-9]/', '', $key));
+
+        if (in_array($normalized, self::BREADCRUMB_KEY_EXACT, true)) {
+            return true;
+        }
+
+        foreach (self::BREADCRUMB_KEY_FRAGMENTS as $fragment) {
+            if (str_contains($normalized, $fragment)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Span::setData() only merges, so a removed key (http.query) would survive; the data is replaced instead.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function replaceSpanData(Span $span, array $data): void
+    {
+        \Closure::bind(function (array $data): void {
+            $this->data = $data;
+        }, $span, Span::class)($data);
+    }
+
+    /** The URL without query string and fragment. */
+    public static function withoutQuery(string $url): string
+    {
+        return (string) preg_replace('/[?#].*$/s', '', $url);
+    }
+
+    /** Every http(s) URL inside the text without query string and fragment ("GET https://host/search?q=..."). */
+    private static function withoutUrlQueries(string $text): string
+    {
+        return (string) preg_replace('~(https?://[^\s?#"\']*)[?#][^\s"\']*~i', '$1', $text);
+    }
+
+    /**
+     * @param  array<mixed>  $data
+     * @return array<mixed>
+     */
+    private static function withoutHttpQuery(array $data): array
+    {
+        unset($data['http.query'], $data['http.fragment']);
+
+        foreach (self::HTTP_URL_KEYS as $key) {
+            if (isset($data[$key]) && is_string($data[$key])) {
+                $data[$key] = self::withoutQuery($data[$key]);
+            }
+        }
+
+        return $data;
     }
 
     private static function isUrlKey(string $key): bool

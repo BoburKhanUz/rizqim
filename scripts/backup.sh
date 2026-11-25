@@ -13,8 +13,8 @@
 #
 # M3 demon (--daemon) tartibi: ishga tushganda (PITR_ENABLED=1 bo'lsa) stanza-create + check, to'liq zaxira yo'q bo'lsa
 # darhol oladi; har kuni BACKUP_TIME (UTC) da ketma-ket: PITR zaxirasi (yakshanba to'liq, boshqa kunlar farq) va expire,
-# so'ng pg_dump (--load-via-partition-root), so'ng jurnallar arxivi (archive-partitions.sh); har PITR_MARKER_INTERVAL
-# (300 s) da `pitr` va `disk` belgilari; har oy birinchi yakshanba PITR_DRILL_TIME (23:00 UTC) da tiklash mashqi
+# so'ng pg_dump (--load-via-partition-root; analytics_events ma'lumotisiz), so'ng jurnallar arxivi (archive-partitions.sh);
+# har PITR_MARKER_INTERVAL (300 s) da `pitr` va `disk` belgilari; har oy birinchi yakshanba PITR_DRILL_TIME (23:00 UTC) da tiklash mashqi
 # (PITR_DRILL_MONTHLY=0 o'chiradi); arxivlash PITR_GAP_FULL_AFTER (1800 s) dan uzoq ishlamay qolib tiklansa, PITR
 # zanjirida uzilish bo'lishi mumkin: demon o'zi yangi to'liq zaxira oladi.
 #
@@ -199,7 +199,15 @@ run_backup() {
     log "$PGDATABASE ($PGHOST:$PGPORT) -> $final"
     # --no-owner/--no-privileges: boshqa foydalanuvchi nomli bazaga ham tiklash mumkin bo'lsin
     # --load-via-partition-root: rows of the M3 partitioned journals restore through their parent, into any partition layout
-    if ! pg_dump --format=custom --compress=6 --no-owner --no-privileges --load-via-partition-root --file="$partial"; then
+    # --exclude-table-data: Mini App usage statistics (analytics_events, its monthly partitions analytics_events_YYYY_MM
+    # and analytics_events_default; config/partitions.php) are not copied into the daily dumps, only their structure:
+    # the privacy policy (s6, s8) keeps raw events 3 months and promises no longer copy than the PITR window. The
+    # patterns name exactly those tables, so a future analytics_events_<something> table is still dumped.
+    if ! pg_dump --format=custom --compress=6 --no-owner --no-privileges --load-via-partition-root \
+        --exclude-table-data='analytics_events' \
+        --exclude-table-data='analytics_events_[0-9][0-9][0-9][0-9]_[0-9][0-9]' \
+        --exclude-table-data='analytics_events_default' \
+        --file="$partial"; then
         rm -f "$partial"
         log "XATO: pg_dump bajarilmadi"
         return 1
