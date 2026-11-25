@@ -317,7 +317,7 @@ class ClickWebhookController extends Controller
     protected function firePaid(Payment $payment, bool $replay = false): void
     {
         try {
-            event(new PaymentPaid($payment));
+            event(new PaymentPaid($payment, $replay));
         } catch (\Throwable $e) {
             Log::error('Click PaymentPaid listener failed after the payment was committed: ' . $e->getMessage(), [
                 'payment_id' => $payment->id,

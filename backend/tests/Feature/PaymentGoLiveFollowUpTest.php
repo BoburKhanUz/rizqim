@@ -171,16 +171,19 @@ class PaymentGoLiveFollowUpTest extends TestCase
         // The money is taken and committed: the answer is the success, never -32400
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2)->assertJsonMissingPath('error');
         $this->assertSame(PaymentStatus::PAID, Payment::where('provider_transaction_id', 'm1-1')->sole()->status);
-        $this->assertSame(0, $this->settlements($order));
-        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains($message, 'PaymentPaid'));
+        // Review H1: the failed settlement is booked again in the same listener (bookAfterPayment → book), so the
+        // store is credited at once and nothing reaches the provider's handler
+        $this->assertSame(1, $this->settlements($order));
+        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Settlement of the late payment'));
+        Log::shouldNotHaveReceived('error', [\Mockery::on(fn ($message) => str_contains((string) $message, 'PaymentPaid'))]);
 
         // Payme's replay of the performed transaction (or a manual re-send) fires the event again: the store is credited
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
         $this->payme('PerformTransaction', ['id' => 'm1-1'])->assertJsonPath('result.state', 2);
 
-        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
-        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
-        $this->assertSame(5, $ledger->calls);
+        // The failed call and its retry in book(), then twice per replay: the settlement itself and, review finding 3,
+        // the delivery booking run again in its own savepoint (SettlementRecoveryService::book), a no-op each time
+        $this->assertSame(6, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
@@ -225,15 +228,18 @@ class PaymentGoLiveFollowUpTest extends TestCase
         // Never an HTTP 500 to Click once the money is taken
         $this->click(1, $order, '50000')->assertOk()->assertJson(['error' => 0, 'error_note' => 'Success']);
         $this->assertSame(PaymentStatus::PAID, Payment::where('provider', 'click')->sole()->status);
-        $this->assertSame(0, $this->settlements($order));
-        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains($message, 'PaymentPaid'));
+        // Review H1: the failed settlement is booked again in the same listener (bookAfterPayment → book), so the
+        // store is credited at once and nothing reaches the provider's handler
+        $this->assertSame(1, $this->settlements($order));
+        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Settlement of the late payment'));
+        Log::shouldNotHaveReceived('error', [\Mockery::on(fn ($message) => str_contains((string) $message, 'PaymentPaid'))]);
 
         $this->click(1, $order, '50000')->assertOk()->assertJson(['error' => 0, 'error_note' => 'Already confirmed']);
         $this->click(1, $order, '50000')->assertOk()->assertJson(['error' => 0]);
 
-        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
-        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
-        $this->assertSame(5, $ledger->calls);
+        // The failed call and its retry in book(), then twice per replay: the settlement itself and, review finding 3,
+        // the delivery booking run again in its own savepoint (SettlementRecoveryService::book), a no-op each time
+        $this->assertSame(6, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertEquals(45000, (float) $this->store->fresh()->wallet_balance);
     }

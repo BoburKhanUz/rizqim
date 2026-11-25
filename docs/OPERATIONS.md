@@ -1353,7 +1353,7 @@ O'zgartirish — shu qiymatni o'zgartirib, testlarni (`tests/Feature/Referral/Re
 `ReferralConcurrencyTest`) yangilab deploy qilish; migratsiya kerak emas. `LedgerService::REFERRAL_REWARD` /
 `REFERRAL_MIN_ORDER` shulardan olinadi.
 
-**Qachon beriladi.** Yetkazilganda (`processOrderDelivered`, hisob-kitob bilan bir savepoint'da; xato bo'lsa hisob-kitob
+**Qachon beriladi.** Yetkazilganda (`SettlementRecoveryService::book`, hisob-kitob bilan bir savepoint'da, qismlar catch-up'idan keyin; xato bo'lsa hisob-kitob
 kabi qayta uriniladi), yoki to'lov yetkazilgandan keyin tushsa — `MarkOrderAsPaid` da (Paylov: Paylov'dan o'qib
 tasdiqlangan paytda). Kechikkan to'lovda (review 3, review H1) to'lov holati va do'konga hisob-kitob **avval o'z
 tranzaksiyasida yoziladi va commit qilinadi**, bonus esa shundan keyin **alohida tranzaksiyada**
@@ -1366,14 +1366,83 @@ urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham s
 yozilgan, komissiya esa hali ham yozilmayapti) tasdiqlangan qisman qaytarish faqat turgan qismni qaytaradi va
 `order_ledger_reversals` qatorini yozadi. Avval qayta urinish bunday so'rovni «qaytarilgan» deb o'tkazib yuborardi —
 keyin yozilgan komissiyaning qaytarilgan ulushi do'konga qaytmasdi (100 000 li buyurtma, 10 000 komissiya, yarmi
-qaytarilgan → do'kondan 5 000 emas, 10 000 olinardi). Endi har muvaffaqiyatli `book` (`reverseDeferredParts` →
+qaytarilgan → do'kondan 5 000 emas, 10 000 olinardi). Endi `book` (`reverseDeferredParts` →
 `LedgerService::reverseOutstandingShare`) yetkazilgandan keyin tasdiqlangan har so'rov uchun, tasdiqlangan tartibda,
 hisob-kitobning har qismidan (komissiya, hisob-kitob, qarz to'lovi) **qolgan** ulushni qaytaradi: hozir yozilgandan
 so'rovning jamlangan ulushi minus buyurtmaning reversal qatorlari allaqachon qaytargani. Qolgan narsa bo'lmasa hech narsa
-yozilmaydi (qayta urinish, takror hodisa — idempotent; hammasi buyurtma qulfi ostida). O'z qatori bor so'rovning
-qo'shimcha qatori `order_refund_request_id = null`, `components.catch_up_for_request = <id>` bilan yoziladi; `is_full`
-buyurtmada bittadan ko'p bo'lmaydi. Qismlar jami to'langanga yetgan bo'lsa komissiya to'liq qaytadi va referal bonusi
-berilmaydi (`is_full` qator bor). `FinanceDeferredLedgerPartsTest`.
+yozilmaydi (hammasi buyurtma qulfi ostida). O'z qatori bor so'rovning qo'shimcha qatori `order_refund_request_id = null`,
+`components.catch_up_for_request = <id>` bilan yoziladi; `is_full` buyurtmada bittadan ko'p bo'lmaydi. So'rovga
+`execution.ledger_reversal_caught_up_at` (vaqt) va `ledger_reversal_catch_up_reason` (`retry` — belgili buyurtmaning
+qayta urinishi; `late_payment` — kechikkan to'lovning hisob-kitobi; `replay` — provayderning takroriy xabari) yoziladi;
+eski `ledger_reversal_on_retry: true` endi yozilmaydi (eski so'rovlarda qoladi, uni hech narsa o'qimaydi).
+`FinanceDeferredLedgerPartsTest`.
+
+**Qachon ishlaydi (review M1).** Faqat sabab bo'lsa: buyurtmada `settlement_failed_at` belgisi bor edi (yozuv yiqilgan,
+o'shandan beri tasdiqlangan qismlar ledger'da hech narsa topmagan bo'lishi mumkin), yoki shu yozuv komissiyani yoki
+hisob-kitobni **birinchi marta** yozdi (`LedgerService::bookCommissionAndSettlement` nimani yozganini qaytaradi; kechikkan
+to'lovning hisob-kitobi `SettlementRecoveryService::settleLatePayment` da xuddi shunday). To'liq yozilgan buyurtmaning
+takroriy `PaymentPaid` i, ikkinchi qayta urinish hech narsani qimirlatmaydi — eski so'rov ham, qo'lda tuzatish ham (moliya
+tuzatishida `order_id` yo'q) ikkinchi marta qaytarilmaydi. **Eski so'rovlar qoidasi:** P4-23 (6ce13ffb, 28.10.2026) dan
+oldin tasdiqlangan qism ledger'ga tegmagan va bu haqda hech narsa yozmagan; bunday so'rov — `execution` da
+`ledger_reversal` kaliti umuman yo'q **va** uni hech bir `order_ledger_reversals` qatori (`order_refund_request_id` yoki
+`components.catch_up_for_request`) nomlamaydi — catch-up'da hech qachon qaytarilmaydi (P4-23 dan beri yetkazilgan
+buyurtma qismining har tasdig'i bu kalitni yozadi, qiymati null bo'lsa ham). U keyingi qismlarning jamlangan ulushida
+hisoblanadi — o'sha qismlar tasdiqlanganda ham shunday hisoblangan (`deliveryShareOf`).
+
+**Referal bonusi va to'liq qaytgan qismlar (review L1).** `book` tartibi: komissiya va hisob-kitob → qismlarning
+catch-up'i → referal bonusi. Qismlar jami to'langanga yetgan bo'lsa catch-up komissiyani to'liq qaytaradi va `is_full`
+qatorini yozadi; bonus shundan keyin ko'riladi va `is_full` qatori bor buyurtmaga berilmaydi — bonus qatori umuman
+yozilmaydi (avval yozuv paytida hech narsa turmagan bo'lsa +5 000 / −5 000 juftligi yozilardi). Qismlar to'liqqa
+yetmagan bo'lsa bonus odatdagidek bir marta beriladi.
+
+**Kechikkan to'lovning hisob-kitobi yiqilsa (review H1).** Click, Payme va Paylov to'lov commit qilingandan keyin
+`PaymentPaid` ni yuboradi va tinglovchi xatosini faqat log'ga yozadi — javob baribir muvaffaqiyat (go-live review M1),
+ya'ni provayder qayta yubormaydi. Avval `settlePlatformOrder` xatosi tinglovchi tranzaksiyasini butunlay qaytarardi:
+`payment_status = paid` qolardi, belgi yo'q — hech qanday qayta urinish uni yozmasdi, hech narsa ogohlantirmasdi. Endi
+hisob-kitob o'z savepoint'ida (`settleLatePayment`); xato tutiladi va `bookAfterPayment` → `book` uni qayta yozadi, yana
+yiqilsa buyurtma `settlement_failed_at` bilan belgilanadi (superadminga xabar, `RetryFailedSettlementsJob` 10 daqiqada).
+Belgining o'zi ham yozilmasa `bookAfterPayment` o'z tranzaksiyasida yana urinadi, bo'lmasa **`SettlementNotMarked`
+tashlaydi** (critical log «could not be marked for a retry», superadminga «avtomatik qayta urinish bo'lmaydi» xabari);
+hisob-kitobdan hech narsa commit qilinmagan. Provayder javobi o'zgarmaydi (u log'ga `... PaymentPaid listener failed`
+yozadi): Complete/Perform'ga xato javob provayderga to'lovni muvaffaqiyatsiz deb ko'rsatishi mumkin edi, bizda esa u
+allaqachon `paid`. Bunday buyurtmani monitoring topadi: `settlement_failures` qoidasining ikkinchi topilmasi (subject
+`unmarked`) va «Bugun»dagi «To'langan, lekin do'konga yozilmagan» guruhi (`UnbookedSettlementsSource`) — yetkazilgan,
+`payment_owner = PLATFORM`, `payment_status = paid`, belgisiz, settlement / qarz to'lovi qatori yo'q, 15 daqiqadan beri
+o'zgarmagan buyurtmalar (`SettlementRecoveryService::unbookedLatePayments`). Sababini bartaraf etib:
+`php artisan orders:retry-settlements <id>` (belgisiz bunday buyurtmani ham yozadi) yoki provayderning takroriy
+Complete/Perform'i. `FinanceLatePaymentSettlementFailureTest`.
+
+**Deploydan oldin (faqat o'qish).** Shu o'zgarish bilan nimaga tegishini oldindan sanash uchun:
+
+```sql
+-- (i) tasdiqlangan, yetkazilgan buyurtma qismi, lekin uni hech bir order_ledger_reversals qatori nomlamaydi
+--     (legacy: execution'da ledger_reversal kaliti ham yo'q — catch-up ularni hech qachon qaytarmaydi)
+SELECT count(*) AS approved_delivered_without_reversal_row,
+       count(*) FILTER (WHERE NOT (r.execution ? 'ledger_reversal')) AS of_them_legacy
+FROM order_refund_requests r
+WHERE r.status = 'approved'
+  AND r.execution->>'order_status_before' = 'delivered'
+  AND NOT EXISTS (
+      SELECT 1 FROM order_ledger_reversals l
+      WHERE l.order_refund_request_id = r.id
+         OR l.components->>'catch_up_for_request' = r.id::text);
+
+-- (ii) yetkazilgan, platforma yig'gan, to'langan buyurtma: hisob-kitob qatori ham, belgi ham yo'q (review H1 holati)
+SELECT count(*) AS delivered_paid_platform_without_settlement_or_marker
+FROM orders o
+WHERE o.status = 'delivered'
+  AND o.payment_owner = 'PLATFORM'
+  AND o.payment_status = 'paid'
+  AND o.settlement_failed_at IS NULL
+  AND o.total_price > 0
+  AND NOT EXISTS (SELECT 1 FROM store_wallet_transactions w WHERE w.order_id = o.id AND w.type = 'settlement')
+  AND NOT EXISTS (SELECT 1 FROM store_transactions t WHERE t.order_id = o.id AND t.type = 'topup');
+```
+
+(i) dagi legacy bo'lmaganlari — yozuvi yiqilgan paytda tasdiqlangan qismlar (`ledger_reversal_deferred: true`): ular
+o'sha buyurtma yozilganda qaytariladi. (ii) dagilar — deploydan keyin 15 daqiqada monitoring ko'rsatadi; har birini
+`orders:retry-settlements <id>` bilan yozish mumkin (u yozilgandan keyin o'sha orada tasdiqlangan qismlarning ulushini
+ham qaytaradi).
 
 **Deadlock savepoint'da (review H1).** Laravel ichki (nested) tranzaksiyadagi deadlock / serialization xatosida
 savepoint'ga qaytmasdan `DeadlockException` tashlardi; PostgreSQL esa butun tashqi tranzaksiyani «aborted» holatda

@@ -520,7 +520,7 @@ class PaymeWebhookController extends Controller
                 return;
             }
 
-            event(new PaymentPaid($payment));
+            event(new PaymentPaid($payment, $replay));
         } catch (\Throwable $e) {
             Log::error('Payme PaymentPaid listener failed after the payment was committed: ' . $e->getMessage(), [
                 'payment_id' => $payment->id,

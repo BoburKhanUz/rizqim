@@ -31,7 +31,13 @@ Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered 
     foreach ($this->argument('orders') as $key) {
         $order = Order::where(ctype_digit((string) $key) ? 'id' : 'uuid', $key)->first();
 
-        if (!$order || $order->settlement_failed_at === null) {
+        if ($order && $order->settlement_failed_at === null
+            && SettlementRecoveryService::unbookedLatePayments()->whereKey($order->id)->exists()) {
+            // Review H1: paid, never credited, and not even marked: booked as the provider's repeated completion would
+            $settlements->bookAfterPayment($order->id, SettlementRecoveryService::CATCH_UP_RETRY)
+                ? $this->info("{$key}: booked")
+                : $this->error("{$key}: " . ($order->fresh()->settlement_error ?? 'not booked'));
+        } elseif (!$order || $order->settlement_failed_at === null) {
             $this->warn("{$key}: no failed ledger booking");
         } elseif ($settlements->retry($order->id)) {
             $this->info("{$key}: booked");

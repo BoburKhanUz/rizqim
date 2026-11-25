@@ -258,15 +258,18 @@ class PaylovWebhookTest extends TestCase
 
         $this->perform($order, $txn)->assertOk()->assertExactJson(self::answer());
         $this->assertSame(PaymentStatus::PAID, $this->paylovPayment($txn)->status);
-        $this->assertSame(0, $this->settlements($order));
-        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains($message, 'PaymentPaid'));
+        // Review H1: the failed settlement is booked again in the same listener (bookAfterPayment → book), so the
+        // store is credited at once and nothing reaches the provider's handler
+        $this->assertSame(1, $this->settlements($order));
+        Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Settlement of the late payment'));
+        Log::shouldNotHaveReceived('error', [\Mockery::on(fn ($message) => str_contains((string) $message, 'PaymentPaid'))]);
 
         $this->perform($order, $txn)->assertExactJson(self::answer());
         $this->perform($order, $txn)->assertExactJson(self::answer());
 
-        // The failed call, then twice per replay: the settlement itself and, review finding 3, the delivery booking run
-        // again in its own savepoint (SettlementRecoveryService::book, for the referral bonus), a no-op the second time
-        $this->assertSame(5, $ledger->calls);
+        // The failed call and its retry in book(), then twice per replay: the settlement itself and, review finding 3,
+        // the delivery booking run again in its own savepoint (SettlementRecoveryService::book), a no-op each time
+        $this->assertSame(6, $ledger->calls);
         $this->assertSame(1, $this->settlements($order));
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
     }
