@@ -950,7 +950,8 @@ yoqilgan bo'lsa (`stores.fiscal_settings.enabled`) ishlaydi; o'chiq bo'lsa webho
 - `SetFiscalData` (yangi metod, o'sha Basic auth — to'lovning o'z kaliti): `{id, type: PERFORM|CANCEL, fiscal_data:
   {receipt_id, status_code, message, terminal_id, fiscal_sign, qr_code_url, date}}` → `{"result": {"success": true}}`.
   `PERFORM` — sotuv cheki, `CANCEL` — alohida qaytarish cheki (asl sotuv chekiga bog'lanadi). Takroriy chaqiruv hech
-  narsani o'zgartirmaydi (birinchi qabul qilingan chek saqlanadi). Xatolar: `-32001` (bunday chek yo'q), `-32602`
+  narsani o'zgartirmaydi (birinchi qabul qilingan chek saqlanadi). Xatolar: `-32001` (bunday chek yo'q; `PERFORM`
+  bajarilmagan, `CANCEL` bajarilib bekor qilinmagan tranzaksiyaga ham), `-32602`
   (noto'g'ri parametr, `message` da nomi: `Invalid parameter: type`), `-32504` (kalit noto'g'ri). `status_code ≠ 0`
   (OFD rad etgan) — to'lovda `failed` / `payme_ofd_rejected` deb belgilanadi, keyingi muvaffaqiyatli chaqiruv yoziladi.
 
@@ -3283,7 +3284,7 @@ o'z nomidan ishlaydi: `OrderPolicy` `platform` rolidagi a'zoga `orders.intervene
 
 | Holat | `mode` | Nima bo'ladi |
 |---|---|---|
-| Yetkazilgan buyurtma, summa = to'langan hammasi va **oldin hech narsa qaytarilmagan** | `order_refunded` | `OrderStatusService::refund`: buyurtma `refunded`, ovqatxona komissiyasi va o'tkazilgan pul qaytariladi (`LedgerService::reverseDeliveredOrder`), keshbek mijoz balansiga qaytadi, Click/Payme yoki naqd to'lovga "qo'lda qaytarish" belgisi |
+| Yetkazilgan buyurtma, summa = yetkazishda to'langan hammasi va **yetkazilgandan keyin hech narsa qaytarilmagan** (yetkazilmasdan oldin bekor qilingan to'lovlar hisobga kirmaydi) | `order_refunded` | `OrderStatusService::refund`: buyurtma `refunded`, ovqatxona komissiyasi va o'tkazilgan pul qaytariladi (`LedgerService::reverseDeliveredOrder`), keshbek mijoz balansiga qaytadi, Click/Payme yoki naqd to'lovga "qo'lda qaytarish" belgisi |
 | Qolgan hamma holat: yetkazilgan buyurtmaning bir qismi (oldingi qismdan keyingi qoldiq ham), bekor qilingan / rad etilgan / qaytarilgan buyurtma | `balance` yoki `manual` | buyurtma holati o'zgarmaydi. Summa hali to'langan to'lovlarga, eng eskisidan boshlab, har biriga hali tasdiqlanmagan qismigacha bo'linadi (`allocations`). **Keshbek** to'lovning ulushi darhol mijoz balansiga aynan shu summada qaytadi (`OrderStatusService::refundKeshbek` kabi; to'lov `payload.refunded_to_balance_parts`; hammasi qaytgach to'lov `refunded`, boshqa to'langan to'lov qolmasa buyurtmaning `payment_status` ham `refunded` — keyingi qaytarish yo'li uni yana qaytarmaydi). Boshqa to'lovlarning ulushi — qo'lda qaytarish, to'lovga `manual_refund_approved` (o'z ulushi bilan) yoziladi. Hammasi balansga ketgan bo'lsa `balance`, aks holda `manual` |
 
 `automatic_amount` — o'zi qaytgan qism (keshbek balansga, Paylov orqali), `manual_amount` — tasdiqlovchi to'lov tizimi
@@ -3333,15 +3334,48 @@ soxta so'rovmi — ajratib bo'lmaydi. Bunday qaytarish:
 - Payme `CancelTransaction` `reason` faqat butun son 1–10 (Payme: 1–5, 10); boshqasi (satr, kasr, massiv, yo'q) — `-32600`,
   hech narsa o'zgarmaydi. Bekor qilingan/rad etilgan buyurtmaning to'langan tranzaksiyasi Payme orqali qaytsa,
   buyurtmaning `payment_status` — `refunded` (avval xato ravishda `pending` bo'lardi; Paylov'dagidek).
-- Boshqa kassaning tranzaksiya id'si, o'z buyurtmasi `account` sifatida ko'rsatilsa, noma'lum tranzaksiya kabi javob oladi
-  (`-31003`, SetFiscalData'da `-32001`), `-32504` emas: javob boshqa kassalardagi id'lar borligini oshkor qilmaydi;
-  tranzaksiya o'zgarmaydi. `account` siz — avvalgidek `-32504`.
+- **Tranzaksiya id'si merchant hisobiga tegishli** (security review F3–F6). Provayder tranzaksiyasining kaliti —
+  `(provider, merchant_scope, provider_transaction_id)`: `payments.merchant_scope` — `platform` (platforma Click/Payme/Paylov
+  hisobi, top-up'lar) yoki `store:<id>` (`payment_owner` PLATFORM bo'lmagan buyurtma — ovqatxonaning o'z hisobi); buyurtmadan
+  baza triggeri bilan olinadi (migratsiya `2026_12_09_100100`). Payme so'rovidagi kalit qaysi kassaniki ekani (`platform`
+  yoki shu kalitni saqlagan ovqatxonalar — tarmoqda bir nechta) `stores.payme_key_digest` indeksi orqali topiladi
+  (`PaymeCashbox`; har so'rovda hamma ovqatxona sozlamasi ochilmaydi). Dayjest faqat indeks yordamchisi: eskirgan bo'lsa
+  ham (masalan kod orqaga qaytarilgan paytda kalit o'zgargan) hisob usullari buyurtma kaliti bilan, id usullari shu id'ni
+  saqlagan ovqatxonalar kaliti bilan (ko'pi bilan 8 ta) topadi va dayjestni tuzatadi; faqat `GetStatement` tuzatilguncha
+  `-32504` oladi (OPERATIONS.md, 29-bo'lim). Platforma kaliti bilan kelgan so'rov hech qachon POS QR'ga id bo'yicha
+  yo'naltirilmaydi (platforma kassasida QR yo'q), ovqatxona platforma kalitini o'ziniki deb saqlagan bo'lsa ham. Shundan:
+  - `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `SetFiscalData` id'ni **faqat shu kassa hisoblarida**
+    qidiradi: boshqa kassaning tranzaksiyasi — `account` bilan ham, usiz ham — noma'lum (`-31003`, SetFiscalData'da
+    `-32001`); hech bir kassaga tegishli bo'lmagan kalit — `-32504`; tranzaksiya o'zgarmaydi. `GetStatement` — shu kassa
+    hisoblaridagi tranzaksiyalar.
+  - `CheckPerformTransaction` va `CreateTransaction` — `account` dagi buyurtma (top-up, noma'lum buyurtma: platforma)
+    kaliti bilan tasdiqlanadi; so'rovdagi `id` qaysi kalit tekshirilishini o'zgartirmaydi (boshqa ovqatxona buyurtmasi
+    yoki top-up o'z tranzaksiya id'si bilan so'ralsa ham — `-32504`, `detail` yo'q).
+  - `CreateTransaction`: boshqa kassada bor id — noma'lum id kabi (yangi tranzaksiya, `state 1`, shu hisobda); **shu kassaning**
+    boshqa buyurtmasiga (yoki shu kassaning POS QR'iga) tegishli id — avvalgidek `-31050` «Transaction belongs to another
+    order».
+  - Click: `click_trans_id` buyurtma hisobi ichida qidiriladi. Ovqatxona o'z buyurtmasida kelajakdagi id'ni (N) oldindan
+    «to'lab» qo'ysa ham, boshqa hisob buyurtmasining haqiqiy Complete'i (N) o'sha buyurtmani to'laydi (avval `-9` olardi va
+    Click pulni mijozga qaytarardi); bir hisob ichida id bitta buyurtmaniki (`-9`), takror Complete — `Already confirmed`.
+  - Paylov: `transaction_id` so'rovni tasdiqlagan hisob ichida (perform — buyurtma hisobi; cancel — login/paroli mos
+    kelgan to'lov).
 - RIZQIM o'zi avval qaytargan buyurtma (`refunded`: admin qaytarishi, tasdiqlangan so'rov) ushlanmaydi: keyingi Payme
   bekor qilishi faqat shu pulni qaytaradi. Hali yetkazilmagan buyurtma (komissiya yozilmagan) avvalgidek yana
   «to'lanmagan» bo'ladi. Platforma kassasi (`PLATFORM`) qoidasi o'zgarmagan: pul ovqatxonaga o'tkazilgan bo'lsa `-31007`.
 - Click: SHOP API'da faqat Prepare/Complete bor, qaytarish (`payment/reversal`) — RIZQIM'ning o'zi yuboradigan chaqiruv;
   `error < 0` bilan kelgan Complete — `-9`, to'langan buyurtma o'zgarmaydi. Kassadagi QR (Payme/Click) — bajarilgan
   tranzaksiyani faqat RIZQIM qaytarishi so'raganda bekor qiladi (`-31007` aks holda), platforma puli yo'q.
+
+**Ovqatxona kassasiga «to'landi» (soxta «paid»).** O'z hisobli ovqatxona (`payment_owner: STORE`) Click Complete va Payme
+`PerformTransaction` ni tasdiqlaydigan kalitni biladi, Click SHOP API va Payme Merchant API'da esa buyurtma to'lovini
+qayta o'qish yo'q, shuning uchun ovqatxona **o'z** buyurtmasini kalit bilan «to'landi» qila oladi (Paylov'da bunday emas:
+perform `getTransactions` `payed` desagina to'lov bo'ladi). Kalit faqat shu: buyurtmaning o'z hisobi kaliti tekshiriladi
+(`OrderMerchantAccount`, `payment_owner` checkout'da qotadi) — boshqa ovqatxonaning buyurtmasi ham, shu ovqatxonaning
+platforma yig'adigan (`PLATFORM`) buyurtmasi ham, top-up ham bu kalit bilan to'lanmaydi; summa tiyinigacha teng bo'lishi
+shart. Bunday «to'landi» platforma pulini qo'zg'atmaydi: hamyonga o'tkazma yo'q (`settlePlatformOrder` faqat `PLATFORM`),
+keshbek balansi o'zgarmaydi; yetkazilganda komissiya to'lanmagan buyurtmadagidek ovqatxona qarziga yoziladi. Payme
+`SetFiscalData`: `PERFORM` faqat bajarilgan (to'langan yoki keyin qaytarilgan), `CANCEL` faqat bajarilib bekor qilingan
+tranzaksiyaga yoziladi, boshqasi — `-32001`, hech narsa yozilmaydi. Testlar: `tests/Feature/PaymentForgedPaidCallbackTest.php`.
 
 **Paylov (wave P) — faqat to'liq qaytarish.** Paylov `payment/cancel` faqat `transactionId` oladi, summa yo'q. Shuning
 uchun Paylov buyurtmasiga so'rov faqat **butun qaytariladigan summaga**: qismi — 422 `paylov_partial_refund_not_supported`
@@ -3365,8 +3399,16 @@ to'lov alohida hisoblanadi. Xabarlar va kartadagi summalar tiyin bo'lsa uni ham 
 
 **Qismlarga bo'lib qaytarish va ledger (P4-23):** yetkazilgan buyurtmaning bir qismi tasdiqlanganda ovqatxona
 komissiyasi, o'tkazilgan pul va qarz yopilgani ham **shu ulushda** qaytariladi (`LedgerService::reverseDeliveredOrderShare`,
-ulush = shu paytgacha qaytarilgan jami / to'langan, tiyingacha half-up), `execution.ledger_reversal {commission, settlement,
-added_to_debt}`. Har so'rov bir marta (`order_ledger_reversals`, so'rov bo'yicha yagona); qismlar jami to'langanga yetsa,
+tiyingacha half-up), `execution.ledger_reversal {commission, settlement, added_to_debt}`. Security review F1: ulush =
+yetkazilgandan keyin tasdiqlangan so'rovlar jami (shu so'rov bilan) / yetkazishda to'langan summa
+(`RefundRequestService::deliveryShareOf`: hali `paid` to'lovlar + yetkazilgandan keyin qaytarilganlar). Buyurtma
+yetkazilmasdan oldin to'lanib bekor qilingan to'lov (Payme/Paylov bekor qilishi, `payload.refunded_before_delivery`; bu
+belgidan oldingilari — bekor qilish vaqti birinchi `delivered` dan oldin) ulushda qatnashmaydi: avval u ham to'langan,
+ham qaytarilgan hisoblanardi va k marta to'lab-bekor qilingan buyurtmada 1 so'm qaytarish komissiyaning k/(k+1) qismini
+qaytarardi. Ovqatxona kassasidan qaytgan, tekshiruvda turgan pul (`store_refund_review`) ulushga kirmaydi — uning
+komissiyasini tekshiruv qarori hal qiladi. Yetkazishda to'langanning hammasi qaytarilsa (oldin yetkazilgandan keyin
+hech narsa qaytmagan) — `order_refunded` yo'li, yetkazilmasdan oldin bekor qilingan to'lovlar bo'lsa ham. Jami hech qachon
+yozilgan komissiyadan oshmaydi. Har so'rov bir marta (`order_ledger_reversals`, so'rov bo'yicha yagona); qismlar jami to'langanga yetsa,
 to'liq qaytarishdagi summalarning aynan o'zi qaytgan bo'ladi, keyin buyurtmaning o'z qaytarish yo'li hech narsa qaytarmaydi;
 qismdan keyingi to'liq qaytarish faqat qolganini qaytaradi. Buyurtma `delivered` qoladi. Naqd buyurtmada to'lov "to'langan"
 deb belgilanmagan bo'lsa qaytarib bo'lmaydi (qaytariladigan 0).
@@ -5179,8 +5221,15 @@ schyot o'zgarsa yoki kassir bekor qilsa QR baribir bekor, keyingi `PerformTransa
 `failed`; chekdan oldin `null`), `created_at`.
 
 **Tasdiq (webhooklar).** Mavjud `POST /payments/click/webhook` va `/payments/payme/webhook` hisob `pos_qr_<uuid>` bo'lsa
-(Click `merchant_trans_id`, Payme `account.order_id`; Payme'da — shunday QR'ning tranzaksiya `id` si ham) so'rovni
-buyurtma mantig'idan oldin POS QR'ga beradi:
+(Click `merchant_trans_id`, Payme `account.order_id`; Payme'da `account` siz so'rov — `PerformTransaction`,
+`CancelTransaction`, `CheckTransaction`, `SetFiscalData` — uchun: id'ni so'rovni imzolagan kassaning QR'i ushlab turgan va
+shu kassaning hech bir to'lovida yo'q bo'lsa) so'rovni buyurtma mantig'idan oldin POS QR'ga beradi. Security review F2: QR
+hech qachon boshqa to'lovning id'sini egallamaydi — platforma kassasida QR yo'q, boshqa kassaning QR'lari ko'rilmaydi; bitta
+kassa ichida id yo yo to'lovniki, yo bitta QR'niki: QR `CreateTransaction` shu kassa to'lovi yoki boshqa QR'i ushlagan
+id'ni, buyurtma `CreateTransaction` shu kassa QR'i ushlagan id'ni rad etadi (`-31050` «Transaction belongs to another
+order»). Ikkalasi bir vaqtda kelsa, ikkala `CreateTransaction` id bo'yicha bitta qulf (`pg_advisory_xact_lock`) ostida
+ishlaydi: birinchi commit qilgan egalik qiladi, ikkinchisi `-31050` oladi. Qoidadan oldin ikkalasida yozilgan id —
+to'lovniki. Click QR faqat `merchant_trans_id` bo'yicha yo'naltiriladi (`click_trans_id` bo'yicha emas):
 - Click Prepare (`action 0`): QR `pending`, vaqtida, schyot qarzi summasidan kam emas, `amount` tiyinigacha teng; javob
   `merchant_prepare_id` = QR `id`. Xatolar: imzo (do'kon kaliti) — `-1`, summa — `-2`, to'langan — `-4`, topilmadi — `-5`,
   bekor/eskirgan/schyot o'zgargan — `-9`. Complete (`action 1`): schyot `qr` to'lovini oladi (`reference` = `click_trans_id`,

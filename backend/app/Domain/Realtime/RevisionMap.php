@@ -44,11 +44,18 @@ final class RevisionMap
      * Columns whose change alone touches nothing: liveness stamps written on every request or every minute. A write
      * that changes anything else touches as usual.
      *
+     * stores.payme_key_digest: the index hint of the store's Payme key (PaymeCashbox), repaired alone by a Payme
+     * webhook and by `payments:payme-digests` (every deploy; after a code rollback, possibly for many stores at once).
+     * It is in Store::$hidden, so no response body (marketplace document, POS, KDS, owner pages) contains it, and no
+     * channel grant reads it: a digest-only write moves no token. A save that changes payment_settings writes the digest
+     * with it and touches as usual.
+     *
      * @var array<string, list<string>>
      */
     public const QUIET_COLUMNS = [
         'devices' => ['last_seen_at', 'sync_reported_at', 'sync_clock_skew_seconds', 'app_outdated_notified_release_id', 'updated_at'],
         'users' => ['platform_last_login_at', 'remember_token', 'two_factor_last_timestep', 'updated_at'],
+        'stores' => ['payme_key_digest'],
     ];
 
     /**

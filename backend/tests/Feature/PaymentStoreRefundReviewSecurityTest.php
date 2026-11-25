@@ -117,8 +117,10 @@ class PaymentStoreRefundReviewSecurityTest extends TestCase
         // The other cashbox's transaction is untouched, and its own key still works on it
         $this->assertSame('paid', Payment::where('provider_transaction_id', 'oth-1')->sole()->status->value);
         $this->payme('CheckTransaction', ['id' => 'oth-1'], $this->otherKey)->assertJsonPath('result.state', 2);
-        // Without an account, a key that is not the transaction's own is still refused as before
-        $this->payme('CheckTransaction', ['id' => 'oth-1'])->assertJsonPath('error.code', -32504);
+        // Without an account too (security review F5: the id is looked up in the key's own cashbox only), and a key no
+        // cashbox has is refused
+        $this->payme('CheckTransaction', ['id' => 'oth-1'])->assertJsonPath('error.code', -31003);
+        $this->payme('CheckTransaction', ['id' => 'oth-1'], 'no-such-key')->assertJsonPath('error.code', -32504);
     }
 
     public function test_a_malformed_reason_is_refused_and_never_recorded(): void

@@ -162,6 +162,27 @@ class PaylovWebhookTest extends TestCase
         $this->check($platformOrder, account: $own)->assertStatus(401);
     }
 
+    public function test_a_stores_own_callback_credentials_never_check_or_perform_another_stores_order(): void
+    {
+        $mine = self::makeAccount();
+        $theirs = self::makeAccount();
+        $stores = [];
+        foreach (['Mine' => $mine, 'Theirs' => $theirs] as $name => $account) {
+            $stores[$name] = $this->makeStore("{$name} Paylov");
+            $stores[$name]->forceFill(['payment_account_type' => 'own_account', 'payment_settings' => ['paylov' => ['enabled' => true] + $account]])->save();
+        }
+        $order = $this->paylovOrder($stores['Theirs'], ['payment_owner' => 'STORE']);
+        $transactionId = (string) Str::uuid();
+
+        $this->check($order, account: $mine)->assertStatus(401);
+        $this->perform($order, $transactionId, account: $mine)->assertStatus(401);
+        $this->cancelWebhook($order, $transactionId, account: $mine)->assertStatus(401);
+
+        $this->assertNull($this->paylovPayment($transactionId));
+        $this->assertSame(PaymentStatus::PENDING, $order->fresh()->payment_status);
+        Http::assertNothingSent();
+    }
+
     // ---- transaction.perform ----
 
     public function test_perform_is_confirmed_with_paylov_and_marks_the_order_paid_exactly_once(): void
@@ -520,6 +541,8 @@ class PaylovWebhookTest extends TestCase
         // As Payme's CancelTransaction: the order is no longer paid
         $this->assertSame(PaymentStatus::PENDING, $order->fresh()->payment_status);
         $this->assertSame(1, Payment::where('provider', 'paylov')->where('status', PaymentStatus::REFUNDED->value)->count());
+        // Security review F1: money given back before delivery is no part of what delivery books the commission on
+        $this->assertTrue($payment->payload['refunded_before_delivery'] ?? false);
     }
 
     public function test_the_cancel_webhook_of_a_delivered_order_refunds_the_order_and_reverses_the_store_once(): void

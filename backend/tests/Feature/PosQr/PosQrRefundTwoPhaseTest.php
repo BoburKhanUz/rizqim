@@ -246,6 +246,7 @@ class PosQrRefundTwoPhaseTest extends TestCase
     {
         $request = Request::create('/api/v1/payments/payme/webhook', 'POST', server: ['HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('Paycom:' . self::PAYME_SECRET)]);
 
-        return app(PaymePosQrWebhook::class)->handle($request, 'CancelTransaction', ['id' => (string) $qr->refresh()->provider_transaction_id, 'reason' => 5], 7)->getData(true);
+        // The stores of the key's cashbox, as PaymeWebhookController passes them (security review F2)
+        return app(PaymePosQrWebhook::class)->handle($request, 'CancelTransaction', ['id' => (string) $qr->refresh()->provider_transaction_id, 'reason' => 5], 7, [(int) $qr->store_id])->getData(true);
     }
 }

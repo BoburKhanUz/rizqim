@@ -116,13 +116,14 @@ class PaymentAccountSwitchTest extends TestCase
         $this->payme('CreateTransaction', ['id' => 'trx-own', 'time' => 1760000000000, 'amount' => 5000000, 'account' => $account], self::STORE_PAYME)->assertJsonPath('result.state', 1);
         $this->switchTo($store, 'platform_account');
 
-        $this->payme('PerformTransaction', ['id' => 'trx-own'], self::PLATFORM_PAYME)->assertJsonPath('error.code', -32504);
+        // Security review F5: the store's cashbox's transaction is unknown to the platform's cashbox
+        $this->payme('PerformTransaction', ['id' => 'trx-own'], self::PLATFORM_PAYME)->assertJsonPath('error.code', -31003);
         $this->payme('PerformTransaction', ['id' => 'trx-own'], self::STORE_PAYME)->assertJsonPath('result.state', 2);
         $this->payme('CheckTransaction', ['id' => 'trx-own'], self::STORE_PAYME)->assertJsonPath('result.state', 2);
         $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
 
         // A refund after the switch: still the store's cashbox
-        $this->payme('CancelTransaction', ['id' => 'trx-own', 'reason' => 5], self::PLATFORM_PAYME)->assertJsonPath('error.code', -32504);
+        $this->payme('CancelTransaction', ['id' => 'trx-own', 'reason' => 5], self::PLATFORM_PAYME)->assertJsonPath('error.code', -31003);
         $this->payme('CancelTransaction', ['id' => 'trx-own', 'reason' => 5], self::STORE_PAYME)->assertJsonPath('result.state', -2);
         $this->assertSame(PaymentStatus::REFUNDED, Payment::where('provider_transaction_id', 'trx-own')->sole()->status);
 
@@ -146,7 +147,8 @@ class PaymentAccountSwitchTest extends TestCase
         $this->click($click, self::STORE_CLICK, 0)->assertJson(['error' => -1]);
         $this->click($click, self::PLATFORM_CLICK, 0)->assertJson(['error' => 0]);
         $this->click($click, self::PLATFORM_CLICK, 1)->assertJson(['error' => 0]);
-        $this->payme('PerformTransaction', ['id' => 'trx-platform'], self::STORE_PAYME)->assertJsonPath('error.code', -32504);
+        // Security review F5: the platform cashbox's transaction is unknown to the store's own cashbox
+        $this->payme('PerformTransaction', ['id' => 'trx-platform'], self::STORE_PAYME)->assertJsonPath('error.code', -31003);
         $this->payme('PerformTransaction', ['id' => 'trx-platform'], self::PLATFORM_PAYME)->assertJsonPath('result.state', 2);
         $this->assertSame([PaymentStatus::PAID, PaymentStatus::PAID], [$click->fresh()->payment_status, $payme->fresh()->payment_status]);
 

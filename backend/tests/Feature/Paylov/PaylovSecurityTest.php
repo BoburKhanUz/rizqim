@@ -239,4 +239,44 @@ class PaylovSecurityTest extends TestCase
         }
         Http::assertNotSent(fn (\Illuminate\Http\Client\Request $request) => str_starts_with($request->url(), 'http://attacker.'));
     }
+
+    /**
+     * Security review F5 (third review test gap): one Paylov transaction id in two merchant accounts (the platform's
+     * and a store's own) is two payments. perform finds and creates each within its own account, a replay of either is
+     * answered as performed without a second payment, and a cancel signed by one account reaches only its own payment.
+     */
+    public function test_the_same_transaction_id_in_two_accounts_is_two_payments_each_found_by_its_own_account(): void
+    {
+        $own = self::makeAccount();
+        $ownStore = $this->makeStore('Own Paylov');
+        $ownStore->forceFill(['payment_account_type' => 'own_account', 'credit_limit' => -1000000,
+            'payment_settings' => ['paylov' => ['enabled' => true] + $own]])->save();
+        $this->store->forceFill(['credit_limit' => -1000000,
+            'payment_settings' => array_merge($this->store->payment_settings ?? [], ['paylov' => ['enabled' => true]])])->save();
+        $platformOrder = $this->paylovOrder($this->store);
+        $ownOrder = $this->paylovOrder($ownStore, ['payment_owner' => 'STORE']);
+        $txn = (string) Str::uuid();
+
+        $this->perform($platformOrder, $txn)->assertExactJson(self::answer());
+        $this->performedOrders[$txn] = (string) $ownOrder->uuid;
+        $this->perform($ownOrder, $txn, account: $own)->assertExactJson(self::answer());
+        $this->assertSame([PaymentStatus::PAID, PaymentStatus::PAID], [$platformOrder->fresh()->payment_status, $ownOrder->fresh()->payment_status]);
+        $payments = Payment::where('provider', 'paylov')->where('provider_transaction_id', $txn)->orderBy('merchant_scope')->get();
+        $this->assertSame([['platform', $platformOrder->id], ['store:' . $ownStore->id, $ownOrder->id]],
+            $payments->map(fn (Payment $p) => [$p->merchant_scope, (int) $p->order_id])->all());
+
+        // Replays: each account's payment, none created twice
+        $this->perform($ownOrder, $txn, account: $own)->assertExactJson(self::answer());
+        $this->performedOrders[$txn] = (string) $platformOrder->uuid;
+        $this->perform($platformOrder, $txn)->assertExactJson(self::answer());
+        $this->assertSame(2, Payment::where('provider', 'paylov')->where('provider_transaction_id', $txn)->count());
+
+        // The store's own cancel (Paylov reports it cancelled) reaches only the store's payment
+        $this->paylovStatus = 'cancel';
+        $this->performedOrders[$txn] = (string) $ownOrder->uuid;
+        $this->cancelWebhook($ownOrder, $txn, account: $own)->assertOk();
+        $this->assertSame(PaymentStatus::REFUNDED, Payment::where('order_id', $ownOrder->id)->sole()->status);
+        $this->assertSame(PaymentStatus::PAID, Payment::where('order_id', $platformOrder->id)->sole()->status);
+        $this->assertSame(PaymentStatus::PAID, $platformOrder->fresh()->payment_status);
+    }
 }

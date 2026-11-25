@@ -10,6 +10,7 @@ use App\Domain\Pos\QrPayments\QrRefunds;
 use App\Models\PaymentProvider;
 use App\Models\PosQrPayment;
 use App\Models\Store;
+use App\Services\Payment\PaymeCashbox;
 use App\Services\Payment\PaymeRpcMessage;
 use App\Support\Money;
 use Brick\Math\BigDecimal;
@@ -20,7 +21,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * P6-41: Payme Merchant API for a QR shown at a POS till (`account.order_id` = `pos_qr_<uuid>`, or a transaction id
- * such a request holds; PaymeWebhookController hands these over before its order logic). A POS QR is always
+ * such a request holds within the cashbox whose key signed the call and no payment of that cashbox holds, see claims();
+ * PaymeWebhookController hands these over before its order logic). A POS QR is always
  * STORE-owned: HTTP Basic `Paycom:<the store's own key>` (payment_settings.payme.secret_key), never the platform's.
  *
  *  - CheckPerformTransaction: `{allow: true}` WITHOUT `detail`, so Payme registers no fiscal receipt (Rizqim issues
@@ -42,27 +44,63 @@ final class PaymePosQrWebhook
     public function __construct(private readonly QrPaymentService $service) {}
 
     /**
-     * Whether this request is about a POS QR (its account, or a transaction id one of them holds).
+     * Whether this request is about a POS QR: its account is a `pos_qr_<uuid>`, or (no account: PerformTransaction,
+     * CancelTransaction, CheckTransaction, SetFiscalData) its transaction id is held by a QR of the cashbox whose key
+     * signed it and by none of that cashbox's payments. Security review F2: a QR never captures the id of a payment —
+     * the platform's cashbox has no QRs, another cashbox's QRs are not looked at, and within one cashbox an id is a
+     * payment's or a QR's, never both (create(), PaymeWebhookController::createTransaction); for an id recorded as both
+     * before that rule, the payment wins.
      *
      * @param  array<string, mixed>  $params
+     * @param  list<int>  $storeIds  the stores of the key's cashbox (PaymeCashbox); [] for the platform's or no key
      */
-    public static function claims(array $params): bool
+    public static function claims(array $params, array $storeIds): bool
     {
         $account = $params['account']['order_id'] ?? null;
         if (is_string($account) && PosQrPayment::isAccount($account)) {
             return true;
         }
+        if (is_scalar($account) && (string) $account !== '') {
+            return false; // an order's or a top-up's account
+        }
         $id = $params['id'] ?? null;
+        if (!is_scalar($id) || (string) $id === '' || $storeIds === [] || self::byTransaction((string) $id, $storeIds) === null) {
+            return false;
+        }
 
-        return is_scalar($id) && (string) $id !== '' && self::byTransaction((string) $id) !== null;
+        return !self::paymentHolds((string) $id, $storeIds);
+    }
+
+    /**
+     * Whether a POS QR of these stores holds this Payme transaction id.
+     *
+     * @param  list<int>  $storeIds
+     */
+    public static function heldByQr(string $transaction, array $storeIds, ?int $except = null): bool
+    {
+        return $storeIds !== [] && PosQrPayment::where('provider', QrProvider::PAYME->value)->whereIn('store_id', $storeIds)
+            ->where('provider_transaction_id', $transaction)->when($except !== null, fn ($query) => $query->whereKeyNot($except))->exists();
+    }
+
+    /**
+     * Whether a payment (an order's) of these stores' own cashbox holds this Payme transaction id.
+     *
+     * @param  list<int>  $storeIds
+     */
+    private static function paymentHolds(string $transaction, array $storeIds): bool
+    {
+        return \App\Models\Payment::where('provider', 'payme')
+            ->whereIn('merchant_scope', array_map(fn (int $storeId) => \App\Models\Payment::storeScope($storeId), $storeIds))
+            ->where('provider_transaction_id', $transaction)->exists();
     }
 
     /**
      * @param  array<string, mixed>  $params
+     * @param  list<int>  $storeIds  the stores of the key's cashbox
      */
-    public function handle(Request $request, string $method, array $params, mixed $id): JsonResponse
+    public function handle(Request $request, string $method, array $params, mixed $id, array $storeIds = []): JsonResponse
     {
-        $qr = $this->target($params);
+        $qr = $this->target($params, $method, $storeIds);
         if (!$this->authorized($request, $qr)) {
             return $this->error($id, -32504, 'Insufficient privileges');
         }
@@ -70,7 +108,7 @@ final class PaymePosQrWebhook
         try {
             return match ($method) {
                 'CheckPerformTransaction' => $this->checkPerform($qr, $params, $id),
-                'CreateTransaction' => $this->create($qr, $params, $id),
+                'CreateTransaction' => $this->create($qr, $params, $id, $storeIds),
                 'PerformTransaction' => $this->perform($qr, $id),
                 'CancelTransaction' => $this->cancel($qr, $params, $id),
                 'CheckTransaction' => $qr !== null && $qr->provider_transaction_id !== null ? $this->result($id, $this->state($qr)) : $this->error($id, -31003, 'Transaction not found'),
@@ -99,7 +137,7 @@ final class PaymePosQrWebhook
     /**
      * @param  array<string, mixed>  $params
      */
-    private function create(?PosQrPayment $qr, array $params, mixed $id): JsonResponse
+    private function create(?PosQrPayment $qr, array $params, mixed $id, array $storeIds): JsonResponse
     {
         $transaction = $this->transactionId($params);
         if ($transaction === '') {
@@ -109,8 +147,15 @@ final class PaymePosQrWebhook
             return $this->error($id, -31050, 'Order not found', 'order_id');
         }
 
-        return DB::transaction(function () use ($qr, $params, $id, $transaction) {
+        return DB::transaction(function () use ($qr, $params, $id, $transaction, $storeIds) {
+            // Security review F2: the same lock as an order's CreateTransaction of this id; the first to commit owns it
+            PaymeCashbox::lockTransaction($transaction);
             $qr = PosQrPayment::whereKey($qr->id)->lockForUpdate()->firstOrFail();
+            // A transaction id of this cashbox that a payment or another QR holds is theirs, never this QR's
+            $cashbox = array_values(array_unique([...$storeIds, (int) $qr->store_id]));
+            if (self::paymentHolds($transaction, $cashbox) || self::heldByQr($transaction, $cashbox, (int) $qr->id)) {
+                return $this->error($id, -31050, 'Transaction belongs to another order', 'order_id');
+            }
             if ($qr->provider_transaction_id === $transaction) {
                 if ($qr->status !== QrPaymentStatus::PENDING || !$this->service->payable($qr)) {
                     return $this->error($id, -31008, 'Unable to perform operation');
@@ -277,22 +322,31 @@ final class PaymePosQrWebhook
     }
 
     /**
+     * The QR a request is about: CheckPerformTransaction and CreateTransaction name it by their account; the methods
+     * about a transaction by its id, among the QRs of the key's cashbox only.
+     *
      * @param  array<string, mixed>  $params
+     * @param  list<int>  $storeIds
      */
-    private function target(array $params): ?PosQrPayment
+    private function target(array $params, string $method, array $storeIds): ?PosQrPayment
     {
-        $transaction = $this->transactionId($params);
-        if ($transaction !== '' && ($qr = self::byTransaction($transaction)) !== null) {
-            return $qr;
-        }
-        $account = $params['account']['order_id'] ?? null;
+        if (in_array($method, ['CheckPerformTransaction', 'CreateTransaction'], true)) {
+            $account = $params['account']['order_id'] ?? null;
 
-        return is_string($account) ? PosQrPayment::forAccount($account) : null;
+            return is_string($account) ? PosQrPayment::forAccount($account) : null;
+        }
+        $transaction = $this->transactionId($params);
+
+        return $transaction !== '' ? self::byTransaction($transaction, $storeIds) : null;
     }
 
-    private static function byTransaction(string $transaction): ?PosQrPayment
+    /**
+     * @param  list<int>  $storeIds
+     */
+    private static function byTransaction(string $transaction, array $storeIds): ?PosQrPayment
     {
-        return PosQrPayment::where('provider', QrProvider::PAYME->value)->where('provider_transaction_id', $transaction)->first();
+        return $storeIds === [] ? null : PosQrPayment::where('provider', QrProvider::PAYME->value)->whereIn('store_id', $storeIds)
+            ->where('provider_transaction_id', $transaction)->orderBy('id')->first();
     }
 
     /**
@@ -315,7 +369,23 @@ final class PaymePosQrWebhook
             $expected = $store !== null && $qr->driver === 'payme' ? StoreMerchant::credential($store, 'payme', 'secret_key') : null;
         }
 
-        return $expected !== null && hash_equals($expected, trim($parts[1]));
+        if ($expected === null || !hash_equals($expected, trim($parts[1]))) {
+            return false;
+        }
+        // Fourth review: a store whose own key is the platform's has no QR cashbox of its own. A call signed with the
+        // platform key is the platform cashbox's and never routed to a QR by transaction id (PaymeWebhookController::
+        // qrStores()), so a QR held here could never be performed or cancelled: every QR call is refused up front
+        $platform = $qr !== null ? PaymentProvider::platformCredential('payme', 'secret_key') : null;
+        if ($platform !== null && hash_equals($platform, $expected)) {
+            return false;
+        }
+        // Third review M1: the store's own key signed this; a stale digest of it is repaired (PaymeCashbox), so the
+        // calls about the QR's transaction id find the store through the index again
+        if ($qr !== null && isset($store) && $store->getAttribute('payme_key_digest') !== PaymeCashbox::digest($expected)) {
+            PaymeCashbox::remember((int) $store->id, $expected, $store->getRawOriginal('payment_settings'));
+        }
+
+        return true;
     }
 
     /**

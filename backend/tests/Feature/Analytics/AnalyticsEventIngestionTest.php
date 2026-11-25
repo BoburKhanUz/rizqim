@@ -267,7 +267,8 @@ class AnalyticsEventIngestionTest extends TestCase
 
     public function test_events_older_than_a_day_are_dropped_and_future_ones_clamped(): void
     {
-        $now = now()->startOfSecond();
+        // Frozen: received_at is the request's own second, which a slow run could otherwise see tick past $now
+        $now = $this->freezeSecond();
         $events = [
             $this->event('store_view', ['store_id' => $this->store->id, 'at' => $now->copy()->subHours(25)->getTimestampMs()]),
             $this->event('store_view', ['store_id' => $this->store->id, 'at' => $now->copy()->subHours(23)->getTimestampMs()]),
