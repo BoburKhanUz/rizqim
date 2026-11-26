@@ -1,6 +1,6 @@
 import { defineSection } from './define';
 
-// Mijozlar va yordam (P4-31): Foydalanuvchilar and the user card (block, unblock, close sessions), Shikoyatlar qutisi with
+// Mijozlar va yordam (P4-31): Foydalanuvchilar and the user card (block, unblock, close sessions, delete the statistics), Shikoyatlar qutisi with
 // tayyor javoblar, Shubhali holatlar
 export const customers = defineSection({
   uz: {
@@ -125,6 +125,15 @@ export const customers = defineSection({
     customers_closeText: "{{name}}ning Mini App, ilova va kassa (PIN) sessiyalari ({{sessions}}) yopiladi. U qaytadan kira oladi. Kassaning o'z ulanishi saqlanadi.",
     customers_closeConfirm: 'Ha, yopish',
     customers_closeDone: 'Barcha sessiyalar yopildi.',
+    // Maxfiylik so'rovi: Mini App statistikasi (analytics_events)
+    customers_analytics: 'Foydalanish statistikasi',
+    customers_analyticsEvents: 'Saqlangan yozuvlar',
+    customers_analyticsCount: '{{count}} ta',
+    customers_analyticsNote: "Mini App'dagi harakatlar (ochilgan sahifalar, savat, buyurtmaga o'tish). Mijoz so'rasa, ularni shu yerdan o'chiring.",
+    customers_forgetAnalytics: "Statistikasini o'chirish",
+    customers_forgetTitle: "Statistikasini o'chirish",
+    customers_forgetText: "{{name}}ning Mini App'dagi barcha statistika yozuvlari ({{count}} ta) butunlay o'chiriladi va qaytarib bo'lmaydi. Buyurtmalar, to'lovlar va umumiy (shaxssiz) raqamlar o'zgarmaydi. Zaxira nusxalarda yozuvlar o'z muddati tugaguncha qoladi.",
+    customers_forgetConfirm: "Ha, o'chirish",
 
     // Shikoyatlar
     customers_complaintFilter: "Holat bo'yicha",

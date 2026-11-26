@@ -105,6 +105,40 @@ describe('UserCardView', () => {
     expect(screen.getByText(/Aziza Karimova blokladi. Sabab: Firibgarlik/)).toBeInTheDocument();
   });
 
+  // A privacy request: every Mini App statistics row of the account, with a reason, one Idempotency-Key per dialog
+  it('deletes the statistics after a confirmation with a reason and says how many rows went', async () => {
+    let current = userCard({ analytics: { events: 42 } });
+    const keys: string[] = [];
+    const { user, callsTo } = setup({
+      'GET /users/7': () => ok(current),
+      'POST /users/7/forget-analytics': (request: Request) => {
+        keys.push(request.headers.get('Idempotency-Key') ?? '');
+        current = userCard({ analytics: { events: 0 } });
+        return ok(current, { message: "Statistika yozuvlari o'chirildi: 42 ta." });
+      },
+    });
+    expect(await screen.findByTestId('analytics-events')).toHaveTextContent('42 ta');
+    await user.click(screen.getByRole('button', { name: "Statistikasini o'chirish" }));
+    const dialog = screen.getByRole('dialog', { name: "Statistikasini o'chirish" });
+    expect(within(dialog).getByText(/barcha statistika yozuvlari \(42 ta\) butunlay o'chiriladi/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/zaxira nusxalarda/i)).toBeInTheDocument();
+    const confirm = within(dialog).getByRole('button', { name: "Ha, o'chirish" });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Sabab'), "Mijoz Telegram orqali so'radi");
+    await user.click(confirm);
+    expect(await screen.findByText("Statistika yozuvlari o'chirildi: 42 ta.")).toBeInTheDocument();
+    expect(callsTo('POST', '/users/7/forget-analytics')[0]?.body).toEqual({ reason: "Mijoz Telegram orqali so'radi" });
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$|^k-/);
+    expect(screen.getByTestId('analytics-events')).toHaveTextContent('0 ta');
+  });
+
+  it('offers no deletion without support.manage', async () => {
+    setup({ 'GET /users/7': () => ok(userCard({ analytics: { events: 3 }, actions: { block: false, unblock: false, close_sessions: false, forget_analytics: false } })) }, ['admin.users.view']);
+    expect(await screen.findByTestId('analytics-events')).toHaveTextContent('3 ta');
+    expect(screen.queryByRole('button', { name: "Statistikasini o'chirish" })).toBeNull();
+  });
+
   it('a viewer reads without actions; parts without permission are not shown', async () => {
     setup({ 'GET /users/7': () => ok(userCard({ orders: null, refunds: null, complaints: null, audit: null, actions: { block: false, unblock: false, close_sessions: false } })) }, ['admin.users.view']);
     await screen.findByRole('heading', { name: 'Olim Egamov', level: 1 });
