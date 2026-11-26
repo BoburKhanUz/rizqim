@@ -224,6 +224,7 @@ export const finance = defineSection({
     finance_keshbekDifferenceZero: "Har bir balans o'zgarishi yozilgan.",
     finance_keshbekDifferenceNonZero: "Balanslar yig'indisi harakatlarga mos kelmaydi: yozuvsiz o'zgarish bor, tekshiring.",
     finance_keshbekUnrecorded: "Keshbek to'lovi yozuvi yo'q buyurtmalar: {{count}} ta",
+    finance_keshbekInvalid: "O'qib bo'lmagan to'lov qiymatlari (summa yoki vaqt): {{count}} ta",
     finance_keshbekMovements: 'Oy harakatlari',
     finance_keshbekCount: '{{count}} ta',
     finance_keshbekIssued: "Berilgan do'st taklifi bonuslari (RIZQIM)",

@@ -50,6 +50,7 @@ class KeshbekLiabilityExport
         $writer->addRow(self::row(['Hozirgi balanslar jami', $number($reconciliation['live'])]));
         $writer->addRow(self::row(['Farq', $number($reconciliation['difference'])], $bold));
         $writer->addRow(self::row(["Keshbek to'lovi yozuvi yo'q buyurtmalar", (int) $report['unrecorded']['keshbek_orders_without_payment']]));
+        $writer->addRow(self::row(["O'qib bo'lmagan to'lov qiymatlari", (int) $report['unrecorded']['invalid_payload_values']]));
         $writer->addRow(self::row([]));
 
         $writer->addRow(self::row(["Hozirgi holat ({$report['as_of']})", "So'm", 'Mijozlar'], $bold));

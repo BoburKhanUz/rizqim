@@ -4323,17 +4323,32 @@ chegaralar, `MonthlyRevenueReport::monthBounds`) — `App\Services\Finance\Repor
 - `returned` — qaytarishda balansga qaytgan: keshbek to'lovi `payload` idagi `refunded_to_balance_parts[].amount`
   (qaytarish so'rovining qismlari, har biri o'z `refunded_at` i bilan) va `refunded_to_balance` (bekor qilish yoki to'liq
   qaytarish, `refunded_at`; `KeshbekHistory` qoidasi: `refunded_to_balance_by_requests` bo'lsa yoki qism yo'q bo'lsa — oxirgi qism
-  yozadigan to'liq summa belgisi ikki marta sanalmaydi). Boshqa yozuv yo'q.
+  yozadigan to'liq summa belgisi ikki marta sanalmaydi). Boshqa yozuv yo'q. `refunded_at` bo'lmasa yoki o'qib bo'lmasa —
+  to'lovning `created_at` i olinadi.
 
-Boshqa manba yo'q: `app/` da `users.balance` ni faqat shu to'rt yo'l o'zgartiradi (akkaunt birlashtirish balans 0
-bo'lsagina; admin balansni tahrirlamaydi).
+Payload qiymatlari tekshiriladi, hech biri hisobotni yiqitmaydi (500 emas): summa faqat oddiy o'nlik son
+(`^-?[0-9]+(\.[0-9]+)?$`; `''`, `NaN`, `abc`, eksponenta — yo'q), vaqt faqat aniq offset yoki `Z` bilan ISO 8601
+(`2026-11-01T00:05:00+05:00`; offsetsiz vaqt, epoch soni, 30-fevral — o'qilmaydi: qaysi zonada yozilgani noma'lum).
+O'qib bo'lmagan summa sanalmaydi, o'qib bo'lmagan vaqt o'rniga `created_at` olinadi; har bir rad etilgan qiymat
+`unrecorded.invalid_payload_values` da sanaladi (ekranda farq yonida).
+
+Boshqa manba yo'q: `app/` da `users.balance` ni faqat shu yo'llar o'zgartiradi, admin balansni tahrirlamaydi. Balans
+`users` qatori bilan ham yo'qolmaydi: akkaunt birlashtirish faqat balans 0 va taklif qilingan do'st yo'q bo'lsa;
+keshbegi bor qator (balans 0 emas yoki kimdir uni `referred_by` deb ko'rsatgan — taklif qiluvchi har qanday foydalanuvchi,
+xodim yoki qabul qilinmagan taklif qatori ham bo'lishi mumkin, `User::holdsKeshbek`) o'chirilmaydi: ega xodimni
+o'chirsa, u ovqatxonadan chiqariladi (`DELETE /owner/employees/{id}`, boshqa tarix bilan bir xil javob), birlashtirilgan
+taklif qatori esa nofaol qilinadi (`User::discardMergedInvite`).
+
+Butun hisobot bitta bazaviy suratdan o'qiladi (`REPEATABLE READ READ ONLY` tranzaksiya): o'qish paytida boshqa ulanishda
+yozilgan o'zgarish (bonus va uning +5 000 i) hisobotga yo butunlay kiradi, yo butunlay kirmaydi — soxta farq bo'lmaydi.
 
 `reconciliation {opening, movement, closing, after_period, expected_now, live, difference}`: `opening` — oydan oldingi
 barcha harakatlar (0 dan), `movement` = `issued` − `clawed_back` + `legacy_store_paid` − `spent` + `returned`,
 `closing` = `opening` + `movement` (oy oxiridagi jami, harakatlardan), `expected_now` = `closing` + `after_period` (oydan
 keyingi harakatlar), `live` = hozirgi `SUM(users.balance)`, `difference` = `live` − `expected_now` — har bir balans
-o'zgarishi yozilgan bo'lsa 0; 0 bo'lmasa — yozuvsiz o'zgarish bor (bazada qo'lda tahrir, yoki keshbek to'lovi yozuvi yo'q
-eski keshbek buyurtmasi bekor qilingan: `OrderStatusService::refundKeshbek` to'liq summani hech narsa yozmay qaytaradi;
+o'zgarishi yozilgan bo'lsa 0; 0 bo'lmasa — yozuvsiz o'zgarish bor (bazada qo'lda tahrir yoki keshbek to'lovi yozuvi yo'q
+eski keshbek buyurtmasi: uning yechilishi ham yozilmagan, shuning uchun buyurtma turganda farq −summa; bekor qilinsa yoki
+qaytarilsa, `OrderStatusService::refundKeshbek` to'liq summani yana hech narsa yozmay qaytaradi va farq 0 ga qaytadi;
 `unrecorded.keshbek_orders_without_payment` shunday buyurtmalar soni). `outstanding {positive, negative, net, holders,
 debtors}` — **hozirgi** holat (`as_of`), oy oxiri emas: musbat balanslar — RIZQIM majburiyati, manfiy — bonus qaytarib
 olingandan keyingi qarzlar. `.../export` — xuddi shu `.xlsx` ("Keshbek" varag'i, `rizqim-keshbek-YYYY-MM.xlsx`).

@@ -190,6 +190,7 @@ describe('FinanceView', () => {
     expect(difference).not.toHaveAttribute('data-mismatch');
     expect(difference).toHaveTextContent("Har bir balans o'zgarishi yozilgan.");
     expect(within(section).queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('keshbek-invalid')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keshbek (Excel)' })).toBeInTheDocument();
     expect(callsTo('GET', '/finance/reports/keshbek')[0]?.query.get('period')).toMatch(/^\d{4}-\d{2}$/);
   });
@@ -202,7 +203,7 @@ describe('FinanceView', () => {
           ok(keshbekReport({
             outstanding: { positive: '30000.00', negative: '-5000.00', net: '25000.00', holders: 1, debtors: 1 },
             reconciliation: { ...keshbekReport().reconciliation, live: '81234.56', difference: '51234.56' },
-            unrecorded: { keshbek_orders_without_payment: 1 },
+            unrecorded: { keshbek_orders_without_payment: 1, invalid_payload_values: 3 },
           })),
       },
       { initial: { ...START, tab: 'report' } },
@@ -213,6 +214,8 @@ describe('FinanceView', () => {
     expect(alert).toHaveTextContent(/51 234,56.so'm/);
     expect(alert).toHaveTextContent(/yozuvsiz o'zgarish bor/);
     expect(alert).toHaveTextContent("Keshbek to'lovi yozuvi yo'q buyurtmalar: 1 ta");
+    // The payload values the report could not read, beside the difference
+    expect(within(alert).getByTestId('keshbek-invalid')).toHaveTextContent("O'qib bo'lmagan to'lov qiymatlari (summa yoki vaqt): 3 ta");
     expect(screen.getByTestId('keshbek-debts')).toHaveTextContent(/Manfiy balanslar \(qarz\): −?-?5 000.so'm \(1 ta mijoz\)/);
   });
 

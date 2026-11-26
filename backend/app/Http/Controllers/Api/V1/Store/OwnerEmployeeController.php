@@ -176,7 +176,8 @@ class OwnerEmployeeController extends Controller
         // with the orders. Foreign-key actions run as the table owner, so no store guard and no row-level security
         // policy sees them. Such a person is taken out of the store instead (no role, store, PIN or session) and stays
         // the customer they also are. The same for staff who did anything in the store: the delete's ON DELETE SET
-        // NULL actions would erase WHO from the store's own money journal. Only an account with no history is deleted
+        // NULL actions would erase WHO from the store's own money journal; and keshbek held, owed or earned through
+        // referred friends would go without a record (review H1). Only an account with no history is deleted
         if ($this->hasHistory($employee)) {
             DB::transaction(function () use ($employee) {
                 $employee->forceFill([
@@ -199,7 +200,9 @@ class OwnerEmployeeController extends Controller
      * nearly everything done at a till or in the panel (audit_logs.user_id), then deliveries (orders.courier_id), work
      * sessions and tips; then the money columns that have no index of their own, within the person's store:
      * orders.waiter_id, pos_shifts.opened_by / closed_by, cash_movements.user_id, payments.received_by,
-     * pos_refunds.user_id. Asked as the login role (TenantRls::asApp) and without the store scope: the owner's request
+     * pos_refunds.user_id. Keshbek (review H1): a non-zero balance (keshbek held or owed) or friends who name the
+     * person as their referrer (User::holdsKeshbek) — any user can be a referrer, and the delete would drop the balance
+     * without a record and cut the friends' referred_by. Asked as the login role (TenantRls::asApp) and without the store scope: the owner's request
      * is bound to their own store, and a customer's rows are the other stores'. Only "exists" comes back.
      */
     private function hasHistory(User $employee): bool
@@ -218,7 +221,8 @@ class OwnerEmployeeController extends Controller
             || $own('pos_shifts')->where(fn ($q) => $q->where('opened_by', $id)->orWhere('closed_by', $id))->exists()
             || $own('cash_movements')->where('user_id', $id)->exists()
             || $own('payments')->where('received_by', $id)->exists()
-            || $own('pos_refunds')->where('user_id', $id)->exists());
+            || $own('pos_refunds')->where('user_id', $id)->exists()
+            || $employee->holdsKeshbek());
     }
 
     private function isStoreOwner(User $user): bool

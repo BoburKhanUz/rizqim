@@ -3,8 +3,6 @@
 namespace App\Services\Finance\Reports;
 
 use App\Enums\PaymentStatus;
-use App\Enums\StoreTransactionType;
-use App\Services\Finance\LedgerService;
 use App\Support\Money;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -29,13 +27,22 @@ use Illuminate\Support\Facades\DB;
  *   RefundRequestService::spread) and the give-back of a cancellation or full refund (refunded_to_balance, at
  *   refunded_at; OrderStatusService::refundKeshbek) — the latter only when it is not the whole-amount marker that a
  *   request returning the last part also writes (the KeshbekHistory rule: refunded_to_balance_by_requests set, or no
- *   parts). A missing refunded_at falls back to the payment's created_at, as KeshbekHistory does.
+ *   parts). A missing refunded_at falls back to the payment's created_at, as KeshbekHistory does; so does one the
+ *   report cannot read (review M2: only ISO 8601 with an explicit offset or Z is read — an offset-less time's zone is
+ *   unknown — and only plain decimals as amounts; a part whose amount is unreadable is not counted). Every rejected
+ *   payload value is counted in `unrecorded.invalid_payload_values`, shown beside the difference; no value can fail
+ *   the report.
  *
- * No other code in app/ writes users.balance (an account merge requires a zero balance; staff, admin and privacy paths
- * never touch it). A change made around these paths — a hand edit in the database, or a legacy keshbek order without
- * a keshbek payment row that is then cancelled or refunded (refundKeshbek gives the whole total back and writes
- * nothing; `unrecorded.keshbek_orders_without_payment` counts such orders) — has no record: it shows in the
- * reconciliation's `difference`, which is reported, never hidden.
+ * No other code in app/ writes users.balance. Nor does any path drop a balance with the users row: an account merge
+ * requires a zero balance and no referred friends (AccountLinkingService), and a users row that holds keshbek (a
+ * non-zero balance or friends who name it as referrer, User::holdsKeshbek — any user can be a referrer, staff and
+ * unclaimed invite rows included) is never deleted: the owner removing an employee takes them out of the store
+ * instead (OwnerEmployeeController::destroy), and an invite row merged into an existing account is retired
+ * (User::discardMergedInvite). A change made around these paths has no record and shows in the reconciliation's
+ * `difference`, which is reported, never hidden: a hand edit in the database, or a legacy keshbek order without a
+ * keshbek payment row (`unrecorded.keshbek_orders_without_payment` counts them). Such an order's debit left no record
+ * either, so while it stands the difference is −total; when it is cancelled or refunded, refundKeshbek gives the
+ * whole total back, again writing nothing, and the difference returns to 0.
  *
  * Reconciliation: opening (every movement before the month, from a zero start) + issued − clawed_back +
  * legacy_store_paid − spent + returned = closing (the month-end total from movements); closing + the movements after
@@ -43,52 +50,97 @@ use Illuminate\Support\Facades\DB;
  * change is recorded). `outstanding` (positive balances = the platform's liability, negative ones = customers' debts
  * after a clawback) is a snapshot of now (`as_of`), not of the month end: the month-end total is `closing`.
  *
- * Read-only, as the login role: an admin request is not tenant-bound (like MonthlyRevenueReport).
+ * Read-only, as the login role: an admin request is not tenant-bound (like MonthlyRevenueReport). One snapshot for
+ * every query (build). The store_transactions sources are read in one pass through a partial index (LEDGER_ROWS), the
+ * keshbek payments through the provider-leading index payments_provider_scope_transaction_unique.
  */
 class KeshbekLiabilityReport
 {
     /**
-     * @return array{period: string, timezone: string, as_of: string, issued: array{count: int, amount: Money}, clawed_back: array{count: int, amount: Money}, legacy_store_paid: array{count: int, amount: Money}, spent: array{count: int, amount: Money}, returned: array{count: int, amount: Money}, outstanding: array{positive: Money, negative: Money, net: Money, holders: int, debtors: int}, reconciliation: array{opening: Money, movement: Money, closing: Money, after_period: Money, expected_now: Money, live: Money, difference: Money}, unrecorded: array{keshbek_orders_without_payment: int}}
+     * The keshbek rows of store_transactions, as SQL: the platform's referral bonuses and their clawbacks, and the
+     * legacy store-paid bonuses. Literals, not bindings, and word for word the predicate of the partial index
+     * store_transactions_keshbek_movements_index (migration 2026_12_11_100000), so the planner can prove the index
+     * applies (KeshbekLiabilityReportTest::test_the_report_reads_through_its_indexes).
+     */
+    public const LEDGER_ROWS = "type = 'referral_bonus' OR (type = 'commission' AND notes LIKE 'Referral cashback reward cost%')";
+
+    /**
+     * A payload time the report reads: ISO 8601 with an explicit offset or Z (what toIso8601String writes). A time
+     * without an offset is not read (in which zone it was written is unknown), nor an epoch, nor anything else. The
+     * day is checked against the month apart (timestampOrNull), so no cast can fail.
+     */
+    private const TIMESTAMP = '^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[T ]([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9](\.[0-9]+)?)?(Z|[+-](0[0-9]|1[0-5])(:?[0-5][0-9])?)$';
+
+    /** A payload amount the report reads: a plain decimal (no exponent, NaN, Infinity, blanks or empty string). */
+    private const DECIMAL = '^-?[0-9]+(\.[0-9]+)?$';
+
+    /**
+     * Review M1: every query reads the same snapshot, in one REPEATABLE READ READ ONLY transaction: a balance change
+     * committed while the report is being read (a bonus booked with its +5 000) is wholly in it or wholly out of it,
+     * never in SUM(users.balance) alone (a false difference). SET TRANSACTION must be the transaction's first
+     * statement, so it is sent only when this is the outermost one (level 1): inside a transaction somebody else opened
+     * (the test suite's RefreshDatabase, a console command's) it is a savepoint, where PostgreSQL refuses it
+     * ("must be called before any query"), and that transaction's own snapshot rules apply. An admin request is not
+     * tenant-bound, so nothing runs between BEGIN and it (RevisionPostgresConnection takes the tenant role only for a
+     * bound store; a SET LOCAL ROLE takes no snapshot, so even then it would still be first).
+     *
+     * @return array{period: string, timezone: string, as_of: string, issued: array{count: int, amount: Money}, clawed_back: array{count: int, amount: Money}, legacy_store_paid: array{count: int, amount: Money}, spent: array{count: int, amount: Money}, returned: array{count: int, amount: Money}, outstanding: array{positive: Money, negative: Money, net: Money, holders: int, debtors: int}, reconciliation: array{opening: Money, movement: Money, closing: Money, after_period: Money, expected_now: Money, live: Money, difference: Money}, unrecorded: array{keshbek_orders_without_payment: int, invalid_payload_values: int}}
      */
     public function build(string $period): array
     {
+        return DB::transaction(function () use ($period) {
+            if (DB::transactionLevel() === 1) {
+                DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            }
+
+            return $this->read($period);
+        });
+    }
+
+    /**
+     * @return array{period: string, timezone: string, as_of: string, issued: array{count: int, amount: Money}, clawed_back: array{count: int, amount: Money}, legacy_store_paid: array{count: int, amount: Money}, spent: array{count: int, amount: Money}, returned: array{count: int, amount: Money}, outstanding: array{positive: Money, negative: Money, net: Money, holders: int, debtors: int}, reconciliation: array{opening: Money, movement: Money, closing: Money, after_period: Money, expected_now: Money, live: Money, difference: Money}, unrecorded: array{keshbek_orders_without_payment: int, invalid_payload_values: int}}
+     */
+    private function read(string $period): array
+    {
         [$start, $end] = MonthlyRevenueReport::monthBounds($period);
-        $bonus = StoreTransactionType::REFERRAL_BONUS->value;
-        // A JSON timestamp (ISO 8601 with an offset) in the app's time zone, the zone created_at is written in
-        $local = fn (string $json) => "(({$json})::timestamptz AT TIME ZONE " . self::appTimezoneLiteral() . ')';
 
-        $issued = $this->buckets(DB::table('store_transactions')->where('type', $bonus)->where('amount', '>', 0), 'created_at', 'amount', $start, $end);
-        $clawed = $this->buckets(DB::table('store_transactions')->where('type', $bonus)->where('amount', '<', 0), 'created_at', '-amount', $start, $end);
-        $legacy = $this->buckets(
-            DB::table('store_transactions')->where('type', StoreTransactionType::COMMISSION->value)->where('notes', 'like', LedgerService::REFERRAL_NOTE . '%'),
-            'created_at',
-            'amount',
-            $start,
-            $end,
-        );
-        $spent = $this->buckets(DB::table('payments')->where('provider', 'keshbek'), 'created_at', 'amount', $start, $end);
+        // Review M3: the three store_transactions sources in one pass over the keshbek rows (the partial index)
+        $ledger = new KeshbekBuckets($start, $end);
+        $ledger->add('issued', 'created_at', "CASE WHEN type = 'referral_bonus' AND amount > 0 THEN amount END");
+        $ledger->add('clawed', 'created_at', "CASE WHEN type = 'referral_bonus' AND amount < 0 THEN -amount END");
+        $ledger->add('legacy', 'created_at', "CASE WHEN type = 'commission' THEN amount END");
+        $ledgerRow = $ledger->select(DB::table('store_transactions')->whereRaw('(' . self::LEDGER_ROWS . ')'))->first();
+        [$issued, $clawed, $legacy] = [$ledger->read($ledgerRow, 'issued'), $ledger->read($ledgerRow, 'clawed'), $ledger->read($ledgerRow, 'legacy')];
 
+        // The keshbek payments in one pass: what was spent, and the give-back of a cancellation or full refund
+        // (refunded_to_balance, unless it is the whole-amount marker a request returning the last part also writes:
+        // counted only with refunded_to_balance_by_requests set, or without parts — the KeshbekHistory rule)
         $parts = "p.payload->'refunded_to_balance_parts'";
-        $requestParts = $this->buckets(
+        $giveBack = "p.payload->>'refunded_to_balance'";
+        $giveBackAt = "p.payload->>'refunded_at'";
+        $marker = "(p.payload->'refunded_to_balance_by_requests' IS NOT NULL OR CASE WHEN jsonb_typeof({$parts}) = 'array' THEN jsonb_array_length({$parts}) = 0 ELSE true END)";
+        $payments = new KeshbekBuckets($start, $end);
+        $payments->add('spent', 'p.created_at', 'p.amount');
+        $payments->add('cancelled', 'COALESCE(' . self::timestampOrNull($giveBackAt) . ', p.created_at)', 'CASE WHEN ' . self::decimalOrNull($giveBack) . " > 0 THEN CASE WHEN {$marker} THEN " . self::decimalOrNull($giveBack) . ' END END');
+        $paymentRow = $payments->select(DB::table('payments as p')->where('p.provider', 'keshbek'), [
+            'invalid' => 'COUNT(*) FILTER (WHERE ' . self::invalid($giveBack, self::decimalOrNull($giveBack)) . ') + COUNT(*) FILTER (WHERE ' . self::invalid($giveBackAt, self::timestampOrNull($giveBackAt)) . ')',
+        ])->first();
+        [$spent, $cancellations] = [$payments->read($paymentRow, 'spent'), $payments->read($paymentRow, 'cancelled')];
+
+        // Each part of an approved refund request (RefundRequestService::spread), at its refunded_at; a part that is
+        // not an object or whose amount is unreadable is not counted
+        $partAmount = "part->>'amount'";
+        $partAt = "part->>'refunded_at'";
+        $requests = new KeshbekBuckets($start, $end);
+        $requests->add('parts', 'COALESCE(' . self::timestampOrNull($partAt) . ', p.created_at)', self::decimalOrNull($partAmount));
+        $partRow = $requests->select(
             DB::table('payments as p')
                 ->crossJoin(DB::raw("LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof({$parts}) = 'array' THEN {$parts} ELSE '[]'::jsonb END) AS part"))
-                ->where('p.provider', 'keshbek')
-                ->whereRaw("jsonb_typeof(part) = 'object' AND part->>'amount' IS NOT NULL"),
-            'COALESCE(' . $local("part->>'refunded_at'") . ', p.created_at)',
-            "(part->>'amount')::numeric",
-            $start,
-            $end,
-        );
-        $cancellations = $this->buckets(
-            DB::table('payments as p')
-                ->where('p.provider', 'keshbek')
-                ->whereRaw("p.payload->>'refunded_to_balance' IS NOT NULL AND (p.payload->>'refunded_to_balance')::numeric > 0")
-                ->whereRaw("(p.payload->'refunded_to_balance_by_requests' IS NOT NULL OR CASE WHEN jsonb_typeof({$parts}) = 'array' THEN jsonb_array_length({$parts}) = 0 ELSE true END)"),
-            'COALESCE(' . $local("p.payload->>'refunded_at'") . ', p.created_at)',
-            "(p.payload->>'refunded_to_balance')::numeric",
-            $start,
-            $end,
-        );
+                ->where('p.provider', 'keshbek'),
+            ['invalid' => "COUNT(*) FILTER (WHERE jsonb_typeof(part) <> 'object' OR " . self::decimalOrNull($partAmount) . ' IS NULL) + COUNT(*) FILTER (WHERE ' . self::invalid($partAt, self::timestampOrNull($partAt)) . ')'],
+        )->first();
+        $requestParts = $requests->read($partRow, 'parts');
+
         $returned = [
             'before' => $requestParts['before']->plus($cancellations['before']),
             'within' => $requestParts['within']->plus($cancellations['within']),
@@ -112,7 +164,8 @@ class KeshbekLiabilityReport
         $negative = Money::of((string) ($live->negative ?? '0'));
         $liveTotal = $positive->plus($negative);
 
-        // Keshbek orders whose debit left no payment row (older data, if any): refundKeshbek gives them back unrecorded
+        // Keshbek orders whose debit left no payment row (older data, if any): neither the debit nor refundKeshbek's
+        // give-back of the whole total is recorded
         $withoutPayment = DB::table('orders as o')
             ->where('o.payment_method', 'keshbek')
             ->whereIn('o.payment_status', [PaymentStatus::PAID->value, PaymentStatus::REFUNDED->value])
@@ -146,32 +199,37 @@ class KeshbekLiabilityReport
                 'live' => $liveTotal,
                 'difference' => $liveTotal->minus($expectedNow),
             ],
-            'unrecorded' => ['keshbek_orders_without_payment' => $withoutPayment],
+            'unrecorded' => [
+                'keshbek_orders_without_payment' => $withoutPayment,
+                'invalid_payload_values' => (int) ($paymentRow->invalid ?? 0) + (int) ($partRow->invalid ?? 0),
+            ],
         ];
     }
 
     /**
-     * One source's amounts before the month, in it (and how many rows) and after it. $at is a timestamp in the app's
-     * time zone; $amount the row's (positive) effect on the balances, both SQL expressions of the code above.
-     *
-     * @return array{before: Money, within: Money, count: int, after: Money}
+     * SQL: the payload text $text as a timestamp in the app's time zone (the zone created_at is written in), or NULL
+     * when it is not one the report reads (TIMESTAMP; a day past the month's end, such as 30 February, too). Nested
+     * CASEs, because PostgreSQL evaluates CASE branches in order but not the operands of AND: no cast ever sees a value
+     * it would fail on.
      */
-    private function buckets(Builder $query, string $at, string $amount, string $start, string $end): array
+    private static function timestampOrNull(string $text): string
     {
-        $row = $query->selectRaw(
-            "COALESCE(SUM(CASE WHEN {$at} < ? THEN {$amount} END), 0) AS sum_before, "
-            . "COALESCE(SUM(CASE WHEN {$at} >= ? AND {$at} < ? THEN {$amount} END), 0) AS sum_within, "
-            . "COUNT(CASE WHEN {$at} >= ? AND {$at} < ? THEN 1 END) AS count_within, "
-            . "COALESCE(SUM(CASE WHEN {$at} >= ? THEN {$amount} END), 0) AS sum_after",
-            [$start, $start, $end, $start, $end, $end]
-        )->first();
+        $lastDay = "extract(day from make_date(substr({$text}, 1, 4)::int, substr({$text}, 6, 2)::int, 1) + interval '1 month' - interval '1 day')";
 
-        return [
-            'before' => Money::of((string) ($row->sum_before ?? '0')),
-            'within' => Money::of((string) ($row->sum_within ?? '0')),
-            'count' => (int) ($row->count_within ?? 0),
-            'after' => Money::of((string) ($row->sum_after ?? '0')),
-        ];
+        return "(CASE WHEN {$text} ~ '" . self::TIMESTAMP . "' THEN CASE WHEN substr({$text}, 9, 2)::int <= {$lastDay} "
+            . "THEN ({$text})::timestamptz AT TIME ZONE " . self::appTimezoneLiteral() . ' END END)';
+    }
+
+    /** SQL: the payload text $text as a number, or NULL when it is not a plain decimal (DECIMAL). */
+    private static function decimalOrNull(string $text): string
+    {
+        return "(CASE WHEN {$text} ~ '" . self::DECIMAL . "' THEN ({$text})::numeric END)";
+    }
+
+    /** SQL: $text is there but unreadable ($parsed, its timestampOrNull or decimalOrNull, is NULL). */
+    private static function invalid(string $text, string $parsed): string
+    {
+        return "{$text} IS NOT NULL AND {$parsed} IS NULL";
     }
 
     /** config('app.timezone') as an SQL string literal; only a known zone name, so it is never anything else. */
