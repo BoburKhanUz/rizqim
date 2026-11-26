@@ -9614,6 +9614,290 @@
                 ]
             }
         },
+        "/v1/admin/finance/reports/keshbek": {
+            "get": {
+                "operationId": "admin.finance.reports.keshbek",
+                "description": "`period` — \"YYYY-MM\", an Asia/Tashkent month (default: the current one). The month's keshbek movements, each\n`{count, amount}`: `issued` — referral bonuses the platform granted (store_transactions `referral_bonus`,\namount > 0); `clawed_back` — those taken back (amount < 0); `legacy_store_paid` — the bonuses stores paid before\nowner decision 3's addition (`commission` rows with the referral note; not the platform's); `spent` — keshbek\npayments (payments.provider `keshbek`, by created_at, whatever their status now); `returned` — what refunds gave\nback to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance). `reconciliation`:\n`opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =\n`expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance\nchange is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the\nmonth end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row;\n`unrecorded.invalid_payload_values` — payload values of keshbek payments the report could not read (an amount\nthat is not a plain decimal, a time that is not ISO 8601 with an offset or Z): an unreadable amount is not\ncounted, an unreadable time falls back to the payment's created_at. One database snapshot for the whole report.\nAmounts are decimal strings.",
+                "summary": "Keshbek report",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "period": {
+                                                    "type": "string"
+                                                },
+                                                "timezone": {
+                                                    "type": "string"
+                                                },
+                                                "as_of": {
+                                                    "type": "string"
+                                                },
+                                                "issued": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "amount": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "count",
+                                                        "amount"
+                                                    ]
+                                                },
+                                                "clawed_back": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "amount": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "count",
+                                                        "amount"
+                                                    ]
+                                                },
+                                                "legacy_store_paid": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "amount": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "count",
+                                                        "amount"
+                                                    ]
+                                                },
+                                                "spent": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "amount": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "count",
+                                                        "amount"
+                                                    ]
+                                                },
+                                                "returned": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "amount": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "count",
+                                                        "amount"
+                                                    ]
+                                                },
+                                                "outstanding": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "positive": {
+                                                            "type": "string"
+                                                        },
+                                                        "negative": {
+                                                            "type": "string"
+                                                        },
+                                                        "net": {
+                                                            "type": "string"
+                                                        },
+                                                        "holders": {
+                                                            "type": "integer"
+                                                        },
+                                                        "debtors": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "positive",
+                                                        "negative",
+                                                        "net",
+                                                        "holders",
+                                                        "debtors"
+                                                    ]
+                                                },
+                                                "reconciliation": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "opening": {
+                                                            "type": "string"
+                                                        },
+                                                        "movement": {
+                                                            "type": "string"
+                                                        },
+                                                        "closing": {
+                                                            "type": "string"
+                                                        },
+                                                        "after_period": {
+                                                            "type": "string"
+                                                        },
+                                                        "expected_now": {
+                                                            "type": "string"
+                                                        },
+                                                        "live": {
+                                                            "type": "string"
+                                                        },
+                                                        "difference": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "opening",
+                                                        "movement",
+                                                        "closing",
+                                                        "after_period",
+                                                        "expected_now",
+                                                        "live",
+                                                        "difference"
+                                                    ]
+                                                },
+                                                "unrecorded": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "keshbek_orders_without_payment": {
+                                                            "type": "integer"
+                                                        },
+                                                        "invalid_payload_values": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "keshbek_orders_without_payment",
+                                                        "invalid_payload_values"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "period",
+                                                "timezone",
+                                                "as_of",
+                                                "issued",
+                                                "clawed_back",
+                                                "legacy_store_paid",
+                                                "spent",
+                                                "returned",
+                                                "outstanding",
+                                                "reconciliation",
+                                                "unrecorded"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
+        "/v1/admin/finance/reports/keshbek/export": {
+            "get": {
+                "operationId": "admin.finance.reports.keshbek_exported",
+                "description": "The same report as an .xlsx workbook (sheet \"Keshbek\"). Needs admin.export as well; each export is recorded in\nthe audit log.",
+                "summary": "Keshbek report (Excel)",
+                "tags": [
+                    "Admin"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Content-Disposition": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "example": "attachment"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                "Faylni tayyorlab bo'lmadi."
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/finance/reports/monthly": {
             "get": {
                 "operationId": "admin.finance.reports.monthly",

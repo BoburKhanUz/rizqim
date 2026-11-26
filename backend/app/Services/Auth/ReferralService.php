@@ -76,7 +76,13 @@ class ReferralService
 
         $referrer = User::find((int) $candidate);
 
-        return $referrer && (string) $referrer->telegram_id !== $telegramId ? $referrer->id : null;
+        // An unclaimed employee invite row (telegram_id temp_…) signs in nowhere: a bonus credited to it could never
+        // be spent, so it is no referrer. Staff are (they may invite friends); docs/OPERATIONS.md 31-bo'lim
+        if ($referrer === null || str_starts_with((string) $referrer->telegram_id, 'temp_')) {
+            return null;
+        }
+
+        return (string) $referrer->telegram_id !== $telegramId ? $referrer->id : null;
     }
 
     public function pendingKey(string $telegramId): string

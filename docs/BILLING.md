@@ -389,6 +389,15 @@ Ekranlar va amallar: [guides/boshqaruv-markazi.md](guides/boshqaruv-markazi.md),
 - **Rizqim daromadi** — Moliya → Oylik hisobot: oylar bo'yicha komissiya va obuna daromadi hamda tanlangan oy uchun
   restoranlar bo'yicha. Komissiya: oyda yetkazilgan va qaytarilmagan buyurtmalarning `commission_amount` yig'indisi
   (yetkazilgan vaqt — birinchi `delivered` holat yozuvi). Obuna: shu oy uchun chiqqan, bekor qilinmagan hisob-fakturalar.
+- **Keshbek majburiyati** — Moliya → Oylik hisobot → "Keshbek" bo'limi (`GET /admin/finance/reports/keshbek`, Excel
+  ham; ta'riflar — API.md "Keshbek hisoboti"). Mijozlar qo'lidagi keshbek (`users.balance` musbat qismi) — RIZQIM
+  majburiyati: keshbek bilan to'langan buyurtma pulini RIZQIM ovqatxonaga haqiqiy pul bilan o'tkazadi. Oy bo'yicha:
+  berilgan bonuslar (RIZQIM), qaytarib olinganlari, eski bonuslar (ovqatxona to'lagan, alohida), buyurtmalarga
+  ishlatilgan va qaytarishda balansga qaytgan keshbek. **Solishtirish**: boshlang'ich qoldiq + berilgan − qaytarib
+  olingan + eski − ishlatilgan + qaytgan = yakuniy qoldiq (harakatlardan); u + oydan keyingi harakatlar hozirgi
+  `SUM(users.balance)` ga teng bo'lishi kerak. Farq 0 bo'lmasa (ekranda qizil) — balans yozuvsiz o'zgargan (bazada qo'lda
+  tahrir yoki keshbek to'lovi yozuvi yo'q eski keshbek buyurtmasi: u turganda farq −summa, bekor qilinsa 0 ga qaytadi):
+  sababini topish kerak, raqamni yashirmaymiz. Farq yonida o'qib bo'lmagan to'lov qiymatlari soni ham ko'rsatiladi. Musbat/manfiy balanslar — hozirgi holat, oy oxiri emas.
 
 ### Narxni qanday o'zgartirish kerak
 

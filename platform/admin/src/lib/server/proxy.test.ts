@@ -305,6 +305,12 @@ describe('admin proxy', () => {
       expect(file.headers.get('Content-Disposition')).toContain('rizqim-daromad-2026-10.xlsx');
       expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([80, 75, 3, 4]));
 
+      // The keshbek report's Excel file too
+      stubBackend(() => new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Type': xlsx, 'Content-Disposition': 'attachment; filename=rizqim-keshbek-2026-10.xlsx' } }));
+      const keshbek = await forward(request('GET', 'v1/admin/finance/reports/keshbek/export?period=2026-10', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'reports', 'keshbek', 'export']);
+      expect(keshbek.status).toBe(200);
+      expect(keshbek.headers.get('Content-Disposition')).toContain('rizqim-keshbek-2026-10.xlsx');
+
       // Not a download path: the bytes never pass (said as a bad gateway answer)
       const other = await forward(request('GET', 'v1/admin/team', { cookie: 'tok' }), ['v1', 'admin', 'team']);
       expect((await other.json()).data.reason).toBe('bad_gateway');

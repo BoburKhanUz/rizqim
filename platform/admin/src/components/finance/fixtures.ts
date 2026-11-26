@@ -1,4 +1,4 @@
-import type { Adjustment, BalancePage, FinanceSummary, MonthlyReport, PayoutCard, PayoutPage, PayoutRow } from '@/lib/api/finance';
+import type { Adjustment, BalancePage, FinanceSummary, KeshbekReport, MonthlyReport, PayoutCard, PayoutPage, PayoutRow } from '@/lib/api/finance';
 
 // Answers of the Moliya endpoints for the component tests (shapes of AdminFinance*Controller)
 
@@ -119,4 +119,20 @@ export const report = (): MonthlyReport => ({
   ],
   subscriptions: { invoices: 1, invoiced: '149000.00', paid: '100000.00', outstanding: '49000.00' },
   stores: [{ store: { id: 4, name: 'Beta' }, orders: 0, gmv: '0.00', commission: '0.00', commission_by_channel: {}, subscription: '149000.00', total: '149000.00' }],
+});
+
+// The backend test's October: 3 bonuses, 1 taken back, a 50 000 keshbek order, 20 000 of it returned
+export const keshbekReport = (overrides: Partial<KeshbekReport> = {}): KeshbekReport => ({
+  period: '2026-10',
+  timezone: 'Asia/Tashkent',
+  as_of: '2026-11-10T12:00:00+05:00',
+  issued: { count: 3, amount: '15000.00' },
+  clawed_back: { count: 1, amount: '5000.00' },
+  legacy_store_paid: { count: 0, amount: '0.00' },
+  spent: { count: 1, amount: '50000.00' },
+  returned: { count: 1, amount: '20000.00' },
+  outstanding: { positive: '30000.00', negative: '0.00', net: '30000.00', holders: 1, debtors: 0 },
+  reconciliation: { opening: '50000.00', movement: '-20000.00', closing: '30000.00', after_period: '0.00', expected_now: '30000.00', live: '30000.00', difference: '0.00' },
+  unrecorded: { keshbek_orders_without_payment: 0, invalid_payload_values: 0 },
+  ...overrides,
 });

@@ -237,6 +237,30 @@ export interface MonthlyReport {
   stores: { store: Named; orders: number; gmv: string; commission: string; commission_by_channel: Record<string, string>; subscription: string; total: string }[];
 }
 
+// Keshbek (users.balance): the month's movements read back from their records, the balances now (the platform's
+// liability; negative = debts after a clawback) and the reconciliation of the movements with SUM(users.balance) —
+// `difference` is 0 while every balance change left a record (docs/API.md "Keshbek hisoboti")
+export interface KeshbekMovement {
+  count: number;
+  amount: string;
+}
+
+export interface KeshbekReport {
+  period: string;
+  timezone: string;
+  as_of: string;
+  issued: KeshbekMovement;
+  clawed_back: KeshbekMovement;
+  legacy_store_paid: KeshbekMovement;
+  spent: KeshbekMovement;
+  returned: KeshbekMovement;
+  outstanding: { positive: string; negative: string; net: string; holders: number; debtors: number };
+  reconciliation: { opening: string; movement: string; closing: string; after_period: string; expected_now: string; live: string; difference: string };
+  // invalid_payload_values: payload values of keshbek payments the report could not read (an amount that is not a plain
+  // decimal is not counted; a time without an offset falls back to the payment's created_at)
+  unrecorded: { keshbek_orders_without_payment: number; invalid_payload_values: number };
+}
+
 // --- Calls --------------------------------------------------------------------------------------------------------------
 
 const data = async <T>(promise: ReturnType<typeof call>): Promise<T> => (await promise).data as T;
@@ -286,6 +310,8 @@ export const downloadAdjustmentDocument = (adjustment: Pick<Adjustment, 'id' | '
 
 export const getMonthlyReport = (period: string, signal?: AbortSignal) => data<MonthlyReport>(call('GET', '/finance/reports/monthly', { query: { period }, signal }));
 export const downloadMonthlyReport = (period: string): Promise<DownloadedFile> => download('/finance/reports/monthly/export', { period }, `rizqim-daromad-${period}.xlsx`);
+export const getKeshbekReport = (period: string, signal?: AbortSignal) => data<KeshbekReport>(call('GET', '/finance/reports/keshbek', { query: { period }, signal }));
+export const downloadKeshbekReport = (period: string): Promise<DownloadedFile> => download('/finance/reports/keshbek/export', { period }, `rizqim-keshbek-${period}.xlsx`);
 
 // --- Hooks --------------------------------------------------------------------------------------------------------------
 
@@ -301,6 +327,7 @@ export const FINANCE_KEYS = {
   adjustments: (status: AdjustmentFilter) => ['admin-finance', 'adjustments', status] as const,
   adjustment: (id: number) => ['admin-finance', 'adjustment', id] as const,
   report: (period: string) => ['admin-finance', 'report', period] as const,
+  keshbek: (period: string) => ['admin-finance', 'keshbek', period] as const,
 };
 
 const POLL_MS = 60_000;
@@ -326,6 +353,7 @@ export const useLedger = (storeId: number | null, ledger: 'debt' | 'wallet') =>
 export const useAdjustments = (status: AdjustmentFilter, enabled = true) => useInfinitePages(FINANCE_KEYS.adjustments(status), (cursor, signal) => listAdjustments(status, cursor, signal), enabled);
 export const useAdjustment = (id: number | null) => useQuery({ queryKey: FINANCE_KEYS.adjustment(id ?? 0), queryFn: ({ signal }) => getAdjustment(id ?? 0, signal), enabled: id !== null });
 export const useMonthlyReport = (period: string, enabled = true) => useQuery({ queryKey: FINANCE_KEYS.report(period), queryFn: ({ signal }) => getMonthlyReport(period, signal), enabled: enabled && /^\d{4}-\d{2}$/.test(period) });
+export const useKeshbekReport = (period: string, enabled = true) => useQuery({ queryKey: FINANCE_KEYS.keshbek(period), queryFn: ({ signal }) => getKeshbekReport(period, signal), enabled: enabled && /^\d{4}-\d{2}$/.test(period) });
 
 // Every write refreshes the whole section (the summary, the queues and the card it answered)
 function useFinanceWrite<I, R>(fn: (input: I) => Promise<R>, seed?: (client: ReturnType<typeof useQueryClient>, result: R) => void) {

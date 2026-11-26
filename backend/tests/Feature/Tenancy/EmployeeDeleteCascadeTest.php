@@ -87,10 +87,49 @@ class EmployeeDeleteCascadeTest extends TestCase
         $this->assertSame([UserRole::CUSTOMER, null, null, null], [$person->role, $person->store_id, $person->branch_id, $person->pin_hash]);
     }
 
+    /**
+     * Keshbek review H1: any user can be a referrer (ref_<id>), staff included. The balance (keshbek held or owed) and
+     * the friends' referred_by are on the users row: a delete would drop the platform's liability (or a debt) without
+     * a record and cut the friends loose (ON DELETE SET NULL). Either one keeps the row, as any other history does.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function keshbekHistory(): array
+    {
+        return ['holds keshbek' => ['balance'], 'owes keshbek' => ['debt'], 'referred a friend' => ['referral']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('keshbekHistory')]
+    public function test_an_employee_with_keshbek_or_a_referred_friend_keeps_the_row(string $what): void
+    {
+        $this->setUpLifecycleStore();
+        $staff = $this->givePin($this->makeStaff(UserRole::CASHIER, $this->branch));
+        $friend = null;
+        match ($what) {
+            'balance' => DB::table('users')->where('id', $staff->id)->update(['balance' => '5000.00']),
+            'debt' => DB::table('users')->where('id', $staff->id)->update(['balance' => '-5000.00']),
+            'referral' => $friend = $this->makeCustomer(0, ['referred_by' => $staff->id]),
+        };
+        $friend?->forceFill(['referred_by' => $staff->id])->save();
+
+        $this->bearerJson('DELETE', "/api/v1/owner/employees/{$staff->id}", $this->owner->createToken('t')->plainTextToken)
+            ->assertOk()
+            ->assertExactJson(['success' => true, 'message' => "Xodim tizimdan o'chirildi.", 'data' => null]);
+
+        $person = User::findOrFail($staff->id);
+        $this->assertSame([UserRole::CUSTOMER, null, null, null], [$person->role, $person->store_id, $person->branch_id, $person->pin_hash]);
+        $this->assertSame(match ($what) { 'balance' => '5000.00', 'debt' => '-5000.00', default => '0.00' }, (string) $person->balance);
+        if ($friend !== null) {
+            $this->assertSame($staff->id, (int) $friend->fresh()->referred_by, 'the friend still names the referrer');
+        }
+    }
+
     public function test_an_account_that_never_did_anything_is_deleted_as_before(): void
     {
         $this->setUpLifecycleStore();
         $cook = $this->makeStaff(UserRole::COOK, $this->branch);
+        $this->assertSame('0.00', (string) $cook->fresh()->balance);
+        $this->makeCustomer(0, ['referred_by' => null]);
         $this->makeOrder(\App\Enums\OrderStatus::NEW);
 
         $this->bearerJson('DELETE', "/api/v1/owner/employees/{$cook->id}", $this->owner->createToken('t')->plainTextToken)->assertOk();
