@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\Analytics\AnalyticsErasure;
 use App\Http\Requests\Admin\AdminRules;
 use App\Models\User;
 use App\Services\Admin\AdminAudit;
@@ -87,9 +88,35 @@ class AdminCustomerActionController extends AdminController
     }
 
     /**
-     * @param  callable(User): array<string, mixed>  $action
+     * Delete the user's statistics
+     *
+     * A privacy request: deletes every stored Mini App statistics row (analytics_events) of the account, in every month
+     * (nothing else: orders, payments and the anonymous daily totals stay). `reason` is required (e.g. how the person
+     * asked); send an `Idempotency-Key`: a repeat with it answers the first result and is not recorded again. Answers
+     * the card; the message and the audit entry (`analytics_events_deleted`) give the count. Backups keep the rows
+     * until they age out (docs/OPERATIONS.md). 403 `platform_account`.
      */
-    private function act(Request $request, int $id, callable $action, string $message): JsonResponse
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array<string, mixed>}')]
+    #[ApiDocResponse(403, 'A RIZQIM team account (platform_account)', type: self::ERROR)]
+    public function forgetAnalytics(Request $request, int $id, AnalyticsErasure $erasure): JsonResponse
+    {
+        $request->validate(['reason' => AdminRules::reason()], UzValidation::messages());
+        $deleted = 0;
+
+        return $this->act($request, $id, function (User $user) use ($request, $erasure, &$deleted) {
+            $this->blocking->assertActionable($user);
+            $deleted = $erasure->forget((int) $user->id);
+            AdminAudit::for($request)->meta(['analytics_events_deleted' => $deleted]);
+
+            return ['before' => [], 'after' => []];
+        }, fn () => "Statistika yozuvlari o'chirildi: {$deleted} ta.");
+    }
+
+    /**
+     * @param  callable(User): array<string, mixed>  $action
+     * @param  string|callable(): string  $message
+     */
+    private function act(Request $request, int $id, callable $action, string|callable $message): JsonResponse
     {
         $user = User::query()->find($id);
         if ($user === null) {
@@ -105,6 +132,6 @@ class AdminCustomerActionController extends AdminController
         AdminAudit::for($request)->subject($user)->store($user->store_id !== null ? (int) $user->store_id : null)
             ->changes($change['before'] ?? [], $change['after'] ?? []);
 
-        return $this->success($this->presenter->card($user->refresh(), $this->member($request)), $message);
+        return $this->success($this->presenter->card($user->refresh(), $this->member($request)), is_string($message) ? $message : $message());
     }
 }
