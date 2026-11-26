@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
 import { FinanceView, type FinanceInitial } from './FinanceView';
-import { adjustment, adjustmentPage, balances, payoutCard, payoutPage, payoutRow, report, summary } from './fixtures';
+import { adjustment, adjustmentPage, balances, keshbekReport, payoutCard, payoutPage, payoutRow, report, summary } from './fixtures';
 
 const FINANCE = ['finance.view', 'finance.manage', 'payouts.approve', 'stores.view', 'export'].map((name) => `admin.${name}`);
 const START: FinanceInitial = { tab: 'payouts', payout: null, adjustment: null, topup: '' };
@@ -18,6 +18,7 @@ function setup(routes: Parameters<typeof mockFetch>[0] = {}, { permissions = FIN
         : ok(payoutPage([payoutRow()])),
     'GET /finance/adjustments': () => ok(adjustmentPage([adjustment()])),
     'GET /finance/payouts/12': () => ok(payoutCard()),
+    'GET /finance/reports/keshbek': () => ok(keshbekReport()),
     ...routes,
   });
   renderPage(<FinanceView initial={initial} />);
@@ -176,10 +177,51 @@ describe('FinanceView', () => {
     expect(screen.getByRole('button', { name: 'Excel yuklab olish' })).toBeInTheDocument();
   });
 
+  it('shows the month\'s keshbek, the liability now and a reconciliation that matches', async () => {
+    const { callsTo } = setup({ 'GET /finance/reports/monthly': () => ok(report()) }, { initial: { ...START, tab: 'report' } });
+    expect(await screen.findByTestId('keshbek-liability')).toHaveTextContent("30 000 so'm");
+    const section = screen.getByRole('region', { name: 'Keshbek' });
+    expect(within(section).getByText("Berilgan do'st taklifi bonuslari (RIZQIM)").closest('div')).toHaveTextContent(/3 ta.*\+ 15 000.so'm/);
+    expect(within(section).getByText('Qaytarib olingan bonuslar').closest('div')).toHaveTextContent(/1 ta.*− 5 000.so'm/);
+    expect(within(section).getByText('Buyurtmalarga ishlatilgan').closest('div')).toHaveTextContent(/− 50 000.so'm/);
+    expect(within(section).getByText('Qaytarishlarda balansga qaytgan').closest('div')).toHaveTextContent(/\+ 20 000.so'm/);
+    expect(within(section).getByText('Hozirgi holat, oy oxiri emas.')).toBeInTheDocument();
+    const difference = screen.getByTestId('keshbek-difference');
+    expect(difference).not.toHaveAttribute('data-mismatch');
+    expect(difference).toHaveTextContent("Har bir balans o'zgarishi yozilgan.");
+    expect(within(section).queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keshbek (Excel)' })).toBeInTheDocument();
+    expect(callsTo('GET', '/finance/reports/keshbek')[0]?.query.get('period')).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('highlights a reconciliation difference and the debts', async () => {
+    setup(
+      {
+        'GET /finance/reports/monthly': () => ok(report()),
+        'GET /finance/reports/keshbek': () =>
+          ok(keshbekReport({
+            outstanding: { positive: '30000.00', negative: '-5000.00', net: '25000.00', holders: 1, debtors: 1 },
+            reconciliation: { ...keshbekReport().reconciliation, live: '81234.56', difference: '51234.56' },
+            unrecorded: { keshbek_orders_without_payment: 1 },
+          })),
+      },
+      { initial: { ...START, tab: 'report' } },
+    );
+    const difference = await screen.findByTestId('keshbek-difference');
+    expect(difference).toHaveAttribute('data-mismatch', 'true');
+    const alert = within(difference).getByRole('alert');
+    expect(alert).toHaveTextContent(/51 234,56.so'm/);
+    expect(alert).toHaveTextContent(/yozuvsiz o'zgarish bor/);
+    expect(alert).toHaveTextContent("Keshbek to'lovi yozuvi yo'q buyurtmalar: 1 ta");
+    expect(screen.getByTestId('keshbek-debts')).toHaveTextContent(/Manfiy balanslar \(qarz\): −?-?5 000.so'm \(1 ta mijoz\)/);
+  });
+
   it('hides the Excel export from a member without admin.export', async () => {
     setup({ 'GET /finance/reports/monthly': () => ok(report()) }, { permissions: ['admin.finance.view'], initial: { ...START, tab: 'report' } });
     await screen.findByTestId('report-total');
+    await screen.findByTestId('keshbek-liability');
     expect(screen.queryByRole('button', { name: 'Excel yuklab olish' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keshbek (Excel)' })).not.toBeInTheDocument();
   });
 
   it('refuses the section without finance.view', async () => {

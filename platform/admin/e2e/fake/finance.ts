@@ -69,6 +69,7 @@ export class FakeFinance {
   /** What the page sent: every decision and its reason */
   decisions: Array<{ what: string; id: number; decision: string; reason: string; by: number; key: string | null }> = []
   exports: string[] = []
+  keshbekExports: string[] = []
   private nextAdjustment = 1
   private nextTransaction = 100
 
@@ -94,6 +95,12 @@ export class FakeFinance {
         return found ? ok(this.adjustment(found, actor, can)) : fail(404, 'Tuzatish topilmadi.', { reason: 'not_found' })
       }
       if (path === '/finance/reports/monthly') return ok(this.report(req.query.period ?? '2026-10'))
+      if (path === '/finance/reports/keshbek') return ok(this.keshbek(req.query.period ?? '2026-10'))
+      if (path === '/finance/reports/keshbek/export') {
+        if (!can('admin.export')) return fail(403, "Ruxsat yo'q.", { reason: 'forbidden' })
+        this.keshbekExports.push(req.query.period ?? '')
+        return { status: 200, raw: Buffer.from([80, 75, 3, 4, 20, 0]), headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename=rizqim-keshbek-${req.query.period ?? ''}.xlsx` } }
+      }
       if (path === '/finance/reports/monthly/export') {
         if (!can('admin.export')) return fail(403, "Ruxsat yo'q.", { reason: 'forbidden' })
         this.exports.push(req.query.period ?? '')
@@ -359,6 +366,23 @@ export class FakeFinance {
       .filter((row) => filter === 'all' || (filter === 'over_limit' && row.over_limit) || (filter === 'debt' && Number(row.debt_balance) > 0) || (filter === 'wallet' && Number(row.wallet_balance) > 0) || (filter === 'subscription_debt' && Number(row.subscription_debt) > 0))
     const summary = this.summary().balances
     return { data: rows, page: 1, per_page: 30, total: rows.length, totals: { over_limit: summary.over_limit, wallet_total: summary.wallet_total, debt_total: summary.debt_total, subscription_debt_total: '298000.00', commission_debt_total: '120000.00' } }
+  }
+
+  // Keshbek: a month with legacy store-paid bonuses and one customer in debt after a clawback; it reconciles
+  private keshbek(period: string) {
+    return {
+      period,
+      timezone: 'Asia/Tashkent',
+      as_of: '2026-11-10T12:00:00+05:00',
+      issued: { count: 3, amount: '15000.00' },
+      clawed_back: { count: 1, amount: '5000.00' },
+      legacy_store_paid: { count: 2, amount: '10000.00' },
+      spent: { count: 1, amount: '50000.00' },
+      returned: { count: 1, amount: '20000.00' },
+      outstanding: { positive: '35000.00', negative: '-5000.00', net: '30000.00', holders: 2, debtors: 1 },
+      reconciliation: { opening: '40000.00', movement: '-10000.00', closing: '30000.00', after_period: '0.00', expected_now: '30000.00', live: '30000.00', difference: '0.00' },
+      unrecorded: { keshbek_orders_without_payment: 0 },
+    }
   }
 
   private report(period: string) {

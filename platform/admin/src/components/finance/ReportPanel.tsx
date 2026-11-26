@@ -8,6 +8,7 @@ import { downloadMonthlyReport, useMonthlyReport } from '@/lib/api/finance';
 import { errorText } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 import { uzs } from './financeModel';
+import { KeshbekSection } from './KeshbekSection';
 import { Row } from './ReasonDialog';
 
 // "YYYY-MM" of the month a moment falls in, in Tashkent (the report's months are Tashkent months)
@@ -18,7 +19,7 @@ export function tashkentMonth(at = new Date()): string {
 }
 
 // Oylik hisobot: RIZQIM's revenue for a month — commission by channel and subscriptions — and per store, with the Excel
-// export for members with admin.export.
+// export for members with admin.export; then the month's keshbek (KeshbekSection).
 export function ReportPanel({ enabled, canExport, onDone }: { enabled: boolean; canExport: boolean; onDone: (message: string) => void }) {
   const t = useT();
   const [period, setPeriod] = useState(() => tashkentMonth());
@@ -138,6 +139,7 @@ export function ReportPanel({ enabled, canExport, onDone }: { enabled: boolean; 
           </section>
         </>
       )}
+      <KeshbekSection period={period} enabled={enabled} canExport={canExport} onDone={onDone} />
     </div>
   );
 }

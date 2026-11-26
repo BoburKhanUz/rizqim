@@ -27,6 +27,9 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/adjustments/{id}/document', [AdminFinanceAdjustmentController::class, 'document'])->where('id', RowId::ROUTE_PATTERN)->name('adjustments.document');
         Route::get('/reports/monthly', [AdminFinanceReportController::class, 'monthly'])->name('reports.monthly');
         Route::get('/reports/monthly/export', [AdminFinanceReportController::class, 'export'])->middleware('admin.can:export')->name('reports.monthly_exported');
+        // Keshbek: the customers' balances (the platform's liability), their month's movements and the reconciliation
+        Route::get('/reports/keshbek', [AdminFinanceReportController::class, 'keshbek'])->name('reports.keshbek');
+        Route::get('/reports/keshbek/export', [AdminFinanceReportController::class, 'keshbekExport'])->middleware('admin.can:export')->name('reports.keshbek_exported');
     });
 
     Route::middleware(['admin.can:payouts.approve', 'admin.recent'])->group(function () {

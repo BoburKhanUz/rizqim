@@ -118,6 +118,19 @@ test('the monthly report and its Excel file', async ({ page, api, signIn }) => {
   expect(api.finance.exports).toHaveLength(1)
 })
 
+test('the keshbek section: the liability, the movements, the reconciliation and its Excel file', async ({ page, api, signIn }) => {
+  await openSignedIn(page, signIn, '/finance?tab=report', 'aziza@rizqim.uz')
+  const section = page.getByRole('region', { name: 'Keshbek', exact: true })
+  await expect(page.getByTestId('keshbek-liability')).toContainText(/35\s000/)
+  await expect(page.getByTestId('keshbek-debts')).toContainText('1 ta mijoz')
+  await expect(section).toContainText("Eski bonuslar (ovqatxona to'lagan)")
+  await expect(page.getByTestId('keshbek-difference')).toContainText("Har bir balans o'zgarishi yozilgan.")
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Keshbek (Excel)' }).click()])
+  expect(download.suggestedFilename()).toMatch(/^rizqim-keshbek-\d{4}-\d{2}\.xlsx$/)
+  expect(api.finance.keshbekExports).toHaveLength(1)
+  expect(api.finance.exports).toHaveLength(0)
+})
+
 test.describe('phone width', () => {
   test.use({ viewport: { width: 360, height: 740 } })
 
