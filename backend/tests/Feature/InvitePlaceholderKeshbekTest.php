@@ -82,6 +82,32 @@ class InvitePlaceholderKeshbekTest extends TestCase
     }
 
     /**
+     * Review fix: the retired row is out of the store the way a kept employee is (OwnerEmployeeController::destroy,
+     * User::retireFromStore): no PIN, and no token issued to it signs in any more (it would authenticate as a
+     * customer holding the row's keshbek). The balance stays.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('channels')]
+    public function test_a_retired_invite_row_loses_its_pin_and_every_session(string $via): void
+    {
+        User::create(['name' => 'Kassir', 'telegram_id' => '8383838', 'store_id' => $this->store->id, 'role' => UserRole::CASHIER]);
+        $invite = $this->invite('emp_session' . $via);
+        $invite->forceFill(['balance' => '7000.00', 'staff_code' => '4321', 'pin_hash' => bcrypt('1234'), 'pin_set_at' => now()])->save();
+        $token = $invite->createToken('device-access')->plainTextToken;
+        $this->withToken($token)->getJson('/api/v1/user')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withoutToken();
+
+        $this->accept($via, 8383838, 'emp_session' . $via);
+
+        $kept = User::findOrFail($invite->id);
+        $this->assertSame([UserRole::CUSTOMER, null, null, null, null], [$kept->role, $kept->store_id, $kept->staff_code, $kept->pin_hash, $kept->pin_set_at]);
+        $this->assertSame('7000.00', (string) $kept->balance);
+        $this->assertSame(0, \Laravel\Sanctum\PersonalAccessToken::where('tokenable_id', $invite->id)->count());
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/user')->assertUnauthorized();
+    }
+
+    /**
      * @return array<string, array{0: string}>
      */
     public static function channels(): array

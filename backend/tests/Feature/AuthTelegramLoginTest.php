@@ -177,6 +177,23 @@ class AuthTelegramLoginTest extends TestCase
         }
     }
 
+    /**
+     * An unclaimed employee invite row (telegram_id temp_…) cannot sign in, so a bonus credited to it could never be
+     * spent: its id is no referrer. Staff are referrers like anyone (they may invite friends).
+     */
+    public function test_an_invite_placeholder_is_no_referrer_but_staff_are(): void
+    {
+        $store = \App\Models\Store::create(['name' => 'Ref Store', 'slug' => 'ref-store', 'commission_rate' => 10, 'status' => 'active', 'is_active' => true]);
+        $placeholder = User::create(['name' => 'Yangi kassir', 'telegram_id' => 'temp_' . uniqid(), 'store_id' => $store->id, 'role' => UserRole::CASHIER, 'telegram_invite_token' => 'emp_ref_placeholder']);
+        $cashier = User::create(['name' => 'Kassir', 'telegram_id' => '5050500', 'store_id' => $store->id, 'role' => UserRole::CASHIER]);
+
+        $this->login($this->signedInitData(['id' => 5050501, 'first_name' => 'Friend']), "ref_{$placeholder->id}")->assertOk();
+        $this->assertNull(User::where('telegram_id', '5050501')->first()->referred_by);
+
+        $this->login($this->signedInitData(['id' => 5050502, 'first_name' => 'Friend']), "ref_{$cashier->id}")->assertOk();
+        $this->assertSame($cashier->id, User::where('telegram_id', '5050502')->first()->referred_by);
+    }
+
     public function test_pending_referral_parked_by_bot_start_is_applied_to_a_new_user_once(): void
     {
         $referrer = User::create(['name' => 'Referrer', 'telegram_id' => '1010101', 'role' => UserRole::CUSTOMER]);

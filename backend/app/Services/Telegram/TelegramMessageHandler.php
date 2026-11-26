@@ -193,15 +193,13 @@ class TelegramMessageHandler
             ->first();
 
         if ($alreadyExists) {
-            // Update existing user with new role, branch, and name
-            $alreadyExists->update([
+            // Update existing user with new role, branch, and name, and clean up the dummy/temp employee row (retired
+            // instead when it holds keshbek: User::mergeInviteInto)
+            $employee->mergeInviteInto($alreadyExists, [
                 'role' => $employee->role,
                 'branch_id' => $employee->branch_id,
                 'name' => $employee->name,
             ]);
-
-            // Clean up the dummy/temp employee row (retired instead when it holds keshbek: User::discardMergedInvite)
-            $employee->discardMergedInvite();
 
             if ($this->telegram->isConfigured()) {
                 $roleLabel = $alreadyExists->role->label();

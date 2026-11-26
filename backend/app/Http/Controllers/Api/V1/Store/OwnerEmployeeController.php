@@ -11,7 +11,6 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Enums\UserRole;
-use App\Services\Auth\TokenService;
 use App\Support\Tenancy\TenantRls;
 use Illuminate\Support\Facades\DB;
 
@@ -165,29 +164,34 @@ class OwnerEmployeeController extends Controller
             return $this->error('Ruxsat etilmagan', [], 403);
         }
 
-        $employee = $this->storeEmployee($user, $id);
-
-        if (!$employee) {
-            return $this->error('Xodim topilmadi', [], 404);
-        }
-
         // M4 stage 3 (security review H1): a person is one users row, and deleting it deletes what they did as a
         // CUSTOMER at any store: orders.user_id is ON DELETE CASCADE, and bills, payments, refunds and QR payments go
         // with the orders. Foreign-key actions run as the table owner, so no store guard and no row-level security
         // policy sees them. Such a person is taken out of the store instead (no role, store, PIN or session) and stays
         // the customer they also are. The same for staff who did anything in the store: the delete's ON DELETE SET
         // NULL actions would erase WHO from the store's own money journal; and keshbek held, owed or earned through
-        // referred friends would go without a record (review H1). Only an account with no history is deleted
-        if ($this->hasHistory($employee)) {
-            DB::transaction(function () use ($employee) {
-                $employee->forceFill([
-                    'role' => UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
-                    'pin_hash' => null, 'pin_set_at' => null, 'telegram_invite_token' => null,
-                ])->save();
-                app(TokenService::class)->revokeAllForUser($employee);
-            });
-        } else {
-            $employee->delete();
+        // referred friends would go without a record (review H1). Only an account with no history is deleted.
+        // One transaction with the users row locked first (FOR UPDATE): an order, a referral naming the person or a
+        // keshbek credit either committed before the check (and is seen) or waits for the delete / retire. Only that
+        // one users row is locked and no store row at all, so the referral grant's store → users order
+        // (LedgerService::lockCustomerAndReferrer) is never inverted
+        $found = DB::transaction(function () use ($user, $id) {
+            $employee = $this->storeEmployee($user, $id, lock: true);
+            if (!$employee) {
+                return false;
+            }
+
+            if ($this->hasHistory($employee)) {
+                $employee->retireFromStore();
+            } else {
+                $employee->delete();
+            }
+
+            return true;
+        });
+
+        if (!$found) {
+            return $this->error('Xodim topilmadi', [], 404);
         }
 
         return $this->success(null, 'Xodim tizimdan o\'chirildi.');
@@ -233,12 +237,13 @@ class OwnerEmployeeController extends Controller
     /**
      * A staff member (not an owner) of the owner's own store: never the owner himself or a global (storeless) account.
      */
-    private function storeEmployee(User $owner, mixed $employeeId): ?User
+    private function storeEmployee(User $owner, mixed $employeeId, bool $lock = false): ?User
     {
         return User::where('store_id', $owner->store_id)
             ->whereIn('role', UserRole::assignableStaffRoles())
             ->where('id', '!=', $owner->id)
             ->whereKey((int) $employeeId)
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->first();
     }
 }

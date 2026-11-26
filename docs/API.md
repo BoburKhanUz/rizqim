@@ -4335,9 +4335,11 @@ O'qib bo'lmagan summa sanalmaydi, o'qib bo'lmagan vaqt o'rniga `created_at` olin
 Boshqa manba yo'q: `app/` da `users.balance` ni faqat shu yo'llar o'zgartiradi, admin balansni tahrirlamaydi. Balans
 `users` qatori bilan ham yo'qolmaydi: akkaunt birlashtirish faqat balans 0 va taklif qilingan do'st yo'q bo'lsa;
 keshbegi bor qator (balans 0 emas yoki kimdir uni `referred_by` deb ko'rsatgan — taklif qiluvchi har qanday foydalanuvchi,
-xodim yoki qabul qilinmagan taklif qatori ham bo'lishi mumkin, `User::holdsKeshbek`) o'chirilmaydi: ega xodimni
+xodim ham; qabul qilinmagan taklif qatori (`temp_…`) endi taklif qiluvchi bo'lmaydi, lekin eski ma'lumotda bo'lishi
+mumkin, `User::holdsKeshbek`) o'chirilmaydi: ega xodimni
 o'chirsa, u ovqatxonadan chiqariladi (`DELETE /owner/employees/{id}`, boshqa tarix bilan bir xil javob), birlashtirilgan
-taklif qatori esa nofaol qilinadi (`User::discardMergedInvite`).
+taklif qatori esa nofaol qilinadi (`User::mergeInviteInto`); ikkalasi ham `User::retireFromStore` (PIN va barcha
+sessiyalar bekor qilinadi, balans qoladi).
 
 Butun hisobot bitta bazaviy suratdan o'qiladi (`REPEATABLE READ READ ONLY` tranzaksiya): o'qish paytida boshqa ulanishda
 yozilgan o'zgarish (bonus va uning +5 000 i) hisobotga yo butunlay kiradi, yo butunlay kirmaydi — soxta farq bo'lmaydi.

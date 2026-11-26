@@ -279,8 +279,9 @@ class User extends Authenticatable
     /**
      * Keshbek review H1: whether this users row carries keshbek that a delete would drop without a record: a non-zero
      * balance (keshbek held, the platform's liability, or owed after a clawback) or friends it referred (users.referred_by
-     * is ON DELETE SET NULL: they would lose their referrer). Any user can be a referrer (ReferralService takes any id),
-     * staff and unclaimed invite rows included. Read from the database, not from the loaded model.
+     * is ON DELETE SET NULL: they would lose their referrer). Any user can be a referrer, staff included
+     * (ReferralService refuses only unclaimed invite rows, which older data may still name). Read from the database,
+     * not from the loaded model.
      */
     public function holdsKeshbek(): bool
     {
@@ -289,23 +290,51 @@ class User extends Authenticatable
     }
 
     /**
-     * An unclaimed employee invite row that an accepted invite merged into an existing account (the bot's /start and
-     * the Mini App's start_param): deleted, unless it holds keshbek (holdsKeshbek: its id can be a referral link's
-     * like anyone's). Then it is retired instead: no role, store, branch, staff code or invite token, its balance and
-     * its friends' referrer kept for the keshbek report.
+     * Takes the person out of their store and keeps the users row (OwnerEmployeeController::destroy for staff with
+     * history or keshbek, mergeInviteInto for an invite row with keshbek): the customer role; no store, branch, staff
+     * code, invite token or PIN; and no session: Sanctum tokens (device-access ones included), refresh tokens and
+     * push tokens end (TokenService::revokeAllForUser). Balance and referred friends are kept. Call it on a row read
+     * under its lock (lockForUpdate) when the decision depends on what the row holds.
      */
-    public function discardMergedInvite(): void
+    public function retireFromStore(): void
     {
-        if (!$this->holdsKeshbek()) {
-            $this->delete();
+        \Illuminate\Support\Facades\DB::transaction(function () {
+            $this->forceFill([
+                'role' => \App\Enums\UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
+                'telegram_invite_token' => null, 'pin_hash' => null, 'pin_set_at' => null,
+            ])->save();
+            app(\App\Services\Auth\TokenService::class)->revokeAllForUser($this);
+        });
+    }
 
-            return;
-        }
+    /**
+     * An unclaimed employee invite row (this) accepted by someone who already has an account in the store ($account:
+     * the bot's /start and the Mini App's start_param): $account takes $attributes (the invite's role, branch, name),
+     * and the invite row is deleted, unless it holds keshbek (holdsKeshbek: its id can be a referral link's from
+     * before ReferralService refused invite rows). Then it is retired instead (retireFromStore), its balance and its
+     * friends' referrer kept for the keshbek report.
+     *
+     * One transaction, both users rows locked first in one statement in id order (the order the referral grant uses,
+     * LedgerService::lockCustomerAndReferrer); no store row is locked here, so the grant's store → users order is
+     * never inverted. The keshbek check reads under the lock: a referral naming the row or a credit to it either
+     * committed before (and is seen) or waits for the delete / retire.
+     */
+    public function mergeInviteInto(self $account, array $attributes): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
+            self::query()->whereKey([$account->getKey(), $this->getKey()])->orderBy('id')->lockForUpdate()->get();
+            $this->refresh();
+            $account->refresh();
+            $account->update($attributes);
 
-        $this->forceFill([
-            'role' => \App\Enums\UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
-            'telegram_invite_token' => null,
-        ])->save();
+            if (!$this->holdsKeshbek()) {
+                $this->delete();
+
+                return;
+            }
+
+            $this->retireFromStore();
+        });
     }
 
     /**

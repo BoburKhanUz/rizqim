@@ -35,10 +35,11 @@ use Illuminate\Support\Facades\DB;
  *
  * No other code in app/ writes users.balance. Nor does any path drop a balance with the users row: an account merge
  * requires a zero balance and no referred friends (AccountLinkingService), and a users row that holds keshbek (a
- * non-zero balance or friends who name it as referrer, User::holdsKeshbek — any user can be a referrer, staff and
- * unclaimed invite rows included) is never deleted: the owner removing an employee takes them out of the store
- * instead (OwnerEmployeeController::destroy), and an invite row merged into an existing account is retired
- * (User::discardMergedInvite). A change made around these paths has no record and shows in the reconciliation's
+ * non-zero balance or friends who name it as referrer, User::holdsKeshbek — any user can be a referrer, staff
+ * included; unclaimed invite rows only in data from before ReferralService refused them) is never deleted: the owner
+ * removing an employee takes them out of the store instead (OwnerEmployeeController::destroy), and an invite row
+ * merged into an existing account is retired
+ * (User::mergeInviteInto). A change made around these paths has no record and shows in the reconciliation's
  * `difference`, which is reported, never hidden: a hand edit in the database, or a legacy keshbek order without a
  * keshbek payment row (`unrecorded.keshbek_orders_without_payment` counts them). Such an order's debit left no record
  * either, so while it stands the difference is −total; when it is cancelled or refunded, refundKeshbek gives the
