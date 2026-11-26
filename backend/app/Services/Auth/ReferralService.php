@@ -147,9 +147,10 @@ class ReferralService
      * in November let November grant 13). An order earns the bonus at most once (a refunded order never again), so a
      * grant is reversed by the clawback row of its own order. Reads the referral_bonus rows of every store (the orders of
      * the customers the referrer invited, soft-deleted ones too): callers inside a store-bound transaction run it as
-     * the login role (LedgerService::grantReferralReward).
+     * the login role (LedgerService::grantReferralReward). With $asOf: as the count stood then, from the grants and the
+     * clawbacks booked up to that moment (LedgerService::grantMissedReferralBonus decides a lost booking as of its payment).
      */
-    public static function monthlyBonusesOf(int $referrerId, \Carbon\CarbonInterface $at): int
+    public static function monthlyBonusesOf(int $referrerId, \Carbon\CarbonInterface $at, ?\Carbon\CarbonInterface $asOf = null): int
     {
         [$start, $end] = \App\Services\Finance\Reports\MonthlyRevenueReport::monthBounds(
             \Illuminate\Support\Carbon::instance($at)->setTimezone(\App\Services\Finance\Reports\MonthlyRevenueReport::timezoneName())->format('Y-m')
@@ -162,6 +163,7 @@ class ReferralService
             ->where('amount', '>', 0)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<', $end)
+            ->when($asOf !== null, fn ($query) => $query->where('created_at', '<=', $asOf))
             // The invited customers' orders at every store, soft-deleted ones too (a deleted order's bonus still counts)
             ->whereIn('order_id', Order::query()->withoutGlobalScope(StoreScope::class)->withTrashed()->select('id')
                 ->whereIn('user_id', User::query()->select('id')->where('referred_by', $referrerId)))
@@ -169,7 +171,8 @@ class ReferralService
             ->whereNotExists(fn ($back) => $back->selectRaw('1')->from('store_transactions as back')
                 ->whereColumn('back.order_id', 'store_transactions.order_id')
                 ->where('back.type', $bonus)
-                ->where('back.amount', '<', 0))
+                ->where('back.amount', '<', 0)
+                ->when($asOf !== null, fn ($query) => $query->where('back.created_at', '<=', $asOf)))
             ->count();
     }
 

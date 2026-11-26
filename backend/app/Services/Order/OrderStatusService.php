@@ -542,9 +542,10 @@ class OrderStatusService
     /**
      * Gives the keshbek still on the order back to the customer's balance: each paid keshbek payment minus what
      * approved refund requests already returned from it (the Boshqaruv markazi's partial refunds, as
-     * RefundRequestService::balanceOf counts them), nothing when nothing is left. An old order without a payment
-     * row (no request can have refunded any of it) gives back its total, with the record its debit never had
-     * (refundUnrecordedKeshbek).
+     * RefundRequestService::balanceOf counts them), nothing when nothing is left. An old order without any keshbek
+     * payment row (no request can have refunded any of it) gives back its total, with the record its debit never had
+     * (refundUnrecordedKeshbek). Review L4: only without any row, whatever its status: an order whose keshbek row
+     * exists but is no longer paid (given back already, refunded or cancelled) gets nothing back again.
      */
     protected function refundKeshbek(Order $order): void
     {
@@ -552,16 +553,16 @@ class OrderStatusService
             return;
         }
 
-        $payments = $order->payments()
+        $rows = $order->payments()
             ->where('provider', 'keshbek')
-            ->where('status', PaymentStatus::PAID->value)
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
+        $payments = $rows->filter(fn (\App\Models\Payment $payment) => $payment->status === PaymentStatus::PAID)->values();
 
-        if ($payments->isEmpty()) {
+        if ($rows->isEmpty()) {
             $this->refundUnrecordedKeshbek($order);
-        } else {
+        } elseif ($payments->isNotEmpty()) {
             $returned = RefundRequestService::balanceOf($payments, RefundRequestService::approvedRequests([(int) $order->id])->get())['allocated'];
             foreach ($payments as $payment) {
                 $before = Money::min(Money::of($payment->amount), $returned[(int) $payment->id] ?? Money::zero());

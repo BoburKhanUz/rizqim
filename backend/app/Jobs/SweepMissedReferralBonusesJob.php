@@ -6,13 +6,13 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\StoreTransactionType;
 use App\Models\Order;
-use App\Models\StoreTransaction;
 use App\Models\User;
 use App\Services\Auth\ReferralService;
 use App\Services\Finance\LedgerService;
 use App\Services\Finance\SettlementRecoveryService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -21,21 +21,36 @@ use Throwable;
  * and the store's settlement, then the referral bonus (SettlementRecoveryService::bookAfterPayment). A process that
  * dies between them leaves no marker (settlement_failed_at is written only by a booking that ran and failed), so
  * RetryFailedSettlementsJob never sees the order, and a provider does not replay a payment it got an answer for: the
- * bonus would never be granted. Hourly, this books such orders through the same path (bookAfterPayment, under the
- * order's lock; LedgerService::grantReferralReward under the store's and the users' locks), so every rule applies
- * there: exactly once per referred customer net of clawbacks, the monthly cap, the commission that must cover the
- * bonus, a refunded order never. Idempotent: an order already granted (or refused under the locks) is granted nothing.
- * Not queued: it runs inside the scheduler, like RetryFailedSettlementsJob.
+ * bonus would never be granted. Hourly, this grants such a bonus, and only the bonus. Not queued: it runs inside the
+ * scheduler, like RetryFailedSettlementsJob.
  *
- * Candidates (candidates(), one indexed query, at most MAX_PER_RUN): delivered, still paid, unmarked orders of
- * referred customers with a payment paid between WINDOW_DAYS and AFTER_MINUTES ago (payments_paid_at_index; the
- * listener is given AFTER_MINUTES to book it itself), with no referral bonus row of their own and whose customer's
- * referral is still open (no net bonus on any of their orders, no legacy store-paid one). The SQL only narrows: the
- * decision is the real one — ReferralService::qualifiesForReferralBonus here, then the grant under its locks. An
- * order whose referrer is at the monthly cap now is skipped before any lock is taken (the grant would refuse it); an
- * order whose commission or settlement is not booked is left alone (logged): booking those is for
- * RetryFailedSettlementsJob or, unmarked, `orders:retry-settlements --confirm-unbooked` after finance checked its
- * manual adjustments — never for this sweep. One customer's orders: the oldest first, at most one grant per run.
+ * Review M1: only that gap. A candidate's payment landed AFTER its delivery (payments.paid_at later than the first
+ * `delivered` row of order_status_histories; an order without one is none) and its order carries no referral bonus
+ * row of its own. An order paid before delivery had its bonus decided at delivery, a refusal included (the monthly
+ * cap, a referral already rewarded): a refused order earns nothing, the referral stays open for a LATER order, so
+ * such an order is never a candidate. A late payment's own second transaction may have run and refused too (it writes
+ * nothing then): LedgerService::grantMissedReferralBonus decides as of the payment, so that refusal is repeated, never
+ * overturned by a clawback, a reopened referral or a new month.
+ *
+ * Review L1+L2: per candidate, in a transaction of its own, the order's row lock first (the order → store → users
+ * order of every ledger path), then under it: still delivered, paid and unmarked, its commission booked and, for a
+ * platform-collected order, its settlement booked; only then LedgerService::grantMissedReferralBonus (the store's and
+ * the users' locks, every rule of the grant). It never books a commission or a settlement (an order missing one is
+ * left to RetryFailedSettlementsJob or, unmarked, `orders:retry-settlements --confirm-unbooked` after finance checked
+ * its manual adjustments, and logged here). A grant that fails (a lock timeout, a deadlock) is logged and nothing
+ * else: no settlement marker, no "settlement not booked" alert; the next run tries again. Idempotent: an order granted
+ * (or refused under the locks) is granted nothing.
+ *
+ * Candidates (candidates(), one indexed query): delivered, still paid, unmarked orders of referred customers paid
+ * after delivery between WINDOW_DAYS and AFTER_MINUTES ago (payments_paid_at_index; the listener is given
+ * AFTER_MINUTES to book it itself), with no referral bonus row of their own, whose customer's referral is still open
+ * (no net bonus on any of their orders, no legacy store-paid one). Review L3: the shapes the grant refuses for good
+ * are left out where SQL says it cheaply: below the minimum, a commission below the bonus, cash and keshbek, a store's
+ * own account other than a Paylov payment confirmed on read-back, a platform order with a keshbek share, an order a
+ * full reversal refunded. What is left that can be refused for good (the cap or the referral as of the payment) is
+ * decided by the grant, and the newest MAX_PER_RUN come first, so a run never sits behind older refused ones: a real
+ * candidate is reached unless MAX_PER_RUN newer late-paid, unbonused orders of open referrals were refused within
+ * WINDOW_DAYS. One customer's orders: the oldest of the batch first, at most one grant per run.
  */
 class SweepMissedReferralBonusesJob
 {
@@ -47,7 +62,7 @@ class SweepMissedReferralBonusesJob
     /** A payment paid less than this ago is left to MarkOrderAsPaid itself */
     public const AFTER_MINUTES = SettlementRecoveryService::UNBOOKED_AFTER_MINUTES;
 
-    /** The most candidates one run looks at (the oldest first); the next run goes on */
+    /** The most candidates one run looks at (the newest first) */
     public const MAX_PER_RUN = 200;
 
     /**
@@ -65,16 +80,32 @@ class SweepMissedReferralBonusesJob
             ->where('orders.total_price', '>=', ReferralService::MIN_ORDER)
             ->where('orders.commission_amount', '>=', ReferralService::BONUS)
             ->whereNotIn('orders.payment_method', ['cash', 'keshbek'])
-            // Only these can be verified by the platform (ReferralService::paymentVerifiedByPlatform decides)
-            ->where(fn ($query) => $query->where('orders.payment_owner', 'PLATFORM')->orWhere('orders.payment_method', 'paylov'))
+            // Only these can be verified by the platform (ReferralService::paymentVerifiedByPlatform decides): the
+            // platform's account without a keshbek share, or a store's own Paylov payment confirmed on read-back
+            ->where(fn ($query) => $query
+                ->where(fn ($platform) => $platform->where('orders.payment_owner', 'PLATFORM')
+                    ->whereNotExists(fn ($share) => $share->selectRaw('1')->from('payments as share')
+                        ->whereColumn('share.order_id', 'orders.id')->where('share.provider', 'keshbek')))
+                ->orWhere(fn ($store) => $store->where('orders.payment_owner', '!=', 'PLATFORM')->where('orders.payment_method', 'paylov')
+                    ->whereExists(fn ($paylov) => $paylov->selectRaw('1')->from('payments as paylov')
+                        ->whereColumn('paylov.order_id', 'orders.id')->where('paylov.provider', 'paylov')
+                        ->whereIn('paylov.status', [PaymentStatus::PAID->value, PaymentStatus::REFUNDED->value])
+                        ->where('paylov.payload->paylov->state', \App\Services\Payment\Paylov\PaylovPayments::STATE_CONFIRMED)
+                        ->whereNull('paylov.payload->paylov->refused'))))
             ->whereIn('orders.user_id', User::query()->select('id')->whereNotNull('referred_by'))
+            // Review M1: paid after the delivery, in the window
             ->whereIn('orders.id', fn ($query) => $query->select('payments.order_id')->from('payments')
                 ->where('payments.status', PaymentStatus::PAID->value)
                 ->where('payments.paid_at', '>=', now()->subDays(self::WINDOW_DAYS))
-                ->where('payments.paid_at', '<=', now()->subMinutes(self::AFTER_MINUTES)))
+                ->where('payments.paid_at', '<=', now()->subMinutes(self::AFTER_MINUTES))
+                ->where('payments.paid_at', '>', fn ($delivered) => $delivered->selectRaw('min(h.created_at)')->from('order_status_histories as h')
+                    ->whereColumn('h.order_id', 'payments.order_id')->where('h.status', OrderStatus::DELIVERED->value)))
             // Not granted nor taken back for this order
             ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('store_transactions as own')
                 ->whereColumn('own.order_id', 'orders.id')->where('own.type', $bonus))
+            // Not refunded in full by its parts (the grant refuses such an order for good)
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('order_ledger_reversals as full_reversal')
+                ->whereColumn('full_reversal.order_id', 'orders.id')->where('full_reversal.is_full', true))
             // The customer's referral still open (LedgerService::referralRewardedNet, decided again under the locks)
             ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('store_transactions as net')
                 ->where('net.type', $bonus)->whereIn('net.order_id', $customerOrders)
@@ -82,41 +113,45 @@ class SweepMissedReferralBonusesJob
             ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('store_transactions as legacy')
                 ->where('legacy.type', StoreTransactionType::COMMISSION->value)->whereIn('legacy.order_id', $customerOrders)
                 ->whereRaw("legacy.notes = ? || orders.user_id", [LedgerService::REFERRAL_NOTE . ' for referred user #']))
-            ->orderBy('orders.id')
+            ->orderByDesc('orders.id')
             ->limit(self::MAX_PER_RUN);
     }
 
-    public function handle(SettlementRecoveryService $settlements, LedgerService $ledger): void
+    public function handle(LedgerService $ledger): void
     {
         $granted = [];
         $customers = [];
-        foreach (self::candidates()->get() as $order) {
-            if (isset($customers[(int) $order->user_id])) {
+        // The newest batch, then within it one customer's orders the oldest first
+        foreach (self::candidates()->get(['orders.id', 'orders.uuid', 'orders.user_id'])->sortBy('id') as $candidate) {
+            if (isset($customers[(int) $candidate->user_id])) {
                 continue;
             }
             try {
-                if (!ReferralService::qualifiesForReferralBonus($order)) {
-                    continue;
-                }
-                $referrerId = User::whereKey($order->user_id)->value('referred_by');
-                if ($referrerId === null || ReferralService::monthlyBonusesOf((int) $referrerId, now()) >= ReferralService::MONTHLY_CAP_PER_REFERRER) {
-                    continue;
-                }
-                if (!$ledger->hasCommission($order) || ($order->payment_owner === 'PLATFORM' && !$ledger->hasSettlement($order))) {
-                    Log::warning("Missed referral bonus sweep: order {$order->uuid} is not booked (commission or settlement missing); left to the settlement retry and monitoring", ['order_id' => $order->id]);
+                $outcome = DB::transaction(function () use ($candidate, $ledger) {
+                    // The order's lock first, as every ledger path (then the store and the users rows, in the grant)
+                    $order = Order::whereKey($candidate->id)->lockForUpdate()->first();
+                    if (!$order || $order->status !== OrderStatus::DELIVERED || $order->payment_status !== PaymentStatus::PAID || $order->settlement_failed_at !== null) {
+                        return 'changed';
+                    }
+                    if (!$ledger->hasCommission($order) || ($order->payment_owner === 'PLATFORM' && !$ledger->hasSettlement($order))) {
+                        return 'unbooked';
+                    }
 
-                    continue;
-                }
-                $customers[(int) $order->user_id] = true;
-
-                $settlements->bookAfterPayment((int) $order->id, SettlementRecoveryService::CATCH_UP_LATE_PAYMENT);
-                if (StoreTransaction::where('order_id', $order->id)->where('type', StoreTransactionType::REFERRAL_BONUS->value)->where('amount', '>', 0)->exists()) {
-                    $granted[] = $order->uuid;
-                    Log::info("Missed referral bonus of order {$order->uuid} booked by the sweep", ['order_id' => $order->id, 'referrer_id' => (int) $referrerId]);
-                }
+                    return $ledger->grantMissedReferralBonus($order) ? 'granted' : 'refused';
+                });
             } catch (Throwable $e) {
-                // e.g. a lock timeout: the next run tries again; one order never holds up the others
-                Log::error("Missed referral bonus sweep of order {$order->id} could not run: {$e->getMessage()}");
+                // e.g. a lock timeout: logged only (no marker, no settlement alert); the next run tries again
+                Log::error("Missed referral bonus sweep of order {$candidate->uuid} could not run, tried again next hour: {$e->getMessage()}", ['order_id' => $candidate->id]);
+
+                continue;
+            }
+
+            if ($outcome === 'unbooked') {
+                Log::warning("Missed referral bonus sweep: order {$candidate->uuid} is not booked (commission or settlement missing); left to the settlement retry and monitoring", ['order_id' => $candidate->id]);
+            } elseif ($outcome === 'granted') {
+                $customers[(int) $candidate->user_id] = true;
+                $granted[] = $candidate->uuid;
+                Log::info("Missed referral bonus of order {$candidate->uuid} booked by the sweep", ['order_id' => $candidate->id]);
             }
         }
 
