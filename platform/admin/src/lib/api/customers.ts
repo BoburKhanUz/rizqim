@@ -4,7 +4,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { call } from './client';
 
 // Mijozlar va yordam (P4-31, docs/API.md "Mijozlar va yordam"): the users list and the user card with its actions (block,
-// unblock, close sessions, delete the statistics), the complaints inbox (take, assign, reply through the bot, resolve), tayyor javoblar and
+// unblock, close sessions), the complaints inbox (take, assign, reply through the bot, resolve), tayyor javoblar and
 // Shubhali holatlar. Typed by hand until the generated client is regenerated (the shapes follow AdminCustomer*,
 // AdminComplaint*, AdminSupport* controllers and App\Services\Admin\Customers). Money is a decimal string ("120000.00"),
 // times are ISO 8601. Phones come masked unless the member has pii.view.
@@ -111,10 +111,7 @@ export interface UserCard {
   membership: { store: { id: number; name: string; status: string } | null; branch: Named | null; role: string; role_label: string; login_phone: boolean; login_phone_proof: 'sms' | 'vouched' | null; pin_set: boolean } | null;
   linked_accounts: { id: number; name: string; role: string; role_label: string; store: Named | null; same: ('phone' | 'telegram')[]; blocked: boolean; href: string }[];
   audit: AuditEntry[] | null;
-  /** A privacy request: how many Mini App statistics rows of the account are stored (absent from an older backend) */
-  analytics?: { events: number };
-  /** forget_analytics: "Statistikasini o'chirish" (support.manage; absent from an older backend) */
-  actions: { block: boolean; unblock: boolean; close_sessions: boolean; forget_analytics?: boolean };
+  actions: { block: boolean; unblock: boolean; close_sessions: boolean };
   links: { audit: string };
 }
 
@@ -227,12 +224,6 @@ export const getUser = (id: number, signal?: AbortSignal) => data<UserCard>(call
 export const blockUser = (id: number, reason: string) => data<UserCard>(call('POST', `/users/${id}/block`, { body: { reason } }));
 export const unblockUser = (id: number, reason: string) => data<UserCard>(call('POST', `/users/${id}/unblock`, { body: { reason } }));
 export const closeSessions = (id: number, reason: string) => data<UserCard>(call('POST', `/users/${id}/close-sessions`, { body: { reason } }));
-// A privacy request: deletes every Mini App statistics row of the account. One Idempotency-Key per dialog (a retry answers
-// the first count); the server's sentence says how many rows went
-export async function forgetUserAnalytics(id: number, reason: string, key: string): Promise<{ card: UserCard; message: string }> {
-  const answer = await call('POST', `/users/${id}/forget-analytics`, { body: { reason }, headers: { 'Idempotency-Key': key } });
-  return { card: answer.data as UserCard, message: answer.message };
-}
 
 export const listComplaints = (filters: ComplaintFilters, cursor: string | null, signal?: AbortSignal) => data<ComplaintPage>(call('GET', '/complaints', { query: complaintQuery(filters, cursor), signal }));
 export const getComplaint = (uuid: string, signal?: AbortSignal) => data<ComplaintCard>(call('GET', `/complaints/${encodeURIComponent(uuid)}`, { signal }));
@@ -309,12 +300,6 @@ export const useUserAction = (id: number) =>
   useCustomerWrite(
     (action: UserAction) => (action.kind === 'block' ? blockUser(id, action.reason) : action.kind === 'unblock' ? unblockUser(id, action.reason) : closeSessions(id, action.reason)),
     (client, card) => client.setQueryData(CUSTOMER_KEYS.user(card.profile.id), card),
-  );
-
-export const useForgetAnalytics = (id: number) =>
-  useCustomerWrite(
-    (input: { reason: string; key: string }) => forgetUserAnalytics(id, input.reason, input.key),
-    (client, result) => client.setQueryData(CUSTOMER_KEYS.user(result.card.profile.id), result.card),
   );
 
 const placeComplaint = (client: ReturnType<typeof useQueryClient>, card: ComplaintCard) => client.setQueryData(CUSTOMER_KEYS.complaint(card.uuid), card);

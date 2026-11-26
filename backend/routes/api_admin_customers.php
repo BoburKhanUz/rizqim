@@ -5,7 +5,6 @@ use App\Http\Controllers\Api\V1\Admin\AdminCustomerActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\AdminSupportCannedReplyController;
 use App\Http\Controllers\Api\V1\Admin\AdminSupportSuspiciousController;
-use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
 // P4-31: Mijozlar va yordam. Loaded from routes/api_admin.php inside the auth:admin group (prefix /api/v1/admin, names
@@ -25,10 +24,6 @@ Route::middleware(['admin.can:support.manage', 'admin.recent'])->group(function 
     Route::post('/users/{id}/block', [AdminCustomerActionController::class, 'block'])->where('id', $id)->name('users.blocked');
     Route::post('/users/{id}/unblock', [AdminCustomerActionController::class, 'unblock'])->where('id', $id)->name('users.unblocked');
     Route::post('/users/{id}/close-sessions', [AdminCustomerActionController::class, 'closeSessions'])->where('id', $id)->name('users.sessions_closed');
-    // A privacy request: every Mini App statistics row of the account (AnalyticsErasure); a repeat with the same
-    // Idempotency-Key answers the first count and is not recorded again
-    Route::post('/users/{id}/forget-analytics', [AdminCustomerActionController::class, 'forgetAnalytics'])->where('id', $id)
-        ->middleware(EnsureIdempotency::class . ':admin.users.forget_analytics')->name('users.analytics_forgotten');
 });
 
 Route::middleware('admin.can:support.view')->group(function () {

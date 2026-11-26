@@ -1,8 +1,8 @@
 // The fake of Mijozlar va yordam (P4-31): /admin/users (list, card, block, unblock, close sessions), /complaints (inbox,
 // card, take / assign, reply, resolve), /support/canned-replies, /support/suspicious, shaped like the AdminCustomer*,
 // AdminComplaint* and AdminSupport* controllers answer. The rules the screens depend on are here: users.view reads users,
-// support.view reads complaints and the suspicious cases, support.manage changes; block, unblock, closing sessions and
-// deleting the statistics (forget-analytics) also a step-up and a reason (3+ characters); a reply needs the customer's Telegram; RIZQIM team accounts are not users here.
+// support.view reads complaints and the suspicious cases, support.manage changes; block, unblock and closing sessions also a
+// step-up and a reason (3+ characters); a reply needs the customer's Telegram; RIZQIM team accounts are not users here.
 // User 7 (Olim Egamov) is the search palette's user (e2e/fake/backend.ts).
 import { fail, ok, validation, type FakeRequest, type Reply } from './types'
 
@@ -22,8 +22,6 @@ export interface FakeUser {
   orders: number
   blocked: { at: string; reason: string; by: { id: number; name: string } } | null
   sessions: number
-  /** Stored Mini App statistics rows (analytics_events) */
-  analyticsEvents: number
   createdAt: string
 }
 
@@ -47,9 +45,9 @@ const ROLE_LABEL: Record<FakeUser['role'], string> = { customer: 'Mijoz', courie
 
 export class FakeCustomers {
   users: FakeUser[] = [
-    { id: 7, name: 'Olim Egamov', role: 'customer', phone: '+998901234567', telegram: true, store: null, orders: 12, blocked: null, sessions: 2, analyticsEvents: 38, createdAt: iso(60 * 24 * 40) },
-    { id: 8, name: 'Kuryer Bek', role: 'courier', phone: '+998935550022', telegram: true, store: { id: 12, name: 'Lazzat Oshxona' }, orders: 0, blocked: null, sessions: 1, analyticsEvents: 0, createdAt: iso(60 * 24 * 20) },
-    { id: 9, name: 'Telegramsiz Mijoz', role: 'customer', phone: '+998977001133', telegram: false, store: null, orders: 1, blocked: null, sessions: 0, analyticsEvents: 4, createdAt: iso(60 * 24 * 5) },
+    { id: 7, name: 'Olim Egamov', role: 'customer', phone: '+998901234567', telegram: true, store: null, orders: 12, blocked: null, sessions: 2, createdAt: iso(60 * 24 * 40) },
+    { id: 8, name: 'Kuryer Bek', role: 'courier', phone: '+998935550022', telegram: true, store: { id: 12, name: 'Lazzat Oshxona' }, orders: 0, blocked: null, sessions: 1, createdAt: iso(60 * 24 * 20) },
+    { id: 9, name: 'Telegramsiz Mijoz', role: 'customer', phone: '+998977001133', telegram: false, store: null, orders: 1, blocked: null, sessions: 0, createdAt: iso(60 * 24 * 5) },
   ]
 
   complaints: FakeComplaint[] = [
@@ -68,8 +66,6 @@ export class FakeCustomers {
   canned: Array<{ id: number; title: string; body: string }> = [{ id: 1, title: 'Kechikish uchun uzr', body: "Buyurtmangiz kechikkani uchun uzr so'raymiz. Pulingiz qaytariladi." }]
   /** What reached the customers' Telegram */
   sent: Array<{ userId: number; text: string }> = []
-  /** Statistics deletions (POST /users/{id}/forget-analytics): a repeat with the same Idempotency-Key answers the first */
-  forgotten: Array<{ userId: number; reason: string; key: string | null; deleted: number }> = []
   private nextId = 100
 
   route(req: FakeRequest, path: string, body: Record<string, unknown>, can: (permission: string) => boolean, needsRecent: () => Reply | null, actor: { id: number; name: string }): Reply | null {
@@ -90,7 +86,7 @@ export class FakeCustomers {
       }
       return ok({ data: rows.map((user) => this.row(user)), next_cursor: null, per_page: 30, roles: { customer: 'Mijoz', courier: 'Kuryer', staff: 'Ovqatxona xodimlari (barchasi)' } })
     }
-    const user = /^\/users\/(\d+)(?:\/(block|unblock|close-sessions|forget-analytics))?$/.exec(path)
+    const user = /^\/users\/(\d+)(?:\/(block|unblock|close-sessions))?$/.exec(path)
     if (user) {
       const found = this.users.find((candidate) => candidate.id === Number(user[1]))
       if (req.method === 'GET' && !user[2]) {
@@ -108,15 +104,6 @@ export class FakeCustomers {
           found.blocked = { at: new Date().toISOString(), reason: String(body.reason).trim(), by: actor }
           found.sessions = 0
           return ok(this.card(found, can), { message: 'Foydalanuvchi bloklandi. Uning barcha sessiyalari yopildi.' })
-        }
-        if (user[2] === 'forget-analytics') {
-          const key = req.headers?.['idempotency-key'] ?? null
-          const replay = key ? this.forgotten.find((entry) => entry.key === key && entry.userId === found.id) : undefined
-          if (replay) return ok(this.card(found, can), { message: `Statistika yozuvlari o'chirildi: ${replay.deleted} ta.` })
-          const deleted = found.analyticsEvents
-          found.analyticsEvents = 0
-          this.forgotten.push({ userId: found.id, reason: String(body.reason).trim(), key, deleted })
-          return ok(this.card(found, can), { message: `Statistika yozuvlari o'chirildi: ${deleted} ta.` })
         }
         if (user[2] === 'unblock') {
           if (!found.blocked) return fail(409, 'Hisob bloklanmagan.', { reason: 'not_blocked' })
@@ -276,8 +263,7 @@ export class FakeCustomers {
       membership: user.store ? { store: { ...user.store, status: 'active' }, branch: null, role: user.role, role_label: ROLE_LABEL[user.role], login_phone: true, login_phone_proof: 'sms', pin_set: false } : null,
       linked_accounts: [],
       audit: can('admin.audit.view') ? [] : null,
-      analytics: { events: user.analyticsEvents },
-      actions: { block: manage && !user.blocked, unblock: manage && user.blocked !== null, close_sessions: manage, forget_analytics: manage },
+      actions: { block: manage && !user.blocked, unblock: manage && user.blocked !== null, close_sessions: manage },
       links: { audit: `/audit?subject_type=User&subject_id=${user.id}` },
     }
   }

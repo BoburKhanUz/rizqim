@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { ArrowLeft, Ban, CircleCheck, ExternalLink, LogOut, RefreshCw, ShieldAlert, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Ban, CircleCheck, ExternalLink, LogOut, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { Button, Card, CardSkeletons, cx, EmptyState, IconButton, InlineError, Notice, PageHeader, Pill, Section, Tabs } from '@rizqim/ui';
 import { ApiError } from '@/lib/api/client';
-import { useForgetAnalytics, useUser, useUserAction, type UserAction, type UserCard } from '@/lib/api/customers';
-import { idempotencyKey } from '@/lib/api/orders';
+import { useUser, useUserAction, type UserAction, type UserCard } from '@/lib/api/customers';
 import type { MessageKey } from '@/i18n';
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
@@ -26,15 +25,15 @@ const TAB_LABEL: Record<UserCardTab, MessageKey> = {
 
 // The user card (/users/[id], P4-31): profile, block state, order totals, orders and refunds, keshbek, complaints, sessions and
 // devices, the store of a staff account, other accounts with the same phone or Telegram, audit entries. A part the member has
-// no permission for is not shown (the backend sends null). Block, unblock, closing sessions and deleting the Mini App
-// statistics (a privacy request, with one Idempotency-Key per dialog) ask for a reason; the shell asks for the step-up.
+// no permission for is not shown (the backend sends null). Block, unblock and closing sessions ask for a reason; the shell
+// asks for the step-up.
 export function UserCardView({ id }: { id: number }) {
   const t = useT();
   const { ready, can } = useCan();
   const allowed = ready && can('users.view');
   const card = useUser(id, allowed);
   const [tab, setTab] = useState<UserCardTab>('overview');
-  const [dialog, setDialog] = useState<UserAction['kind'] | 'forget_analytics' | null>(null);
+  const [dialog, setDialog] = useState<UserAction['kind'] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (ready && !allowed) {
@@ -79,7 +78,7 @@ export function UserCardView({ id }: { id: number }) {
   const { profile, block, actions } = user;
   const tabs = CARD_TABS.filter((key) => (key === 'orders' ? user.orders !== null : key === 'complaints' ? user.complaints !== null : key === 'audit' ? user.audit !== null : true));
   const current = tabs.includes(tab) ? tab : 'overview';
-  const anyAction = actions.block || actions.unblock || actions.close_sessions || actions.forget_analytics === true;
+  const anyAction = actions.block || actions.unblock || actions.close_sessions;
 
   return (
     <>
@@ -120,11 +119,6 @@ export function UserCardView({ id }: { id: number }) {
                   {t('customers_closeSessions')}
                 </Button>
               )}
-              {actions.forget_analytics && (
-                <Button variant="secondary" icon={Trash2} onClick={() => setDialog('forget_analytics')}>
-                  {t('customers_forgetAnalytics')}
-                </Button>
-              )}
             </div>
           )}
           {user.audit !== null && (
@@ -146,17 +140,7 @@ export function UserCardView({ id }: { id: number }) {
         </div>
       </div>
 
-      {dialog === 'forget_analytics' && (
-        <ForgetAnalyticsDialog
-          user={user}
-          onClose={() => setDialog(null)}
-          onDone={(message) => {
-            setDialog(null);
-            setNotice(message);
-          }}
-        />
-      )}
-      {dialog && dialog !== 'forget_analytics' && (
+      {dialog && (
         <ActionDialog
           kind={dialog}
           user={user}
@@ -192,27 +176,6 @@ function ActionDialog({ kind, user, onClose, onDone }: { kind: UserAction['kind'
       reasonError={fieldError(action.error, 'reason')}
       onClose={onClose}
       onSubmit={(reason) => action.mutate({ kind, reason }, { onSuccess: () => onDone(t(words.done)) })}
-    />
-  );
-}
-
-// A privacy request: every Mini App statistics row of the account goes, for good. One Idempotency-Key per dialog, so a
-// repeat (a lost answer, the retry after the step-up) answers the first count and is not done twice
-function ForgetAnalyticsDialog({ user, onClose, onDone }: { user: UserCard; onClose: () => void; onDone: (message: string) => void }) {
-  const t = useT();
-  const forget = useForgetAnalytics(user.profile.id);
-  const [key] = useState(idempotencyKey);
-  return (
-    <ReasonForm
-      title={t('customers_forgetTitle')}
-      text={t('customers_forgetText', { name: user.profile.name, count: user.analytics?.events ?? 0 })}
-      submitLabel={t('customers_forgetConfirm')}
-      tone="danger"
-      busy={forget.isPending}
-      error={forget.error ? errorText(forget.error, t) : null}
-      reasonError={fieldError(forget.error, 'reason')}
-      onClose={onClose}
-      onSubmit={(reason) => forget.mutate({ reason, key }, { onSuccess: (result) => onDone(result.message) })}
     />
   );
 }
@@ -284,14 +247,6 @@ function Overview({ user }: { user: UserCard }) {
           />
         </Card>
       </Section>
-      {user.analytics && (
-        <Section title={t('customers_analytics')}>
-          <Card className="flex flex-col gap-2">
-            <Rows rows={[[t('customers_analyticsEvents'), <span key="analytics-events" data-testid="analytics-events">{t('customers_analyticsCount', { count: user.analytics.events })}</span>]]} />
-            <p className="text-caption text-fg-muted">{t('customers_analyticsNote')}</p>
-          </Card>
-        </Section>
-      )}
       {membership && (
         <Section title={t('customers_membership')}>
           <Card>

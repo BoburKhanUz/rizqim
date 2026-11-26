@@ -55,14 +55,12 @@ class AnalyticsEventsPartitionTest extends TestCase
         $this->assertStringContainsString('USING btree (session_id, event_uid)', $indexes);
         $this->assertStringContainsString('USING btree (order_id) WHERE (order_id IS NOT NULL)', $indexes);
         $this->assertStringNotContainsString('USING btree (session_id)', $indexes);
-        // A privacy request deletes and counts one user's rows of every month (AnalyticsErasure)
-        $this->assertStringContainsString('USING btree (user_id)', $indexes);
         // No foreign key on a partitioned journal (M3 rule) and no row-level security (NOT_UNDER_RLS: MIXED)
         $this->assertSame(0, (int) DB::selectOne("SELECT count(*) AS n FROM pg_constraint WHERE conrelid = 'analytics_events'::regclass AND contype = 'f'")->n);
         $this->assertFalse((bool) DB::selectOne("SELECT relrowsecurity AS r FROM pg_class WHERE oid = 'analytics_events'::regclass")->r);
         // A month ensure attaches gets the parent's indexes
         $month = PartitionManager::monthName('analytics_events', $current);
-        $this->assertSame(4, (int) DB::selectOne('SELECT count(*) AS n FROM pg_indexes WHERE tablename = ? AND indexdef NOT LIKE ?', [$month, '%_pkey%'])->n);
+        $this->assertSame(3, (int) DB::selectOne('SELECT count(*) AS n FROM pg_indexes WHERE tablename = ? AND indexdef NOT LIKE ?', [$month, '%_pkey%'])->n);
     }
 
     public function test_ensure_attaches_new_months_and_the_archive_drops_the_expired_ones_without_a_copy(): void
