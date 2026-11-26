@@ -206,6 +206,7 @@ variables -> Actions -> *Repository secrets*), ularni **o'chiring**: workflow en
 | `PROD_DEPLOY_ENABLED` | `true` | **Majburiy.** Bo'lmasa production deploy toza o'tkazib yuboriladi (xato emas). Server tayyor bo'lganda qo'ying |
 | `PROD_VITE_BOT_USERNAME` | `rizqimbot` (standart) | haqiqiy bot (`@` siz) |
 | `PROD_VITE_PARTNER_WEB_URL` | `https://business.rizqim.uz` (standart) | |
+| `PROD_VITE_SITE_URL` | `https://rizqim.uz` (standart) | Mini App'dagi rozilik qatori va "Hujjatlar" havolalari (`/shartlar`, `/maxfiylik`); bot uchun backend'dagi `SITE_URL` |
 | `PROD_VITE_MAP_TILE_URL`, `PROD_VITE_MAP_ATTRIBUTION` | bo'sh | production'da xarita provayderi (ochiq OSM faqat sinov uchun) |
 | `PROD_VITE_SENTRY_DSN` | bo'sh | Sentry bo'lsa |
 | `PROD_VITE_ANALYTICS_ENABLED` | bo'sh (o'chiq) | `true` — Mini App statistika klientini yig'adi (faqat maxfiylik siyosatining yangi matni e'lon qilingandan keyin); o'zgartirgach qayta deploy. Serverdagi `ANALYTICS_ENABLED` alohida (ishlayotgan o'chirgich) |

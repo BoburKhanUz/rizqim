@@ -5,7 +5,7 @@ import { useAddressStore } from '../store/useAddressStore';
 import type { Address } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
 import { selectionChanged } from '../lib/twa';
-import { ChevronRight, Crown, LifeBuoy, MapPin, Pencil, Plus, Share2, Trash2, UserRound, X } from 'lucide-react';
+import { ChevronRight, Crown, ExternalLink, FileText, LifeBuoy, MapPin, Pencil, Plus, Share2, Trash2, UserRound, X } from 'lucide-react';
 import api from '../services/api';
 import PhoneVerificationModal from '../components/PhoneVerificationModal';
 import AddressLocationField from '../features/address/AddressLocationField';
@@ -20,6 +20,8 @@ import { useLanguageStore } from '../store/languageStore';
 import { Button, Card, IconButton, PageHeader, Section, cx, fieldClass } from '../components/ui';
 import { normalizeUser } from '../lib/user';
 import { fetchOrdersPage } from '../hooks/useOrders';
+import { legalLinks } from '../lib/legalLinks';
+import { LegalLink } from '../components/LegalLink';
 import type { ApiResponse, AuthPayload } from '../types';
 
 const COMPLETED_ORDERS_PAGE_SIZE = 50; // the most the backend serves per page
@@ -557,6 +559,26 @@ export default function CustomerProfile() {
           <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
         </button>
       </Card>
+
+      {/* The legal documents, always one tap away (the first-launch notice is shown once): opened through Telegram */}
+      <Section title={t('legalDocsTitle')}>
+        <Card padded={false} className="flex flex-col divide-y divide-line">
+          {([
+            [legalLinks().terms, t('legalTerms')],
+            [legalLinks().privacy, t('legalPrivacy')],
+          ] as const).map(([href, label]) => (
+            <LegalLink
+              key={href}
+              href={href}
+              className="flex min-h-14 w-full items-center gap-3 px-4 text-left text-body font-medium text-fg focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              <FileText aria-hidden="true" className="size-5 shrink-0 text-brand" />
+              <span className="flex-1">{label}</span>
+              <ExternalLink aria-hidden="true" className="size-4 shrink-0 text-fg-muted" />
+            </LegalLink>
+          ))}
+        </Card>
+      </Section>
     </div>
   );
 }

@@ -12,9 +12,9 @@
 #   Repozitoriy Variables (Settings -> Secrets and variables -> Actions -> Variables; sir EMAS, `prepare` va `build` o'qiydi):
 #     PROD_DEPLOY_ENABLED=true            production deploy yoqilgan (yo'q/boshqa qiymat = o'tkazib yuboriladi)
 #     STAGING_DEPLOY_ENABLED=true         (keyinroq, staging server paydo bo'lganda)
-#     PROD_VITE_BOT_USERNAME, PROD_VITE_PARTNER_WEB_URL, PROD_VITE_MAP_TILE_URL, PROD_VITE_MAP_ATTRIBUTION, PROD_VITE_SENTRY_DSN
-#     (staging uchun STAGING_VITE_*): Mini App obraziga yoziladi. Berilmasa: bot va panel manzili muhit standartiga
-#     (rizqimbot / rizqim_staging_bot, business.<domen>), qolganlari bo'sh.
+#     PROD_VITE_BOT_USERNAME, PROD_VITE_PARTNER_WEB_URL, PROD_VITE_SITE_URL, PROD_VITE_MAP_TILE_URL, PROD_VITE_MAP_ATTRIBUTION,
+#     PROD_VITE_SENTRY_DSN (staging uchun STAGING_VITE_*): Mini App obraziga yoziladi. Berilmasa: bot, panel va sayt manzili
+#     muhit standartiga (rizqimbot / rizqim_staging_bot, business.<domen>, https://<domen>), qolganlari bo'sh.
 #     PROD_VITE_ANALYTICS_ENABLED (STAGING_VITE_ANALYTICS_ENABLED): faqat `true` bo'lsa Mini App statistika klientini
 #     yig'adi (customer/miniapp/README.md "Analitika"); yo'q yoki boshqa qiymat = o'chiq. O'zgartirgandan keyin qayta
 #     deploy kerak (build vaqtidagi qiymat). Serverdagi ANALYTICS_ENABLED esa ishlayotgan o'chirgich (alohida).
@@ -73,6 +73,7 @@ jobs:
       tag_backup: ${{ steps.plan.outputs.tag_backup }}
       vite_bot_username: ${{ steps.plan.outputs.vite_bot_username }}
       vite_partner_web_url: ${{ steps.plan.outputs.vite_partner_web_url }}
+      vite_site_url: ${{ steps.plan.outputs.vite_site_url }}
       vite_map_tile_url: ${{ steps.plan.outputs.vite_map_tile_url }}
       vite_map_attribution: ${{ steps.plan.outputs.vite_map_attribution }}
       vite_sentry_dsn: ${{ steps.plan.outputs.vite_sentry_dsn }}
@@ -94,12 +95,14 @@ jobs:
           PROD_ENABLED: ${{ vars.PROD_DEPLOY_ENABLED }}
           V_STG_BOT: ${{ vars.STAGING_VITE_BOT_USERNAME }}
           V_STG_PARTNER: ${{ vars.STAGING_VITE_PARTNER_WEB_URL }}
+          V_STG_SITE: ${{ vars.STAGING_VITE_SITE_URL }}
           V_STG_TILE: ${{ vars.STAGING_VITE_MAP_TILE_URL }}
           V_STG_ATTR: ${{ vars.STAGING_VITE_MAP_ATTRIBUTION }}
           V_STG_SENTRY: ${{ vars.STAGING_VITE_SENTRY_DSN }}
           V_STG_ANALYTICS: ${{ vars.STAGING_VITE_ANALYTICS_ENABLED }}
           V_PROD_BOT: ${{ vars.PROD_VITE_BOT_USERNAME }}
           V_PROD_PARTNER: ${{ vars.PROD_VITE_PARTNER_WEB_URL }}
+          V_PROD_SITE: ${{ vars.PROD_VITE_SITE_URL }}
           V_PROD_TILE: ${{ vars.PROD_VITE_MAP_TILE_URL }}
           V_PROD_ATTR: ${{ vars.PROD_VITE_MAP_ATTRIBUTION }}
           V_PROD_SENTRY: ${{ vars.PROD_VITE_SENTRY_DSN }}
@@ -120,10 +123,12 @@ jobs:
             [ "$EVENT" = workflow_dispatch ] || { echo "::error::production faqat qo'lda (workflow_dispatch)"; exit 1; }
             flag="$PROD_ENABLED"; flag_name=PROD_DEPLOY_ENABLED; domain="$PROD_DOMAIN"
             bot="${V_PROD_BOT:-rizqimbot}"; partner="${V_PROD_PARTNER:-https://business.$PROD_DOMAIN}"
+            site="${V_PROD_SITE:-https://$PROD_DOMAIN}"
             tile="$V_PROD_TILE"; attr="$V_PROD_ATTR"; sentry="$V_PROD_SENTRY"; analytics="$V_PROD_ANALYTICS"
           else
             flag="$STG_ENABLED"; flag_name=STAGING_DEPLOY_ENABLED; domain="$STAGING_DOMAIN"
             bot="${V_STG_BOT:-rizqim_staging_bot}"; partner="${V_STG_PARTNER:-https://business.$STAGING_DOMAIN}"
+            site="${V_STG_SITE:-https://$STAGING_DOMAIN}"
             tile="$V_STG_TILE"; attr="$V_STG_ATTR"; sentry="$V_STG_SENTRY"; analytics="$V_STG_ANALYTICS"
           fi
 
@@ -159,6 +164,7 @@ jobs:
             echo "tag_backup=$tag_bk"
             echo "vite_bot_username=$bot"
             echo "vite_partner_web_url=$partner"
+            echo "vite_site_url=$site"
             echo "vite_map_tile_url=$tile"
             echo "vite_map_attribution=$attr"
             echo "vite_sentry_dsn=$sentry"
@@ -224,6 +230,7 @@ jobs:
           TAG_BK: ${{ needs.prepare.outputs.tag_backup }}
           V_BOT: ${{ needs.prepare.outputs.vite_bot_username }}
           V_PARTNER: ${{ needs.prepare.outputs.vite_partner_web_url }}
+          V_SITE: ${{ needs.prepare.outputs.vite_site_url }}
           V_TILE: ${{ needs.prepare.outputs.vite_map_tile_url }}
           V_ATTR: ${{ needs.prepare.outputs.vite_map_attribution }}
           V_SENTRY: ${{ needs.prepare.outputs.vite_sentry_dsn }}
@@ -249,6 +256,7 @@ jobs:
               echo "VITE_API_URL=/api/v1"
               echo "VITE_BOT_USERNAME=$V_BOT"
               echo "VITE_PARTNER_WEB_URL=$V_PARTNER"
+              echo "VITE_SITE_URL=$V_SITE"
               echo "VITE_SENTRY_ENVIRONMENT=$TARGET"
               echo "VITE_SENTRY_RELEASE=$TAG"
               [ -z "$V_TILE" ] || echo "VITE_MAP_TILE_URL=$V_TILE"
