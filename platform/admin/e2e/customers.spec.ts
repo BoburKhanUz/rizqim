@@ -95,6 +95,36 @@ test('a viewer reads users and complaints without actions; the suspicious cases 
   await expect(page).toHaveURL(/\/users\/7$/)
 })
 
+// A privacy request: "Statistikasini o'chirish" asks for a confirmation with a reason and a fresh 2FA code, sends one
+// Idempotency-Key, and the card says how many rows went
+test("deleting a user's statistics asks for a reason and a fresh 2FA code", async ({ page, api, signIn }) => {
+  await openSignedIn(page, signIn, '/users/7', 'aziza@rizqim.uz')
+  await expect(page.getByTestId('analytics-events')).toHaveText('38 ta')
+  await page.getByRole('button', { name: "Statistikasini o'chirish" }).click()
+  const dialog = page.getByRole('dialog', { name: "Statistikasini o'chirish" })
+  await expect(dialog).toContainText("barcha statistika yozuvlari (38 ta) butunlay o'chiriladi")
+  const confirm = dialog.getByRole('button', { name: "Ha, o'chirish" })
+  await expect(confirm).toBeDisabled()
+  await dialog.getByLabel('Sabab', { exact: true }).fill("Mijoz Telegram orqali so'radi")
+  await confirm.click()
+
+  const stepUp = page.getByRole('alertdialog', { name: 'Amalni tasdiqlang' })
+  await stepUp.getByLabel('6 xonali kod').fill(VALID_CODE)
+  await stepUp.getByRole('button', { name: 'Tasdiqlash' }).click()
+  await expect(page.getByText("Statistika yozuvlari o'chirildi: 38 ta.")).toBeVisible()
+  await expect(page.getByTestId('analytics-events')).toHaveText('0 ta')
+  expect(api.customers.forgotten).toHaveLength(1)
+  expect(api.customers.forgotten[0]).toMatchObject({ userId: 7, reason: "Mijoz Telegram orqali so'radi", deleted: 38 })
+  expect(api.customers.forgotten[0]?.key).toMatch(/^[0-9a-f-]{36}$/)
+})
+
+test('a viewer sees the statistics count but cannot delete it', async ({ page, api, signIn }) => {
+  api.addMember({ name: "Ko'ruvchi", email: 'viewer@rizqim.uz', platform_role: 'viewer', twoFactor: true })
+  await openSignedIn(page, signIn, '/users/7', 'viewer@rizqim.uz')
+  await expect(page.getByTestId('analytics-events')).toHaveText('38 ta')
+  await expect(page.getByRole('button', { name: "Statistikasini o'chirish" })).toHaveCount(0)
+})
+
 test('the search palette opens the user card', async ({ page, signIn }) => {
   await openSignedIn(page, signIn, '/today', 'aziza@rizqim.uz')
   await page.getByRole('button', { name: 'Qidirish' }).click()

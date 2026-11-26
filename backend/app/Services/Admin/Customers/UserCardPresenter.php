@@ -3,6 +3,7 @@
 namespace App\Services\Admin\Customers;
 
 use App\Auth\AdminTokenGuard;
+use App\Domain\Analytics\AnalyticsErasure;
 use App\Enums\AdminPermission;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
@@ -24,9 +25,10 @@ use Laravel\Sanctum\PersonalAccessToken;
  * P4-31: the user card of Mijozlar va yordam (GET /admin/users/{id}, admin.users.view): profile (phone through
  * AdminPii: masked unless admin.pii.view, a reveal is audited), the block state, order totals, the last orders,
  * refunds, keshbek balance and its movements, complaints, sessions and devices, store membership for staff (and other
- * accounts holding the same phone or Telegram), audit entries about the account, and which actions the member may
- * take. A part the member has no permission for comes back null: orders and refunds need admin.orders.view,
- * complaints admin.support.view, the audit entries admin.audit.view.
+ * accounts holding the same phone or Telegram), audit entries about the account, how many Mini App statistics rows are
+ * stored (analytics.events, for a privacy request), and which actions the member may take. A part the member has no
+ * permission for comes back null: orders and refunds need admin.orders.view, complaints admin.support.view, the audit
+ * entries admin.audit.view.
  */
 class UserCardPresenter
 {
@@ -36,6 +38,7 @@ class UserCardPresenter
         private readonly AdminPii $pii,
         private readonly AdminPermissionService $permissions,
         private readonly KeshbekHistory $keshbek,
+        private readonly AnalyticsErasure $analytics,
     ) {}
 
     /**
@@ -59,10 +62,13 @@ class UserCardPresenter
             'membership' => $this->membership($user),
             'linked_accounts' => $this->linkedAccounts($user),
             'audit' => $can(AdminPermission::AUDIT_VIEW) ? $this->audit($user) : null,
+            // Privacy requests: how many Mini App statistics rows of the account are stored (one index read)
+            'analytics' => ['events' => $this->analytics->count((int) $user->id)],
             'actions' => [
                 'block' => $manage && !$user->isBlocked(),
                 'unblock' => $manage && $user->isBlocked(),
                 'close_sessions' => $manage,
+                'forget_analytics' => $manage,
             ],
             'links' => [
                 'audit' => '/audit?subject_type=User&subject_id=' . $user->id,

@@ -4091,6 +4091,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/users/{id}/forget-analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete the user's statistics
+         * @description A privacy request: deletes every stored Mini App statistics row (analytics_events) of the account, in every month
+         *     (nothing else: orders, payments and the anonymous daily totals stay). `reason` is required (e.g. how the person
+         *     asked); send an `Idempotency-Key`: a repeat with it answers the first result and is not recorded again. Answers
+         *     the card; the message and the audit entry (`analytics_events_deleted`) give the count. Backups keep the rows
+         *     until they age out (docs/OPERATIONS.md). 403 `platform_account`.
+         */
+        post: operations["admin.users.analytics_forgotten"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/users/{id}/unblock": {
         parameters: {
             query?: never;
@@ -26733,6 +26757,61 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "admin.users.analytics_forgotten": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A RIZQIM team account (platform_account) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: {
                 headers: {
                     [name: string]: unknown;
