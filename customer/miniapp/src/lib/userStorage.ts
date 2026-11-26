@@ -13,8 +13,9 @@ import { createJSONStorage, type StateStorage } from 'zustand/middleware';
 // Device settings (the language, the order-sound switch, the dev server's mock account) are not per user.
 
 // The stores that hold one person's data: the session (token, user, store), the cart (lines, the note, the open
-// checkout attempt with its body) and the saved addresses (device-only: home address, intercom, ...)
-export const USER_STORE_NAMES = ['auth-storage', 'cart-storage', 'address-storage'] as const;
+// checkout attempt with its body), the saved addresses (device-only: home address, intercom, ...) and whether the
+// first-launch consent notice was shown (store/consentStore.ts)
+export const USER_STORE_NAMES = ['auth-storage', 'cart-storage', 'address-storage', 'consent-storage'] as const;
 export type UserStoreName = (typeof USER_STORE_NAMES)[number];
 
 // The dev server's stand-in for a Telegram account outside Telegram (useTelegramAuth signs in with it)
