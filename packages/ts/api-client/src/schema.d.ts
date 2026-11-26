@@ -1031,6 +1031,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/finance/reports/keshbek": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Keshbek report
+         * @description `period` — "YYYY-MM", an Asia/Tashkent month (default: the current one). The month's keshbek movements, each
+         *     `{count, amount}`: `issued` — referral bonuses the platform granted (store_transactions `referral_bonus`,
+         *     amount > 0); `clawed_back` — those taken back (amount < 0); `legacy_store_paid` — the bonuses stores paid before
+         *     owner decision 3's addition (`commission` rows with the referral note; not the platform's); `spent` — keshbek
+         *     payments (payments.provider `keshbek`, by created_at, whatever their status now); `returned` — what refunds gave
+         *     back to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance). `reconciliation`:
+         *     `opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =
+         *     `expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance
+         *     change is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the
+         *     month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row. Amounts are
+         *     decimal strings.
+         */
+        get: operations["admin.finance.reports.keshbek"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/reports/keshbek/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Keshbek report (Excel)
+         * @description The same report as an .xlsx workbook (sheet "Keshbek"). Needs admin.export as well; each export is recorded in
+         *     the audit log.
+         */
+        get: operations["admin.finance.reports.keshbek_exported"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/finance/reports/monthly": {
         parameters: {
             query?: never;
@@ -17506,6 +17557,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.finance.reports.keshbek": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: string;
+                            timezone: string;
+                            as_of: string;
+                            issued: {
+                                count: number;
+                                amount: string;
+                            };
+                            clawed_back: {
+                                count: number;
+                                amount: string;
+                            };
+                            legacy_store_paid: {
+                                count: number;
+                                amount: string;
+                            };
+                            spent: {
+                                count: number;
+                                amount: string;
+                            };
+                            returned: {
+                                count: number;
+                                amount: string;
+                            };
+                            outstanding: {
+                                positive: string;
+                                negative: string;
+                                net: string;
+                                holders: number;
+                                debtors: number;
+                            };
+                            reconciliation: {
+                                opening: string;
+                                movement: string;
+                                closing: string;
+                                after_period: string;
+                                expected_now: string;
+                                live: string;
+                                difference: string;
+                            };
+                            unrecorded: {
+                                keshbek_orders_without_payment: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "admin.finance.reports.keshbek_exported": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
                 };
             };
         };

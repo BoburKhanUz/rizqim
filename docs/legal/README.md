@@ -54,6 +54,22 @@ olib ketilmagan buyurtmadan keyin naqd to'lov o'chadi (`config/orders.php`). Alk
 Kuryer ilovasi va mijoz mobil ilovasi hali yo'q, shuning uchun kuryer GPS kuzatuvi va push xabarlar sahifalarda yo'q:
 ular ishga tushsa matnga qo'shing.
 
+## Rozilik qayerda ko'rsatiladi ("bosish = rozilik")
+
+Egasi qarori: alohida belgi (checkbox) yoki "Roziman" tugmasi yo'q; harakatning o'zi (raqam yuborish, ilovadan
+foydalanish) rozilik hisoblanadi (O'RQ-547 21-modda: rozilik istalgan tasdiqlanadigan shaklda; Fuqarolik kodeksi
+370-modda: aksept harakat bilan). Statistikadan voz kechish tugmasi va statistikani o'chirish imkoni ham yo'q (egasi
+qarori). Matnlarning o'zi o'zgarmagan; quyidagi joylarda ularga havola bilan bitta qator qo'shilgan:
+
+| Joy | Matn (uz) | Qayerda |
+|---|---|---|
+| Telegram bot: telefon raqamini so'rash xabari ("📱 Telefon raqamini yuborish" tugmasi bilan; /start, raqami yo'q mijoz) | "Telefon raqamingizni yuborib, siz [Foydalanish shartlari] va [Maxfiylik siyosati]ga rozilik bildirasiz." | `backend/app/Services/Telegram/TelegramMessageHandler.php` (`consentNotice`); havolalar `SITE_URL` (`config/services.php` → `services.site.url`, standart `https://rizqim.uz`) + `/shartlar`, `/maxfiylik`. Bot faqat o'zbekcha yozadi |
+| Mini App: mijozning birinchi ochilishi (pastki panel ustidagi kichik qator, yopsa bo'ladi) | "Ilovadan foydalanib, siz [Foydalanish shartlari] va [Maxfiylik siyosati]ga rozilik bildirasiz." (ru, en ham) | `customer/miniapp/src/components/ConsentNotice.tsx`. Har Telegram foydalanuvchisiga bir marta (`consent-storage:<telegram id>`, qurilmada); xodim rollariga ko'rsatilmaydi; telefon so'rash oynasi ochiq turganda kutadi |
+| Mini App: Profil → "Hujjatlar" | "Foydalanish shartlari", "Maxfiylik siyosati" doimiy havolalari | `customer/miniapp/src/pages/CustomerProfile.tsx`; manzil `VITE_SITE_URL` (standart `https://rizqim.uz`) |
+
+Havolalar Telegram orqali (Mini App'da `WebApp.openLink`) ochiladi. Kim, qachon "rozi bo'lgani" serverda alohida
+yozilmaydi: birinchi ochilish belgisi faqat qurilmada saqlanadi.
+
 ## Egasi nima qilishi kerak
 
 1. **Rekvizitlarni to'ldiring** (`infra/landing/site/site.config.js`, so'ng `docker compose up -d --build landing`):
@@ -100,3 +116,11 @@ ular ishga tushsa matnga qo'shing.
   imkonini talab qiladi (31-modda): e-pochta yoki Telegram orqali so'rov shu talabni qoplaydi, lekin ichki tartib kerak.
 - **Javob muddatlari** sahifada "qonunchilikda belgilangan muddatlarda" deb yozilgan; aniq kun soni yurist bilan
   belgilansa, matnga qo'shilsin.
+- **"Bosish = rozilik" yetarlimi?** Bot va Mini App'da rozilik faqat ogohlantiruvchi qator bilan olinadi (raqam
+  yuborish yoki ilovadan foydalanish = rozilik; yuqoridagi "Rozilik qayerda ko'rsatiladi" bo'limi). Yurist bilan
+  aniqlang: O'RQ-547 21-moddasidagi "tasdiqlanadigan shakl" va transchegaraviy uzatish (15-modda, Telegram) uchun shu
+  yetarlimi yoki aniq belgi (checkbox) yoki "Roziman" tugmasi va rozilik vaqtini serverda yozib qo'yish kerakmi.
+- **Statistika (siyosatning 1.1-bo'limi) uchun alohida rozilik kerakmi?** Foydalanish statistikasidan foydalanuvchi
+  bo'yicha voz kechish imkoni yo'q va bo'lmaydi (egasi qarori). Yurist bilan aniqlang: statistika umumiy rozilikka
+  (yuqoridagi qator) kiradimi yoki alohida rozilik so'ralishi kerakmi; voz kechish imkonisiz bu O'RQ-547 30-moddasidagi
+  rozilikni qaytarib olish huquqiga zid emasmi.

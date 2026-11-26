@@ -25,7 +25,7 @@ const IMPORT_PATH = 'v1/admin/pos/sync-import';
 const IMPORT_TIMEOUT_MS = 60_000;
 // P4-23: the only answers passed on as a file (the monthly report's Excel, an adjustment's document), and their types
 // P4-31: the Excel exports of the lists (/exports/<list>); their X-Export-Rows / X-Export-Truncated headers are passed on too
-const DOWNLOAD_PATHS = /^v1\/admin\/(?:finance\/(?:reports\/monthly\/export|adjustments\/\d{1,18}\/document)|exports\/[a-z-]{1,30}(?:\/[a-z-]{1,30})?|marketing\/(?:promos|categories)\/\d{1,18}\/image)$/;
+const DOWNLOAD_PATHS = /^v1\/admin\/(?:finance\/(?:reports\/(?:monthly|keshbek)\/export|adjustments\/\d{1,18}\/document)|exports\/[a-z-]{1,30}(?:\/[a-z-]{1,30})?|marketing\/(?:promos|categories)\/\d{1,18}\/image)$/;
 const DOWNLOAD_TYPES = /^(?:application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|application\/pdf|image\/(?:jpeg|png|webp))(?:;|$)/i;
 // Cookie lifetime when the backend sends no expiry: the absolute session limit
 const FALLBACK_MAX_AGE_S = 12 * 60 * 60;

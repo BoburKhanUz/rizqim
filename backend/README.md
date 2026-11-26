@@ -92,6 +92,7 @@ Namuna: [.env.example](.env.example). "Standart" ustunida `.env.example` qiymati
 | `TELEGRAM_BOT_TOKEN` | bo'sh | BotFather tokeni; bo'sh bo'lsa hech qanday xabar yuborilmaydi va `telegram:set-webhook --if-configured` jim o'tadi |
 | `TELEGRAM_BOT_USERNAME` | bo'sh | `@` siz; deep-linklar shundan quriladi, Mini App'dagi `VITE_BOT_USERNAME` bilan bir xil bo'lsin |
 | `TELEGRAM_WEBAPP_URL` | bo'sh | Mini App'ning HTTPS manzili: bot tugmalari va CORS ruxsatlari uchun (productionda majburiy) |
+| `SITE_URL` | `https://rizqim.uz` | Ochiq sayt (`infra/landing`): bot telefon raqamini so'rash xabarida `/shartlar` va `/maxfiylik` ga havola beradi ("bosish = rozilik", `docs/legal/README.md`) |
 | `TELEGRAM_WEBHOOK_SECRET` | bo'sh | majburiy; faqat `A-Z a-z 0-9 _ -`, 1–256 belgi; webhook shu sarlavha bilan himoyalangan |
 | `TELEGRAM_WEBHOOK_URL` | bo'sh | bo'sh bo'lsa `APP_URL` + `/api/v1/telegram/webhook`; HTTPS bo'lishi shart |
 | `TELEGRAM_ALLOW_MOCK_AUTH` | `false` | imzosiz `mock_` initData; faqat `APP_ENV=local` bilan ishlaydi, productionda doim `false` |

@@ -186,6 +186,13 @@ export const translations = {
     rateSending: 'Yuborilmoqda...',
     rateThanks: 'Baho yuborildi! Rahmat.',
     genericError: 'Xatolik yuz berdi.',
+    // Legal documents: the first-launch notice ("click = consent") and the profile's links (lib/legalLinks.ts)
+    consentNoticeApp: 'Ilovadan foydalanib, siz {{terms}} va {{privacy}}ga rozilik bildirasiz.',
+    consentTermsLink: 'Foydalanish shartlari',
+    consentPrivacyLink: 'Maxfiylik siyosati',
+    legalDocsTitle: 'Hujjatlar',
+    legalTerms: 'Foydalanish shartlari',
+    legalPrivacy: 'Maxfiylik siyosati',
     // Profile
     profileTitle: 'Mening profilim',
     profileGuest: 'Mijoz',
@@ -441,6 +448,13 @@ export const translations = {
     rateSending: 'Отправка...',
     rateThanks: 'Оценка отправлена! Спасибо.',
     genericError: 'Произошла ошибка.',
+    // Legal documents: the first-launch notice ("click = consent") and the profile's links (lib/legalLinks.ts)
+    consentNoticeApp: 'Пользуясь приложением, вы соглашаетесь с {{terms}} и {{privacy}}.',
+    consentTermsLink: 'Условиями использования',
+    consentPrivacyLink: 'Политикой конфиденциальности',
+    legalDocsTitle: 'Документы',
+    legalTerms: 'Условия использования',
+    legalPrivacy: 'Политика конфиденциальности',
     // Profile
     profileTitle: 'Мой профиль',
     profileGuest: 'Клиент',
@@ -696,6 +710,13 @@ export const translations = {
     rateSending: 'Sending...',
     rateThanks: 'Rating sent! Thank you.',
     genericError: 'Something went wrong.',
+    // Legal documents: the first-launch notice ("click = consent") and the profile's links (lib/legalLinks.ts)
+    consentNoticeApp: 'By using the app, you agree to the {{terms}} and the {{privacy}}.',
+    consentTermsLink: 'Terms of Use',
+    consentPrivacyLink: 'Privacy Policy',
+    legalDocsTitle: 'Documents',
+    legalTerms: 'Terms of Use',
+    legalPrivacy: 'Privacy Policy',
     // Profile
     profileTitle: 'My profile',
     profileGuest: 'Customer',

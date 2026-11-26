@@ -13,6 +13,7 @@ import { useAuthStore } from './store/authStore';
 import { RotateCw, Send, WifiOff } from 'lucide-react';
 import api from './services/api';
 import PhoneVerificationModal from './components/PhoneVerificationModal';
+import { ConsentNotice } from './components/ConsentNotice';
 import { FullScreenLoader, ErrorFallback, RouteErrorBoundary, RouteFallback } from './components/Feedback';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { getRoleHomePath, isCustomerRole } from './lib/roles';
@@ -112,7 +113,8 @@ const isCartBarHidden = (pathname: string) =>
   pathname === '/courier' ||
   pathname === '/manager';
 
-// What is fixed at the bottom, for every role: the in-page main button, the cart bar (shop screens) and the tabs.
+// What is fixed at the bottom, for every role: the in-page main button, the cart bar (shop screens) and the tabs; above
+// them, on a customer's first launch, the consent notice.
 function AppDock() {
   const { pathname } = useLocation();
   const { user } = useAuthStore();
@@ -120,6 +122,8 @@ function AppDock() {
   const showCartBar = isCustomerRole(user?.role) && !isCartBarHidden(pathname);
   return (
     <BottomDock withNav={showNav}>
+      {/* First launch only, customers only: using the app = accepting the Terms and the Privacy Policy */}
+      <ConsentNotice />
       <MainButtonHost />
       {showCartBar && <FloatingCartBar />}
       {showNav && <BottomNav items={getNavItems(user?.role)} />}

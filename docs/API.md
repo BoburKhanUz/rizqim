@@ -4197,8 +4197,9 @@ o'sha javobni qaytaradi, hech narsa ikki marta bajarilmaydi va jurnal ikki marta
 
 | Endpoint | Ruxsat | Step-up + `reason` |
 |---|---|---|
-| `GET /admin/finance/summary`, `/payouts`, `/payouts/{id}`, `/topups`, `/settlement-failures`, `/balances`, `/stores/{id}/ledger`, `/adjustments`, `/adjustments/{id}`, `/adjustments/{id}/document`, `/reports/monthly` | `finance.view` | — |
+| `GET /admin/finance/summary`, `/payouts`, `/payouts/{id}`, `/topups`, `/settlement-failures`, `/balances`, `/stores/{id}/ledger`, `/adjustments`, `/adjustments/{id}`, `/adjustments/{id}/document`, `/reports/monthly`, `/reports/keshbek` | `finance.view` | — |
 | `GET /admin/finance/reports/monthly/export` | `finance.view` + `export` | — (jurnalga `admin.finance.report_exported`) |
+| `GET /admin/finance/reports/keshbek/export` | `finance.view` + `export` | — (jurnalga `admin.finance.keshbek_report_exported`) |
 | `POST /admin/finance/payouts/{id}/approve`, `/reject` | `payouts.approve` | ha |
 | `POST /admin/finance/settlement-failures/{uuid}/retry` | `finance.manage` | ha |
 | `POST /admin/finance/adjustments`, `/adjustments/{id}/approve`, `/reject` | `finance.manage` | ha |
@@ -4303,6 +4304,40 @@ qaytarilgan buyurtma kirmaydi. Obuna: oyning bekor qilinmagan hisob-fakturalari.
 ("Umumiy", "Ovqatxonalar"; summalar son, matnlar — ovqatxona nomi ham — doim matn katakchasi: `=` bilan boshlangan nom
 formula bo'lib qolmaydi).
 
+### Keshbek hisoboti
+
+`GET /admin/finance/reports/keshbek?period=YYYY-MM` (Toshkent oyi, odatda joriy; oylik hisobot bilan bir xil ruxsat va
+chegaralar, `MonthlyRevenueReport::monthBounds`) — `App\Services\Finance\Reports\KeshbekLiabilityReport`. Keshbek
+(`users.balance`) uchun alohida jadval yo'q: harakatlar ular yozilgan joydan o'qiladi. Oy harakatlari, har biri
+`{count, amount}`:
+
+- `issued` — RIZQIM to'lagan do'st taklifi bonuslari: `store_transactions.type = referral_bonus`, `amount > 0`
+  (`LedgerService::grantReferralReward`), `created_at` bo'yicha;
+- `clawed_back` — qaytarib olingan bonuslar: shu tur, `amount < 0` (`clawBackReferralReward`), summa musbat ko'rsatiladi;
+- `legacy_store_paid` — egasining 3-qaroriga qo'shimchadan oldin ovqatxona to'lagan bonuslar (`commission` turi, izohi
+  `Referral cashback reward cost…`). Ular ham balansga yozilgan, shuning uchun harakat, lekin RIZQIM xarajati emas —
+  `issued` ga kirmaydi;
+- `spent` — keshbek to'lovlari: `payments.provider = keshbek`, `created_at` bo'yicha (`CreateOrderAction` yozuvni balans
+  yechilgan tranzaksiyada `paid` holatda yaratadi; `paid_at` yozilmaydi). Hozirgi holati qanday bo'lmasin sanaladi:
+  keyingi qaytarish yechishni bekor qilmaydi, u `returned` da;
+- `returned` — qaytarishda balansga qaytgan: keshbek to'lovi `payload` idagi `refunded_to_balance_parts[].amount`
+  (qaytarish so'rovining qismlari, har biri o'z `refunded_at` i bilan) va `refunded_to_balance` (bekor qilish yoki to'liq
+  qaytarish, `refunded_at`; `KeshbekHistory` qoidasi: `refunded_to_balance_by_requests` bo'lsa yoki qism yo'q bo'lsa — oxirgi qism
+  yozadigan to'liq summa belgisi ikki marta sanalmaydi). Boshqa yozuv yo'q.
+
+Boshqa manba yo'q: `app/` da `users.balance` ni faqat shu to'rt yo'l o'zgartiradi (akkaunt birlashtirish balans 0
+bo'lsagina; admin balansni tahrirlamaydi).
+
+`reconciliation {opening, movement, closing, after_period, expected_now, live, difference}`: `opening` — oydan oldingi
+barcha harakatlar (0 dan), `movement` = `issued` − `clawed_back` + `legacy_store_paid` − `spent` + `returned`,
+`closing` = `opening` + `movement` (oy oxiridagi jami, harakatlardan), `expected_now` = `closing` + `after_period` (oydan
+keyingi harakatlar), `live` = hozirgi `SUM(users.balance)`, `difference` = `live` − `expected_now` — har bir balans
+o'zgarishi yozilgan bo'lsa 0; 0 bo'lmasa — yozuvsiz o'zgarish bor (bazada qo'lda tahrir, yoki keshbek to'lovi yozuvi yo'q
+eski keshbek buyurtmasi bekor qilingan: `OrderStatusService::refundKeshbek` to'liq summani hech narsa yozmay qaytaradi;
+`unrecorded.keshbek_orders_without_payment` shunday buyurtmalar soni). `outstanding {positive, negative, net, holders,
+debtors}` — **hozirgi** holat (`as_of`), oy oxiri emas: musbat balanslar — RIZQIM majburiyati, manfiy — bonus qaytarib
+olingandan keyingi qarzlar. `.../export` — xuddi shu `.xlsx` ("Keshbek" varag'i, `rizqim-keshbek-YYYY-MM.xlsx`).
+
 ### "Diqqat talab qiladi" manbalari
 
 | `kind` | Nima | Ruxsat | `href` |
@@ -4316,7 +4351,7 @@ Bugun'ning `payout_pending` manbasi endi faqat hali tasdiqlanmaganlarni sanaydi.
 
 `platform/admin` proksisi (`lib/server/proxy.ts`) JSON'dan tashqari faqat ikki narsani o'tkazadi: `POST
 /admin/finance/adjustments` ga multipart (11 MB gacha, boshqa yo'lga 415) va `GET .../reports/monthly/export`,
-`.../adjustments/{id}/document` javobidagi fayl (faqat xlsx, pdf, jpeg, png, webp turlari; boshqa javob JSON bo'lmasa —
+`.../reports/keshbek/export`, `.../adjustments/{id}/document` javobidagi fayl (faqat xlsx, pdf, jpeg, png, webp turlari; boshqa javob JSON bo'lmasa —
 `bad_gateway`).
 
 Proksi yozuvlarda (POST/PUT/PATCH/DELETE) tanani **o'qishdan oldin** tekshiradi: sessiya cookie'si bo'lmasa — 401

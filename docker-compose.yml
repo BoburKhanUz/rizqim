@@ -380,6 +380,8 @@ services:
         VITE_MAP_ATTRIBUTION: ${VITE_MAP_ATTRIBUTION:-}
         # Mahsulot formasidagi "Web panelda tahrirlash" havolasi (https://panel.<domen>); bo'sh = havolasiz matn
         VITE_PARTNER_WEB_URL: ${VITE_PARTNER_WEB_URL:-}
+        # Ochiq sayt: rozilik qatori va profildagi "Hujjatlar" havolalari (/shartlar, /maxfiylik)
+        VITE_SITE_URL: ${VITE_SITE_URL:-https://rizqim.uz}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
