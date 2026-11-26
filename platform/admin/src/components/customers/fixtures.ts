@@ -62,7 +62,8 @@ export function userCard(overrides: Partial<UserCard> = {}): UserCard {
     membership: null,
     linked_accounts: [{ id: 9, name: 'Olim (xodim)', role: 'courier', role_label: 'Kuryer', store: { id: 12, name: 'Lazzat Oshxona' }, same: ['phone'], blocked: false, href: '/users/9' }],
     audit: [],
-    actions: { block: true, unblock: false, close_sessions: true },
+    analytics: { events: 5 },
+    actions: { block: true, unblock: false, close_sessions: true, forget_analytics: true },
     links: { audit: '/audit?subject_type=User&subject_id=7' },
     ...overrides,
   };

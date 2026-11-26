@@ -243,8 +243,7 @@ class TelegramMessageHandler
         $role = $existingUser ? $existingUser->role->value : 'customer';
 
         if ($role === 'customer' && (!$existingUser || !$existingUser->phone)) {
-            $welcomeText = "👋 *Assalomu alaykum!*\n\nBizning mazali taomlarimizga buyurtma berish uchun iltimos, pastdagi tugmani bosib telefon raqamingizni tasdiqlang 👇"
-                . "\n\n" . $this->consentNotice();
+            $welcomeText = "👋 *Assalomu alaykum!*\n\nBizning mazali taomlarimizga buyurtma berish uchun iltimos, pastdagi tugmani bosib telefon raqamingizni tasdiqlang 👇";
             $keyboard = [
                 'keyboard' => [
                     [
@@ -255,12 +254,7 @@ class TelegramMessageHandler
                 'one_time_keyboard' => true
             ];
 
-            $this->telegram->sendMessage($chatId, $welcomeText, [
-                'parse_mode' => 'Markdown',
-                'reply_markup' => $keyboard,
-                // Two links in the text: their previews would push the prompt away
-                'link_preview_options' => ['is_disabled' => true],
-            ]);
+            $this->telegram->sendMessage($chatId, $welcomeText, ['parse_mode' => 'Markdown', 'reply_markup' => $keyboard]);
             return 'request_contact_sent';
         }
 
@@ -288,20 +282,5 @@ class TelegramMessageHandler
 
         $this->telegram->sendMessage($chatId, $welcomeText, ['parse_mode' => 'Markdown', 'reply_markup' => ['inline_keyboard' => [[$button]]]]);
         return 'welcome_sent';
-    }
-
-    /**
-     * "Click = consent": sending the phone number accepts the Terms of Use and the Privacy Policy on the public site
-     * (services.site.url). Legacy Markdown, like the message it is added to; a ")" or space in the URL would end the
-     * link early, so both are percent-encoded. The bot speaks Uzbek only.
-     */
-    protected function consentNotice(): string
-    {
-        // An empty SITE_URL= line still means the public site, never a relative link
-        $base = rtrim((string) (config('services.site.url') ?: 'https://rizqim.uz'), '/');
-        $link = fn (string $label, string $path) => '[' . $label . '](' . str_replace([')', ' '], ['%29', '%20'], $base . $path) . ')';
-
-        return 'Telefon raqamingizni yuborib, siz ' . $link('Foydalanish shartlari', '/shartlar')
-            . ' va ' . $link('Maxfiylik siyosati', '/maxfiylik') . 'ga rozilik bildirasiz.';
     }
 }

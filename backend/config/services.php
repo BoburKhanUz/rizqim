@@ -34,11 +34,6 @@ return [
         'url' => env('PARTNER_WEB_URL'),
     ],
 
-    // The public site (infra/landing): the bot's phone request links its /shartlar and /maxfiylik pages
-    'site' => [
-        'url' => env('SITE_URL', 'https://rizqim.uz'),
-    ],
-
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

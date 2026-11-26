@@ -4347,12 +4347,14 @@ foydalanuvchi kartasi, bloklash va sessiyalarni yopish, shikoyatlar qutisi va ta
 |---|---|---|---|
 | `GET /admin/users`, `GET /admin/users/{id}` | `users.view` | — | — |
 | `POST /admin/users/{id}/block`, `/unblock`, `/close-sessions` | `support.manage` | ha | ha |
+| `POST /admin/users/{id}/forget-analytics` (Idempotency-Key bilan) | `support.manage` | ha | ha |
 | `GET /admin/complaints`, `/complaints/{uuid}`, `/support/canned-replies`, `/support/suspicious` | `support.view` | — | — |
 | `PATCH /admin/complaints/{uuid}`, `POST .../reply`, `POST .../resolve`; `POST/PATCH/DELETE /admin/support/canned-replies` | `support.manage` | — | — |
 
 Standart rollarda: **Yordam** — hammasi; **Faqat ko'rish** — o'qiydi, o'zgartira olmaydi; Moliya, Savdo, Operator — yo'q.
 Har bir yozish jurnalga yoziladi (amal nomi — route nomi): `admin.users.blocked`, `admin.users.unblocked`,
-`admin.users.sessions_closed` (yopilgan tokenlar soni bilan), `admin.support.complaint_updated`,
+`admin.users.sessions_closed` (yopilgan tokenlar soni bilan), `admin.users.analytics_forgotten` (o'chirilgan statistika
+yozuvlari soni `analytics_events_deleted` va sabab bilan), `admin.support.complaint_updated`,
 `admin.support.complaint_replied` (matn bilan), `admin.support.complaint_resolved`,
 `admin.support.canned_reply_created|updated|deleted`. Telefonlar `AdminPii` orqali: `pii.view` siz niqoblangan
 (`+998 90 *** ** 67`), `pii.view` bilan to'liq va har bir ko'rsatish `admin.pii.revealed` bo'lib yoziladi.
@@ -4397,8 +4399,10 @@ qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_l
 - `membership` — xodim hisobining ovqatxonasi, filiali, roli, SMS bilan kirish (sms / ega kiritgan), kassa PIN (mijozda
   `null`); `linked_accounts` — shu telefon yoki shu Telegramdagi boshqa hisoblar (bir odam mijoz va xodim, yoki ikki
   ovqatxonada);
+- `analytics: {events}` — hisobning saqlangan Mini App statistika yozuvlari soni (`analytics_events`, maxfiylik so'rovi
+  uchun; bitta indeks o'qishi);
 - `audit` — shu hisob haqidagi jurnal yozuvlari (`audit.view` bo'lmasa `null`), `actions` (`block`, `unblock`,
-  `close_sessions`), `links.audit`.
+  `close_sessions`, `forget_analytics`), `links.audit`.
 
 ### Bloklash va sessiyalarni yopish (`support.manage`, step-up, `reason`)
 
@@ -4426,6 +4430,20 @@ qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_l
   qurilmalarga push ketmaydi. Kassaning o'z ulanishi (terminal tokeni) saqlanadi, admin sessiyalariga tegilmaydi;
   `sanctum:prune-expired` ishlatilmaydi. Odam qaytadan kira oladi (bloklanmagan bo'lsa).
 - Javob — yangilangan karta.
+
+### Statistikani o'chirish (maxfiylik so'rovi; `support.manage`, step-up, `reason`, Idempotency-Key)
+
+`POST /admin/users/{id}/forget-analytics` `{reason}` — hisobning **barcha** Mini App statistika yozuvlarini
+(`analytics_events`, har oy bo'lagi va DEFAULT) o'chiradi: `App\Domain\Analytics\AnalyticsErasure::forget`, ota jadvalga
+bitta `DELETE ... WHERE user_id = ?` (oy bo'yicha qisqartirilmaydi, har bo'lak `analytics_events_user_id_index` bilan
+o'qiladi). Boshqa hech narsaga tegmaydi: buyurtmalar, to'lovlar, jurnal va shaxssiz kunlik raqamlar qoladi; ETag
+o'zgarmaydi. `analytics_events` da RLS yo'q (ovqatxona jadvali emas). Hodisalar hech qachon anonim emas (faqat token
+egasiniki yoziladi), shuning uchun bu odamning hamma yozuvi. Javob — karta (`analytics.events: 0`), `message`:
+"Statistika yozuvlari o'chirildi: N ta.". Jurnal: `admin.users.analytics_forgotten` (a'zo, hisob, `analytics_events_deleted`,
+`reason`). `Idempotency-Key` bilan takror so'rov birinchi javobni qaytaradi va jurnalga qayta yozilmaydi; yangi kalit
+bilan qayta yuborilsa 0 ta o'chiriladi va bu ham yoziladi. RIZQIM jamoasi hisobi: 403 `platform_account`; yo'q
+hisob: 404. Statistika yig'ishni o'chirmaydi (keyingi hodisalar yana yoziladi). Zaxiralar haqida: OPERATIONS.md
+32-bo'lim. Operator uchun xuddi shu: `php artisan analytics:forget-user {user} [--reason=]`.
 
 ### Shikoyatlar qutisi
 
@@ -5674,7 +5692,7 @@ oladi); qolgan vaqt klientning so'rash oralig'i.
 
 Mini App'dagi harakatlar (voronka: ochildi → restoran → savat → buyurtmaga o'tish → buyurtma) **o'z serverimizga**
 yoziladi, uchinchi tomon analitika yo'q. Reja va ta'riflar: [ANALYTICS_PLAN.md](ANALYTICS_PLAN.md) (4.1, A.3, A.4).
-Kod: `App\Domain\Analytics\{AnalyticsEvent, EventIngestor, StartParam, AnalyticsLimits}`,
+Kod: `App\Domain\Analytics\{AnalyticsEvent, EventIngestor, StartParam, AnalyticsLimits, AnalyticsErasure}`,
 `App\Http\Controllers\Api\V1\Analytics\EventController`, jadval `analytics_events`.
 
 **Yoqish.** Standart **o'chiq** (`ANALYTICS_ENABLED`, `config('analytics.enabled')`): o'chiq bo'lsa endpoint `202`
