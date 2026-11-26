@@ -109,7 +109,9 @@ class AdminCustomerActionController extends AdminController
             AdminAudit::for($request)->meta(['analytics_events_deleted' => $deleted]);
 
             return ['before' => [], 'after' => []];
-        }, fn () => "Statistika yozuvlari o'chirildi: {$deleted} ta.");
+        }, function () use (&$deleted) {
+            return "Statistika yozuvlari o'chirildi: {$deleted} ta.";
+        });
     }
 
     /**

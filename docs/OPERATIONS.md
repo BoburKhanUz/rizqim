@@ -1670,3 +1670,38 @@ ulushi yoki bekor qilingan/qaytarilgan buyurtmadagi `manual_refund_required` yo'
 **Yetkazilmagan buyurtma.** Ovqatxona hisobiga to'langan buyurtma bekor qilinsa komissiya yozilmagan bo'ladi (yetkazishda yoziladi) — faqat belgi qo'yiladi; Paylov'ni RIZQIM o'zi qaytaradi (belgi faqat u bajarilmasa).
 
 **O'zgarmaganlar.** Platforma yig'gan buyurtmalar (`payment_owner: PLATFORM`) qaytarishi, naqd buyurtma qaytarishi, Payme/Paylov kabinet qaytarishini ushlab turish (29–30-bo'limlar).
+
+## 32. Maxfiylik so'rovlari: statistikani o'chirish
+
+Mijoz (yoki uning nomidan kimdir) Mini App'dagi foydalanish statistikasini o'chirishni so'rasa (maxfiylik siyosati,
+"Huquqlaringiz"; so'rov siyosatdagi aloqa e-pochtasi yoki Telegram orqali keladi):
+
+1. **Shaxsni tasdiqlang.** So'rov hisobga bog'langan Telegram yoki telefon raqamidan kelganini tekshiring (siyosatdagi
+   tartib). Boshqa raqamdan kelsa, hisob egasidan tasdiq so'rang.
+2. **Hisobni toping.** Boshqaruv markazi → Mijozlar va yordam → Foydalanuvchilar (ism yoki to'liq telefon), kartani oching.
+   "Foydalanish statistikasi" blokida saqlangan yozuvlar soni ko'rinadi.
+3. **O'chiring.** "Statistikasini o'chirish" (ruxsat `support.manage`, yangi 2FA kodi), sababga so'rov qanday kelganini
+   yozing (masalan, "Telegram orqali so'radi, 26.11.2026"). Javobda nechta yozuv o'chgani chiqadi; jurnalda
+   `admin.users.analytics_forgotten` (kim, qaysi hisob, soni, sabab). Bosish takrorlansa ikki marta bajarilmaydi
+   (Idempotency-Key).
+   Panelga kira olmasangiz, serverda: `docker compose exec -u www-data backend php artisan analytics:forget-user <users.id>
+   --reason="..."` — xuddi shu o'chirish, sonini chiqaradi, jurnalda `cli_analytics_forgotten`.
+4. **Javob bering.** Mijozga yozuvlar o'chirilganini va zaxiralar haqidagi izohni (pastda) qonunchilikdagi muddatda
+   yozing.
+
+**Nima o'chadi.** Faqat shu hisobning `analytics_events` yozuvlari, hamma oylarda (`App\Domain\Analytics\AnalyticsErasure`).
+Buyurtmalar, to'lovlar, cheklar, keshbek, harakatlar jurnali va shaxssiz kunlik raqamlar (keyingi qadamlardagi
+`analytics_funnel_daily` kabi) o'zgarmaydi — ular boshqa asos bilan saqlanadi (siyosat 6-bo'lim). O'chirish statistika
+yig'ishni to'xtatmaydi: mijoz Mini App'dan foydalanishda davom etsa, yangi yozuvlar yana paydo bo'ladi (to'liq to'xtatish
+uchun hisobni o'chirish so'rovi kerak).
+
+**Zaxiralar.** O'chirilgan yozuvlar zaxira nusxalarda o'z muddati tugaguncha qoladi va ulardan alohida o'chirilmaydi:
+uzluksiz zaxira (PITR, 17-bo'lim) — serverda ~14 kun, S3 da ~28 kun; kunlik `pg_dump` (4-bo'lim) — `BACKUP_RETENTION_DAYS`
+(14) kun va S3 dagi saqlash muddati (statistika ma'lumotini dump'dan chiqarib tashlash maxfiylik siyosati tarmog'ida
+alohida). Bazani vaqtga qaytarib tiklasangiz (18-bo'lim), tiklangan nuqtadan keyin qilingan o'chirishlar qaytib keladi:
+tiklashdan keyin jurnaldan `admin.users.analytics_forgotten` va `cli_analytics_forgotten` yozuvlarini topib, shu
+hisoblar uchun o'chirishni qaytadan bajaring. Mijozga javobda yozing: "zaxira nusxalarda yozuvlar ko'pi bilan 28 kun
+qolishi va keyin avtomatik o'chirilishi mumkin".
+
+**Muddat bo'yicha.** Batafsil yozuvlar baribir 3 oydan keyin o'zi o'chadi (20-bo'lim, `ANALYTICS_EVENTS_MONTHS`).
+
