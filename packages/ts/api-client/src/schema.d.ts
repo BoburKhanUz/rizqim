@@ -1049,8 +1049,11 @@ export interface paths {
          *     `opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =
          *     `expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance
          *     change is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the
-         *     month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row. Amounts are
-         *     decimal strings.
+         *     month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row;
+         *     `unrecorded.invalid_payload_values` — payload values of keshbek payments the report could not read (an amount
+         *     that is not a plain decimal, a time that is not ISO 8601 with an offset or Z): an unreadable amount is not
+         *     counted, an unreadable time falls back to the payment's created_at. One database snapshot for the whole report.
+         *     Amounts are decimal strings.
          */
         get: operations["admin.finance.reports.keshbek"];
         put?: never;
@@ -17620,6 +17623,7 @@ export interface operations {
                             };
                             unrecorded: {
                                 keshbek_orders_without_payment: number;
+                                invalid_payload_values: number;
                             };
                         };
                     };

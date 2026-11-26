@@ -14,7 +14,8 @@ const isZero = (amount: string) => /^-?0+(?:\.0+)?$/.test(amount.trim());
 
 // Keshbek in the monthly report: the month's movements (read back from their records), the balances customers hold now
 // (the platform's liability) and the reconciliation of the movements with SUM(users.balance); a non-zero difference
-// means a balance changed without a record and is shown in red, never hidden.
+// means a balance changed without a record and is shown in red, never hidden; beside it, the payload values the report
+// could not read (unrecorded.invalid_payload_values).
 export function KeshbekSection({ period, enabled, canExport, onDone }: { period: string; enabled: boolean; canExport: boolean; onDone: (message: string) => void }) {
   const t = useT();
   const report = useKeshbekReport(period, enabled);
@@ -22,6 +23,8 @@ export function KeshbekSection({ period, enabled, canExport, onDone }: { period:
   const [exportError, setExportError] = useState<string | null>(null);
   const data = report.data;
   const matched = data ? isZero(data.reconciliation.difference) : true;
+  // Payload values of keshbek payments the report could not read (not counted, or counted at the payment's time)
+  const invalid = data?.unrecorded.invalid_payload_values ?? 0;
 
   const exportFile = async () => {
     setExporting(true);
@@ -85,6 +88,11 @@ export function KeshbekSection({ period, enabled, canExport, onDone }: { period:
                 <>
                   <span className="text-headline font-bold text-fg">{uzs(data.reconciliation.difference)}</span>
                   <span className="text-caption text-fg-muted">{t('finance_keshbekDifferenceZero')}</span>
+                  {invalid > 0 && (
+                    <span className="text-caption text-fg-muted" data-testid="keshbek-invalid">
+                      {t('finance_keshbekInvalid', { count: invalid })}
+                    </span>
+                  )}
                 </>
               ) : (
                 <div role="alert" className="flex flex-col gap-1 rounded-control bg-danger-soft px-3 py-2 text-danger-soft-fg">
@@ -92,6 +100,11 @@ export function KeshbekSection({ period, enabled, canExport, onDone }: { period:
                   <span className="text-caption">{t('finance_keshbekDifferenceNonZero')}</span>
                   {data.unrecorded.keshbek_orders_without_payment > 0 && (
                     <span className="text-caption">{t('finance_keshbekUnrecorded', { count: data.unrecorded.keshbek_orders_without_payment })}</span>
+                  )}
+                  {invalid > 0 && (
+                    <span className="text-caption" data-testid="keshbek-invalid">
+                      {t('finance_keshbekInvalid', { count: invalid })}
+                    </span>
                   )}
                 </div>
               )}

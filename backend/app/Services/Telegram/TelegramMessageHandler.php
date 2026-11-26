@@ -200,8 +200,8 @@ class TelegramMessageHandler
                 'name' => $employee->name,
             ]);
 
-            // Clean up the dummy/temp employee row
-            $employee->delete();
+            // Clean up the dummy/temp employee row (retired instead when it holds keshbek: User::discardMergedInvite)
+            $employee->discardMergedInvite();
 
             if ($this->telegram->isConfigured()) {
                 $roleLabel = $alreadyExists->role->label();

@@ -125,6 +125,7 @@ test('the keshbek section: the liability, the movements, the reconciliation and 
   await expect(page.getByTestId('keshbek-debts')).toContainText('1 ta mijoz')
   await expect(section).toContainText("Eski bonuslar (ovqatxona to'lagan)")
   await expect(page.getByTestId('keshbek-difference')).toContainText("Har bir balans o'zgarishi yozilgan.")
+  await expect(page.getByTestId('keshbek-invalid')).toHaveCount(0)
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Keshbek (Excel)' }).click()])
   expect(download.suggestedFilename()).toMatch(/^rizqim-keshbek-\d{4}-\d{2}\.xlsx$/)
   expect(api.finance.keshbekExports).toHaveLength(1)

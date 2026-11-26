@@ -82,8 +82,9 @@ class AuthenticateTelegramUserAction
                         'telegram_photo_url' => $telegramUser['photo_url'] ?? null,
                     ]);
 
-                    // Clean up/delete the dummy/temp employee row we just created
-                    $invitedEmployee->delete();
+                    // Clean up/delete the dummy/temp employee row (retired instead when it holds keshbek:
+                    // User::discardMergedInvite)
+                    $invitedEmployee->discardMergedInvite();
                     return $alreadyExists;
                 }
 

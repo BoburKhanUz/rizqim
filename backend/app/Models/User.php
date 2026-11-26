@@ -277,6 +277,38 @@ class User extends Authenticatable
     }
 
     /**
+     * Keshbek review H1: whether this users row carries keshbek that a delete would drop without a record: a non-zero
+     * balance (keshbek held, the platform's liability, or owed after a clawback) or friends it referred (users.referred_by
+     * is ON DELETE SET NULL: they would lose their referrer). Any user can be a referrer (ReferralService takes any id),
+     * staff and unclaimed invite rows included. Read from the database, not from the loaded model.
+     */
+    public function holdsKeshbek(): bool
+    {
+        return self::query()->whereKey($this->getKey())->where('balance', '<>', 0)->exists()
+            || self::query()->where('referred_by', $this->getKey())->exists();
+    }
+
+    /**
+     * An unclaimed employee invite row that an accepted invite merged into an existing account (the bot's /start and
+     * the Mini App's start_param): deleted, unless it holds keshbek (holdsKeshbek: its id can be a referral link's
+     * like anyone's). Then it is retired instead: no role, store, branch, staff code or invite token, its balance and
+     * its friends' referrer kept for the keshbek report.
+     */
+    public function discardMergedInvite(): void
+    {
+        if (!$this->holdsKeshbek()) {
+            $this->delete();
+
+            return;
+        }
+
+        $this->forceFill([
+            'role' => \App\Enums\UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
+            'telegram_invite_token' => null,
+        ])->save();
+    }
+
+    /**
      * P4-31: blocked in the Boshqaruv markazi (Mijozlar va yordam): signs in nowhere and no token of it works.
      */
     public function isBlocked(): bool

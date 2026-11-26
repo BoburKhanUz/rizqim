@@ -256,7 +256,9 @@ export interface KeshbekReport {
   returned: KeshbekMovement;
   outstanding: { positive: string; negative: string; net: string; holders: number; debtors: number };
   reconciliation: { opening: string; movement: string; closing: string; after_period: string; expected_now: string; live: string; difference: string };
-  unrecorded: { keshbek_orders_without_payment: number };
+  // invalid_payload_values: payload values of keshbek payments the report could not read (an amount that is not a plain
+  // decimal is not counted; a time without an offset falls back to the payment's created_at)
+  unrecorded: { keshbek_orders_without_payment: number; invalid_payload_values: number };
 }
 
 // --- Calls --------------------------------------------------------------------------------------------------------------

@@ -9617,7 +9617,7 @@
         "/v1/admin/finance/reports/keshbek": {
             "get": {
                 "operationId": "admin.finance.reports.keshbek",
-                "description": "`period` — \"YYYY-MM\", an Asia/Tashkent month (default: the current one). The month's keshbek movements, each\n`{count, amount}`: `issued` — referral bonuses the platform granted (store_transactions `referral_bonus`,\namount > 0); `clawed_back` — those taken back (amount < 0); `legacy_store_paid` — the bonuses stores paid before\nowner decision 3's addition (`commission` rows with the referral note; not the platform's); `spent` — keshbek\npayments (payments.provider `keshbek`, by created_at, whatever their status now); `returned` — what refunds gave\nback to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance). `reconciliation`:\n`opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =\n`expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance\nchange is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the\nmonth end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row. Amounts are\ndecimal strings.",
+                "description": "`period` — \"YYYY-MM\", an Asia/Tashkent month (default: the current one). The month's keshbek movements, each\n`{count, amount}`: `issued` — referral bonuses the platform granted (store_transactions `referral_bonus`,\namount > 0); `clawed_back` — those taken back (amount < 0); `legacy_store_paid` — the bonuses stores paid before\nowner decision 3's addition (`commission` rows with the referral note; not the platform's); `spent` — keshbek\npayments (payments.provider `keshbek`, by created_at, whatever their status now); `returned` — what refunds gave\nback to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance). `reconciliation`:\n`opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =\n`expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance\nchange is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the\nmonth end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row;\n`unrecorded.invalid_payload_values` — payload values of keshbek payments the report could not read (an amount\nthat is not a plain decimal, a time that is not ISO 8601 with an offset or Z): an unreadable amount is not\ncounted, an unreadable time falls back to the payment's created_at. One database snapshot for the whole report.\nAmounts are decimal strings.",
                 "summary": "Keshbek report",
                 "tags": [
                     "Admin"
@@ -9790,10 +9790,14 @@
                                                     "properties": {
                                                         "keshbek_orders_without_payment": {
                                                             "type": "integer"
+                                                        },
+                                                        "invalid_payload_values": {
+                                                            "type": "integer"
                                                         }
                                                     },
                                                     "required": [
-                                                        "keshbek_orders_without_payment"
+                                                        "keshbek_orders_without_payment",
+                                                        "invalid_payload_values"
                                                     ]
                                                 }
                                             },

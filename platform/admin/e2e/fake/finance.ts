@@ -381,7 +381,7 @@ export class FakeFinance {
       returned: { count: 1, amount: '20000.00' },
       outstanding: { positive: '35000.00', negative: '-5000.00', net: '30000.00', holders: 2, debtors: 1 },
       reconciliation: { opening: '40000.00', movement: '-10000.00', closing: '30000.00', after_period: '0.00', expected_now: '30000.00', live: '30000.00', difference: '0.00' },
-      unrecorded: { keshbek_orders_without_payment: 0 },
+      unrecorded: { keshbek_orders_without_payment: 0, invalid_payload_values: 0 },
     }
   }
 

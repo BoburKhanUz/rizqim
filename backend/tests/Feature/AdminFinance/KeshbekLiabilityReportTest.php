@@ -127,7 +127,7 @@ class KeshbekLiabilityReportTest extends TestCase
             'expected_now' => '30000.00', 'live' => '30000.00', 'difference' => '0.00',
         ], $october['reconciliation']);
         $this->assertSame(['positive' => '30000.00', 'negative' => '0.00', 'net' => '30000.00', 'holders' => 1, 'debtors' => 0], $october['outstanding']);
-        $this->assertSame(['keshbek_orders_without_payment' => 0], $october['unrecorded']);
+        $this->assertSame(['keshbek_orders_without_payment' => 0, 'invalid_payload_values' => 0], $october['unrecorded']);
 
         // The month before: only the opening; October's movements come after it, and it still reconciles
         $september = $this->report('2026-09');
@@ -204,30 +204,204 @@ class KeshbekLiabilityReportTest extends TestCase
     }
 
     /**
-     * A balance change that leaves no record makes the difference non-zero, whatever its sign: a legacy keshbek order
-     * without a keshbek payment row (OrderStatusService::refundKeshbek then gives the whole total back and writes
-     * nothing) and a balance edited in the database by hand.
+     * A balance change that leaves no record makes the difference non-zero, whatever its sign. A legacy keshbek order
+     * without a keshbek payment row: the code of the time debited the balance and wrote nothing, so while the order
+     * stands the difference is −total; OrderStatusService::refundKeshbek then gives the whole total back, also without
+     * a record, and the two cancel out (0). A balance edited in the database by hand stays a difference.
      */
     public function test_a_balance_change_without_a_record_shows_as_the_difference(): void
     {
         $customer = $this->makeCustomer();
+        for ($i = 1; $i <= 10; $i++) {
+            $this->legacyBonus($customer, '2026-08-1' . ($i % 10) . ' 12:00', 900000 + $i);
+        }
         $order = $this->makeOrder(OrderStatus::DELIVERED, ['user_id' => $customer->id, 'payment_method' => 'keshbek', 'payment_owner' => 'PLATFORM', 'payment_status' => PaymentStatus::PAID->value, 'total_price' => 50000]);
-        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
-        app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati');
-        $this->assertSame('50000.00', (string) $customer->fresh()->balance);
+        DB::table('users')->where('id', $customer->id)->decrement('balance', 50000);
 
         $period = now()->setTimezone('Asia/Tashkent')->format('Y-m');
         $report = $this->report($period);
+        $this->assertSame(['count' => 0, 'amount' => '0.00'], $report['spent']);
+        $this->assertSame('0.00', $report['reconciliation']['live']);
+        $this->assertSame('50000.00', $report['reconciliation']['expected_now']);
+        $this->assertSame('-50000.00', $report['reconciliation']['difference']);
+        $this->assertSame(1, $report['unrecorded']['keshbek_orders_without_payment']);
+
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati');
+        $this->assertSame('50000.00', (string) $customer->fresh()->balance);
+        $report = $this->report($period);
         $this->assertSame(['count' => 0, 'amount' => '0.00'], $report['returned']);
         $this->assertSame('50000.00', $report['reconciliation']['live']);
-        $this->assertSame('0.00', $report['reconciliation']['expected_now']);
-        $this->assertSame('50000.00', $report['reconciliation']['difference']);
-        $this->assertSame(['keshbek_orders_without_payment' => 1], $report['unrecorded']);
+        $this->assertSame('0.00', $report['reconciliation']['difference']);
+        $this->assertSame(['keshbek_orders_without_payment' => 1, 'invalid_payload_values' => 0], $report['unrecorded']);
 
         DB::table('users')->where('id', $this->customer->id)->update(['balance' => '-1234.56']);
-        $this->assertSame('48765.44', $this->report($period)['reconciliation']['difference']);
+        $this->assertSame('-1234.56', $this->report($period)['reconciliation']['difference']);
         // The service reads the same
-        $this->assertSame('48765.44', app(KeshbekLiabilityReport::class)->build($period)['reconciliation']['difference']->toString());
+        $this->assertSame('-1234.56', app(KeshbekLiabilityReport::class)->build($period)['reconciliation']['difference']->toString());
+    }
+
+    /** K's 50 000 keshbek checkout of 15 October, delivered; K holds 50 000 of legacy bonuses of August before it. */
+    private function deliveredKeshbekOrder(User $k): \App\Models\Order
+    {
+        for ($i = 1; $i <= 10; $i++) {
+            $this->legacyBonus($k, '2026-08-1' . ($i % 10) . ' 12:00', 800000 + $i);
+        }
+        $this->travelTo($this->tashkent('2026-10-15 12:00'));
+        $order = $this->checkout($k, 1, 'keshbek');
+        $service = app(OrderStatusService::class);
+        foreach ([OrderStatus::ACCEPTED, OrderStatus::PREPARING, OrderStatus::READY, OrderStatus::DELIVERED] as $status) {
+            $service->transition($order->fresh(), $status, $this->manager);
+        }
+        $this->assertSame('0.00', (string) $k->fresh()->balance);
+
+        return $order;
+    }
+
+    /** @return array<string, mixed> the refund request created and approved */
+    private function approvedRequest(\App\Models\Order $order, string $amount, ?string &$approverToken = null): array
+    {
+        $requester = $this->confirmedSession($this->makeMember(PlatformRole::OPERATOR));
+        $approverToken = $this->confirmedSession($this->makeMember(PlatformRole::FINANCE));
+        $request = $this->adminJson('POST', "/orders/{$order->uuid}/refund-requests", $requester, ['amount' => $amount, 'reason' => 'Qisman qaytarish'])->assertCreated()->json('data');
+        $this->adminJson('POST', "/refund-requests/{$request['id']}/approve", $approverToken, ['reason' => 'Tasdiqlandi'])->assertOk();
+
+        return $request;
+    }
+
+    /**
+     * Regression: 20 000 given back by an approved request, then the whole order refunded (refundKeshbek gives the
+     * other 30 000 back and writes refunded_to_balance 30 000 with refunded_to_balance_by_requests 20 000): returned
+     * is 50 000 in two give-backs, never the 20 000 twice. The same with the rest returned by a second request (whose
+     * last part also writes the whole-amount marker refunded_to_balance 50 000): 50 000, not 100 000.
+     */
+    public function test_a_partial_then_a_full_refund_counts_each_give_back_once(): void
+    {
+        $k = $this->makeCustomer();
+        $order = $this->deliveredKeshbekOrder($k);
+        $this->travelTo($this->tashkent('2026-10-20 12:00'));
+        $this->approvedRequest($order, '20000');
+        $this->assertSame('20000.00', (string) $k->fresh()->balance);
+        $this->travelTo($this->tashkent('2026-10-21 12:00'));
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        $this->assertTrue(app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati')->changed);
+        $this->assertSame('50000.00', (string) $k->fresh()->balance);
+
+        $this->travelTo($this->tashkent('2026-11-02 12:00'));
+        $october = $this->report('2026-10');
+        $this->assertSame(['count' => 1, 'amount' => '50000.00'], $october['spent']);
+        $this->assertSame(['count' => 2, 'amount' => '50000.00'], $october['returned']);
+        $this->assertSame('50000.00', $october['reconciliation']['live']);
+        $this->assertSame('0.00', $october['reconciliation']['difference']);
+
+        // The rest by a second request instead
+        $other = $this->makeCustomer();
+        $second = $this->deliveredKeshbekOrder($other);
+        $this->travelTo($this->tashkent('2026-10-22 12:00'));
+        $this->approvedRequest($second, '20000');
+        $this->approvedRequest($second, '30000');
+        $this->assertSame('50000.00', (string) $other->fresh()->balance);
+        $this->assertSame(50000.0, (float) Payment::where('order_id', $second->id)->where('provider', 'keshbek')->sole()->payload['refunded_to_balance']);
+
+        $this->travelTo($this->tashkent('2026-11-02 12:00'));
+        $october = $this->report('2026-10');
+        $this->assertSame(['count' => 2, 'amount' => '100000.00'], $october['spent']);
+        $this->assertSame(['count' => 4, 'amount' => '100000.00'], $october['returned']);
+        $this->assertSame('0.00', $october['reconciliation']['difference']);
+    }
+
+    /** Regression: an approval sent again (replayed) credits nothing a second time, and the report counts it once. */
+    public function test_a_replayed_approval_gives_nothing_back_twice(): void
+    {
+        $k = $this->makeCustomer();
+        $order = $this->deliveredKeshbekOrder($k);
+        $this->travelTo($this->tashkent('2026-10-20 12:00'));
+        $approver = null;
+        $request = $this->approvedRequest($order, '20000', $approver);
+        $this->adminJson('POST', "/refund-requests/{$request['id']}/approve", $approver, ['reason' => 'Tasdiqlandi'])->assertOk();
+        $this->assertSame('20000.00', (string) $k->fresh()->balance);
+
+        $this->travelTo($this->tashkent('2026-11-02 12:00'));
+        $october = $this->report('2026-10');
+        $this->assertSame(['count' => 1, 'amount' => '20000.00'], $october['returned']);
+        $this->assertSame('0.00', $october['reconciliation']['difference']);
+    }
+
+    /**
+     * Review M2: a payload value the report cannot read never fails it (500). Amounts must be strict decimals and
+     * timestamps ISO 8601 with an explicit offset or Z (an offset-less time is invalid: in which zone it was written is
+     * unknown, review L3). A part whose amount is unreadable is not counted; a give-back whose time is unreadable falls
+     * back to the payment's created_at, as a missing one does. Each rejected value is counted in
+     * unrecorded.invalid_payload_values, shown beside the difference.
+     */
+    public function test_malformed_payload_values_are_counted_not_fatal(): void
+    {
+        $u = $this->makeCustomer();
+        $keshbek = function (string $amount, array $payload, string $status = 'paid') use ($u): void {
+            $order = $this->makeOrder(OrderStatus::DELIVERED, ['user_id' => $u->id, 'payment_method' => 'keshbek', 'payment_owner' => 'PLATFORM', 'payment_status' => $status, 'total_price' => $amount]);
+            $payment = Payment::create(['order_id' => $order->id, 'provider' => 'keshbek', 'amount' => $amount, 'status' => $status, 'payload' => $payload]);
+            DB::table('payments')->where('id', $payment->id)->update(['created_at' => $this->tashkent('2026-10-10 12:00'), 'updated_at' => $this->tashkent('2026-10-10 12:00')]);
+        };
+        $valid = '2026-10-20T12:00:00+05:00';
+        $keshbek('10000.00', ['refunded_to_balance_parts' => [
+            ['amount' => '', 'refunded_at' => $valid],
+            ['amount' => 'garbage', 'refunded_at' => $valid],
+            ['amount' => 'NaN', 'refunded_at' => $valid],
+            ['amount' => 'abc', 'refunded_at' => $valid],
+            ['amount' => '3000.00', 'refunded_at' => '1730000000'],
+            // Offset-less: as UTC it would be 05:05 on 1 November in Tashkent; unreadable, it is the payment's October
+            ['amount' => '2000', 'refunded_at' => '2026-11-01T00:05:00'],
+            ['amount' => '1000', 'refunded_at' => ''],
+            ['amount' => '500', 'refunded_at' => 'garbage'],
+            ['amount' => '700', 'refunded_at' => '2026-02-30T10:00:00+05:00'],
+            ['amount' => '100.50', 'refunded_at' => '2026-10-21T00:00:00Z'],
+        ]]);
+        $keshbek('2000.00', ['refunded_to_balance' => 'NaN', 'refunded_at' => 'garbage'], 'refunded');
+        $keshbek('1000.00', ['refunded_to_balance' => 'abc'], 'refunded');
+        $keshbek('1000.00', ['refunded_to_balance' => '', 'refunded_at' => '2026-10-31T19:30:00'], 'refunded');
+
+        $this->travelTo($this->tashkent('2026-11-20 12:00'));
+        $october = $this->report('2026-10');
+        $this->assertSame(['count' => 4, 'amount' => '14000.00'], $october['spent']);
+        $this->assertSame(['count' => 6, 'amount' => '7300.50'], $october['returned']);
+        $this->assertSame('-6699.50', $october['reconciliation']['expected_now']);
+        $this->assertSame('6699.50', $october['reconciliation']['difference']);
+        // 4 amounts and 5 times of the parts; 'NaN' and 'garbage', 'abc', '' and the offset-less time of the others
+        $this->assertSame(['keshbek_orders_without_payment' => 0, 'invalid_payload_values' => 14], $october['unrecorded']);
+        $this->assertSame(['count' => 0, 'amount' => '0.00'], $this->report('2026-11')['returned']);
+    }
+
+    /**
+     * Review M3: the store_transactions movements are read in one pass through the partial index of the keshbek rows
+     * (referral_bonus and the legacy referral-note commission rows), and the keshbek payments through the
+     * provider-leading index: EXPLAIN of every query the report sends, sequential scans off.
+     */
+    public function test_the_report_reads_through_its_indexes(): void
+    {
+        $queries = [];
+        DB::listen(function (\Illuminate\Database\Events\QueryExecuted $query) use (&$queries) {
+            if (preg_match('/^\s*select/i', $query->sql) === 1) {
+                $queries[] = [$query->sql, $query->bindings];
+            }
+        });
+        app(KeshbekLiabilityReport::class)->build('2026-10');
+
+        $ledger = array_values(array_filter($queries, fn (array $query) => str_contains($query[0], '"store_transactions"')));
+        $payments = array_values(array_filter($queries, fn (array $query) => str_contains($query[0], '"payments"') && !str_contains($query[0], '"orders"')));
+        $this->assertCount(1, $ledger, 'one pass over store_transactions');
+        $this->assertCount(2, $payments, 'the payments in one pass, their give-back parts in another');
+        $plan = fn (array $query) => DB::transaction(function () use ($query) {
+            DB::statement('SET LOCAL enable_seqscan = off');
+
+            return implode("\n", array_column(array_map(fn ($row) => (array) $row, DB::select('EXPLAIN ' . $query[0], $query[1])), 'QUERY PLAN'));
+        });
+        $this->assertStringContainsString('store_transactions_keshbek_movements_index', $plan($ledger[0]));
+        // The index predicate's literals are the code's
+        $this->assertStringContainsString("type = '" . StoreTransactionType::REFERRAL_BONUS->value . "'", KeshbekLiabilityReport::LEDGER_ROWS);
+        $this->assertStringContainsString("type = '" . StoreTransactionType::COMMISSION->value . "' AND notes LIKE '" . LedgerService::REFERRAL_NOTE . "%'", KeshbekLiabilityReport::LEDGER_ROWS);
+        foreach ($payments as $query) {
+            $this->assertStringContainsString('payments_provider_scope_transaction_unique', $plan($query));
+        }
     }
 
     public function test_the_excel_export_needs_the_export_permission_and_is_audited(): void
@@ -260,6 +434,7 @@ class KeshbekLiabilityReportTest extends TestCase
         $this->assertSame(0, (int) $values['Berilgan bonuslar (RIZQIM)']);
         $this->assertSame(5000, (int) $values['Yakuniy qoldiq (harakatlardan)']);
         $this->assertSame(0, (int) $values['Farq']);
+        $this->assertSame(0, (int) $values["O'qib bo'lmagan to'lov qiymatlari"]);
 
         $entry = AuditLog::where('action', 'admin.finance.keshbek_report_exported')->sole();
         $this->assertSame($finance->id, (int) $entry->user_id);

@@ -28,7 +28,7 @@ class AdminFinanceReportController extends AdminController
 {
     private const REPORT = 'array{period: string, timezone: string, totals: array{orders: int, gmv: string, commission: string, commission_refunded: string, subscription: string, total: string, referral_count: int, referral_bonuses: string, net: string}, channels: list<array{channel: string, label: string, orders: int, gmv: string, commission: string, commission_refunded: string}>, subscriptions: array{invoices: int, invoiced: string, paid: string, outstanding: string}, stores: list<array{store: array{id: int, name: string}, orders: int, gmv: string, commission: string, commission_by_channel: array<string, string>, subscription: string, total: string}>}';
 
-    private const KESHBEK = 'array{period: string, timezone: string, as_of: string, issued: array{count: int, amount: string}, clawed_back: array{count: int, amount: string}, legacy_store_paid: array{count: int, amount: string}, spent: array{count: int, amount: string}, returned: array{count: int, amount: string}, outstanding: array{positive: string, negative: string, net: string, holders: int, debtors: int}, reconciliation: array{opening: string, movement: string, closing: string, after_period: string, expected_now: string, live: string, difference: string}, unrecorded: array{keshbek_orders_without_payment: int}}';
+    private const KESHBEK = 'array{period: string, timezone: string, as_of: string, issued: array{count: int, amount: string}, clawed_back: array{count: int, amount: string}, legacy_store_paid: array{count: int, amount: string}, spent: array{count: int, amount: string}, returned: array{count: int, amount: string}, outstanding: array{positive: string, negative: string, net: string, holders: int, debtors: int}, reconciliation: array{opening: string, movement: string, closing: string, after_period: string, expected_now: string, live: string, difference: string}, unrecorded: array{keshbek_orders_without_payment: int, invalid_payload_values: int}}';
 
     public function __construct(
         private readonly MonthlyRevenueReport $report,
@@ -99,8 +99,11 @@ class AdminFinanceReportController extends AdminController
      * `opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =
      * `expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance
      * change is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the
-     * month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row. Amounts are
-     * decimal strings.
+     * month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row;
+     * `unrecorded.invalid_payload_values` — payload values of keshbek payments the report could not read (an amount
+     * that is not a plain decimal, a time that is not ISO 8601 with an offset or Z): an unreadable amount is not
+     * counted, an unreadable time falls back to the payment's created_at. One database snapshot for the whole report.
+     * Amounts are decimal strings.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::KESHBEK . '}')]
     public function keshbek(Request $request): JsonResponse
