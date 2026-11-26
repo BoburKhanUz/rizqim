@@ -543,7 +543,8 @@ class OrderStatusService
      * Gives the keshbek still on the order back to the customer's balance: each paid keshbek payment minus what
      * approved refund requests already returned from it (the Boshqaruv markazi's partial refunds, as
      * RefundRequestService::balanceOf counts them), nothing when nothing is left. An old order without a payment
-     * row (no request can have refunded any of it) gives back its total.
+     * row (no request can have refunded any of it) gives back its total, with the record its debit never had
+     * (refundUnrecordedKeshbek).
      */
     protected function refundKeshbek(Order $order): void
     {
@@ -559,7 +560,7 @@ class OrderStatusService
             ->get();
 
         if ($payments->isEmpty()) {
-            $this->creditBalance($order, Money::of($order->total_price));
+            $this->refundUnrecordedKeshbek($order);
         } else {
             $returned = RefundRequestService::balanceOf($payments, RefundRequestService::approvedRequests([(int) $order->id])->get())['allocated'];
             foreach ($payments as $payment) {
@@ -580,6 +581,41 @@ class OrderStatusService
         }
 
         $order->update(['payment_status' => PaymentStatus::REFUNDED->value]);
+    }
+
+    /**
+     * Owner decision B: a legacy keshbek order whose debit left no keshbek payment row (the code of the time debited
+     * the balance and wrote nothing) gets its total back, and the row it never had, in the same transaction: provider
+     * keshbek, the total, refunded, the give-back in the payload as for any cancellation (refunded_to_balance,
+     * refunded_at) and `backfilled_without_debit_record` with `debited_at` (the order's placing).
+     * KeshbekLiabilityReport counts the row as spent at debited_at and as returned at refunded_at, so the debit and the
+     * give-back are both recorded and the reconciliation's difference (−total while the order stood) is 0 again;
+     * KeshbekHistory shows both. The payment is written refunded, never paid: nothing else can take it for money still
+     * on the order. Callers hold the order's lock (refund: the order is then refunded, so this runs once).
+     */
+    private function refundUnrecordedKeshbek(Order $order): void
+    {
+        $total = Money::of($order->total_price);
+        if (!$total->isPositive()) {
+            return;
+        }
+        $this->creditBalance($order, $total);
+
+        \App\Models\Payment::create([
+            'order_id' => $order->id,
+            'store_id' => $order->store_id,
+            'merchant_scope' => \App\Models\Payment::merchantScopeOf($order),
+            'provider' => 'keshbek',
+            'amount' => $total->toString(),
+            'status' => PaymentStatus::REFUNDED,
+            'cancelled_at' => now(),
+            'payload' => [
+                'refunded_to_balance' => $total->toFloat(),
+                'refunded_at' => now()->toIso8601String(),
+                'backfilled_without_debit_record' => true,
+                'debited_at' => ($order->created_at ?? now())->toIso8601String(),
+            ],
+        ]);
     }
 
     private function creditBalance(Order $order, Money $amount): void

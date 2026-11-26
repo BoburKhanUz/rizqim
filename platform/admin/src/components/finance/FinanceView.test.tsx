@@ -185,6 +185,8 @@ describe('FinanceView', () => {
     expect(within(section).getByText('Qaytarib olingan bonuslar').closest('div')).toHaveTextContent(/1 ta.*− 5 000.so'm/);
     expect(within(section).getByText('Buyurtmalarga ishlatilgan').closest('div')).toHaveTextContent(/− 50 000.so'm/);
     expect(within(section).getByText('Qaytarishlarda balansga qaytgan').closest('div')).toHaveTextContent(/\+ 20 000.so'm/);
+    // Off one account, onto another: no sign, not part of the movement
+    expect(screen.getByTestId('keshbek-transferred').closest('div')).toHaveTextContent(/^Taklif hisobidan ko'chirilgan \(jamiga ta'sir qilmaydi\)0 ta0.so'm$/);
     expect(within(section).getByText('Hozirgi holat, oy oxiri emas.')).toBeInTheDocument();
     const difference = screen.getByTestId('keshbek-difference');
     expect(difference).not.toHaveAttribute('data-mismatch');

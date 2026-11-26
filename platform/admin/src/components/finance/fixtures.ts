@@ -131,6 +131,7 @@ export const keshbekReport = (overrides: Partial<KeshbekReport> = {}): KeshbekRe
   legacy_store_paid: { count: 0, amount: '0.00' },
   spent: { count: 1, amount: '50000.00' },
   returned: { count: 1, amount: '20000.00' },
+  transferred: { count: 0, amount: '0.00' },
   outstanding: { positive: '30000.00', negative: '0.00', net: '30000.00', holders: 1, debtors: 0 },
   reconciliation: { opening: '50000.00', movement: '-20000.00', closing: '30000.00', after_period: '0.00', expected_now: '30000.00', live: '30000.00', difference: '0.00' },
   unrecorded: { keshbek_orders_without_payment: 0, invalid_payload_values: 0 },

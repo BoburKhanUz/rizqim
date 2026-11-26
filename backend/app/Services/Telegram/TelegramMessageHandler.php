@@ -193,8 +193,8 @@ class TelegramMessageHandler
             ->first();
 
         if ($alreadyExists) {
-            // Update existing user with new role, branch, and name, and clean up the dummy/temp employee row (retired
-            // instead when it holds keshbek: User::mergeInviteInto)
+            // Update existing user with new role, branch, and name, and clean up the dummy/temp employee row (its
+            // keshbek, balance and referred friends, moves to the account first: User::mergeInviteInto)
             $employee->mergeInviteInto($alreadyExists, [
                 'role' => $employee->role,
                 'branch_id' => $employee->branch_id,

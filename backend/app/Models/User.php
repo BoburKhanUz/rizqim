@@ -309,23 +309,31 @@ class User extends Authenticatable
 
     /**
      * An unclaimed employee invite row (this) accepted by someone who already has an account in the store ($account:
-     * the bot's /start and the Mini App's start_param): $account takes $attributes (the invite's role, branch, name),
-     * and the invite row is deleted, unless it holds keshbek (holdsKeshbek: its id can be a referral link's from
-     * before ReferralService refused invite rows). Then it is retired instead (retireFromStore), its balance and its
-     * friends' referrer kept for the keshbek report.
+     * the bot's /start and the Mini App's start_param): $account takes $attributes (the invite's role, branch, name).
+     * Owner decision A: the invite row's keshbek goes to $account too (handKeshbekTo): its balance, a debt included,
+     * with a KeshbekTransfer record, and its referred friends (its id can be a referral link's from before
+     * ReferralService refused invite rows), who name $account as referrer from now on. Holding nothing any more, the
+     * invite row is then deleted; should it still hold keshbek (a friend who named it after the lock, which no current
+     * path does), it is retired instead (retireFromStore), as before.
      *
-     * One transaction, both users rows locked first in one statement in id order (the order the referral grant uses,
-     * LedgerService::lockCustomerAndReferrer); no store row is locked here, so the grant's store → users order is
-     * never inverted. The keshbek check reads under the lock: a referral naming the row or a credit to it either
-     * committed before (and is seen) or waits for the delete / retire.
+     * One transaction. Every users row it changes is locked first, in one statement in id order: both rows and the
+     * invite row's friends (read just before; the order the referral grant and clawback take a customer and its
+     * referrer in, LedgerService::lockCustomerAndReferrer, so a grant for one of the friends never deadlocks with it).
+     * No store row is locked here, so the grant's store → users order is never inverted. Everything is read again
+     * under the locks: a grant to the invite row or a referral naming it either committed before (and is moved) or
+     * waits; a grant waiting on a friend then finds the friend's referrer changed and grants nothing, and
+     * SweepMissedReferralBonusesJob books it for the new referrer.
      */
     public function mergeInviteInto(self $account, array $attributes): void
     {
         \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
-            self::query()->whereKey([$account->getKey(), $this->getKey()])->orderBy('id')->lockForUpdate()->get();
+            $friends = self::query()->where('referred_by', $this->getKey())->pluck('id')->all();
+            self::query()->whereKey(array_values(array_unique([$account->getKey(), $this->getKey(), ...$friends])))->orderBy('id')->lockForUpdate()->get();
             $this->refresh();
             $account->refresh();
             $account->update($attributes);
+
+            $this->handKeshbekTo($account);
 
             if (!$this->holdsKeshbek()) {
                 $this->delete();
@@ -335,6 +343,42 @@ class User extends Authenticatable
 
             $this->retireFromStore();
         });
+    }
+
+    /**
+     * Owner decision A, inside mergeInviteInto (the rows locked): this row's friends name $account as referrer (or no
+     * one when the friend is $account itself: never a self-referral), and a non-zero balance moves to $account — this
+     * row at 0, $account plus the balance (minus, for a debt), a KeshbekTransfer saying so. Platform-wide the sum of
+     * the balances does not change (KeshbekLiabilityReport: `transferred`, outside the reconciliation's movement).
+     */
+    private function handKeshbekTo(self $account): void
+    {
+        $accountId = (int) $account->getKey();
+        $friends = self::query()->where('referred_by', $this->getKey())->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $moved = array_values(array_filter($friends, fn (int $id) => $id !== $accountId));
+        if ($moved !== []) {
+            self::query()->whereKey($moved)->update(['referred_by' => $accountId]);
+        }
+        if (in_array($accountId, $friends, true)) {
+            self::query()->whereKey($accountId)->update(['referred_by' => null]);
+        }
+
+        $balance = \App\Support\Money::of((string) $this->balance);
+        if (!$balance->isZero()) {
+            self::query()->whereKey($this->getKey())->update(['balance' => '0.00']);
+            // A numeric string keeps the amount exact (a debt is negative); Laravel accepts it although the stub says float|int
+            self::query()->whereKey($accountId)->increment('balance', $balance->toString()); // @phpstan-ignore argument.type
+            KeshbekTransfer::create([
+                'from_user_id' => (int) $this->getKey(),
+                'to_user_id' => $accountId,
+                'amount' => $balance->toString(),
+                'reason' => KeshbekTransfer::REASON_INVITE_MERGE,
+                'moved_friend_ids' => $moved === [] ? null : $moved,
+            ]);
+        }
+
+        $this->refresh();
+        $account->refresh();
     }
 
     /**
