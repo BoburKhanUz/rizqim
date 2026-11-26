@@ -279,8 +279,9 @@ class User extends Authenticatable
     /**
      * Keshbek review H1: whether this users row carries keshbek that a delete would drop without a record: a non-zero
      * balance (keshbek held, the platform's liability, or owed after a clawback) or friends it referred (users.referred_by
-     * is ON DELETE SET NULL: they would lose their referrer). Any user can be a referrer (ReferralService takes any id),
-     * staff and unclaimed invite rows included. Read from the database, not from the loaded model.
+     * is ON DELETE SET NULL: they would lose their referrer). Any user can be a referrer, staff included
+     * (ReferralService refuses only unclaimed invite rows, which older data may still name). Read from the database,
+     * not from the loaded model.
      */
     public function holdsKeshbek(): bool
     {
@@ -289,23 +290,95 @@ class User extends Authenticatable
     }
 
     /**
-     * An unclaimed employee invite row that an accepted invite merged into an existing account (the bot's /start and
-     * the Mini App's start_param): deleted, unless it holds keshbek (holdsKeshbek: its id can be a referral link's
-     * like anyone's). Then it is retired instead: no role, store, branch, staff code or invite token, its balance and
-     * its friends' referrer kept for the keshbek report.
+     * Takes the person out of their store and keeps the users row (OwnerEmployeeController::destroy for staff with
+     * history or keshbek, mergeInviteInto for an invite row with keshbek): the customer role; no store, branch, staff
+     * code, invite token or PIN; and no session: Sanctum tokens (device-access ones included), refresh tokens and
+     * push tokens end (TokenService::revokeAllForUser). Balance and referred friends are kept. Call it on a row read
+     * under its lock (lockForUpdate) when the decision depends on what the row holds.
      */
-    public function discardMergedInvite(): void
+    public function retireFromStore(): void
     {
-        if (!$this->holdsKeshbek()) {
-            $this->delete();
+        \Illuminate\Support\Facades\DB::transaction(function () {
+            $this->forceFill([
+                'role' => \App\Enums\UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
+                'telegram_invite_token' => null, 'pin_hash' => null, 'pin_set_at' => null,
+            ])->save();
+            app(\App\Services\Auth\TokenService::class)->revokeAllForUser($this);
+        });
+    }
 
-            return;
+    /**
+     * An unclaimed employee invite row (this) accepted by someone who already has an account in the store ($account:
+     * the bot's /start and the Mini App's start_param): $account takes $attributes (the invite's role, branch, name).
+     * Owner decision A: the invite row's keshbek goes to $account too (handKeshbekTo): its balance, a debt included,
+     * with a KeshbekTransfer record, and its referred friends (its id can be a referral link's from before
+     * ReferralService refused invite rows), who name $account as referrer from now on. Holding nothing any more, the
+     * invite row is then deleted; should it still hold keshbek (a friend who named it after the lock, which no current
+     * path does), it is retired instead (retireFromStore), as before.
+     *
+     * One transaction. Every users row it changes is locked first, in one statement in id order: both rows and the
+     * invite row's friends (read just before; the order the referral grant and clawback take a customer and its
+     * referrer in, LedgerService::lockCustomerAndReferrer, so a grant for one of the friends never deadlocks with it).
+     * No store row is locked here, so the grant's store → users order is never inverted. Everything is read again
+     * under the locks: a grant to the invite row or a referral naming it either committed before (and is moved) or
+     * waits; a grant waiting on a friend then finds the friend's referrer changed and grants nothing, and
+     * SweepMissedReferralBonusesJob books it for the new referrer.
+     */
+    public function mergeInviteInto(self $account, array $attributes): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
+            $friends = self::query()->where('referred_by', $this->getKey())->pluck('id')->all();
+            self::query()->whereKey(array_values(array_unique([$account->getKey(), $this->getKey(), ...$friends])))->orderBy('id')->lockForUpdate()->get();
+            $this->refresh();
+            $account->refresh();
+            $account->update($attributes);
+
+            $this->handKeshbekTo($account);
+
+            if (!$this->holdsKeshbek()) {
+                $this->delete();
+
+                return;
+            }
+
+            $this->retireFromStore();
+        });
+    }
+
+    /**
+     * Owner decision A, inside mergeInviteInto (the rows locked): this row's friends name $account as referrer (or no
+     * one when the friend is $account itself: never a self-referral), and a non-zero balance moves to $account — this
+     * row at 0, $account plus the balance (minus, for a debt), a KeshbekTransfer saying so. Platform-wide the sum of
+     * the balances does not change (KeshbekLiabilityReport: `transferred`, outside the reconciliation's movement).
+     */
+    private function handKeshbekTo(self $account): void
+    {
+        $accountId = (int) $account->getKey();
+        $friends = self::query()->where('referred_by', $this->getKey())->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $moved = array_values(array_filter($friends, fn (int $id) => $id !== $accountId));
+        if ($moved !== []) {
+            self::query()->whereKey($moved)->update(['referred_by' => $accountId]);
+        }
+        if (in_array($accountId, $friends, true)) {
+            self::query()->whereKey($accountId)->update(['referred_by' => null]);
         }
 
-        $this->forceFill([
-            'role' => \App\Enums\UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
-            'telegram_invite_token' => null,
-        ])->save();
+        $balance = \App\Support\Money::of((string) $this->balance);
+        if (!$balance->isZero()) {
+            self::query()->whereKey($this->getKey())->update(['balance' => '0.00']);
+            // A numeric string keeps the amount exact (a debt is negative); Laravel accepts it although the stub says float|int
+            self::query()->whereKey($accountId)->increment('balance', $balance->toString()); // @phpstan-ignore argument.type
+            KeshbekTransfer::create([
+                'from_user_id' => (int) $this->getKey(),
+                'to_user_id' => $accountId,
+                'amount' => $balance->toString(),
+                'reason' => KeshbekTransfer::REASON_INVITE_MERGE,
+                'moved_friend_ids' => $moved === [] ? null : $moved,
+            ]);
+        }
+
+        $this->refresh();
+        $account->refresh();
     }
 
     /**

@@ -73,18 +73,15 @@ class AuthenticateTelegramUserAction
                     ->first();
 
                 if ($alreadyExists) {
-                    // Update existing user with new role, branch, and name
-                    $alreadyExists->update([
+                    // Update existing user with new role, branch, and name, and clean up/delete the dummy/temp
+                    // employee row (its keshbek moves to the account first: User::mergeInviteInto)
+                    $invitedEmployee->mergeInviteInto($alreadyExists, [
                         'role' => $invitedEmployee->role,
                         'branch_id' => $invitedEmployee->branch_id,
                         'name' => $invitedEmployee->name,
                         'telegram_username' => $telegramUser['username'] ?? null,
                         'telegram_photo_url' => $telegramUser['photo_url'] ?? null,
                     ]);
-
-                    // Clean up/delete the dummy/temp employee row (retired instead when it holds keshbek:
-                    // User::discardMergedInvite)
-                    $invitedEmployee->discardMergedInvite();
                     return $alreadyExists;
                 }
 

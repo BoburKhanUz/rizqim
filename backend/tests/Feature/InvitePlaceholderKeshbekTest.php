@@ -13,9 +13,10 @@ use Tests\TestCase;
  * Keshbek review H1, the two other places that delete a users row: an employee invite accepted by someone who already
  * has an account in the store (the bot's /start invite_… and the Mini App's start_param) merges the invite into that
  * account and deletes the unclaimed invite row. ReferralService takes any user id as a referrer (ref_<id>, ids are
- * sequential), so an invite row can have referred friends and the bonuses they earned: such a row is not deleted but
- * retired (no role, store, branch or invite token), its balance and its friends' referrer kept. One without keshbek is
- * deleted as before.
+ * sequential), so an invite row can have referred friends and the bonuses they earned. Owner decision A: its balance
+ * moves to the account with a record (KeshbekTransfer) and its friends name the account as referrer, so the invite
+ * row holds nothing any more and is deleted, through either channel (the record and the report:
+ * Tests\Feature\Referral\InviteMergeKeshbekTransferTest). One without keshbek is deleted as before.
  */
 class InvitePlaceholderKeshbekTest extends TestCase
 {
@@ -57,7 +58,7 @@ class InvitePlaceholderKeshbekTest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('cases')]
-    public function test_an_invite_row_with_keshbek_is_retired_not_deleted(string $via, string $what): void
+    public function test_an_invite_rows_keshbek_goes_to_the_account_and_the_row_is_deleted(string $via, string $what): void
     {
         $existing = User::create(['name' => 'Kassir', 'telegram_id' => '8181818', 'store_id' => $this->store->id, 'role' => UserRole::CASHIER]);
         $invite = $this->invite('emp_keshbek' . $via);
@@ -72,13 +73,35 @@ class InvitePlaceholderKeshbekTest extends TestCase
         $this->accept($via, 8181818, 'emp_keshbek' . $via);
 
         $this->assertSame(UserRole::MANAGER, $existing->fresh()->role, 'the existing account took the invite');
-        $kept = User::find($invite->id);
-        $this->assertNotNull($kept, 'the invite row is kept');
-        $this->assertSame([UserRole::CUSTOMER, null, null, null], [$kept->role, $kept->store_id, $kept->branch_id, $kept->telegram_invite_token]);
-        $this->assertSame($what === 'balance' ? '5000.00' : '0.00', (string) $kept->balance);
+        $this->assertNull(User::find($invite->id), 'holding nothing any more, the invite row is deleted');
+        $this->assertSame($what === 'balance' ? '5000.00' : '0.00', (string) $existing->fresh()->balance);
+        $this->assertSame($what === 'balance' ? 1 : 0, \App\Models\KeshbekTransfer::where('from_user_id', $invite->id)->where('to_user_id', $existing->id)->count());
         if ($friend !== null) {
-            $this->assertSame($invite->id, (int) $friend->fresh()->referred_by);
+            $this->assertSame($existing->id, (int) $friend->fresh()->referred_by);
         }
+    }
+
+    /**
+     * Review fix, still: no token issued to the invite row signs in after the merge (it would authenticate as a
+     * customer); its balance is the account's now.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('channels')]
+    public function test_a_merged_invite_rows_sessions_end_and_its_balance_moves(string $via): void
+    {
+        $existing = User::create(['name' => 'Kassir', 'telegram_id' => '8383838', 'store_id' => $this->store->id, 'role' => UserRole::CASHIER]);
+        $invite = $this->invite('emp_session' . $via);
+        $invite->forceFill(['balance' => '7000.00', 'staff_code' => '4321', 'pin_hash' => bcrypt('1234'), 'pin_set_at' => now()])->save();
+        $token = $invite->createToken('device-access')->plainTextToken;
+        $this->withToken($token)->getJson('/api/v1/user')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withoutToken();
+
+        $this->accept($via, 8383838, 'emp_session' . $via);
+
+        $this->assertNull(User::find($invite->id));
+        $this->assertSame('7000.00', (string) $existing->fresh()->balance);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/user')->assertUnauthorized();
     }
 
     /**

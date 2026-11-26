@@ -206,8 +206,11 @@ class KeshbekLiabilityReportTest extends TestCase
     /**
      * A balance change that leaves no record makes the difference non-zero, whatever its sign. A legacy keshbek order
      * without a keshbek payment row: the code of the time debited the balance and wrote nothing, so while the order
-     * stands the difference is −total; OrderStatusService::refundKeshbek then gives the whole total back, also without
-     * a record, and the two cancel out (0). A balance edited in the database by hand stays a difference.
+     * stands the difference is −total. Owner decision B: OrderStatusService::refundKeshbek gives the whole total back
+     * and writes the missing keshbek payment row with it (refunded, the total, `backfilled_without_debit_record`,
+     * `debited_at` = the order's placing): the report counts it as spent at the order's placing (October) and as
+     * returned at the refund (November), the difference is 0 again and the order no longer counts as unrecorded. A
+     * balance edited in the database by hand stays a difference.
      */
     public function test_a_balance_change_without_a_record_shows_as_the_difference(): void
     {
@@ -215,11 +218,12 @@ class KeshbekLiabilityReportTest extends TestCase
         for ($i = 1; $i <= 10; $i++) {
             $this->legacyBonus($customer, '2026-08-1' . ($i % 10) . ' 12:00', 900000 + $i);
         }
+        $this->travelTo($this->tashkent('2026-10-15 12:00'));
         $order = $this->makeOrder(OrderStatus::DELIVERED, ['user_id' => $customer->id, 'payment_method' => 'keshbek', 'payment_owner' => 'PLATFORM', 'payment_status' => PaymentStatus::PAID->value, 'total_price' => 50000]);
         DB::table('users')->where('id', $customer->id)->decrement('balance', 50000);
 
-        $period = now()->setTimezone('Asia/Tashkent')->format('Y-m');
-        $report = $this->report($period);
+        $this->travelTo($this->tashkent('2026-11-10 12:00'));
+        $report = $this->report('2026-10');
         $this->assertSame(['count' => 0, 'amount' => '0.00'], $report['spent']);
         $this->assertSame('0.00', $report['reconciliation']['live']);
         $this->assertSame('50000.00', $report['reconciliation']['expected_now']);
@@ -229,16 +233,40 @@ class KeshbekLiabilityReportTest extends TestCase
         $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
         app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati');
         $this->assertSame('50000.00', (string) $customer->fresh()->balance);
-        $report = $this->report($period);
-        $this->assertSame(['count' => 0, 'amount' => '0.00'], $report['returned']);
-        $this->assertSame('50000.00', $report['reconciliation']['live']);
-        $this->assertSame('0.00', $report['reconciliation']['difference']);
-        $this->assertSame(['keshbek_orders_without_payment' => 1, 'invalid_payload_values' => 0], $report['unrecorded']);
+
+        $payment = Payment::where('order_id', $order->id)->sole();
+        $this->assertSame(['keshbek', PaymentStatus::REFUNDED, '50000.00'], [$payment->provider, $payment->status, (string) $payment->amount]);
+        $this->assertSame(50000, (int) $payment->payload['refunded_to_balance']);
+        $this->assertTrue($payment->payload['backfilled_without_debit_record']);
+        $this->assertSame(Carbon::parse($payment->payload['refunded_at'])->getTimestamp(), now()->getTimestamp());
+        $this->assertMatchesRegularExpression('/[+-]\d\d:\d\d$/', $payment->payload['refunded_at']);
+        $this->assertSame($order->created_at->getTimestamp(), Carbon::parse($payment->payload['debited_at'])->getTimestamp());
+
+        // October: the debit, at the order's placing; November: the give-back, at the refund
+        $october = $this->report('2026-10');
+        $this->assertSame(['count' => 1, 'amount' => '50000.00'], $october['spent']);
+        $this->assertSame(['count' => 0, 'amount' => '0.00'], $october['returned']);
+        $this->assertSame(['opening' => '50000.00', 'movement' => '-50000.00', 'closing' => '0.00', 'after_period' => '50000.00', 'expected_now' => '50000.00', 'live' => '50000.00', 'difference' => '0.00'], $october['reconciliation']);
+        $this->assertSame(['keshbek_orders_without_payment' => 0, 'invalid_payload_values' => 0], $october['unrecorded']);
+        $november = $this->report('2026-11');
+        $this->assertSame(['count' => 0, 'amount' => '0.00'], $november['spent']);
+        $this->assertSame(['count' => 1, 'amount' => '50000.00'], $november['returned']);
+        $this->assertSame('0.00', $november['reconciliation']['difference']);
+
+        // The customer card: spent at the placing, given back at the refund, adding up to the balance
+        $history = app(\App\Services\Admin\Customers\KeshbekHistory::class)->for($customer->fresh());
+        $this->assertSame([['refunded', '50000.00'], ['spent', '-50000.00']], array_map(fn (array $entry) => [$entry['kind'], $entry['amount']], $history['entries']));
+        $this->assertSame($order->created_at->getTimestamp(), Carbon::parse($history['entries'][1]['at'])->getTimestamp());
+
+        // A second refund attempt finds the order refunded: nothing more is given back or written
+        app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Yana');
+        $this->assertSame('50000.00', (string) $customer->fresh()->balance);
+        $this->assertSame(1, Payment::where('order_id', $order->id)->count());
 
         DB::table('users')->where('id', $this->customer->id)->update(['balance' => '-1234.56']);
-        $this->assertSame('-1234.56', $this->report($period)['reconciliation']['difference']);
+        $this->assertSame('-1234.56', $this->report('2026-11')['reconciliation']['difference']);
         // The service reads the same
-        $this->assertSame('-1234.56', app(KeshbekLiabilityReport::class)->build($period)['reconciliation']['difference']->toString());
+        $this->assertSame('-1234.56', app(KeshbekLiabilityReport::class)->build('2026-11')['reconciliation']['difference']->toString());
     }
 
     /** K's 50 000 keshbek checkout of 15 October, delivered; K holds 50 000 of legacy bonuses of August before it. */

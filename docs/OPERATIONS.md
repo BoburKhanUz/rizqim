@@ -1334,6 +1334,12 @@ Bundan tashqari, bonus berish paytida (qulflar ostida, `LedgerService::grantRefe
    oktyabrdagi 10 bonusdan 3 tasi noyabrda qaytarib olinsa, noyabr baribir faqat 10 ta beradi (avval −3 dan
    boshlanib 13 ta berardi); oktyabr ichida qaytarilgan oktyabr bonusi esa oktyabrda bitta o'rin bo'shatadi.
 
+**Kim taklif qiluvchi bo'la oladi (`ReferralService::validReferrerId`).** Har qanday mavjud foydalanuvchi, xodimlar ham
+(ular do'stlarini taklif qilishi mumkin) — faqat o'zi emas (bir xil telegram id) va **qabul qilinmagan xodim taklifi
+qatori emas** (`telegram_id` `temp_` bilan boshlanadi): u hech qayerga kira olmaydi, unga yozilgan bonusni ishlatib
+bo'lmaydi. Bunday `ref_<id>` havolasi `referred_by` ni o'rnatmaydi. Eski ma'lumotda shunday qatorni ko'rsatgan do'stlar
+qolishi mumkin — u qator birlashtirilganda o'chirilmaydi, nofaol qilinadi (§32 yonidagi keshbek qoidasi, quyida).
+
 **Mos bo'lmagan buyurtma taklifni «ishlatmaydi».** Tasdiqlanmagan to'lov, 50 000 dan kam summa, bonusdan kam komissiya,
 oylik chegara to'lgan — bularning hech biri bonus bermaydi va taklif kutishda qoladi: keyingi mos buyurtma (oylik
 chegara bo'lsa — keyingi oyda ham) bonus oladi. Taklif faqat **turgan bonus** bilan yopiladi. (Bu tarmoqdan oldin
@@ -1361,6 +1367,25 @@ tranzaksiyasida yoziladi va commit qilinadi**, bonus esa shundan keyin **alohida
 hisob-kitobni ham bekor qila olmaydi — buyurtma `settlement_failed_at` bilan belgilanadi, superadminga xabar ketadi va
 `RetryFailedSettlementsJob` uni keyinroq bir marta beradi (provayder javob olgan to'lovni qayta yubormaydi, boshqa qayta
 urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham shu savepoint'da tozalaydi (review L5).
+
+**Yo'qolgan bonusni qidirish (egasining C qarori).** Jarayon ikki tranzaksiya orasida to'xtasa (to'lov va hisob-kitob
+commit qilingan, bonus tranzaksiyasi boshlanmagan), belgi ham yozilmaydi (`settlement_failed_at` ni faqat ishlab,
+yiqilgan yozuv yozadi) — `RetryFailedSettlementsJob` buyurtmani ko'rmaydi, provayder esa qayta yubormaydi. Shuning
+uchun `App\Jobs\SweepMissedReferralBonusesJob` **har soatda** (scheduler, navbatsiz; `withoutOverlapping`) shunday
+buyurtmalarni topib, xuddi shu yo'l bilan yozadi (`bookAfterPayment` → `book` → `grantReferralReward`, qulflar ostida):
+bir martalik, oylik chegara, komissiya ≥ bonus, qaytarilgan buyurtma — hammasi o'sha joyda tekshiriladi.
+Nomzodlar (bitta indeksli so'rov, bir ishga tushishda ko'pi bilan `MAX_PER_RUN` = 200, eskisi birinchi): yetkazilgan,
+hali to'langan, belgisiz, taklif bilan kelgan mijozning (`users.referred_by`) buyurtmasi; to'lovi **so'nggi 7 kun**
+(`WINDOW_DAYS`) ichida va kamida 15 daqiqa oldin to'langan (`payments_paid_at_index`; 15 daqiqa — listener o'zi
+yozishga ulgursin); buyurtmaning o'z bonus yozuvi yo'q; mijozning bonusi hali turmagan (sof). SQL faqat toraytiradi,
+qaror — haqiqiy qoida: `ReferralService::qualifiesForReferralBonus`, so'ng qulflar ostidagi berish. Taklif qilgan oylik
+chegarada bo'lsa qulfsiz o'tkazib yuboriladi (berish baribir rad etardi); komissiyasi yoki hisob-kitobi yozilmagan
+buyurtmaga tegilmaydi (logga `warning`; ular — `RetryFailedSettlementsJob` yoki moliya tekshirgandan keyin
+`orders:retry-settlements --confirm-unbooked` ishi). Bir mijozning buyurtmalaridan bir ishga tushishda bittasi.
+Bergan har bonusi logda: `Missed referral bonus of order <uuid> booked by the sweep` (`info`) va oxirida jami
+(`warning`). Monitoring topilmasi qo'shilmadi. Qidiruv chegaralangan: 7 kundan eski yo'qolgan bonus (masalan, bu
+o'zgarishdan oldingisi) o'zi topilmaydi — uni ko'rib chiqib qo'lda hal qilish kerak.
+`ReferralMissedBonusSweepTest`.
 
 **Kechiktirilgan qismlar va qaytarishlar.** Hisob-kitob qisman turgan paytda (masalan, kechikkan to'lovning hisob-kitobi
 yozilgan, komissiya esa hali ham yozilmayapti) tasdiqlangan qisman qaytarish faqat turgan qismni qaytaradi va
@@ -1601,7 +1626,7 @@ Raqamlar (`ReferralVerifiedPaymentTest`): 50 000 so'mlik buyurtma, komissiya 5 0
 **Kim nimani ko'radi.**
 - Ovqatxona: `GET /owner/finance` (`ledger_transactions`), `GET /owner/finance/ledger` (hamkor paneli, `type=referral_bonus` filtri — 422) — `referral_bonus` yozuvlari chiqmaydi. Boshqaruv markazida ovqatxona kartasi (oxirgi 10 yozuv) va Moliya → ovqatxona ledger'i (`/admin/finance/stores/{id}/ledger`) ham ularni ko'rsatmaydi (ovqatxona hisobi emas).
 - Platforma: Moliya → Oylik hisobot (`GET /admin/finance/reports/monthly`, Excel ham): `totals.referral_bonuses` (oyda yozilgan `referral_bonus` summasi — qaytarib olinganlar ayirilgan), `referral_count` (sof son: bonus +1, qaytarib olish −1), `net` = `total` − `referral_bonuses`. `total` (komissiya + obuna) o'zgarmagan.
-- Platforma: Moliya → Oylik hisobot → "Keshbek" (`GET /admin/finance/reports/keshbek`, Excel ham; API.md "Keshbek hisoboti"): oyda berilgan (`issued`, faqat `referral_bonus` +), qaytarib olingan (`clawed_back`), eski ovqatxona to'lagan bonuslar alohida (`legacy_store_paid`), ishlatilgan va qaytgan keshbek, hozirgi majburiyat va harakatlar bilan `SUM(users.balance)` farqi (`reconciliation.difference`; 0 bo'lmasa — yozuvsiz balans o'zgarishi, tekshirish kerak; yonida o'qib bo'lmagan to'lov payload qiymatlari soni — `unrecorded.invalid_payload_values`). Keshbegi bor (balans 0 emas yoki taklif qilgan do'sti bor) `users` qatori o'chirilmaydi: xodim ovqatxonadan chiqariladi, birlashtirilgan taklif qatori nofaol qilinadi (`User::holdsKeshbek`).
+- Platforma: Moliya → Oylik hisobot → "Keshbek" (`GET /admin/finance/reports/keshbek`, Excel ham; API.md "Keshbek hisoboti"): oyda berilgan (`issued`, faqat `referral_bonus` +), qaytarib olingan (`clawed_back`), eski ovqatxona to'lagan bonuslar alohida (`legacy_store_paid`), ishlatilgan va qaytgan keshbek, hozirgi majburiyat va harakatlar bilan `SUM(users.balance)` farqi (`reconciliation.difference`; 0 bo'lmasa — yozuvsiz balans o'zgarishi, tekshirish kerak; yonida o'qib bo'lmagan to'lov payload qiymatlari soni — `unrecorded.invalid_payload_values`). Keshbegi bor (balans 0 emas yoki taklif qilgan do'sti bor) `users` qatori o'chirilmaydi (`User::holdsKeshbek`): xodim ovqatxonadan chiqariladi; birlashtirilgan taklif qatori esa avval balansini va do'stlarini uni qabul qilgan hisobga o'tkazadi, keyin o'chiriladi (pastda, «Keshbek yozuvlari», A). Ovqatxonadan chiqarishda `User::retireFromStore`: mijoz roli; ovqatxona, filial, xodim kodi, taklif tokeni, PIN yo'q; barcha sessiyalar (Sanctum, refresh, push tokenlar) bekor qilinadi — qolgan qurilma tokeni bilan mijoz sifatida kirib bo'lmaydi; balans saqlanadi. Tekshiruv va o'chirish/nofaol qilish bitta tranzaksiyada, `users` qatori(lar)i avval qulflanadi (`lockForUpdate`, id tartibida); ovqatxona qatori qulflanmaydi, shuning uchun bonus berishning «ovqatxona → users» tartibi buzilmaydi.
 - Komissiya hisoblari (`CommissionStats`, 50% chegirma, qaytarishdagi komissiya qaytarish `LedgerService::reverseDelivery`, `hasCommission`) faqat `commission` turini o'qiydi — `referral_bonus` ularga kirmaydi; eski izohli `commission` yozuvlari avvalgidek chiqarib tashlanadi.
 - Admin mijoz kartasi (`referral_bonus`), keshbek tarixi va «bir marta» tekshiruvi ikkala shaklni o'qiydi (`LedgerService::referralRewardedNet`, `whereReferralRewardOf` / `whereAnyReferralReward`).
 
@@ -1671,6 +1696,48 @@ ulushi yoki bekor qilingan/qaytarilgan buyurtmadagi `manual_refund_required` yo'
 **Yetkazilmagan buyurtma.** Ovqatxona hisobiga to'langan buyurtma bekor qilinsa komissiya yozilmagan bo'ladi (yetkazishda yoziladi) — faqat belgi qo'yiladi; Paylov'ni RIZQIM o'zi qaytaradi (belgi faqat u bajarilmasa).
 
 **O'zgarmaganlar.** Platforma yig'gan buyurtmalar (`payment_owner: PLATFORM`) qaytarishi, naqd buyurtma qaytarishi, Payme/Paylov kabinet qaytarishini ushlab turish (29–30-bo'limlar).
+
+### Keshbek yozuvlari (egasining A, B, C qarorlari)
+
+**A: taklif qatori birlashtirilganda balans ko'chiriladi.** Qabul qilinmagan xodim taklifi qatori (`temp_…`) uni qabul
+qilgan mavjud hisobga birlashtirilganda (bot `/start invite_…` yoki Mini App `start_param`, `User::mergeInviteInto`)
+qatorda keshbek bo'lsa, u endi muzlab qolmaydi: balans (qarz — manfiy — ham) hisobga o'tkaziladi, qator 0 bo'ladi va
+`keshbek_transfers` jadvaliga yozuv qo'shiladi (`from_user_id` — taklif qatori, `to_user_id` — hisob, `amount`,
+`reason: invite_merge`, `moved_friend_ids`). Qatorni taklif qiluvchi deb ko'rsatgan do'stlar endi hisobni ko'rsatadi
+(kelgusi bonuslar kira oladigan qatorga tushadi; do'stning o'zi shu hisob bo'lsa — `referred_by` NULL, o'zini o'zi
+taklif qilish yo'q). Shundan keyin qatorda hech narsa qolmaydi va u avvalgidek o'chiriladi. Hammasi bitta
+tranzaksiyada; o'zgaradigan har `users` qatori (ikkala qator va do'stlar) avval bitta so'rovda id tartibida qulflanadi
+(bonus berish va qaytarib olish mijoz va taklif qiluvchini shu tartibda qulflaydi), ovqatxona qatori qulflanmaydi.
+Do'stining bonusi aynan shu paytda berilayotgan bo'lsa, u qulfni kutadi, so'ng taklif qiluvchi o'zgarganini ko'rib
+bermaydi — C qidiruvi uni yangi taklif qiluvchiga beradi. Do'stning keyin qaytarilgan buyurtmasi bonusi yangi hisobdan
+qaytarib olinadi (pul ham o'sha yerda). Keshbek hisobotida `transferred` («Taklif hisobidan ko'chirilgan»): bir qatordan
+chiqib boshqasiga kiradi, platforma bo'yicha 0 — `movement` ga kirmaydi, `difference` 0 qoladi. Mijoz kartasida
+«Taklif hisobidan ko'chirildi» (`kind: transfer`); ko'chgan do'stlarning o'tkazmadan oldingi bonuslari taklif qatoriga
+tushgan va o'tkazma ichida — qayta ko'rsatilmaydi, ro'yxat balansga mos keladi. `InviteMergeKeshbekTransferTest`,
+`InvitePlaceholderKeshbekTest`.
+
+**Migratsiya `2026_12_12_100000_create_keshbek_transfers_table`** (nega kerak: keshbek ledger'i yo'q;
+`store_transactions` yozuvi ovqatxona va buyurtmaga bog'liq, o'tkazma esa ikkalasiga ham emas; `audit_logs` oylarga
+bo'lingan va eski oylari arxivlanib o'chiriladi — 20-bo'lim —, hisobot esa barcha davr harakatlarini o'qiydi). Yangi bo'sh
+jadval: mavjud jadvallarni bloklamaydi (faqat `users` ga tashqi kalit — bir lahzalik). `store_id` yo'q — RLS ostida emas;
+RevisionMap: `NONE`. Faqat qo'shiladi (`KeshbekTransfer` o'zgartirish va o'chirishni rad etadi). Kesh/Redis'ga
+tegilmaydi. Qaytarish: `php artisan migrate:rollback --step=1` jadvalni o'chiradi — o'tkazmalar yozuvi yo'qoladi (balanslar
+joyida qoladi, `difference` 0 qoladi, faqat `transferred` va kartadagi yozuv yo'qoladi).
+
+**B: yozuvsiz eski keshbek buyurtmasi qaytarilganda yozuv yaratiladi.** Keshbek to'lovi yozuvi yo'q eski keshbek
+buyurtmasi (o'sha davr kodi balansni yechib, hech narsa yozmagan) bekor qilinsa yoki qaytarilsa,
+`OrderStatusService::refundKeshbek` avvalgidek to'liq summani balansga qaytaradi va shu tranzaksiyada yo'q yozuvni
+yaratadi: keshbek to'lovi, `refunded`, summa = jami, `payload`: `refunded_to_balance`, `refunded_at` (offset bilan),
+`backfilled_without_debit_record: true`, `debited_at` (buyurtma berilgan vaqt). Hisobot uni `spent` da `debited_at`
+bo'yicha, `returned` da `refunded_at` bo'yicha sanaydi. Raqamlar (`KeshbekLiabilityReportTest`): avgustda 50 000 yozilgan
+balans; 15 oktyabrda 50 000 lik eski buyurtma yozuvsiz yechildi → `live` 0, `expected_now` 50 000, farq **−50 000**,
+`keshbek_orders_without_payment` 1; 10 noyabrda qaytarildi → balans 50 000, oktyabr: `spent` 1 ta / 50 000, `returned` 0,
+`movement` −50 000, `after_period` +50 000, farq **0**; noyabr: `returned` 1 ta / 50 000; `keshbek_orders_without_payment`
+0. Yechish o'tgan oyga tushsa, o'sha oyning hisoboti ham o'zgaradi (haqiqatda o'sha oyda yechilgan). Bu o'zgarishdan oldin
+qaytarilgan bunday buyurtmalar (hech narsa yozilmagan, farqi 0) `keshbek_orders_without_payment` da qoladi. Migratsiya
+kerak emas (mavjud `payments` ustunlari).
+
+**C: yo'qolgan bonusni qidirish** — yuqorida, «Qachon beriladi» dan keyin.
 
 ## 32. Maxfiylik so'rovlari: statistikani o'chirish
 

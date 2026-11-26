@@ -396,8 +396,10 @@ Ekranlar va amallar: [guides/boshqaruv-markazi.md](guides/boshqaruv-markazi.md),
   ishlatilgan va qaytarishda balansga qaytgan keshbek. **Solishtirish**: boshlang'ich qoldiq + berilgan − qaytarib
   olingan + eski − ishlatilgan + qaytgan = yakuniy qoldiq (harakatlardan); u + oydan keyingi harakatlar hozirgi
   `SUM(users.balance)` ga teng bo'lishi kerak. Farq 0 bo'lmasa (ekranda qizil) — balans yozuvsiz o'zgargan (bazada qo'lda
-  tahrir yoki keshbek to'lovi yozuvi yo'q eski keshbek buyurtmasi: u turganda farq −summa, bekor qilinsa 0 ga qaytadi):
-  sababini topish kerak, raqamni yashirmaymiz. Farq yonida o'qib bo'lmagan to'lov qiymatlari soni ham ko'rsatiladi. Musbat/manfiy balanslar — hozirgi holat, oy oxiri emas.
+  tahrir yoki keshbek to'lovi yozuvi yo'q eski keshbek buyurtmasi: u turganda farq −summa; bekor qilinsa yoki
+  qaytarilsa, yo'q yozuv yaratiladi — buyurtma vaqtida ishlatilgan, qaytarish vaqtida qaytgan deb sanaladi — va farq 0 ga
+  qaytadi): sababini topish kerak, raqamni yashirmaymiz. «Taklif hisobidan ko'chirilgan» — qabul qilinmagan xodim taklifi
+  qatoridagi balans uni qabul qilgan hisobga o'tkazilgani (yozuv bilan): bir hisobdan boshqasiga, jamiga ta'sir qilmaydi. Farq yonida o'qib bo'lmagan to'lov qiymatlari soni ham ko'rsatiladi. Musbat/manfiy balanslar — hozirgi holat, oy oxiri emas.
 
 ### Narxni qanday o'zgartirish kerak
 

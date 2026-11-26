@@ -39,10 +39,10 @@ export function KeshbekSection({ period, enabled, canExport, onDone }: { period:
     }
   };
 
-  const movement = (label: string, source: KeshbekMovement, sign: '+' | '−' | '') => (
+  const movement = (label: string, source: KeshbekMovement, sign: '+' | '−' | '', testId?: string) => (
     <Row
       label={
-        <span className="flex flex-col">
+        <span className="flex flex-col" data-testid={testId}>
           <span className="text-footnote text-fg">{label}</span>
           <span className="text-caption text-fg-muted">{t('finance_keshbekCount', { count: source.count })}</span>
         </span>
@@ -118,6 +118,8 @@ export function KeshbekSection({ period, enabled, canExport, onDone }: { period:
               {movement(t('finance_keshbekLegacy'), data.legacy_store_paid, '+')}
               {movement(t('finance_keshbekSpent'), data.spent, '−')}
               {movement(t('finance_keshbekReturned'), data.returned, '+')}
+              {/* Off one account, onto another (an invite row merged into the account that accepted it): net 0 */}
+              {movement(t('finance_keshbekTransferred'), data.transferred, '', 'keshbek-transferred')}
             </dl>
           </Card>
 

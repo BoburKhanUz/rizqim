@@ -254,6 +254,9 @@ export interface KeshbekReport {
   legacy_store_paid: KeshbekMovement;
   spent: KeshbekMovement;
   returned: KeshbekMovement;
+  // Balances moved from one account to another (an invite row merged into the account that accepted it): net 0, not
+  // part of the reconciliation's movement
+  transferred: KeshbekMovement;
   outstanding: { positive: string; negative: string; net: string; holders: number; debtors: number };
   reconciliation: { opening: string; movement: string; closing: string; after_period: string; expected_now: string; live: string; difference: string };
   // invalid_payload_values: payload values of keshbek payments the report could not read (an amount that is not a plain

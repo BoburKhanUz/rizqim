@@ -49,6 +49,8 @@ export function userCard(overrides: Partial<UserCard> = {}): UserCard {
       entries: [
         { kind: 'referral', label: "Do'st taklifi uchun bonus (Ali)", amount: '5000.00', order: null, at: '2026-10-26T10:00:00+05:00' },
         { kind: 'spent', label: "Buyurtma uchun to'landi #AB12CD", amount: '-30000.00', order: { uuid: 'ab12cd34-1111-4222-8333-444455556666', short_code: 'AB12CD' }, at: '2026-10-25T10:00:00+05:00' },
+        // Owner decision A: an invite row merged into this account handed its balance over
+        { kind: 'transfer', label: "Taklif hisobidan ko'chirildi", amount: '40000.00', order: null, at: '2026-10-20T10:00:00+05:00' },
       ],
     },
     complaints: [{ uuid: 'cc000000-1111-4222-8333-444455556666', type: 'QUALITY_ISSUE', type_label: 'Sifat muammosi', support_status: 'new', support_status_label: 'Yangi', description: 'Ovqat sovuq keldi', order: { uuid: 'ab12cd34-1111-4222-8333-444455556666', short_code: 'AB12CD' }, created_at: '2026-10-27T15:00:00+05:00' }],

@@ -124,6 +124,8 @@ test('the keshbek section: the liability, the movements, the reconciliation and 
   await expect(page.getByTestId('keshbek-liability')).toContainText(/35\s000/)
   await expect(page.getByTestId('keshbek-debts')).toContainText('1 ta mijoz')
   await expect(section).toContainText("Eski bonuslar (ovqatxona to'lagan)")
+  await expect(page.getByTestId('keshbek-transferred')).toContainText("Taklif hisobidan ko'chirilgan")
+  await expect(page.getByTestId('keshbek-transferred').locator('xpath=ancestor::div[1]')).toContainText(/1 ta\s*5\s000/)
   await expect(page.getByTestId('keshbek-difference')).toContainText("Har bir balans o'zgarishi yozilgan.")
   await expect(page.getByTestId('keshbek-invalid')).toHaveCount(0)
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Keshbek (Excel)' }).click()])

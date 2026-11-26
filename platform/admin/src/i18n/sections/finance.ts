@@ -232,6 +232,7 @@ export const finance = defineSection({
     finance_keshbekLegacy: "Eski bonuslar (ovqatxona to'lagan)",
     finance_keshbekSpent: 'Buyurtmalarga ishlatilgan',
     finance_keshbekReturned: 'Qaytarishlarda balansga qaytgan',
+    finance_keshbekTransferred: "Taklif hisobidan ko'chirilgan (jamiga ta'sir qilmaydi)",
     finance_keshbekReconciliation: 'Solishtirish',
     finance_keshbekOpening: "Boshlang'ich qoldiq (harakatlardan)",
     finance_keshbekMovement: 'Oy harakati',
@@ -239,6 +240,6 @@ export const finance = defineSection({
     finance_keshbekAfter: 'Oydan keyingi harakatlar',
     finance_keshbekExpected: 'Hozir kutilgan jami',
     finance_keshbekLive: 'Hozirgi balanslar jami',
-    finance_keshbekHint: "Boshlang'ich qoldiq + berilgan − qaytarib olingan + eski bonuslar − ishlatilgan + qaytgan = yakuniy qoldiq. U va oydan keyingi harakatlar hozirgi balanslar jamiga teng bo'lishi kerak; farq — yozuvsiz balans o'zgarishi.",
+    finance_keshbekHint: "Boshlang'ich qoldiq + berilgan − qaytarib olingan + eski bonuslar − ishlatilgan + qaytgan = yakuniy qoldiq. U va oydan keyingi harakatlar hozirgi balanslar jamiga teng bo'lishi kerak; farq — yozuvsiz balans o'zgarishi. Taklif hisobidan ko'chirilgan balans bir hisobdan boshqasiga o'tadi va jamini o'zgartirmaydi.",
   },
 });
