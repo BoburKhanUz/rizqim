@@ -17,12 +17,14 @@ async function stepUp(page: Page) {
 }
 
 test('the Tizim menu item opens the settings; secrets never show in full and are replaced after the step-up', async ({ page, api, signIn }) => {
+  api.system.items.find((item) => item.key === 'sms_driver')!.value = 'eskiz'
   await openSignedIn(page, signIn, '/today')
   await page.getByRole('navigation', { name: 'Asosiy menyu' }).getByRole('link', { name: 'Tizim sozlamalari' }).click()
   await expect(page.getByRole('heading', { name: 'Tizim', level: 1 })).toBeVisible()
 
   const sms = page.getByRole('region', { name: 'SMS' })
-  await expect(sms.getByText('Kiritilgan, oxiri ••••9876')).toBeVisible()
+  await expect(sms.getByText('Tayyor: SMS Eskiz orqali yuboriladi')).toBeVisible()
+  await expect(sms.getByText('••••9876')).toBeVisible()
   await expect(page.getByRole('region', { name: 'Telegram' }).getByText('Kiritilgan, oxiri ••••WXYZ')).toBeVisible()
   await expect(page.getByText('eskiz-password-9876')).toHaveCount(0)
   await expect(page.getByText(/AAEexampleToken/)).toHaveCount(0)
@@ -34,7 +36,7 @@ test('the Tizim menu item opens the settings; secrets never show in full and are
   await dialog.getByRole('button', { name: 'Almashtirish' }).click()
   await stepUp(page)
   await expect(page.getByText('Eskiz paroli almashtirildi.')).toBeVisible()
-  await expect(sms.getByText('Kiritilgan, oxiri ••••4444')).toBeVisible()
+  await expect(sms.getByText('••••4444')).toBeVisible()
   expect(api.callsTo('PUT', '/system/settings/secrets/eskiz_password').map((call) => call.status)).toEqual([403, 200])
 
   // A plain setting: only what changed is sent (the step-up is still fresh)
@@ -49,6 +51,53 @@ test('the Tizim menu item opens the settings; secrets never show in full and are
   // Links to the pages that stay where they are
   await expect(page.getByRole('link', { name: /Tariflar katalogi/ })).toHaveAttribute('href', '/pos?tab=plans')
   await expect(page.getByRole('link', { name: /SLA chegaralari/ })).toHaveAttribute('href', '/orders')
+})
+
+test('SMS: only the chosen method shows; Onlinegroup needs its key before the switch is saved', async ({ page, api, signIn }) => {
+  await openSignedIn(page, signIn, '/system', undefined, { confirmed: true })
+  const sms = page.getByRole('region', { name: 'SMS' })
+  const method = sms.getByLabel('SMS yuborish usuli')
+  await expect(sms.getByText('Sinov rejimi: SMS yuborilmaydi.')).toBeVisible()
+  await expect(sms.getByLabel('Eskiz email')).toHaveCount(0)
+  await expect(sms.getByRole('button', { name: 'Saqlash' })).toBeDisabled()
+
+  // Onlinegroup chosen, not saved: its key shows, no Eskiz fields and no sender name; the line on top is still the saved state
+  await method.selectOption('onlinegroup')
+  await expect(sms.getByText("Saqlanmagan o'zgarish")).toBeVisible()
+  await expect(sms.getByText('Sinov rejimi: SMS yuborilmaydi.')).toBeVisible()
+  await expect(sms.getByLabel("Jo'natuvchi nomi")).toHaveCount(0)
+  await expect(sms.getByText('Eskiz paroli')).toHaveCount(0)
+
+  // The backend refuses the switch without a key and says why
+  await sms.getByRole('button', { name: 'Saqlash' }).click()
+  const save = page.getByRole('dialog', { name: "Sozlamalarni o'zgartirish" })
+  await save.getByLabel('Sabab').fill('Onlinegroup ulanadi')
+  await save.getByRole('button', { name: 'Saqlash' }).click()
+  await expect(save.getByText('Onlinegroup uchun avval API kalitini kiriting.')).toBeVisible()
+  await save.getByRole('button', { name: 'Bekor qilish' }).click()
+
+  // Enter the key, then save the switch
+  await sms.getByRole('button', { name: 'Onlinegroup API kaliti: kiritish' }).click()
+  const key = page.getByRole('dialog', { name: 'Onlinegroup API kaliti: yangi qiymat' })
+  await key.getByLabel('Yangi qiymat').fill('sk_live_example_key_Ip10')
+  await key.getByLabel('Sabab').fill('Kalit berildi')
+  await key.getByRole('button', { name: 'Almashtirish' }).click()
+  await expect(sms.getByText('••••Ip10')).toBeVisible()
+  await expect(method).toHaveValue('onlinegroup')
+
+  await sms.getByRole('button', { name: 'Saqlash' }).click()
+  await save.getByLabel('Sabab').fill('Onlinegroup ulanadi')
+  await save.getByRole('button', { name: 'Saqlash' }).click()
+  await expect(sms.getByText('Tayyor: SMS Onlinegroup orqali yuboriladi')).toBeVisible()
+  await expect(sms.getByText("Saqlanmagan o'zgarish")).toHaveCount(0)
+  expect(api.callsTo('PATCH', '/system/settings').at(-1)!.body).toEqual({ values: { sms_driver: 'onlinegroup' }, reason: 'Onlinegroup ulanadi' })
+
+  // The key SMS goes through is not cleared
+  await sms.getByRole('button', { name: "Onlinegroup API kaliti: o'chirish" }).click()
+  const clear = page.getByRole('dialog', { name: "Onlinegroup API kaliti: o'chirilsinmi?" })
+  await clear.getByLabel('Sabab').fill('Sinov')
+  await clear.getByRole('button', { name: "O'chirish" }).click()
+  await expect(clear.getByText(/SMS usulini «Log»ga o'tkazing/)).toBeVisible()
 })
 
 test("payment keys show the last 4 and where they come from; a key is replaced on its own", async ({ page, api, signIn }) => {
