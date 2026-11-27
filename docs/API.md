@@ -4324,7 +4324,17 @@ chegaralar, `MonthlyRevenueReport::monthBounds`) — `App\Services\Finance\Repor
   (qaytarish so'rovining qismlari, har biri o'z `refunded_at` i bilan) va `refunded_to_balance` (bekor qilish yoki to'liq
   qaytarish, `refunded_at`; `KeshbekHistory` qoidasi: `refunded_to_balance_by_requests` bo'lsa yoki qism yo'q bo'lsa — oxirgi qism
   yozadigan to'liq summa belgisi ikki marta sanalmaydi). Boshqa yozuv yo'q. `refunded_at` bo'lmasa yoki o'qib bo'lmasa —
-  to'lovning `created_at` i olinadi.
+  to'lovning `created_at` i olinadi;
+- egasining B qarori: keshbek to'lovi yozuvi umuman yo'q (hech qanday holatda) eski keshbek buyurtmasi bekor qilinsa yoki qaytarilsa,
+  `OrderStatusService::refundKeshbek` to'liq summani qaytaradi va yo'q yozuvni shu tranzaksiyada yaratadi: keshbek
+  to'lovi, `refunded`, summa = buyurtma jami, `payload`: `refunded_to_balance`, `refunded_at` (offset bilan),
+  `backfilled_without_debit_record: true`, `debited_at` (buyurtma berilgan vaqt). Bunday to'lov `spent` da
+  `debited_at` bo'yicha (o'qib bo'lmasa — `created_at`, `invalid_payload_values` da sanaladi), `returned` da
+  `refunded_at` bo'yicha sanaladi: yechish ham, qaytarish ham yozilgan bo'ladi;
+- `transferred` — egasining A qarori: bir `users` qatoridan boshqasiga o'tkazilgan balans (`keshbek_transfers`,
+  `created_at` bo'yicha; qarz manfiy): qabul qilinmagan taklif qatori uni qabul qilgan hisobga birlashtirilganda
+  (`User::mergeInviteInto`). Bir qatordan chiqib boshqasiga kiradi — platforma bo'yicha 0, shuning uchun `movement` ga
+  kirmaydi, alohida ko'rsatiladi.
 
 Payload qiymatlari tekshiriladi, hech biri hisobotni yiqitmaydi (500 emas): summa faqat oddiy o'nlik son
 (`^-?[0-9]+(\.[0-9]+)?$`; `''`, `NaN`, `abc`, eksponenta — yo'q), vaqt faqat aniq offset yoki `Z` bilan ISO 8601
@@ -4337,9 +4347,16 @@ Boshqa manba yo'q: `app/` da `users.balance` ni faqat shu yo'llar o'zgartiradi, 
 keshbegi bor qator (balans 0 emas yoki kimdir uni `referred_by` deb ko'rsatgan — taklif qiluvchi har qanday foydalanuvchi,
 xodim ham; qabul qilinmagan taklif qatori (`temp_…`) endi taklif qiluvchi bo'lmaydi, lekin eski ma'lumotda bo'lishi
 mumkin, `User::holdsKeshbek`) o'chirilmaydi: ega xodimni
-o'chirsa, u ovqatxonadan chiqariladi (`DELETE /owner/employees/{id}`, boshqa tarix bilan bir xil javob), birlashtirilgan
-taklif qatori esa nofaol qilinadi (`User::mergeInviteInto`); ikkalasi ham `User::retireFromStore` (PIN va barcha
-sessiyalar bekor qilinadi, balans qoladi).
+o'chirsa, u ovqatxonadan chiqariladi (`DELETE /owner/employees/{id}`, boshqa tarix bilan bir xil javob;
+`User::retireFromStore`: PIN va barcha sessiyalar bekor qilinadi, balans qoladi). Birlashtirilgan taklif qatori
+(`User::mergeInviteInto`, egasining A qarori) avval balansini (qarzini ham) `keshbek_transfers` yozuvi bilan uni qabul
+qilgan hisobga o'tkazadi, uni taklif qiluvchi deb ko'rsatgan do'stlar endi shu hisobni ko'rsatadi (do'stning o'zi shu
+hisob bo'lsa yoki hisobni o'zi taklif qilgan bo'lsa — hech kimni: o'zini o'zi taklif qilish ham, ikki kishilik aylana
+ham yo'q). Hisobni shu qatorning o'zi taklif qilgan va hisobning o'z buyurtmasi unga bonus bergan bo'lsa, bu bonus avval
+odatdagi qaytarib olish bilan qaytariladi (`clawed_back`). Shundan keyin qator o'chiriladi, tarixi (o'z buyurtmasi va
+h.k., `User::hasHistory`) bo'lsa — nofaol qilinadi.
+Mijoz kartasida (`keshbek.entries`) bu `kind: transfer`, «Taklif hisobidan ko'chirildi»; ko'chgan do'stlarning
+o'tkazmadan oldingi bonuslari taklif qatoriga tushgan va o'tkazma ichida, shuning uchun alohida ko'rsatilmaydi.
 
 Butun hisobot bitta bazaviy suratdan o'qiladi (`REPEATABLE READ READ ONLY` tranzaksiya): o'qish paytida boshqa ulanishda
 yozilgan o'zgarish (bonus va uning +5 000 i) hisobotga yo butunlay kiradi, yo butunlay kirmaydi — soxta farq bo'lmaydi.
@@ -4349,9 +4366,12 @@ barcha harakatlar (0 dan), `movement` = `issued` − `clawed_back` + `legacy_sto
 `closing` = `opening` + `movement` (oy oxiridagi jami, harakatlardan), `expected_now` = `closing` + `after_period` (oydan
 keyingi harakatlar), `live` = hozirgi `SUM(users.balance)`, `difference` = `live` − `expected_now` — har bir balans
 o'zgarishi yozilgan bo'lsa 0; 0 bo'lmasa — yozuvsiz o'zgarish bor (bazada qo'lda tahrir yoki keshbek to'lovi yozuvi yo'q
-eski keshbek buyurtmasi: uning yechilishi ham yozilmagan, shuning uchun buyurtma turganda farq −summa; bekor qilinsa yoki
-qaytarilsa, `OrderStatusService::refundKeshbek` to'liq summani yana hech narsa yozmay qaytaradi va farq 0 ga qaytadi;
-`unrecorded.keshbek_orders_without_payment` shunday buyurtmalar soni). `outstanding {positive, negative, net, holders,
+eski keshbek buyurtmasi: uning yechilishi yozilmagan, shuning uchun buyurtma turganda farq −summa; bekor qilinsa yoki
+qaytarilsa, `OrderStatusService::refundKeshbek` to'liq summani qaytaradi va yo'q to'lov yozuvini yaratadi (yuqorida, B
+qarori) — yechish o'tgan oyga tushsa, o'sha oyning `spent` i ham ortadi —, farq 0 ga qaytadi;
+`unrecorded.keshbek_orders_without_payment` — keshbek to'lovi yozuvi hali yo'q buyurtmalar soni: turganlari farqni
+tushuntiradi, qaytarilgani yozuv olib sanalmay qoladi; bu o'zgarishdan oldin qaytarilganlari (hech narsa yozilmagan,
+farqi 0) sanalishda qoladi). `outstanding {positive, negative, net, holders,
 debtors}` — **hozirgi** holat (`as_of`), oy oxiri emas: musbat balanslar — RIZQIM majburiyati, manfiy — bonus qaytarib
 olingandan keyingi qarzlar. `.../export` — xuddi shu `.xlsx` ("Keshbek" varag'i, `rizqim-keshbek-YYYY-MM.xlsx`).
 

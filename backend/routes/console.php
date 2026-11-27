@@ -2,6 +2,7 @@
 
 use App\Jobs\CancelUnpaidOnlineOrdersJob;
 use App\Jobs\RetryFailedSettlementsJob;
+use App\Jobs\SweepMissedReferralBonusesJob;
 use App\Models\Order;
 use App\Services\Finance\SettlementRecoveryService;
 use Illuminate\Foundation\Inspiring;
@@ -25,6 +26,11 @@ Schedule::command('payments:paylov-reconcile')->everyFiveMinutes()->withoutOverl
 
 // Delivered orders whose ledger booking failed are booked again until config('orders.settlement_retry_max_attempts')
 Schedule::job(new RetryFailedSettlementsJob)->everyTenMinutes()->withoutOverlapping(30);
+
+// Owner decision C: a late payment's referral bonus lost between MarkOrderAsPaid's two transactions (no marker, no
+// replay) is granted once, the bonus only, decided as of the payment (App\Jobs\SweepMissedReferralBonusesJob: orders
+// paid after delivery in the last 7 days, bounded; a failure is logged and tried again next hour)
+Schedule::job(new SweepMissedReferralBonusesJob)->hourly()->withoutOverlapping(60);
 
 // After the automatic retries gave up and the cause is fixed: books the given orders (ids or uuids) once more
 Artisan::command('orders:retry-settlements {orders* : ids or uuids of delivered orders whose booking failed} {--confirm-unbooked : also book a paid order that has no settlement and no retry marker, once finance adjustments were checked}', function (SettlementRecoveryService $settlements) {

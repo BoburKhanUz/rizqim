@@ -33,6 +33,7 @@ describe('UserCardView', () => {
     await user.click(screen.getByRole('tab', { name: 'Keshbek' }));
     expect(screen.getByText(/Balans: 15 000/)).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Keshbek harakatlari' })).getByText(/−30 000/)).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Keshbek harakatlari' })).getByText("Taklif hisobidan ko'chirildi").closest('li')).toHaveTextContent(/\+40 000/);
 
     await user.click(screen.getByRole('tab', { name: 'Shikoyatlar' }));
     expect(screen.getByRole('link', { name: 'Sifat muammosi' })).toHaveAttribute('href', '/customers?tab=complaints&complaint=cc000000-1111-4222-8333-444455556666');

@@ -99,7 +99,7 @@ export interface UserCard {
   };
   orders: { uuid: string; short_code: string | null; store: Named | null; status: string; status_label: string; total: string; payment_method: string | null; created_at: string | null; href: string }[] | null;
   refunds: { uuid: string; order: { uuid: string; short_code: string | null } | null; amount: string; status: string; status_label: string; reason: string | null; created_at: string | null; decided_at: string | null }[] | null;
-  keshbek: { balance: string; entries: { kind: 'spent' | 'refunded' | 'referral'; label: string; amount: string; order: { uuid: string; short_code: string | null } | null; at: string | null }[] };
+  keshbek: { balance: string; entries: { kind: 'spent' | 'refunded' | 'referral' | 'transfer'; label: string; amount: string; order: { uuid: string; short_code: string | null } | null; at: string | null }[] };
   complaints: { uuid: string; type: string; type_label: string; support_status: SupportStatus; support_status_label: string; description: string | null; order: { uuid: string; short_code: string | null } | null; created_at: string | null }[] | null;
   sessions: {
     active_tokens: number;

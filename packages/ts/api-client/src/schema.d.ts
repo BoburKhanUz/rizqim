@@ -1045,11 +1045,16 @@ export interface paths {
          *     amount > 0); `clawed_back` — those taken back (amount < 0); `legacy_store_paid` — the bonuses stores paid before
          *     owner decision 3's addition (`commission` rows with the referral note; not the platform's); `spent` — keshbek
          *     payments (payments.provider `keshbek`, by created_at, whatever their status now); `returned` — what refunds gave
-         *     back to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance). `reconciliation`:
+         *     back to the balance (the keshbek payment's refunded_to_balance_parts and refunded_to_balance; a payment written
+         *     at the refund of a legacy order whose debit left no row, `backfilled_without_debit_record`, counts as spent at
+         *     the order's placing and as returned at the refund); `transferred` — balances moved from one account to another
+         *     (an invite row merged into the account that accepted it; a debt counts negative): net 0 platform-wide, not part
+         *     of the movement below. `reconciliation`:
          *     `opening` (movements before the month) + `movement` = `closing` (month end, from movements); + `after_period` =
          *     `expected_now`; `live` = SUM(users.balance) now; `difference` = `live` − `expected_now`, 0 while every balance
          *     change is recorded. `outstanding` — positive balances (the liability) and negative ones (debts) now, not at the
-         *     month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row;
+         *     month end. `unrecorded.keshbek_orders_without_payment` — keshbek orders with no keshbek payment row (a standing
+         *     one's debit is unrecorded, the difference shows −total; a refund writes the missing row, so it drops out);
          *     `unrecorded.invalid_payload_values` — payload values of keshbek payments the report could not read (an amount
          *     that is not a plain decimal, a time that is not ISO 8601 with an offset or Z): an unreadable amount is not
          *     counted, an unreadable time falls back to the payment's created_at. One database snapshot for the whole report.
@@ -17602,6 +17607,10 @@ export interface operations {
                                 amount: string;
                             };
                             returned: {
+                                count: number;
+                                amount: string;
+                            };
+                            transferred: {
                                 count: number;
                                 amount: string;
                             };

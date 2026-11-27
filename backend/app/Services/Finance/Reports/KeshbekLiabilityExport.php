@@ -39,6 +39,8 @@ class KeshbekLiabilityExport
         $writer->addRow($line("Eski bonuslar (ovqatxona to'lagan)", $report['legacy_store_paid']));
         $writer->addRow($line('Buyurtmalarga ishlatilgan', $report['spent']));
         $writer->addRow($line('Qaytarishlarda balansga qaytgan', $report['returned']));
+        // Owner decision A: off one account, onto another (net 0): not part of the month's movement
+        $writer->addRow($line("Taklif hisobidan ko'chirilgan (jamiga ta'sir qilmaydi)", $report['transferred']));
         $writer->addRow(self::row([]));
 
         $writer->addRow(self::row(['Solishtirish', "So'm"], $bold));
