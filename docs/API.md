@@ -4325,7 +4325,7 @@ chegaralar, `MonthlyRevenueReport::monthBounds`) — `App\Services\Finance\Repor
   qaytarish, `refunded_at`; `KeshbekHistory` qoidasi: `refunded_to_balance_by_requests` bo'lsa yoki qism yo'q bo'lsa — oxirgi qism
   yozadigan to'liq summa belgisi ikki marta sanalmaydi). Boshqa yozuv yo'q. `refunded_at` bo'lmasa yoki o'qib bo'lmasa —
   to'lovning `created_at` i olinadi;
-- egasining B qarori: keshbek to'lovi yozuvi yo'q eski keshbek buyurtmasi bekor qilinsa yoki qaytarilsa,
+- egasining B qarori: keshbek to'lovi yozuvi umuman yo'q (hech qanday holatda) eski keshbek buyurtmasi bekor qilinsa yoki qaytarilsa,
   `OrderStatusService::refundKeshbek` to'liq summani qaytaradi va yo'q yozuvni shu tranzaksiyada yaratadi: keshbek
   to'lovi, `refunded`, summa = buyurtma jami, `payload`: `refunded_to_balance`, `refunded_at` (offset bilan),
   `backfilled_without_debit_record: true`, `debited_at` (buyurtma berilgan vaqt). Bunday to'lov `spent` da
@@ -4351,7 +4351,10 @@ o'chirsa, u ovqatxonadan chiqariladi (`DELETE /owner/employees/{id}`, boshqa tar
 `User::retireFromStore`: PIN va barcha sessiyalar bekor qilinadi, balans qoladi). Birlashtirilgan taklif qatori
 (`User::mergeInviteInto`, egasining A qarori) avval balansini (qarzini ham) `keshbek_transfers` yozuvi bilan uni qabul
 qilgan hisobga o'tkazadi, uni taklif qiluvchi deb ko'rsatgan do'stlar endi shu hisobni ko'rsatadi (do'stning o'zi shu
-hisob bo'lsa — hech kimni, o'zini o'zi taklif qilish yo'q); shundan keyin unda keshbek qolmaydi va u o'chiriladi.
+hisob bo'lsa yoki hisobni o'zi taklif qilgan bo'lsa — hech kimni: o'zini o'zi taklif qilish ham, ikki kishilik aylana
+ham yo'q). Hisobni shu qatorning o'zi taklif qilgan va hisobning o'z buyurtmasi unga bonus bergan bo'lsa, bu bonus avval
+odatdagi qaytarib olish bilan qaytariladi (`clawed_back`). Shundan keyin qator o'chiriladi, tarixi (o'z buyurtmasi va
+h.k., `User::hasHistory`) bo'lsa — nofaol qilinadi.
 Mijoz kartasida (`keshbek.entries`) bu `kind: transfer`, «Taklif hisobidan ko'chirildi»; ko'chgan do'stlarning
 o'tkazmadan oldingi bonuslari taklif qatoriga tushgan va o'tkazma ichida, shuning uchun alohida ko'rsatilmaydi.
 

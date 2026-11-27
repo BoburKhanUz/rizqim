@@ -338,6 +338,32 @@ class KeshbekLiabilityReportTest extends TestCase
         $this->assertSame('0.00', $october['reconciliation']['difference']);
     }
 
+    /**
+     * Review L4: the backfill is for a legacy order with NO keshbek payment row at all. An order whose keshbek payment
+     * row exists but is no longer paid (here: refunded, its 50 000 already back on the balance, the order still paid)
+     * gets nothing back a second time and no second row on a full refund.
+     */
+    public function test_an_order_with_a_refunded_keshbek_payment_is_not_backfilled_or_credited_twice(): void
+    {
+        $k = $this->makeCustomer();
+        $order = $this->deliveredKeshbekOrder($k);
+        $payment = Payment::where('order_id', $order->id)->where('provider', 'keshbek')->sole();
+        // Given back already (as a cancellation's give-back writes it), the order left paid
+        $payment->update(['status' => PaymentStatus::REFUNDED, 'cancelled_at' => now(), 'payload' => array_merge($payment->payload ?? [], ['refunded_to_balance' => 50000.0, 'refunded_at' => now()->toIso8601String()])]);
+        DB::table('users')->where('id', $k->id)->increment('balance', 50000);
+        $this->assertSame(PaymentStatus::PAID, $order->fresh()->payment_status);
+
+        $this->travelTo($this->tashkent('2026-10-21 12:00'));
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        $this->assertTrue(app(OrderStatusService::class)->refund($order->fresh(), $admin, 'Mijoz shikoyati')->changed);
+
+        $this->assertSame('50000.00', (string) $k->fresh()->balance, 'credited once');
+        $this->assertSame([$payment->id], Payment::where('order_id', $order->id)->pluck('id')->all(), 'no backfilled row');
+        $this->assertSame(PaymentStatus::REFUNDED, $order->fresh()->payment_status);
+        $this->travelTo($this->tashkent('2026-11-02 12:00'));
+        $this->assertSame('0.00', $this->report('2026-10')['reconciliation']['difference']);
+    }
+
     /** Regression: an approval sent again (replayed) credits nothing a second time, and the report counts it once. */
     public function test_a_replayed_approval_gives_nothing_back_twice(): void
     {

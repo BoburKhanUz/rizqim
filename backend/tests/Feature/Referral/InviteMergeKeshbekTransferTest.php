@@ -187,4 +187,118 @@ class InviteMergeKeshbekTransferTest extends TestCase
         $this->assertThrows(fn () => $transfer->forceFill(['amount' => '1.00'])->save(), \LogicException::class);
         $this->assertThrows(fn () => $transfer->delete(), \LogicException::class);
     }
+
+    /**
+     * Review M2: the account A was itself referred by the invite row P, and A's own 60 000 order earned P the 5 000
+     * bonus, which still stands. Merged, A would hold a bonus for its own order that no refund could take back (A's
+     * referred_by is cleared). The merge first takes it back as a recorded clawback (a −5 000 referral_bonus row on
+     * that order, −5 000 on P), then moves what is left (0: no transfer). A later full refund takes nothing again.
+     */
+    public function test_a_standing_bonus_the_invite_row_earned_for_the_accounts_own_order_is_taken_back_at_the_merge(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-05 12:00'));
+        $invite = $this->invite();
+        $this->referrer = $invite;
+        $account = $this->account();
+        $account->forceFill(['referred_by' => $invite->id])->save();
+        $own = $this->deliveredOrder('platform_click', ['user_id' => $account->id, 'total_price' => 60000, 'commission_amount' => 6000]);
+        $this->assertSame(['5000.00', '0.00'], [(string) $invite->fresh()->balance, (string) $account->fresh()->balance]);
+        $this->assertSame([['order_id' => $own->id, 'store_id' => $this->store->id, 'amount' => '5000.00']], $this->rewards());
+
+        $this->travelTo($this->tashkent('2026-10-06 12:00'));
+        $invite->fresh()->mergeInviteInto($account, ['role' => UserRole::MANAGER]);
+
+        $this->assertNull(User::find($invite->id));
+        $this->assertSame('0.00', (string) $account->fresh()->balance, 'no bonus for its own order');
+        $this->assertNull($account->fresh()->referred_by);
+        $this->assertSame(0, KeshbekTransfer::count(), "the invite row's 0 left: nothing moved");
+        $this->assertSame([
+            ['order_id' => $own->id, 'store_id' => $this->store->id, 'amount' => '5000.00'],
+            ['order_id' => $own->id, 'store_id' => $this->store->id, 'amount' => '-5000.00'],
+        ], $this->rewards());
+        $clawback = StoreTransaction::where('order_id', $own->id)->where('type', 'referral_bonus')->where('amount', '<', 0)->sole();
+        $this->assertStringStartsWith(LedgerService::REFERRAL_CLAWBACK_NOTE . " for referred user #{$account->id}: order #{$own->short_code}", (string) $clawback->notes);
+        $report = $this->report();
+        $this->assertSame([1, '5000.00', 1, '5000.00', 0, '0.00'], [
+            $report['issued']['count'], $report['issued']['amount']->toString(),
+            $report['clawed_back']['count'], $report['clawed_back']['amount']->toString(),
+            $report['transferred']['count'], $report['reconciliation']['difference']->toString(),
+        ]);
+        $this->assertSame(0, \App\Services\Auth\ReferralService::monthlyBonusesOf($invite->id, now()), 'counted as a clawback');
+
+        // A later full refund of the order changes nothing and takes nothing back twice
+        $this->travelTo($this->tashkent('2026-10-07 12:00'));
+        $admin = $this->makeStaff(UserRole::SUPER_ADMIN, null, null, ['store_id' => null]);
+        $this->assertTrue(app(OrderStatusService::class)->refund($own->fresh(), $admin, 'Mijoz shikoyati')->changed);
+        $this->assertSame('0.00', (string) $account->fresh()->balance);
+        $this->assertCount(2, $this->rewards());
+        $this->assertSame('0.00', $this->report()['reconciliation']['difference']->toString());
+    }
+
+    /**
+     * Review M2: only the bonus of the account's own order goes back; the invite row's other friends' bonuses move to
+     * the account as before.
+     */
+    public function test_only_the_accounts_own_bonus_is_taken_back_and_the_rest_moves(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-05 12:00'));
+        $invite = $this->invite();
+        $this->referrer = $invite;
+        $account = $this->account();
+        $account->forceFill(['referred_by' => $invite->id])->save();
+        $friend = $this->makeCustomer(0);
+        $friend->forceFill(['referred_by' => $invite->id])->save();
+        $own = $this->deliveredOrder('platform_click', ['user_id' => $account->id]);
+        $this->deliveredOrder('platform_click', ['user_id' => $friend->id]);
+        $this->assertSame('10000.00', (string) $invite->fresh()->balance);
+
+        $invite->fresh()->mergeInviteInto($account, ['role' => UserRole::MANAGER]);
+
+        $this->assertSame('5000.00', (string) $account->fresh()->balance);
+        $transfer = KeshbekTransfer::sole();
+        $this->assertSame(['5000.00', [$friend->id]], [(string) $transfer->amount, $transfer->moved_friend_ids]);
+        $this->assertSame('0.00', \App\Support\Money::of((string) StoreTransaction::where('order_id', $own->id)->where('type', 'referral_bonus')->sum('amount'))->toString(), "the account's own bonus taken back");
+        $this->assertSame('0.00', $this->report()['reconciliation']['difference']->toString());
+    }
+
+    /**
+     * Review L5: the account A was referred by F, and F by the invite row: re-pointing F to A would make A and F each
+     * other's referrer. F gets no referrer instead; A keeps F; the invite row's other friends name A.
+     */
+    public function test_a_friend_who_referred_the_account_gets_no_referrer_instead_of_a_cycle(): void
+    {
+        $invite = $this->invite();
+        $account = $this->account();
+        $friend = $this->makeCustomer(0);
+        $friend->forceFill(['referred_by' => $invite->id])->save();
+        $account->forceFill(['referred_by' => $friend->id])->save();
+        $other = $this->makeCustomer(0);
+        $other->forceFill(['referred_by' => $invite->id])->save();
+
+        $invite->fresh()->mergeInviteInto($account, ['role' => UserRole::MANAGER]);
+
+        $this->assertNull($friend->fresh()->referred_by, 'never a cycle of two');
+        $this->assertSame($friend->id, (int) $account->fresh()->referred_by);
+        $this->assertSame($account->id, (int) $other->fresh()->referred_by);
+        $this->assertNull(User::find($invite->id));
+    }
+
+    /**
+     * Note: an invite row that has an order (orders.user_id is ON DELETE CASCADE) is never deleted by the merge: it is
+     * retired (no store, role, invite token or session), the order stays.
+     */
+    public function test_an_invite_row_with_an_order_is_retired_not_deleted(): void
+    {
+        $invite = $this->invite();
+        $account = $this->account();
+        $order = $this->makeOrder(\App\Enums\OrderStatus::DELIVERED, ['user_id' => $invite->id]);
+
+        $invite->fresh()->mergeInviteInto($account, ['role' => UserRole::MANAGER]);
+
+        $row = User::find($invite->id);
+        $this->assertNotNull($row, 'kept: its order would go with it');
+        $this->assertSame([UserRole::CUSTOMER, null, null], [$row->role, $row->store_id, $row->telegram_invite_token]);
+        $this->assertNotNull(\App\Models\Order::find($order->id));
+        $this->assertSame(UserRole::MANAGER, $account->fresh()->role);
+    }
 }

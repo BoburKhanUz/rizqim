@@ -1372,20 +1372,46 @@ urinish yo'q edi). Muvaffaqiyatli `book` avvalgi `settlement_failed_at` ni ham s
 commit qilingan, bonus tranzaksiyasi boshlanmagan), belgi ham yozilmaydi (`settlement_failed_at` ni faqat ishlab,
 yiqilgan yozuv yozadi) — `RetryFailedSettlementsJob` buyurtmani ko'rmaydi, provayder esa qayta yubormaydi. Shuning
 uchun `App\Jobs\SweepMissedReferralBonusesJob` **har soatda** (scheduler, navbatsiz; `withoutOverlapping`) shunday
-buyurtmalarni topib, xuddi shu yo'l bilan yozadi (`bookAfterPayment` → `book` → `grantReferralReward`, qulflar ostida):
-bir martalik, oylik chegara, komissiya ≥ bonus, qaytarilgan buyurtma — hammasi o'sha joyda tekshiriladi.
-Nomzodlar (bitta indeksli so'rov, bir ishga tushishda ko'pi bilan `MAX_PER_RUN` = 200, eskisi birinchi): yetkazilgan,
-hali to'langan, belgisiz, taklif bilan kelgan mijozning (`users.referred_by`) buyurtmasi; to'lovi **so'nggi 7 kun**
-(`WINDOW_DAYS`) ichida va kamida 15 daqiqa oldin to'langan (`payments_paid_at_index`; 15 daqiqa — listener o'zi
-yozishga ulgursin); buyurtmaning o'z bonus yozuvi yo'q; mijozning bonusi hali turmagan (sof). SQL faqat toraytiradi,
-qaror — haqiqiy qoida: `ReferralService::qualifiesForReferralBonus`, so'ng qulflar ostidagi berish. Taklif qilgan oylik
-chegarada bo'lsa qulfsiz o'tkazib yuboriladi (berish baribir rad etardi); komissiyasi yoki hisob-kitobi yozilmagan
-buyurtmaga tegilmaydi (logga `warning`; ular — `RetryFailedSettlementsJob` yoki moliya tekshirgandan keyin
-`orders:retry-settlements --confirm-unbooked` ishi). Bir mijozning buyurtmalaridan bir ishga tushishda bittasi.
+buyurtmalarga **faqat bonusni** beradi (`LedgerService::grantMissedReferralBonus`).
+
+- **Faqat shu bo'shliq (review M1).** Nomzod — to'lovi **yetkazilgandan keyin** tushgan buyurtma (`payments.paid_at`
+  `order_status_histories` dagi birinchi `delivered` qatorining `created_at` idan keyin; bunday qatori yo'q eski
+  buyurtma nomzod emas) va buyurtmaning o'z bonus yozuvi yo'q. Yetkazilishdan oldin to'langan buyurtmaning bonusi
+  yetkazilishda hal qilingan, rad etilgani ham (oylik chegara, mijozning bonusi allaqachon turgan): **rad etilgan buyurtma
+  hech narsa olmaydi, taklif KEYINGI buyurtma uchun ochiq qoladi** — qidiruv uni hech qachon bermaydi (masalan,
+  31 oktyabrda chegarada rad etilgan 11-buyurtma 1 noyabrdagi birinchi qidiruvda ham, oktyabr bonusi qaytarib olinib joy
+  bo'shaganda ham berilmaydi). Kechikkan to'lovning ikkinchi tranzaksiyasi ishlab rad etgan bo'lishi ham mumkin (u hech
+  narsa yozmaydi): shuning uchun qaror **to'lov paytidagi holat bo'yicha** ham tekshiriladi — o'sha paytgacha yozilgan
+  bonus va qaytarib olishlar bo'yicha mijozning bonusi turmagan bo'lishi va taklif qiluvchining to'lov oyidagi chegarasida
+  joy bo'lishi kerak (`referralRewardedNet` / `ReferralService::monthlyBonusesOf`, `$asOf` bilan), hozirgi qoidalar
+  ham (hozirgi oy chegarasi, bonus turmagani, komissiya ≥ bonus, to'liq qaytarilmagan). Keyingi qaytarib olish, qayta
+  ochilgan taklif yoki yangi oy rad etishni bekor qilmaydi.
+- **Faqat bonus (review L1+L2).** Har nomzod alohida tranzaksiyada: avval buyurtma qatori qulflanadi (hamma joydagi
+  «buyurtma → ovqatxona → users» tartibi), qulf ostida qayta tekshiriladi — hali yetkazilgan, to'langan, belgisiz,
+  komissiyasi va (platforma yig'gan bo'lsa) hisob-kitobi yozilgan; keyin faqat bonus (`grantReferralReward` bilan bir xil
+  qulflar: ovqatxona, mijoz va taklif qiluvchi). Komissiya yoki hisob-kitob hech qachon yozilmaydi: yetishmasa — logga
+  `warning`, ular `RetryFailedSettlementsJob` yoki moliya tekshirgandan keyin `orders:retry-settlements
+  --confirm-unbooked` ishi. Berish yiqilsa (lock timeout, deadlock) — faqat `error` log (`Missed referral bonus sweep of
+  order <uuid> could not run…`): `settlement_failed_at` belgisi ham, «hisob-kitob yozilmadi» xabari ham yo'q; keyingi
+  soatdagi ishga tushish yana urinadi.
+- **Nomzodlar (review L3).** Ikki so'rov: avval faqat `payments` dan oyna (`latePaidOrderIds`: so'nggi 7 kun, kamida
+  15 daqiqa oldin, yetkazilgandan keyin to'langan, naqd/keshbek emas; `payments_paid_at_index` orqali, eng yangi
+  to'lovlar birinchi, ko'pi bilan `LATE_PAYMENTS_PER_RUN` = 1000), so'ng shu buyurtmalardan (id bo'yicha) ko'pi bilan
+  `MAX_PER_RUN` = 200, **eng yangisi birinchi** (bitta birlashgan so'rovni statistikasiz baza `orders` dan boshlab
+  rejalashtirgan edi — CI app-role ishi): yetkazilgan, hali to'langan, belgisiz, taklif bilan kelgan mijozning (`users.referred_by`)
+  buyurtmasi; to'lovi so'nggi **7 kun** (`WINDOW_DAYS`) ichida, kamida 15 daqiqa oldin (listener o'zi yozishga
+  ulgursin) va yetkazilgandan keyin; o'z bonus yozuvi yo'q; mijozning bonusi turmagan (sof), eski ovqatxona to'lagan
+  bonusi yo'q. Hech qachon bonus olmaydigan shakllar SQL da chiqarib tashlanadi: 50 000 dan kam, komissiya bonusdan kam,
+  naqd va keshbek, ovqatxonaning o'z hisobiga (o'qib tasdiqlangan Paylov to'lovidan boshqa), keshbek ulushi bor platforma
+  buyurtmasi, qismlari bilan to'liq qaytarilgan buyurtma (`order_ledger_reversals.is_full`). Qolgan «abadiy rad»
+  holatlari (to'lov paytidagi chegara yoki turgan bonus) berishning o'zida hal qilinadi; holat saqlanmaydi (kursor
+  yo'q). Chegara: haqiqiy nomzod faqat 7 kun ichida undan **yangiroq** 1000 dan ortiq kechikkan to'lov yoki 200 dan
+  ortiq rad etiladigan nomzod bo'lsa kechikadi (oyiga 10 bonusli chegara bilan bu bitta taklif qiluvchining 200 dan ortiq kechikkan to'lovli do'stini
+  talab qiladi). Partiya ichida bir mijozning buyurtmalari eskisidan, bir ishga tushishda ko'pi bilan bitta bonus.
+
 Bergan har bonusi logda: `Missed referral bonus of order <uuid> booked by the sweep` (`info`) va oxirida jami
 (`warning`). Monitoring topilmasi qo'shilmadi. Qidiruv chegaralangan: 7 kundan eski yo'qolgan bonus (masalan, bu
-o'zgarishdan oldingisi) o'zi topilmaydi — uni ko'rib chiqib qo'lda hal qilish kerak.
-`ReferralMissedBonusSweepTest`.
+o'zgarishdan oldingisi) o'zi topilmaydi — uni ko'rib chiqib qo'lda hal qilish kerak. `ReferralMissedBonusSweepTest`.
 
 **Kechiktirilgan qismlar va qaytarishlar.** Hisob-kitob qisman turgan paytda (masalan, kechikkan to'lovning hisob-kitobi
 yozilgan, komissiya esa hali ham yozilmayapti) tasdiqlangan qisman qaytarish faqat turgan qismni qaytaradi va
@@ -1704,16 +1730,37 @@ qilgan mavjud hisobga birlashtirilganda (bot `/start invite_…` yoki Mini App `
 qatorda keshbek bo'lsa, u endi muzlab qolmaydi: balans (qarz — manfiy — ham) hisobga o'tkaziladi, qator 0 bo'ladi va
 `keshbek_transfers` jadvaliga yozuv qo'shiladi (`from_user_id` — taklif qatori, `to_user_id` — hisob, `amount`,
 `reason: invite_merge`, `moved_friend_ids`). Qatorni taklif qiluvchi deb ko'rsatgan do'stlar endi hisobni ko'rsatadi
-(kelgusi bonuslar kira oladigan qatorga tushadi; do'stning o'zi shu hisob bo'lsa — `referred_by` NULL, o'zini o'zi
-taklif qilish yo'q). Shundan keyin qatorda hech narsa qolmaydi va u avvalgidek o'chiriladi. Hammasi bitta
-tranzaksiyada; o'zgaradigan har `users` qatori (ikkala qator va do'stlar) avval bitta so'rovda id tartibida qulflanadi
-(bonus berish va qaytarib olish mijoz va taklif qiluvchini shu tartibda qulflaydi), ovqatxona qatori qulflanmaydi.
-Do'stining bonusi aynan shu paytda berilayotgan bo'lsa, u qulfni kutadi, so'ng taklif qiluvchi o'zgarganini ko'rib
-bermaydi — C qidiruvi uni yangi taklif qiluvchiga beradi. Do'stning keyin qaytarilgan buyurtmasi bonusi yangi hisobdan
-qaytarib olinadi (pul ham o'sha yerda). Keshbek hisobotida `transferred` («Taklif hisobidan ko'chirilgan»): bir qatordan
-chiqib boshqasiga kiradi, platforma bo'yicha 0 — `movement` ga kirmaydi, `difference` 0 qoladi. Mijoz kartasida
-«Taklif hisobidan ko'chirildi» (`kind: transfer`); ko'chgan do'stlarning o'tkazmadan oldingi bonuslari taklif qatoriga
-tushgan va o'tkazma ichida — qayta ko'rsatilmaydi, ro'yxat balansga mos keladi. `InviteMergeKeshbekTransferTest`,
+(kelgusi bonuslar kira oladigan qatorga tushadi). Istisnolar: do'stning o'zi shu hisob bo'lsa — `referred_by` NULL
+(o'zini o'zi taklif qilish yo'q); review L5: hisobni o'zi taklif qilgan do'st F bo'lsa (hisobning `referred_by` = F) —
+F ning `referred_by` i ham NULL (ikki kishilik aylana yo'q), hisob F ni saqlaydi.
+
+**Hisobning o'z buyurtmasi uchun bonus (review M2).** Hisob A ning o'zini taklif qatori P taklif qilgan bo'lsa va A ning
+o'z buyurtmasi P ga hali turgan bonus bergan bo'lsa, birlashtirishda avval shu bonus odatdagi qaytarib olish bilan
+qaytariladi (`LedgerService::clawBackReferralReward`: P dan −5 000, o'sha buyurtmada −5 000 lik `referral_bonus` yozuvi,
+izoh `Referral bonus taken back for referred user #A: order #…, its referrer's invite row merged into this customer`) —
+keshbek hisoboti (`clawed_back`), oylik hisobot va oylik chegara uni boshqa qaytarib olish kabi sanaydi —, so'ng qolgan
+balans ko'chiriladi. Aks holda A o'z buyurtmasi uchun bonusni olib qolardi va `referred_by` tozalangani uchun keyingi
+to'liq qaytarish uni hech qachon qaytarib ololmasdi. Raqamlar (`InviteMergeKeshbekTransferTest`): A ni P taklif qilgan;
+A ning 60 000 lik buyurtmasi P ga 5 000 berdi → birlashtirish: P ning 0 qoldig'i (ko'chadigan narsa yo'q, o'tkazma
+yozuvi yo'q), A balansi **0** (5 000 emas), bitta +5 000 va bitta −5 000 yozuv, hisobot `difference` 0; keyin buyurtma
+to'liq qaytarilsa hech narsa o'zgarmaydi, ikkinchi marta qaytarib olinmaydi. P ning boshqa do'stlari bergan bonuslar
+avvalgidek A ga ko'chadi.
+
+**Qator o'chiriladimi.** Shundan keyin qator, tarixi bo'lmasa, o'chiriladi. Tarixi bo'lsa (`User::hasHistory` — xodimni
+o'chirishdagi bir xil tekshiruv: istalgan ovqatxonadagi o'z buyurtmasi — `orders.user_id` ON DELETE CASCADE, buyurtmalar
+u bilan o'chib ketardi —, shikoyat, baho, audit, yetkazish, ish sessiyasi, choy puli, kassa yozuvlari yoki hali keshbek)
+— o'chirilmaydi, `retireFromStore` bilan nofaol qilinadi (mijoz roli, ovqatxona, taklif tokeni, PIN, sessiyalar yo'q).
+
+Hammasi bitta tranzaksiyada. Qulflar tartibi: avval (M2 holatida) A ning bonusli buyurtmalari ovqatxonalari
+(`Store::ledgerLock`, id tartibida), so'ng o'zgaradigan har `users` qatori (ikkala qator va do'stlar) bitta so'rovda id
+tartibida — bonus berish va qaytarib olishdagi «ovqatxona → mijoz va taklif qiluvchi» tartibi. Qulflar ostida hammasi
+qayta o'qiladi. Do'stining bonusi aynan shu paytda berilayotgan bo'lsa, u qulfni kutadi, so'ng taklif qiluvchi
+o'zgarganini ko'rib bermaydi — bonusni do'stning keyingi buyurtmasi yangi taklif qiluvchiga beradi (yetkazilishdan oldin
+to'langan buyurtmani C qidiruvi bermaydi). Do'stning keyin qaytarilgan buyurtmasi bonusi yangi hisobdan qaytarib olinadi
+(pul ham o'sha yerda). Keshbek hisobotida `transferred` («Taklif hisobidan ko'chirilgan»): bir qatordan chiqib boshqasiga
+kiradi, platforma bo'yicha 0 — `movement` ga kirmaydi, `difference` 0 qoladi. Mijoz kartasida «Taklif hisobidan
+ko'chirildi» (`kind: transfer`); ko'chgan do'stlarning o'tkazmadan oldingi bonuslari taklif qatoriga tushgan va o'tkazma
+ichida — qayta ko'rsatilmaydi, ro'yxat balansga mos keladi. `InviteMergeKeshbekTransferTest`,
 `InvitePlaceholderKeshbekTest`.
 
 **Migratsiya `2026_12_12_100000_create_keshbek_transfers_table`** (nega kerak: keshbek ledger'i yo'q;
@@ -1724,8 +1771,9 @@ RevisionMap: `NONE`. Faqat qo'shiladi (`KeshbekTransfer` o'zgartirish va o'chiri
 tegilmaydi. Qaytarish: `php artisan migrate:rollback --step=1` jadvalni o'chiradi — o'tkazmalar yozuvi yo'qoladi (balanslar
 joyida qoladi, `difference` 0 qoladi, faqat `transferred` va kartadagi yozuv yo'qoladi).
 
-**B: yozuvsiz eski keshbek buyurtmasi qaytarilganda yozuv yaratiladi.** Keshbek to'lovi yozuvi yo'q eski keshbek
-buyurtmasi (o'sha davr kodi balansni yechib, hech narsa yozmagan) bekor qilinsa yoki qaytarilsa,
+**B: yozuvsiz eski keshbek buyurtmasi qaytarilganda yozuv yaratiladi.** Keshbek to'lovi yozuvi **umuman yo'q** (hech
+qanday holatda; review L4: `paid` bo'lmagan — masalan, allaqachon qaytarilgan — yozuvi bor buyurtmaga hech narsa
+qaytarilmaydi va yozuv yaratilmaydi, ikki marta berilmaydi) eski keshbek buyurtmasi (o'sha davr kodi balansni yechib, hech narsa yozmagan) bekor qilinsa yoki qaytarilsa,
 `OrderStatusService::refundKeshbek` avvalgidek to'liq summani balansga qaytaradi va shu tranzaksiyada yo'q yozuvni
 yaratadi: keshbek to'lovi, `refunded`, summa = jami, `payload`: `refunded_to_balance`, `refunded_at` (offset bilan),
 `backfilled_without_debit_record: true`, `debited_at` (buyurtma berilgan vaqt). Hisobot uni `spent` da `debited_at`

@@ -308,34 +308,78 @@ class User extends Authenticatable
     }
 
     /**
+     * What deleting this users row would take away (OwnerEmployeeController::destroy, mergeInviteInto). As a CUSTOMER at
+     * ANY store (ON DELETE CASCADE on user_id): orders (and, from them, the money tables), complaints, ratings. As STAFF
+     * (ON DELETE SET NULL, or CASCADE for work sessions): the name on what they did. The cheap, indexed questions first:
+     * the audit journal names the actor of nearly everything done at a till or in the panel (audit_logs.user_id), then
+     * deliveries (orders.courier_id), work sessions and tips; then the money columns that have no index of their own,
+     * within the person's store: orders.waiter_id, pos_shifts.opened_by / closed_by, cash_movements.user_id,
+     * payments.received_by, pos_refunds.user_id. Keshbek (review H1): holdsKeshbek. Only "exists" comes back.
+     *
+     * Reads other stores' rows: a caller inside a tenant transaction asks it as the login role (TenantRls::asApp, the
+     * owner's request in OwnerEmployeeController); mergeInviteInto runs outside any tenant (the bot's webhook and the
+     * Mini App's sign-in), as the login role already.
+     */
+    public function hasHistory(): bool
+    {
+        $id = $this->getKey();
+        $db = \Illuminate\Support\Facades\DB::connection($this->getConnectionName());
+        $own = fn (string $table) => $db->table($table)->where('store_id', $this->store_id);
+
+        return $db->table('orders')->where('user_id', $id)->exists()
+            || $db->table('complaints')->where('user_id', $id)->exists()
+            || $db->table('store_ratings')->where('user_id', $id)->exists()
+            || $db->table('audit_logs')->where('user_id', $id)->exists()
+            || $db->table('orders')->where('courier_id', $id)->exists()
+            || $db->table('staff_work_sessions')->where('user_id', $id)->exists()
+            || $db->table('pos_tips')->where('staff_id', $id)->exists()
+            || $own('orders')->where('waiter_id', $id)->exists()
+            || $own('pos_shifts')->where(fn ($q) => $q->where('opened_by', $id)->orWhere('closed_by', $id))->exists()
+            || $own('cash_movements')->where('user_id', $id)->exists()
+            || $own('payments')->where('received_by', $id)->exists()
+            || $own('pos_refunds')->where('user_id', $id)->exists()
+            || $this->holdsKeshbek();
+    }
+
+    /**
      * An unclaimed employee invite row (this) accepted by someone who already has an account in the store ($account:
      * the bot's /start and the Mini App's start_param): $account takes $attributes (the invite's role, branch, name).
      * Owner decision A: the invite row's keshbek goes to $account too (handKeshbekTo): its balance, a debt included,
      * with a KeshbekTransfer record, and its referred friends (its id can be a referral link's from before
-     * ReferralService refused invite rows), who name $account as referrer from now on. Holding nothing any more, the
-     * invite row is then deleted; should it still hold keshbek (a friend who named it after the lock, which no current
-     * path does), it is retired instead (retireFromStore), as before.
+     * ReferralService refused invite rows), who name $account as referrer from now on. Review M2: first, when $account
+     * was itself referred by the invite row and one of its own orders earned the row a bonus that still stands, that
+     * bonus is taken back (takeBackOwnBonus): $account never keeps a bonus for its own order, which no refund could
+     * take back any more once its referrer is gone. Holding nothing any more, the invite row is then deleted, unless it
+     * has history (hasHistory: an order of its own, ON DELETE CASCADE, or anything else the employee delete keeps a
+     * row for; or keshbek still, a friend who named it after the lock, which no current path does): then it is
+     * retired instead (retireFromStore).
      *
-     * One transaction. Every users row it changes is locked first, in one statement in id order: both rows and the
-     * invite row's friends (read just before; the order the referral grant and clawback take a customer and its
-     * referrer in, LedgerService::lockCustomerAndReferrer, so a grant for one of the friends never deadlocks with it).
-     * No store row is locked here, so the grant's store → users order is never inverted. Everything is read again
-     * under the locks: a grant to the invite row or a referral naming it either committed before (and is moved) or
-     * waits; a grant waiting on a friend then finds the friend's referrer changed and grants nothing, and
-     * SweepMissedReferralBonusesJob books it for the new referrer.
+     * One transaction. Review M2: the stores of $account's orders whose bonus the invite row holds are locked first
+     * (Store::ledgerLock, in id order), then every users row it changes, in one statement in id order: both rows and
+     * the invite row's friends (read just before; the order the referral grant and clawback take a store, then a
+     * customer and its referrer, LedgerService::lockCustomerAndReferrer, so neither deadlocks with it). Everything is
+     * read again under the locks: a grant to the invite row or a referral naming it either committed before (and is
+     * taken back or moved) or waits; a grant waiting on a friend then finds the friend's referrer changed and grants
+     * nothing (a later order of the friend earns it for the new referrer).
      */
     public function mergeInviteInto(self $account, array $attributes): void
     {
         \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
+            $stores = self::query()->whereKey($account->getKey())->where('referred_by', $this->getKey())->exists()
+                ? $this->ownBonusOrders((int) $account->getKey())->pluck('store_id')->unique()->sort()->values()->all() : [];
+            if ($stores !== []) {
+                Store::query()->whereKey($stores)->orderBy('id')->lock(Store::ledgerLock())->get();
+            }
             $friends = self::query()->where('referred_by', $this->getKey())->pluck('id')->all();
             self::query()->whereKey(array_values(array_unique([$account->getKey(), $this->getKey(), ...$friends])))->orderBy('id')->lockForUpdate()->get();
             $this->refresh();
             $account->refresh();
             $account->update($attributes);
 
+            $this->takeBackOwnBonus($account);
             $this->handKeshbekTo($account);
 
-            if (!$this->holdsKeshbek()) {
+            if (!$this->hasHistory()) {
                 $this->delete();
 
                 return;
@@ -346,21 +390,63 @@ class User extends Authenticatable
     }
 
     /**
-     * Owner decision A, inside mergeInviteInto (the rows locked): this row's friends name $account as referrer (or no
-     * one when the friend is $account itself: never a self-referral), and a non-zero balance moves to $account — this
-     * row at 0, $account plus the balance (minus, for a debt), a KeshbekTransfer saying so. Platform-wide the sum of
-     * the balances does not change (KeshbekLiabilityReport: `transferred`, outside the reconciliation's movement).
+     * Review M2: $customerId's orders (every store, soft-deleted ones too) whose platform-paid referral bonus rows add up
+     * to more than 0 (a bonus that stands; LedgerService::referralRewardedNet's rows), the oldest first.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Order>
+     */
+    private function ownBonusOrders(int $customerId): \Illuminate\Database\Eloquent\Collection
+    {
+        // The customer's orders and bonus rows at every store: the bonus is the platform's, once per customer
+        return Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->withTrashed()
+            ->where('user_id', $customerId)
+            // Every store's bonus rows (the merge runs outside any tenant, as the login role)
+            ->whereIn('id', StoreTransaction::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
+                ->select('order_id')->where('type', \App\Enums\StoreTransactionType::REFERRAL_BONUS->value)
+                ->whereNotNull('order_id')->groupBy('order_id')->havingRaw('SUM(amount) > 0'))
+            ->orderBy('id')->get();
+    }
+
+    /**
+     * Review M2, inside mergeInviteInto (the rows locked): $account was referred by this row, so a bonus one of
+     * $account's own orders earned this row is taken back now, through the clawback (LedgerService::
+     * clawBackReferralReward: −5 000 on this row, a −5 000 referral_bonus row on that order with
+     * referralMergeClawbackNote), which the keshbek report (`clawed_back`), the monthly report and the monthly cap
+     * count as any clawback. A later full refund of the order then finds nothing standing and takes nothing again. A
+     * legacy bonus the store paid is not taken back (RIZQIM never paid it), as on a refund.
+     */
+    private function takeBackOwnBonus(self $account): void
+    {
+        if ((int) $account->referred_by !== (int) $this->getKey()) {
+            return;
+        }
+        $ledger = app(\App\Services\Finance\LedgerService::class);
+        foreach ($this->ownBonusOrders((int) $account->getKey()) as $order) {
+            $ledger->clawBackReferralReward($order, null, \App\Services\Finance\LedgerService::referralMergeClawbackNote((int) $account->getKey(), (string) $order->short_code));
+        }
+        $this->refresh();
+    }
+
+    /**
+     * Owner decision A, inside mergeInviteInto (the rows locked): this row's friends name $account as referrer, a
+     * non-zero balance moves to $account — this row at 0, $account plus the balance (minus, for a debt), a
+     * KeshbekTransfer saying so. Platform-wide the sum of the balances does not change (KeshbekLiabilityReport:
+     * `transferred`, outside the reconciliation's movement). Never a self-referral: the friend that is $account itself
+     * gets no referrer. Review L5: never a cycle of two either: a friend $account names as its own referrer gets no
+     * referrer (not $account).
      */
     private function handKeshbekTo(self $account): void
     {
         $accountId = (int) $account->getKey();
+        $accountReferrer = $account->referred_by !== null ? (int) $account->referred_by : null;
         $friends = self::query()->where('referred_by', $this->getKey())->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $moved = array_values(array_filter($friends, fn (int $id) => $id !== $accountId));
+        $moved = array_values(array_filter($friends, fn (int $id) => $id !== $accountId && $id !== $accountReferrer));
+        $cleared = array_values(array_diff($friends, $moved));
         if ($moved !== []) {
             self::query()->whereKey($moved)->update(['referred_by' => $accountId]);
         }
-        if (in_array($accountId, $friends, true)) {
-            self::query()->whereKey($accountId)->update(['referred_by' => null]);
+        if ($cleared !== []) {
+            self::query()->whereKey($cleared)->update(['referred_by' => null]);
         }
 
         $balance = \App\Support\Money::of((string) $this->balance);
