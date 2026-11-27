@@ -360,13 +360,38 @@ class User extends Authenticatable
      * customer and its referrer, LedgerService::lockCustomerAndReferrer, so neither deadlocks with it). Everything is
      * read again under the locks: a grant to the invite row or a referral naming it either committed before (and is
      * taken back or moved) or waits; a grant waiting on a friend then finds the friend's referrer changed and grants
-     * nothing (a later order of the friend earns it for the new referrer).
+     * nothing (a later order of the friend earns it for the new referrer). Review (merge lock order): a bonus that
+     * committed between the read of the stores and the users locks is seen under them, and the merge starts over
+     * (mergeInviteAttempt, at most MERGE_ATTEMPTS times), so no store is locked after the users rows.
      */
     public function mergeInviteInto(self $account, array $attributes): void
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
-            $stores = self::query()->whereKey($account->getKey())->where('referred_by', $this->getKey())->exists()
-                ? $this->ownBonusOrders((int) $account->getKey())->pluck('store_id')->unique()->sort()->values()->all() : [];
+        for ($attempt = 1; ; $attempt++) {
+            if ($this->mergeInviteAttempt($account, $attributes)) {
+                return;
+            }
+            if ($attempt >= self::MERGE_ATTEMPTS) {
+                throw new \RuntimeException("Invite row #{$this->getKey()} could not be merged into user #{$account->getKey()}: its own-bonus stores kept changing");
+            }
+        }
+    }
+
+    /** How many times mergeInviteInto starts over when a bonus committed between its read and its locks */
+    private const MERGE_ATTEMPTS = 3;
+
+    /**
+     * One attempt of mergeInviteInto, in its own transaction. Review (merge lock order): the own-bonus stores are read
+     * before the users locks, so a bonus that commits in between can name a store not locked first; read again under
+     * the users locks, such a store makes this attempt give up before it writes anything (false: the transaction ends,
+     * every lock goes) and mergeInviteInto starts over. A store is never locked after the users rows.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function mergeInviteAttempt(self $account, array $attributes): bool
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($account, $attributes) {
+            $ownBonusStores = fn () => $this->ownBonusOrders((int) $account->getKey())->pluck('store_id')->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+            $stores = self::query()->whereKey($account->getKey())->where('referred_by', $this->getKey())->exists() ? $ownBonusStores() : [];
             if ($stores !== []) {
                 Store::query()->whereKey($stores)->orderBy('id')->lock(Store::ledgerLock())->get();
             }
@@ -374,6 +399,10 @@ class User extends Authenticatable
             self::query()->whereKey(array_values(array_unique([$account->getKey(), $this->getKey(), ...$friends])))->orderBy('id')->lockForUpdate()->get();
             $this->refresh();
             $account->refresh();
+            // Read again under the users locks: a bonus committed since may sit at a store not locked above
+            if ((int) $account->referred_by === (int) $this->getKey() && array_diff($ownBonusStores(), $stores) !== []) {
+                return false;
+            }
             $account->update($attributes);
 
             $this->takeBackOwnBonus($account);
@@ -382,10 +411,12 @@ class User extends Authenticatable
             if (!$this->hasHistory()) {
                 $this->delete();
 
-                return;
+                return true;
             }
 
             $this->retireFromStore();
+
+            return true;
         });
     }
 

@@ -348,18 +348,41 @@ class LedgerService
      * month must have had room then (grants and clawbacks booked up to the payment). So an order refused at the
      * payment — the cap, a referral already rewarded — stays refused when a later clawback frees a slot, reopens the
      * referral or a new month begins: a refused order earns nothing, the referral stays open for a LATER order.
+     * Review (refused duplicate): "the payment" is the one that paid the order (wherePaidTheOrder), the earliest if
+     * there are several; a refused Paylov payment (money to give back, paid on its row only) never is. An order with
+     * none is refused.
      * Returns whether it granted now; a failure is thrown (the sweep logs it, nothing is marked).
      */
     public function grantMissedReferralBonus(\App\Models\Order $order): bool
     {
         // The order's own payments, whichever store a caller is bound to (the sweep runs unbound, in the scheduler)
-        $paidAt = \App\Models\Payment::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
-            ->where('order_id', $order->id)->where('status', PaymentStatus::PAID->value)->max('paid_at');
+        $paidAt = self::wherePaidTheOrder(\App\Models\Payment::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)
+            ->where('order_id', $order->id))->min('paid_at');
         if ($paidAt === null) {
             return false;
         }
 
         return $this->grantReward($order, null, \Illuminate\Support\Carbon::parse($paidAt));
+    }
+
+    /**
+     * Narrows a payments query to the payments that paid their order: status paid, and not money a provider took for
+     * an order that could not take it. Only Paylov records such money on a payment row (PaylovPayments::settle /
+     * mismatch: paid on the row, `payload.paylov.refused` set — order_already_paid, order_not_payable,
+     * amount_mismatch, a refusal at perform — its refund requested); it stays paid until the refund completes,
+     * possibly never. Click and Payme refuse such money before any row turns paid (Click's already_paid / cancelled,
+     * Payme's accountError), so a paid Click / Payme row always paid its order. The same notion as
+     * ReferralService::paymentVerifiedByPlatform's (a confirmed Paylov payment with no refusal).
+     *
+     * @template TQuery of \Illuminate\Database\Eloquent\Builder<\App\Models\Payment>|\Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    public static function wherePaidTheOrder($query, string $table = 'payments')
+    {
+        return $query->where("{$table}.status", PaymentStatus::PAID->value)
+            ->whereNull("{$table}.payload->paylov->refused");
     }
 
     /**
@@ -514,7 +537,16 @@ class LedgerService
      */
     public static function referralMergeClawbackNote(int $referredUserId, string $shortCode): string
     {
-        return self::REFERRAL_CLAWBACK_NOTE . " for referred user #{$referredUserId}: order #{$shortCode}, its referrer's invite row merged into this customer";
+        return self::REFERRAL_CLAWBACK_NOTE . " for referred user #{$referredUserId}: order #{$shortCode}" . self::REFERRAL_MERGE_CLAWBACK_SUFFIX;
+    }
+
+    /** How referralMergeClawbackNote ends (no refund note does) */
+    private const REFERRAL_MERGE_CLAWBACK_SUFFIX = ", its referrer's invite row merged into this customer";
+
+    /** Whether a referral_bonus row's note is referralMergeClawbackNote's (taken back at an invite merge, not a refund) */
+    public static function isReferralMergeClawbackNote(?string $notes): bool
+    {
+        return $notes !== null && str_starts_with($notes, self::REFERRAL_CLAWBACK_NOTE . ' ') && str_ends_with($notes, self::REFERRAL_MERGE_CLAWBACK_SUFFIX);
     }
 
     /** The note of a legacy, store-charged referral reward ("Referral cashback reward cost for referred user #12"). */

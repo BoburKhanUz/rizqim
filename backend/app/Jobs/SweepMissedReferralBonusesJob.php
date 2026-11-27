@@ -73,7 +73,8 @@ class SweepMissedReferralBonusesJob
      * Review M1: the orders whose payment landed after their delivery, paid between WINDOW_DAYS and AFTER_MINUTES ago,
      * the newest payments first, at most LATE_PAYMENTS_PER_RUN. A query of its own on payments alone, so that it reads
      * through payments_paid_at_index (partial: status paid) whatever the planner knows of the other tables (a single
-     * query let an unanalysed database drive it from orders instead). Cash and keshbek never earn the bonus: left out.
+     * query let an unanalysed database drive it from orders instead). Cash and keshbek never earn the bonus: left out,
+     * and so is a payment that did not pay its order (LedgerService::wherePaidTheOrder: a refused Paylov payment).
      *
      * @return list<int>
      */
@@ -85,8 +86,9 @@ class SweepMissedReferralBonusesJob
     /** latePaidOrderIds' query */
     public static function latePayments(): \Illuminate\Database\Query\Builder
     {
-        return DB::table('payments')
-            ->where('payments.status', PaymentStatus::PAID->value)
+        // Review (refused duplicate): only a payment that paid the order; a refused Paylov payment (a stale checkout
+        // of an order already paid, an amount mismatch) stays paid until its refund completes but is no late payment
+        return LedgerService::wherePaidTheOrder(DB::table('payments'))
             ->where('payments.paid_at', '>=', now()->subDays(self::WINDOW_DAYS))
             ->where('payments.paid_at', '<=', now()->subMinutes(self::AFTER_MINUTES))
             ->whereNotIn('payments.provider', ['cash', 'keshbek'])

@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
  * - referral bonus: 5 000 for the qualifying delivered order of each customer they invited (LedgerService: a
  *   platform-paid REFERRAL_BONUS row, or before owner decision 3's addition a store-charged commission row with the
  *   referral note; both are read), plus; and a bonus taken back on the full refund of that order (a negative
- *   REFERRAL_BONUS row), minus;
+ *   REFERRAL_BONUS row), minus, or at an invite merge (referralMergeClawbackNote: labelled as such, not a refund);
  * - transfer (owner decision A): a balance moved to them from an invite row merged into their account (KeshbekTransfer,
  *   a debt minus); the earlier bonuses of the friends that moved with it went to the invite row and are inside the
  *   transfer, so they are not listed again.
@@ -95,7 +95,7 @@ class KeshbekHistory
             ->where(fn ($query) => \App\Services\Finance\LedgerService::whereAnyReferralReward($query))
             ->orderByDesc('store_transactions.id')
             ->limit($limit)
-            ->get(['store_transactions.created_at', 'store_transactions.amount', 'users.id as friend_id', 'users.name as friend', 'orders.uuid', 'orders.short_code']);
+            ->get(['store_transactions.created_at', 'store_transactions.amount', 'store_transactions.notes', 'users.id as friend_id', 'users.name as friend', 'orders.uuid', 'orders.short_code']);
 
         foreach ($rewards as $reward) {
             $movedAt = $movedBefore[(int) $reward->friend_id] ?? null;
@@ -104,10 +104,13 @@ class KeshbekHistory
             }
             $entries[] = $this->entry(
                 'referral',
-                // Review finding 1: a negative row is the bonus taken back on the full refund of the order that earned it
-                Money::of((string) $reward->amount)->isNegative()
-                    ? "Do'st taklifi bonusi qaytarib olindi (" . $reward->friend . ", #{$reward->short_code} qaytarildi)"
-                    : "Do'st taklifi uchun bonus (" . $reward->friend . ')',
+                // Review finding 1: a negative row is the bonus taken back on the full refund of the order that earned it,
+                // or (review M2) at an invite merge, when the friend's own account took in the invite row that earned it
+                match (true) {
+                    !Money::of((string) $reward->amount)->isNegative() => "Do'st taklifi uchun bonus (" . $reward->friend . ')',
+                    \App\Services\Finance\LedgerService::isReferralMergeClawbackNote($reward->notes) => 'Taklif hisobi birlashtirilgani uchun bonus qaytarib olindi (' . $reward->friend . ", #{$reward->short_code})",
+                    default => "Do'st taklifi bonusi qaytarib olindi (" . $reward->friend . ", #{$reward->short_code} qaytarildi)",
+                },
                 Money::of((string) $reward->amount),
                 null,
                 $this->time($reward->created_at),

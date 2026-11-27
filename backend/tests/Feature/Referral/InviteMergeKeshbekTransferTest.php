@@ -236,6 +236,121 @@ class InviteMergeKeshbekTransferTest extends TestCase
     }
 
     /**
+     * Review (merge lock order): the stores of the account's own bonus orders are read before the users locks. A bonus
+     * that commits in between (here: granted by a hook right after that read, at a second store) would make the
+     * clawback lock its store after the users rows. The merge reads the orders again under the users locks, finds a
+     * store it did not lock first, and starts over: the store first, then the users rows. It completes, the bonus is
+     * taken back once, and no store is ever locked after the users rows that was not locked before them.
+     */
+    public function test_a_bonus_committed_between_the_read_and_the_locks_makes_the_merge_start_over_with_the_store_first(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-05 12:00'));
+        $invite = $this->invite();
+        $this->referrer = $invite;
+        $account = $this->account();
+        $other = $this->makeStore('Ikkinchi do\'kon');
+        // Delivered before the account named the invite row: no bonus yet
+        $own = $this->deliveredOrder('platform_click', ['user_id' => $account->id], $other);
+        $account->forceFill(['referred_by' => $invite->id])->save();
+        $this->assertSame([], $this->rewards());
+
+        $level = DB::transactionLevel();
+        $granted = false;
+        $attempts = 0;
+        $locked = [];
+        $usersLocked = false;
+        $late = [];
+        $inHook = false;
+        DB::listen(function (\Illuminate\Database\Events\QueryExecuted $query) use (&$granted, &$locked, &$usersLocked, &$late, &$inHook, $own, $invite) {
+            $sql = $query->sql;
+            if ($inHook) {
+                // The concurrent grant's own locks are not the merge's
+                return;
+            }
+            if (preg_match('/from "stores" where ("stores"\.)?"id" (=|in) .*for (no key )?update/', $sql) === 1) {
+                // whereKey() inlines integer ids into the SQL; Store::where('id', …) binds one
+                $ids = preg_match('/"id" in \(([\d, ]+)\)/', $sql, $inlined) === 1 ? explode(',', $inlined[1]) : $query->bindings;
+                foreach ($ids as $id) {
+                    if ($usersLocked && !in_array((int) $id, $locked, true)) {
+                        $late[] = (int) $id;
+                    }
+                    $locked[] = (int) $id;
+                }
+            } elseif (preg_match('/from "users" where ("users"\.)?"id" in .*for update/', $sql) === 1) {
+                $usersLocked = true;
+            } elseif (!$granted && $sql === 'select "id" from "users" where "referred_by" = ?' && (int) $query->bindings[0] === $invite->id) {
+                // Right after the merge read the own-bonus stores, before its users locks: the bonus commits
+                $granted = true;
+                $inHook = true;
+                try {
+                    $this->assertTrue(app(LedgerService::class)->grantReferralReward(\App\Models\Order::query()->withoutGlobalScopes()->findOrFail($own->id)));
+                } finally {
+                    $inHook = false;
+                }
+            }
+        });
+        DB::getEventDispatcher()->listen(\Illuminate\Database\Events\TransactionBeginning::class, function () use (&$attempts, &$locked, &$usersLocked, &$inHook, $level) {
+            if (!$inHook && DB::transactionLevel() === $level + 1) {
+                // A new attempt of the merge's own transaction
+                $attempts++;
+                $locked = [];
+                $usersLocked = false;
+            }
+        });
+
+        $this->travelTo($this->tashkent('2026-10-06 12:00'));
+        $invite->fresh()->mergeInviteInto($account, ['role' => UserRole::MANAGER]);
+
+        $this->assertTrue($granted);
+        $this->assertSame([], $late, 'no store locked after the users rows that was not locked before them');
+        $this->assertSame(2, $attempts, 'the first attempt saw the new store under the users locks and started over');
+        $this->assertNull(User::find($invite->id));
+        $this->assertSame(['0.00', UserRole::MANAGER], [(string) $account->fresh()->balance, $account->fresh()->role]);
+        $this->assertSame([
+            ['order_id' => $own->id, 'store_id' => $other->id, 'amount' => '5000.00'],
+            ['order_id' => $own->id, 'store_id' => $other->id, 'amount' => '-5000.00'],
+        ], $this->rewards(), 'taken back once');
+        $this->assertSame(0, KeshbekTransfer::count());
+        $this->assertSame('0.00', $this->report()['reconciliation']['difference']->toString());
+    }
+
+    /**
+     * Review (history label): a bonus taken back at an invite merge (referralMergeClawbackNote) is not shown as the
+     * order having been refunded; a refund's clawback still is.
+     */
+    public function test_the_keshbek_history_labels_a_merge_clawback_as_such(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-05 12:00'));
+        $referrer = $this->makeCustomer(0);
+        $merged = $this->makeCustomer(0, ['name' => 'Aziz']);
+        $merged->forceFill(['referred_by' => $referrer->id])->save();
+        $refunded = $this->makeCustomer(0, ['name' => 'Bobur']);
+        $refunded->forceFill(['referred_by' => $referrer->id])->save();
+        $mergedOrder = $this->makeOrder(\App\Enums\OrderStatus::DELIVERED, ['user_id' => $merged->id]);
+        $refundedOrder = $this->makeOrder(\App\Enums\OrderStatus::REFUNDED, ['user_id' => $refunded->id]);
+        $row = fn (\App\Models\Order $order, string $amount, string $notes, string $at) => StoreTransaction::forceCreate([
+            'store_id' => $this->store->id, 'type' => 'referral_bonus', 'amount' => $amount, 'balance_before' => '0.00', 'balance_after' => '0.00',
+            'order_id' => $order->id, 'reference_id' => $order->uuid, 'notes' => $notes, 'created_at' => $this->tashkent($at), 'updated_at' => $this->tashkent($at),
+        ]);
+        $row($mergedOrder, '5000.00', LedgerService::referralBonusNote($merged->id), '2026-10-05 12:00');
+        $row($mergedOrder, '-5000.00', LedgerService::referralMergeClawbackNote($merged->id, (string) $mergedOrder->short_code), '2026-10-06 12:00');
+        $row($refundedOrder, '5000.00', LedgerService::referralBonusNote($refunded->id), '2026-10-05 13:00');
+        $row($refundedOrder, '-5000.00', LedgerService::referralClawbackNote($refunded->id, (string) $refundedOrder->short_code), '2026-10-07 12:00');
+
+        $entries = app(KeshbekHistory::class)->for($referrer->fresh())['entries'];
+
+        $this->assertSame([
+            ['-5000.00', "Do'st taklifi bonusi qaytarib olindi (Bobur, #{$refundedOrder->short_code} qaytarildi)"],
+            ['-5000.00', "Taklif hisobi birlashtirilgani uchun bonus qaytarib olindi (Aziz, #{$mergedOrder->short_code})"],
+            ['5000.00', "Do'st taklifi uchun bonus (Bobur)"],
+            ['5000.00', "Do'st taklifi uchun bonus (Aziz)"],
+        ], array_map(fn (array $entry) => [$entry['amount'], $entry['label']], $entries));
+        $this->assertTrue(LedgerService::isReferralMergeClawbackNote(LedgerService::referralMergeClawbackNote(1, 'AB12')));
+        $this->assertFalse(LedgerService::isReferralMergeClawbackNote(LedgerService::referralClawbackNote(1, 'AB12')));
+        $this->assertFalse(LedgerService::isReferralMergeClawbackNote(null));
+    }
+
+    /**
      * Review M2: only the bonus of the account's own order goes back; the invite row's other friends' bonuses move to
      * the account as before.
      */

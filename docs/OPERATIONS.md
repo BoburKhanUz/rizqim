@@ -1408,6 +1408,18 @@ buyurtmalarga **faqat bonusni** beradi (`LedgerService::grantMissedReferralBonus
   yo'q). Chegara: haqiqiy nomzod faqat 7 kun ichida undan **yangiroq** 1000 dan ortiq kechikkan to'lov yoki 200 dan
   ortiq rad etiladigan nomzod bo'lsa kechikadi (oyiga 10 bonusli chegara bilan bu bitta taklif qiluvchining 200 dan ortiq kechikkan to'lovli do'stini
   talab qiladi). Partiya ichida bir mijozning buyurtmalari eskisidan, bir ishga tushishda ko'pi bilan bitta bonus.
+- **Faqat buyurtmani to'lagan to'lov (review: rad etilgan dublikat).** Kechikkan to'lov va «to'lov payti» faqat
+  buyurtmani haqiqatan to'lagan to'lovdan olinadi (`LedgerService::wherePaidTheOrder`): holati `paid` va
+  `payload.paylov.refused` bo'sh. Paylov buyurtma ololmaydigan pulni (allaqachon to'langan buyurtmaning eski checkout'i —
+  `order_already_paid`, `order_not_payable`, `amount_mismatch`) `paid` to'lov qatori sifatida yozadi va qaytarishni
+  so'raydi; qaytarish tugaguncha (balki hech qachon) qator `paid` bo'lib turadi, lekin u kechikkan to'lov emas
+  (masalan, 31 oktyabrda chegarada rad etilgan buyurtmaning 1 noyabr 00:01 dagi rad etilgan Paylov dublikati bonus
+  bermaydi). Click va Payme bunday pulni qator `paid` bo'lishidan oldin rad etadi (`already_paid` / `accountError`).
+  Bir nechta haqiqiy to'lov bo'lsa — **eng birinchisi** (`min(paid_at)`); bunday to'lov yo'q bo'lsa — rad.
+- **Qabul qilingan bo'shliq.** Taqqoslash qat'iy (`payments.paid_at` > birinchi `delivered` qatorining `created_at`):
+  yetkazilish qatori bilan **bir soniyada** commit qilingan kechikkan to'lov nomzod emas, uning yo'qolgan bonusi
+  qidiruvda topilmaydi (yetkazilishdan oldingi to'lovdan ajratib bo'lmaydi; amalda juda kam). Shunday buyurtma topilsa,
+  qo'lda hal qilinadi.
 
 Bergan har bonusi logda: `Missed referral bonus of order <uuid> booked by the sweep` (`info`) va oxirida jami
 (`warning`). Monitoring topilmasi qo'shilmadi. Qidiruv chegaralangan: 7 kundan eski yo'qolgan bonus (masalan, bu
@@ -1754,12 +1766,15 @@ u bilan o'chib ketardi —, shikoyat, baho, audit, yetkazish, ish sessiyasi, cho
 Hammasi bitta tranzaksiyada. Qulflar tartibi: avval (M2 holatida) A ning bonusli buyurtmalari ovqatxonalari
 (`Store::ledgerLock`, id tartibida), so'ng o'zgaradigan har `users` qatori (ikkala qator va do'stlar) bitta so'rovda id
 tartibida — bonus berish va qaytarib olishdagi «ovqatxona → mijoz va taklif qiluvchi» tartibi. Qulflar ostida hammasi
-qayta o'qiladi. Do'stining bonusi aynan shu paytda berilayotgan bo'lsa, u qulfni kutadi, so'ng taklif qiluvchi
+qayta o'qiladi; ovqatxonalar o'qilgandan keyin, `users` qulflaridan oldin commit qilingan bonus oldindan qulflanmagan
+ovqatxonani ko'rsatsa, urinish hech narsa yozmay tugaydi va birlashtirish boshidan boshlanadi (ko'pi bilan 3 marta,
+`User::mergeInviteAttempt`) — ovqatxona hech qachon `users` qatorlaridan keyin qulflanmaydi. Do'stining bonusi aynan shu paytda berilayotgan bo'lsa, u qulfni kutadi, so'ng taklif qiluvchi
 o'zgarganini ko'rib bermaydi — bonusni do'stning keyingi buyurtmasi yangi taklif qiluvchiga beradi (yetkazilishdan oldin
 to'langan buyurtmani C qidiruvi bermaydi). Do'stning keyin qaytarilgan buyurtmasi bonusi yangi hisobdan qaytarib olinadi
 (pul ham o'sha yerda). Keshbek hisobotida `transferred` («Taklif hisobidan ko'chirilgan»): bir qatordan chiqib boshqasiga
 kiradi, platforma bo'yicha 0 — `movement` ga kirmaydi, `difference` 0 qoladi. Mijoz kartasida «Taklif hisobidan
-ko'chirildi» (`kind: transfer`); ko'chgan do'stlarning o'tkazmadan oldingi bonuslari taklif qatoriga tushgan va o'tkazma
+ko'chirildi» (`kind: transfer`); birlashtirishda qaytarib olingan bonus — «Taklif hisobi birlashtirilgani uchun bonus
+qaytarib olindi» (buyurtma qaytarilgani deb emas); ko'chgan do'stlarning o'tkazmadan oldingi bonuslari taklif qatoriga tushgan va o'tkazma
 ichida — qayta ko'rsatilmaydi, ro'yxat balansga mos keladi. `InviteMergeKeshbekTransferTest`,
 `InvitePlaceholderKeshbekTest`.
 

@@ -380,6 +380,122 @@ class ReferralMissedBonusSweepTest extends TestCase
     }
 
     /**
+     * What PaylovPayments::settle records for money Paylov took for an order that can no longer take it (a stale
+     * checkout of an order already paid): a paid payment row, confirmed, refused, with its refund requested. It stays
+     * paid until the refund completes (possibly never), but it never paid the order.
+     */
+    private function refusedPaylovDuplicate(Order $order, string $reason = 'order_already_paid'): Payment
+    {
+        return Payment::create([
+            'order_id' => $order->id,
+            'store_id' => $order->store_id,
+            'merchant_scope' => Payment::merchantScopeOf($order),
+            'provider' => 'paylov',
+            'provider_transaction_id' => 'paylov-' . \Illuminate\Support\Str::random(10),
+            'amount' => $order->total_price,
+            'status' => PaymentStatus::PAID->value,
+            'paid_at' => now(),
+            'payload' => ['paylov' => [
+                'state' => \App\Services\Payment\Paylov\PaylovPayments::STATE_CONFIRMED,
+                'confirmed_at' => now()->toIso8601String(),
+                'refused' => $reason,
+                'refund' => ['status' => \App\Services\Payment\Paylov\PaylovPayments::REFUND_REQUESTED, 'reason' => $reason, 'requested_at' => now()->toIso8601String()],
+            ]],
+        ]);
+    }
+
+    /**
+     * Review (refused duplicate): on 31 October the referrer is at the cap; the customer's platform Click order, paid
+     * before delivery, is refused at delivery. On 1 November a stale Paylov checkout of it is refused
+     * (order_already_paid) but stays paid. That money never paid the order: it is no late payment, and the sweep
+     * grants nothing.
+     */
+    public function test_a_refused_duplicate_paylov_payment_is_not_a_late_payment(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-31 20:00'));
+        $this->fillTheCap();
+        $order = $this->deliveredOrder('platform_click');
+        $this->assertNotContains($order->id, $this->rewardedOrders(), 'the cap refused it at delivery');
+
+        $this->travelTo($this->tashkent('2026-11-01 00:01'));
+        $this->refusedPaylovDuplicate($order);
+        $this->travelTo($this->tashkent('2026-11-01 00:30'));
+
+        $this->assertSame([], SweepMissedReferralBonusesJob::latePaidOrderIds());
+        $this->sweep();
+
+        $this->assertNotContains($order->id, $this->rewardedOrders());
+        $this->assertSame(50000.0, $this->referrerBalance());
+        // Asked directly, the grant decides as of the payment that paid the order (31 October, at the cap)
+        $this->assertFalse(DB::transaction(fn () => app(\App\Services\Finance\LedgerService::class)
+            ->grantMissedReferralBonus(Order::whereKey($order->id)->lockForUpdate()->firstOrFail())));
+        $this->assertSame(50000.0, $this->referrerBalance());
+    }
+
+    /**
+     * A genuine late payment whose bonus was lost, then a refused duplicate landing after it: the sweep decides as of
+     * the genuine payment, and grants the bonus once.
+     */
+    public function test_a_refused_duplicate_after_a_lost_late_payment_leaves_it_granted_once(): void
+    {
+        $order = $this->paidButBonusLost();
+        $this->travel(5)->minutes();
+        $this->refusedPaylovDuplicate($order);
+        $this->travel(20)->minutes();
+
+        $this->sweep();
+        $this->sweep();
+
+        $this->assertSame([['order_id' => $order->id, 'store_id' => $this->store->id, 'amount' => '5000.00']], $this->rewards());
+        $this->assertSame(5000.0, $this->referrerBalance());
+    }
+
+    /**
+     * The as-of moment is the payment that paid the order, never a refused one after it: a late payment on 31 October
+     * refused at the cap, then a refused duplicate on 1 November, is still refused by the sweep.
+     */
+    public function test_a_refused_duplicate_does_not_move_the_as_of_moment_into_the_next_month(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-31 23:40'));
+        $this->fillTheCap();
+        $refused = $this->paidLate();
+        $this->assertNotContains($refused->id, $this->rewardedOrders());
+
+        $this->travelTo($this->tashkent('2026-11-01 00:01'));
+        $this->refusedPaylovDuplicate($refused);
+        $this->travelTo($this->tashkent('2026-11-01 00:30'));
+        $this->sweep();
+
+        $this->assertNotContains($refused->id, $this->rewardedOrders());
+        $this->assertSame(50000.0, $this->referrerBalance());
+    }
+
+    /**
+     * A store-owned Paylov order with one confirmed payment (before delivery, refused at the cap on 31 October) and a
+     * refused duplicate on 1 November: the confirmed one paid the order, the duplicate is no late payment.
+     */
+    public function test_a_store_paylov_order_with_a_confirmed_and_a_refused_payment_is_not_swept(): void
+    {
+        $this->travelTo($this->tashkent('2026-10-31 20:00'));
+        $this->fillTheCap();
+        $order = $this->deliveredOrder('store_paylov');
+        $this->assertNotContains($order->id, $this->rewardedOrders(), 'the cap refused it at delivery');
+
+        $this->travelTo($this->tashkent('2026-11-01 00:01'));
+        $this->refusedPaylovDuplicate($order);
+        $this->assertSame(2, Payment::query()->withoutGlobalScopes()->where('order_id', $order->id)->where('status', PaymentStatus::PAID->value)->count());
+        $this->travelTo($this->tashkent('2026-11-01 00:30'));
+
+        $this->assertSame([], SweepMissedReferralBonusesJob::latePaidOrderIds());
+        $this->sweep();
+
+        $this->assertNotContains($order->id, $this->rewardedOrders());
+        $this->assertSame(50000.0, $this->referrerBalance());
+        $this->assertFalse(DB::transaction(fn () => app(\App\Services\Finance\LedgerService::class)
+            ->grantMissedReferralBonus(Order::whereKey($order->id)->lockForUpdate()->firstOrFail())));
+    }
+
+    /**
      * Review L3: candidates newest first (a run never sits behind older ones that are refused for good), and the shapes
      * that can never earn the bonus are not candidates: an order refunded in full by its parts (a full reversal row),
      * a platform order with a keshbek share (never verified).
