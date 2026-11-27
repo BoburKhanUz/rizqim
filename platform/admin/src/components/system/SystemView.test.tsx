@@ -24,20 +24,37 @@ const item = (overrides: Record<string, unknown>) => ({
   ...overrides,
 });
 
-const GROUPS = [
+const smsGroups = ({ driver = 'eskiz', key = false, password = true }: { driver?: string; key?: boolean; password?: boolean } = {}) => [
   {
     key: 'sms',
     label: 'SMS',
     items: [
-      item({ key: 'sms_driver', label: 'SMS yuborish usuli', type: 'select', value: 'log', configured: true, source: 'settings', default: 'log', options: [{ value: 'log', label: 'Log (SMS yuborilmaydi)' }, { value: 'eskiz', label: 'Eskiz (haqiqiy SMS)' }] }),
+      item({
+        key: 'sms_driver',
+        label: 'SMS yuborish usuli',
+        type: 'select',
+        value: driver,
+        configured: true,
+        source: 'settings',
+        default: 'log',
+        updated_at: '2026-11-27T10:00:00Z',
+        options: [
+          { value: 'log', label: 'Log (SMS yuborilmaydi)' },
+          { value: 'eskiz', label: 'Eskiz (haqiqiy SMS)' },
+          { value: 'onlinegroup', label: 'Onlinegroup (haqiqiy SMS)' },
+        ],
+      }),
       item({ key: 'eskiz_email', label: 'Eskiz email', type: 'email', value: 'sms@rizqim.uz', configured: true, source: 'settings' }),
       item({ key: 'eskiz_from', label: "Jo'natuvchi nomi", value: '4546', configured: true, source: 'default', default: '4546' }),
-      item({ key: 'eskiz_password', label: 'Eskiz paroli', type: 'secret', secret: true, configured: true, last4: '9876', source: 'settings' }),
+      item({ key: 'eskiz_password', label: 'Eskiz paroli', type: 'secret', secret: true, configured: password, last4: password ? '9876' : null, source: password ? 'settings' : null }),
+      item({ key: 'onlinegroup_api_key', label: 'Onlinegroup API kaliti', type: 'secret', secret: true, configured: key, last4: key ? 'Ip10' : null, source: key ? 'settings' : null }),
     ],
   },
   { key: 'telegram', label: 'Telegram', items: [item({ key: 'telegram_bot_token', label: 'Bot tokeni', type: 'secret', secret: true, editable: false, configured: true, last4: 'WXYZ', source: 'env' })] },
   { key: 'general', label: 'Umumiy', items: [item({ key: 'app_env', label: 'Muhit', editable: false, value: 'production', configured: true, source: 'env' })] },
 ];
+
+const GROUPS = smsGroups();
 
 const PROVIDERS = [
   {
@@ -93,8 +110,11 @@ describe('SystemView', () => {
     renderPage(<SystemView />);
 
     const sms = await screen.findByRole('region', { name: 'SMS' });
-    expect(within(sms).getByLabelText('SMS yuborish usuli')).toHaveValue('log');
-    expect(within(sms).getByText('Kiritilgan, oxiri ••••9876')).toBeInTheDocument();
+    expect(within(sms).getByLabelText('SMS yuborish usuli')).toHaveValue('eskiz');
+    expect(within(sms).getByText('Tayyor: SMS Eskiz orqali yuboriladi')).toBeInTheDocument();
+    expect(within(sms).getByText('••••9876')).toBeInTheDocument();
+    expect(within(sms).queryByText(/Onlinegroup API kaliti/)).not.toBeInTheDocument();
+    expect(within(sms).getByText(/^Oxirgi o'zgarish: 27-noy, /)).toBeInTheDocument();
     const telegram = screen.getByRole('region', { name: 'Telegram' });
     expect(within(telegram).getByText('Kiritilgan, oxiri ••••WXYZ')).toBeInTheDocument();
     expect(within(telegram).queryByRole('button', { name: /almashtirish/i })).not.toBeInTheDocument();
@@ -149,6 +169,78 @@ describe('SystemView', () => {
 
     expect(await screen.findByText('Eskiz paroli almashtirildi.')).toBeInTheDocument();
     expect(callsTo('PUT', '/system/settings/secrets/eskiz_password').at(-1)!.body).toEqual({ value: 'new-eskiz-secret', reason: 'Parol almashdi' });
+  });
+
+  it('shows only what the chosen method needs; the other fields are hidden, kept and not sent', async () => {
+    const user = userEvent.setup();
+    const { callsTo } = mockFetch({ 'GET /auth/me': me(), 'GET /system/settings': () => ok({ groups: smsGroups({ driver: 'onlinegroup', key: true }) }), 'PATCH /system/settings': () => ok({ groups: smsGroups({ driver: 'eskiz', key: true }) }) });
+    renderPage(<SystemView />);
+
+    const sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByText('Tayyor: SMS Onlinegroup orqali yuboriladi')).toBeInTheDocument();
+    expect(within(sms).getByText('••••Ip10')).toBeInTheDocument();
+    expect(within(sms).getByText('sms.onlinegroup.uz → Ilovalar: ilova kaliti, «sms:send» ruxsati bilan.')).toBeInTheDocument();
+    // Onlinegroup sends no sender name: no Eskiz field and no sender name
+    expect(within(sms).queryByLabelText('Eskiz email')).not.toBeInTheDocument();
+    expect(within(sms).queryByLabelText("Jo'natuvchi nomi")).not.toBeInTheDocument();
+    expect(within(sms).queryByText(/Eskiz paroli/)).not.toBeInTheDocument();
+    expect(within(sms).getByRole('button', { name: 'Saqlash' })).toBeDisabled();
+    expect(within(sms).getByLabelText('SMS yuborish usuli')).toHaveAccessibleDescription('sms.onlinegroup.uz orqali haqiqiy SMS: faqat API kaliti kerak.');
+
+    // Eskiz chosen, not saved: its fields show, the readiness line still tells the saved state
+    await user.selectOptions(within(sms).getByLabelText('SMS yuborish usuli'), 'eskiz');
+    expect(within(sms).getByText("Saqlanmagan o'zgarish")).toBeInTheDocument();
+    expect(within(sms).getByText('Tayyor: SMS Onlinegroup orqali yuboriladi')).toBeInTheDocument();
+    expect(within(sms).getByLabelText('Eskiz email')).toHaveValue('sms@rizqim.uz');
+    expect(within(sms).getByLabelText("Jo'natuvchi nomi")).toHaveAccessibleDescription("Eskiz tasdiqlagan nom yoki raqam. Bo'sh bo'lsa: 4546.");
+    expect(within(sms).queryByText(/Onlinegroup API kaliti/)).not.toBeInTheDocument();
+    await user.type(within(sms).getByLabelText("Jo'natuvchi nomi"), 'RIZQIM');
+
+    // Log: nothing to enter; back to Onlinegroup: nothing changed; Eskiz again: the typed name is still there
+    await user.selectOptions(within(sms).getByLabelText('SMS yuborish usuli'), 'log');
+    expect(within(sms).queryByLabelText('Eskiz email')).not.toBeInTheDocument();
+    expect(within(sms).queryByRole('button', { name: /kiritish|almashtirish/ })).not.toBeInTheDocument();
+    expect(within(sms).getByText('SMS yuborilmaydi: kodlar faqat sinov muhitida server jurnaliga yoziladi.')).toBeInTheDocument();
+    await user.selectOptions(within(sms).getByLabelText('SMS yuborish usuli'), 'onlinegroup');
+    expect(within(sms).queryByText("Saqlanmagan o'zgarish")).not.toBeInTheDocument();
+    expect(within(sms).getByRole('button', { name: 'Saqlash' })).toBeDisabled();
+    await user.selectOptions(within(sms).getByLabelText('SMS yuborish usuli'), 'eskiz');
+    expect(within(sms).getByLabelText("Jo'natuvchi nomi")).toHaveValue('RIZQIM');
+
+    await user.click(within(sms).getByRole('button', { name: 'Saqlash' }));
+    const dialog = await screen.findByRole('dialog', { name: "Sozlamalarni o'zgartirish" });
+    expect(within(dialog).getByText("O'zgaradi: SMS yuborish usuli, Jo'natuvchi nomi.")).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Sabab'), "Eskiz'ga o'tamiz");
+    await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(callsTo('PATCH', '/system/settings')).toHaveLength(1));
+    expect(callsTo('PATCH', '/system/settings')[0]!.body).toEqual({ values: { sms_driver: 'eskiz', eskiz_from: 'RIZQIM' }, reason: "Eskiz'ga o'tamiz" });
+    expect(await within(sms).findByText('Tayyor: SMS Eskiz orqali yuboriladi')).toBeInTheDocument();
+    expect(within(sms).queryByText("Saqlanmagan o'zgarish")).not.toBeInTheDocument();
+  });
+
+  it('says when SMS does not go out: a missing key, a missing Eskiz password, the test mode', async () => {
+    let groups = smsGroups({ driver: 'onlinegroup', key: false });
+    mockFetch({ 'GET /auth/me': me(), 'GET /system/settings': () => ok({ groups }) });
+    const { unmount } = renderPage(<SystemView />);
+    let sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByText('API kaliti kiritilmagan — SMS yuborilmaydi.')).toBeInTheDocument();
+    expect(within(sms).getByText('Kiritilmagan')).toBeInTheDocument();
+    // Nothing to replace yet: "Kiritish", and nothing to clear
+    expect(within(sms).getByRole('button', { name: 'Onlinegroup API kaliti: kiritish' })).toBeInTheDocument();
+    expect(within(sms).queryByRole('button', { name: /o'chirish/ })).not.toBeInTheDocument();
+    unmount();
+
+    groups = smsGroups({ driver: 'eskiz', password: false });
+    const second = renderPage(<SystemView />);
+    sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByText('Eskiz paroli kiritilmagan — SMS yuborilmaydi.')).toBeInTheDocument();
+    second.unmount();
+
+    groups = smsGroups({ driver: 'log' });
+    renderPage(<SystemView />);
+    sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByText('Sinov rejimi: SMS yuborilmaydi.')).toBeInTheDocument();
+    expect(within(sms).getByText('Kirish kodlari telefonga bormaydi.')).toBeInTheDocument();
   });
 
   it('shows payment keys masked and replaces one', async () => {

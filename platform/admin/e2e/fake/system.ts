@@ -64,10 +64,11 @@ const reasonOk = (body: Record<string, unknown>) => typeof body.reason === 'stri
 
 export class FakeSystem {
   items: Item[] = [
-    { key: 'sms_driver', label: 'SMS yuborish usuli', description: '«Log» — SMS yuborilmaydi. «Eskiz» — haqiqiy SMS.', type: 'select', editable: true, secret: false, value: 'log', default: 'log', options: [{ value: 'log', label: 'Log (SMS yuborilmaydi)' }, { value: 'eskiz', label: 'Eskiz (haqiqiy SMS)' }], group: 'sms', source: 'settings', updated_at: null },
+    { key: 'sms_driver', label: 'SMS yuborish usuli', description: "«Log» — SMS yuborilmaydi, kod faqat server jurnaliga yoziladi (sinov uchun). «Eskiz» — haqiqiy SMS; Eskiz email va paroli kiritilgan bo'lishi kerak. «Onlinegroup» — haqiqiy SMS sms.onlinegroup.uz orqali; uning API kaliti kiritilgan bo'lishi kerak.", type: 'select', editable: true, secret: false, value: 'log', default: 'log', options: [{ value: 'log', label: 'Log (SMS yuborilmaydi)' }, { value: 'eskiz', label: 'Eskiz (haqiqiy SMS)' }, { value: 'onlinegroup', label: 'Onlinegroup (haqiqiy SMS)' }], group: 'sms', source: 'settings', updated_at: null },
     { key: 'eskiz_email', label: 'Eskiz email', description: 'Eskiz kabinetiga kiradigan email.', type: 'email', editable: true, secret: false, value: 'sms@rizqim.uz', default: null, options: null, group: 'sms', source: 'settings', updated_at: null },
-    { key: 'eskiz_from', label: "Jo'natuvchi nomi", description: "SMS kimdan kelgani. Bo'sh bo'lsa 4546.", type: 'text', editable: true, secret: false, value: '4546', default: '4546', options: null, group: 'sms', source: 'default', updated_at: null },
-    { key: 'eskiz_password', label: 'Eskiz paroli', description: 'Eskiz API paroli.', type: 'secret', editable: true, secret: true, value: 'eskiz-password-9876', default: null, options: null, group: 'sms', source: 'settings', updated_at: null },
+    { key: 'eskiz_from', label: "Jo'natuvchi nomi", description: "SMS kimdan kelgani (Eskiz tasdiqlagan nom yoki raqam). Bo'sh bo'lsa 4546.", type: 'text', editable: true, secret: false, value: '4546', default: '4546', options: null, group: 'sms', source: 'default', updated_at: null },
+    { key: 'eskiz_password', label: 'Eskiz paroli', description: "Eskiz API paroli. Faqat oxirgi 4 belgisi ko'rinadi; almashtirish alohida amal.", type: 'secret', editable: true, secret: true, value: 'eskiz-password-9876', default: null, options: null, group: 'sms', source: 'settings', updated_at: null },
+    { key: 'onlinegroup_api_key', label: 'Onlinegroup API kaliti', description: "sms.onlinegroup.uz → Ilovalar sahifasida yaratilgan ilovaning kaliti (sk_..., «sms:send» ruxsati bilan). Faqat oxirgi 4 belgisi ko'rinadi; almashtirish alohida amal.", type: 'secret', editable: true, secret: true, value: null, default: null, options: null, group: 'sms', source: null, updated_at: null },
     { key: 'telegram_bot_token', label: 'Bot tokeni', description: 'TELEGRAM_BOT_TOKEN.', type: 'secret', editable: false, secret: true, value: '123456:AAEexampleTokenWXYZ', default: null, options: null, group: 'telegram', source: 'env', updated_at: null },
     { key: 'telegram_bot_username', label: 'Bot nomi', description: 'TELEGRAM_BOT_USERNAME.', type: 'text', editable: false, secret: false, value: 'rizqim_bot', default: null, options: null, group: 'telegram', source: 'env', updated_at: null },
     { key: 'app_env', label: 'Muhit', description: 'APP_ENV.', type: 'text', editable: false, secret: false, value: 'production', default: null, options: null, group: 'general', source: 'env', updated_at: null },
@@ -115,6 +116,10 @@ export class FakeSystem {
   ]
 
   private nextId = 100
+
+  private item(key: string) {
+    return this.items.find((i) => i.key === key)
+  }
 
   private groups() {
     const labels = { sms: 'SMS', telegram: 'Telegram', general: 'Umumiy' } as const
@@ -186,10 +191,22 @@ export class FakeSystem {
 
     if (req.method === 'PATCH' && path === '/system/settings') {
       const values = (body.values ?? {}) as Record<string, unknown>
-      for (const [key, value] of Object.entries(values)) {
+      for (const key of Object.keys(values)) {
         const item = this.items.find((i) => i.key === key && i.editable)
         if (!item) return fail(422, `Bunday sozlama yo'q: ${key}.`, { reason: 'unknown_setting' })
         if (item.secret) return fail(422, "Maxfiy kalit bu yerda o'zgartirilmaydi: uni alohida almashtiring.", { reason: 'secret_separate' })
+      }
+      // SystemSettings::update(): switching to a real SMS method needs its credentials first
+      const next = (key: string) => (key in values ? (typeof values[key] === 'string' && (values[key] as string).trim() !== '' ? (values[key] as string).trim() : this.item(key)?.default ?? null) : this.item(key)?.value ?? null)
+      const driver = next('sms_driver')
+      if (driver === 'eskiz' && ('sms_driver' in values || 'eskiz_email' in values) && (!next('eskiz_email') || !this.item('eskiz_password')?.value)) {
+        return fail(422, 'Eskiz uchun avval email va parolni kiriting.', { reason: 'eskiz_not_configured' })
+      }
+      if (driver === 'onlinegroup' && 'sms_driver' in values && !this.item('onlinegroup_api_key')?.value) {
+        return fail(422, 'Onlinegroup uchun avval API kalitini kiriting.', { reason: 'onlinegroup_not_configured' })
+      }
+      for (const [key, value] of Object.entries(values)) {
+        const item = this.item(key)!
         const text = typeof value === 'string' ? value.trim() : ''
         item.value = text === '' ? item.default : text
         item.source = text === '' ? (item.default ? 'default' : null) : 'settings'
@@ -207,6 +224,10 @@ export class FakeSystem {
         item.value = body.value.trim()
         item.source = 'settings'
       } else {
+        // SystemSettings::replaceSecret(): the key of the method SMS goes through is not cleared
+        const driver = this.item('sms_driver')?.value
+        if (item.key === 'eskiz_password' && driver === 'eskiz') return fail(422, "SMS Eskiz orqali yuborilmoqda: parolni o'chirishdan oldin SMS usulini «Log»ga o'tkazing.", { reason: 'in_use' })
+        if (item.key === 'onlinegroup_api_key' && driver === 'onlinegroup') return fail(422, "SMS Onlinegroup orqali yuborilmoqda: kalitni o'chirishdan oldin SMS usulini «Log»ga o'tkazing.", { reason: 'in_use' })
         item.value = null
         item.source = null
       }
