@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Route;
 
 // P4-31 Tizim: platform settings (SMS, Telegram, Umumiy), payment providers, regions and districts, feature flags.
 // Loaded from routes/api_admin.php inside the auth:admin group (prefix /api/v1/admin, names admin.*). Everything needs
-// admin.system.manage; every write a step-up (admin.recent) and a `reason`. The route name is the audit action. The SLA
-// limits (orders) and the tariff catalog (billing) stay in their own sections' files.
+// admin.system.manage; every write a step-up (admin.recent) and a `reason` (the test SMS: optional). The route name is
+// the audit action. The SLA limits (orders) and the tariff catalog (billing) stay in their own sections' files.
 Route::prefix('system')->name('system.')->middleware('admin.can:system.manage')->group(function () {
     Route::get('/settings', [AdminSystemSettingController::class, 'index'])->name('settings');
     Route::get('/payment-providers', [AdminSystemPaymentProviderController::class, 'index'])->name('payment_providers');
@@ -26,6 +26,9 @@ Route::prefix('system')->name('system.')->middleware('admin.can:system.manage')-
         Route::patch('/settings', [AdminSystemSettingController::class, 'update'])->name('settings_updated');
         Route::put('/settings/secrets/{key}', [AdminSystemSettingController::class, 'replaceSecret'])->where('key', $key)->name('setting_secret_replaced');
         Route::delete('/settings/secrets/{key}', [AdminSystemSettingController::class, 'clearSecret'])->where('key', $key)->name('setting_secret_cleared');
+        // One fixed text through the saved SMS settings; its limits (5 an hour per member, 30 for the platform) count only
+        // attempts that reached a provider, so they are in the controller, not a throttle middleware
+        Route::post('/settings/sms-test', [AdminSystemSettingController::class, 'testSms'])->name('sms_test_sent');
 
         Route::patch('/payment-providers/{slug}', [AdminSystemPaymentProviderController::class, 'update'])->where('slug', $slug)->name('payment_provider_updated');
         Route::put('/payment-providers/{slug}/credentials/{key}', [AdminSystemPaymentProviderController::class, 'replaceCredential'])->where(['slug' => $slug, 'key' => $key])->name('payment_credential_replaced');

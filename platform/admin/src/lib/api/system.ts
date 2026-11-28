@@ -127,6 +127,19 @@ export const replaceSecret = async (key: string, value: string, reason: string):
 
 export const clearSecret = async (key: string, reason: string): Promise<SettingGroup[]> => groupsOf((await call('DELETE', `/system/settings/secrets/${key}`, { body: { reason } })).data);
 
+// Sinov SMS: the backend sends its own fixed text (no text is sent from here) through the SAVED SMS settings; 5 an hour per member
+export interface SmsTestResult {
+  driver: string;
+  // Masked: +998 90 *** ** 67
+  phone: string;
+}
+
+export const sendTestSms = async (phone: string): Promise<SmsTestResult> => {
+  const raw = (await call('POST', '/system/settings/sms-test', { body: { phone } })).data;
+  const answer = isRecord(raw) ? raw : {};
+  return { driver: String(answer.driver ?? ''), phone: String(answer.phone ?? '') };
+};
+
 export const getPaymentProviders = async (signal?: AbortSignal): Promise<PaymentProviderRow[]> => {
   const raw = (await call('GET', '/system/payment-providers', { signal })).data;
   return Array.isArray(raw) ? (raw as PaymentProviderRow[]) : [];
