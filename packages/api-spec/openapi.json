@@ -35919,6 +35919,111 @@
                 ]
             }
         },
+        "/v1/admin/system/settings/sms-test": {
+            "post": {
+                "operationId": "admin.system.sms_test_sent",
+                "description": "`phone` (an Uzbek mobile number, any spacing: `+998 90 123 45 67`, `901234567`), optional `reason`. Sends the one\nfixed text \"RIZQIM: sinov xabari. SMS sozlamalari ishlayapti.\" (no text of one's own) through the saved settings:\nthe chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up; 5 an hour per member (429\n`sms_test_rate_limited`). Every attempt that reached the provider is audited (driver, outcome, the phone masked).",
+                "summary": "Send a test SMS",
+                "tags": [
+                    "Admin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "phone": {
+                                        "type": "string",
+                                        "maxLength": 32
+                                    },
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "phone"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "driver": {
+                                                    "type": "string"
+                                                },
+                                                "phone": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "driver",
+                                                "phone"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Not an Uzbek mobile number (errors.phone), SMS not set up (sms_not_configured), the provider refused the key (sms_key_refused), its own limit (sms_provider_rate_limited), refused the message (sms_provider_refused), did not answer (sms_provider_unavailable), any other failure (sms_send_failed)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "429": {
+                        "description": "More than 5 tests an hour (sms_test_rate_limited)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "admin": []
+                    }
+                ]
+            }
+        },
         "/v1/admin/team": {
             "get": {
                 "operationId": "admin.team",

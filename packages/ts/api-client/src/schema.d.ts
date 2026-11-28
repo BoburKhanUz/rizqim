@@ -3903,6 +3903,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/system/settings/sms-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test SMS
+         * @description `phone` (an Uzbek mobile number, any spacing: `+998 90 123 45 67`, `901234567`), optional `reason`. Sends the one
+         *     fixed text "RIZQIM: sinov xabari. SMS sozlamalari ishlayapti." (no text of one's own) through the saved settings:
+         *     the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up; 5 an hour per member (429
+         *     `sms_test_rate_limited`). Every attempt that reached the provider is audited (driver, outcome, the phone masked).
+         */
+        post: operations["admin.system.sms_test_sent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/team": {
         parameters: {
             query?: never;
@@ -26211,6 +26234,58 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
             /** @description Still used (in_use) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "admin.system.sms_test_sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            driver: string;
+                            phone: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Not an Uzbek mobile number (errors.phone), SMS not set up (sms_not_configured), the provider refused the key (sms_key_refused), its own limit (sms_provider_rate_limited), refused the message (sms_provider_refused), did not answer (sms_provider_unavailable), any other failure (sms_send_failed) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description More than 5 tests an hour (sms_test_rate_limited) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

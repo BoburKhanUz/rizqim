@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Requests\Admin\AdminRules;
 use App\Services\Admin\AdminAudit;
+use App\Services\Admin\System\SmsTestSender;
 use App\Services\Admin\System\SystemAdminException;
 use App\Services\Admin\System\SystemSettings;
+use App\Services\Sms\OnlinegroupSmsService;
+use App\Support\PiiMask;
 use App\Support\UzValidation;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * P4-31 Tizim → Sozlamalar (admin.system.manage): the platform settings grouped as SMS, Telegram and Umumiy. Writes
@@ -106,6 +110,50 @@ class AdminSystemSettingController extends AdminController
         $request->validate(['reason' => AdminRules::reason()], UzValidation::messages());
 
         return $this->writeSecret($request, $key, null, "Maxfiy kalit o'chirildi.");
+    }
+
+    /**
+     * Send a test SMS
+     *
+     * `phone` (an Uzbek mobile number, any spacing: `+998 90 123 45 67`, `901234567`), optional `reason`. Sends the one
+     * fixed text "RIZQIM: sinov xabari. SMS sozlamalari ishlayapti." (no text of one's own) through the saved settings:
+     * the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up; 5 an hour per member (429
+     * `sms_test_rate_limited`). Every attempt that reached the provider is audited (driver, outcome, the phone masked).
+     */
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{driver: string, phone: string}}')]
+    #[ApiDocResponse(422, 'Not an Uzbek mobile number (errors.phone), SMS not set up (sms_not_configured), the provider refused the key (sms_key_refused), its own limit (sms_provider_rate_limited), refused the message (sms_provider_refused), did not answer (sms_provider_unavailable), any other failure (sms_send_failed)', type: 'array{success: false, message: string, code: string, data: array{reason: string, driver?: string}}')]
+    #[ApiDocResponse(429, 'More than 5 tests an hour (sms_test_rate_limited)', type: self::ERROR)]
+    public function testSms(Request $request, SmsTestSender $sender): JsonResponse
+    {
+        $request->validate(['phone' => 'required|string|max:32', 'reason' => AdminRules::reason(false)], UzValidation::messages());
+
+        $phone = OnlinegroupSmsService::normalizePhone((string) $request->input('phone'));
+        if ($phone === null) {
+            throw ValidationException::withMessages(['phone' => "O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam."]);
+        }
+
+        $provider = $sender->provider();
+        if ($provider === null) {
+            $e = SmsTestSender::notConfigured();
+
+            return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
+        }
+
+        // An attempt reached the provider: audited whatever it answers (AuditRedactor masks the phone in the entry)
+        $masked = (string) PiiMask::phone($phone);
+        $audit = AdminAudit::for($request)->recordAlways()->meta(['driver' => $provider, 'phone' => $phone]);
+
+        try {
+            $sender->send($provider, $phone);
+        } catch (SystemAdminException $e) {
+            $audit->meta(['outcome' => $e->reason]);
+
+            return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
+        }
+
+        $audit->meta(['outcome' => 'sent']);
+
+        return $this->success(['driver' => $provider, 'phone' => $masked], "Sinov SMS yuborildi ({$masked}). Telefonga kelganini tekshiring.");
     }
 
     private function writeSecret(Request $request, string $key, ?string $value, string $message): JsonResponse

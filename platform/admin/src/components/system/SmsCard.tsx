@@ -7,11 +7,13 @@ import type { SettingGroup, SettingItem } from '@/lib/api/system';
 import { fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 import { defaultHint, SaveRow, SettingField, SettingSecretRow, useSettingsDraft, useSettingsSave } from './settingsForm';
+import { SmsTestRow } from './SmsTest';
 
 // The SMS card: how codes are sent (sms_driver) and only what that method needs (SystemSettings on the backend, read by
 // SmsDriver / EskizSmsService / OnlinegroupSmsService). On top, whether SMS really goes out with what is SAVED; a method chosen but not
 // saved yet shows the new method's fields (its key can be entered before switching: the backend refuses Onlinegroup without one)
 // and says the line above is still the saved state. Fields of the other methods are hidden, not cleared, and are not sent.
+// "Sinov SMS yuborish" (SmsTestRow) checks the SAVED settings with one fixed text.
 
 const DRIVER = 'sms_driver';
 
@@ -127,6 +129,8 @@ export function SmsCard({ group, title, text, onDone }: { group: SettingGroup; t
             ))}
           </ul>
         )}
+
+        <SmsTestRow items={items} unsaved={dirty} />
 
         <SaveRow items={items} changed={changed} save={save} onRevert={reset} onDone={onDone} />
       </section>
