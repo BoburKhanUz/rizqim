@@ -120,6 +120,12 @@ return [
         'lock_wait' => 0.5,
     ],
 
+    // SMS through Eskiz (sms_driver = eskiz): the email and password are control-centre settings, never here
+    'eskiz' => [
+        'timeout' => 10,
+        'connect_timeout' => 5,
+    ],
+
     // Wave P: the owner's SMS gateway (sms_driver = onlinegroup). The API key is a control-centre secret
     // (onlinegroup_api_key, or ONLINEGROUP_API_KEY in .env), never here. Docs: https://sms.onlinegroup.uz/docs
     'onlinegroup' => [

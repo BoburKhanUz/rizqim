@@ -354,5 +354,15 @@ describe('admin proxy', () => {
       expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([20_000, 20_000]);
       timeout.mockRestore();
     });
+
+    // The test SMS: the backend tries the gateway up to 3 times (10 s each), so its own answer must not be cut at 20 s
+    it('gives the test SMS a 60 s timeout', async () => {
+      const timeout = vi.spyOn(AbortSignal, 'timeout');
+      stubBackend(() => reply({ success: true, data: {} }));
+      await forward(request('POST', 'v1/admin/system/settings/sms-test', { cookie: 'tok', body: { phone: '+998901234567' } }), ['v1', 'admin', 'system', 'settings', 'sms-test']);
+      await forward(request('PATCH', 'v1/admin/system/settings', { cookie: 'tok', body: {} }), ['v1', 'admin', 'system', 'settings']);
+      expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([60_000, 20_000]);
+      timeout.mockRestore();
+    });
   });
 });

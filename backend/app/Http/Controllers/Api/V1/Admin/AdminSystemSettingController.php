@@ -14,6 +14,7 @@ use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -112,19 +113,35 @@ class AdminSystemSettingController extends AdminController
         return $this->writeSecret($request, $key, null, "Maxfiy kalit o'chirildi.");
     }
 
+    /** Test SMS a member may send an hour, and the whole platform */
+    public const SMS_TESTS_PER_MEMBER = 5;
+
+    public const SMS_TESTS_PER_PLATFORM = 30;
+
     /**
      * Send a test SMS
      *
      * `phone` (an Uzbek mobile number, any spacing: `+998 90 123 45 67`, `901234567`), optional `reason`. Sends the one
      * fixed text "RIZQIM: sinov xabari. SMS sozlamalari ishlayapti." (no text of one's own) through the saved settings:
-     * the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up; 5 an hour per member (429
-     * `sms_test_rate_limited`). Every attempt that reached the provider is audited (driver, outcome, the phone masked).
+     * the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up. 5 an hour per member and 30 an
+     * hour for the platform (429 `sms_test_rate_limited`, `Retry-After`); only attempts that reached a provider count,
+     * not a mistyped phone or SMS that is not set up. Every such attempt is audited (driver, outcome, the phone masked).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{driver: string, phone: string}}')]
     #[ApiDocResponse(422, 'Not an Uzbek mobile number (errors.phone), SMS not set up (sms_not_configured), the provider refused the key (sms_key_refused), its own limit (sms_provider_rate_limited), refused the message (sms_provider_refused), did not answer (sms_provider_unavailable), any other failure (sms_send_failed)', type: 'array{success: false, message: string, code: string, data: array{reason: string, driver?: string}}')]
-    #[ApiDocResponse(429, 'More than 5 tests an hour (sms_test_rate_limited)', type: self::ERROR)]
+    #[ApiDocResponse(429, 'More than 5 tests an hour for the member or 30 for the platform (sms_test_rate_limited)', type: 'array{success: false, message: string, code: string, data: array{reason: string, retry_after: int}}')]
     public function testSms(Request $request, SmsTestSender $sender): JsonResponse
     {
+        $limits = [
+            'admin-sms-test:member:' . $this->member($request)->getAuthIdentifier() => self::SMS_TESTS_PER_MEMBER,
+            'admin-sms-test:global' => self::SMS_TESTS_PER_PLATFORM,
+        ];
+        foreach ($limits as $key => $max) {
+            if (RateLimiter::tooManyAttempts($key, $max)) {
+                return $this->testSmsLimited(RateLimiter::availableIn($key));
+            }
+        }
+
         $request->validate(['phone' => 'required|string|max:32', 'reason' => AdminRules::reason(false)], UzValidation::messages());
 
         $phone = OnlinegroupSmsService::normalizePhone((string) $request->input('phone'));
@@ -132,14 +149,16 @@ class AdminSystemSettingController extends AdminController
             throw ValidationException::withMessages(['phone' => "O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam."]);
         }
 
-        $provider = $sender->provider();
-        if ($provider === null) {
-            $e = SmsTestSender::notConfigured();
-
+        try {
+            $provider = $sender->provider();
+        } catch (SystemAdminException $e) {
             return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
         }
 
-        // An attempt reached the provider: audited whatever it answers (AuditRedactor masks the phone in the entry)
+        // A real attempt: counted, and audited whatever the provider answers (AuditRedactor masks the phone)
+        foreach (array_keys($limits) as $key) {
+            RateLimiter::hit($key, 3600);
+        }
         $masked = (string) PiiMask::phone($phone);
         $audit = AdminAudit::for($request)->recordAlways()->meta(['driver' => $provider, 'phone' => $phone]);
 
@@ -154,6 +173,19 @@ class AdminSystemSettingController extends AdminController
         $audit->meta(['outcome' => 'sent']);
 
         return $this->success(['driver' => $provider, 'phone' => $masked], "Sinov SMS yuborildi ({$masked}). Telefonga kelganini tekshiring.");
+    }
+
+    private function testSmsLimited(int $seconds): JsonResponse
+    {
+        $seconds = max(1, $seconds);
+        $minutes = (int) ceil($seconds / 60);
+
+        return response()->json([
+            'success' => false,
+            'message' => "Sinov SMS juda ko'p yuborildi (soatiga 5 ta, butun platformaga 30 ta). {$minutes} daqiqadan so'ng qayta urinib ko'ring.",
+            'code' => 'sms_test_rate_limited',
+            'data' => ['reason' => 'sms_test_rate_limited', 'retry_after' => $seconds],
+        ], 429, ['Retry-After' => (string) $seconds]);
     }
 
     private function writeSecret(Request $request, string $key, ?string $value, string $message): JsonResponse

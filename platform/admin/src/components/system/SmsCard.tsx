@@ -7,7 +7,7 @@ import type { SettingGroup, SettingItem } from '@/lib/api/system';
 import { fieldError } from '@/lib/errors';
 import { useT } from '../I18nProvider';
 import { defaultHint, SaveRow, SettingField, SettingSecretRow, useSettingsDraft, useSettingsSave } from './settingsForm';
-import { SmsTestRow } from './SmsTest';
+import { savedSmsMethod, SmsTestRow } from './SmsTest';
 
 // The SMS card: how codes are sent (sms_driver) and only what that method needs (SystemSettings on the backend, read by
 // SmsDriver / EskizSmsService / OnlinegroupSmsService). On top, whether SMS really goes out with what is SAVED; a method chosen but not
@@ -41,8 +41,8 @@ const filled = (value: string | null | undefined) => (value ?? '').trim() !== ''
 // Whether SMS goes out with the saved settings, from what GET /system/settings answers
 export function smsReadiness(items: SettingItem[]): { tone: Tone; title: MessageKey; params?: Record<string, string>; noCodes: boolean } {
   const byKey = new Map(items.map((item) => [item.key, item]));
-  const driver = byKey.get(DRIVER);
-  const method = driver?.value || driver?.default || 'log';
+  // As the backend reads it (SmsDriver::current()): an empty value is Log
+  const method = savedSmsMethod(items);
   if (method === 'log') return { tone: 'neutral', title: 'system_sms_testMode', noCodes: true };
   if (method === 'onlinegroup') {
     return byKey.get('onlinegroup_api_key')?.configured ? { tone: 'success', title: 'system_sms_ready', params: { method: METHOD_NAME.onlinegroup! }, noCodes: false } : { tone: 'warning', title: 'system_sms_onlinegroupMissing', noCodes: true };

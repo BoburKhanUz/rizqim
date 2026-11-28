@@ -40,9 +40,14 @@ final class SmsFailures
 
     private ?string $last = null;
 
+    private bool $muted = false;
+
     public function record(string $reason): void
     {
         $this->last = $reason;
+        if ($this->muted) {
+            return;
+        }
         $key = self::key($reason, (int) floor(now()->getTimestamp() / 60));
         Cache::add($key, 0, (self::MAX_WINDOW + 5) * 60);
         Cache::increment($key);
@@ -59,6 +64,26 @@ final class SmsFailures
     public function clearLast(): void
     {
         $this->last = null;
+    }
+
+    /**
+     * Runs `$send` with failures remembered (last()) but not counted for the alert: a check of a key that sign-in
+     * codes do not use yet (the control centre's test SMS while SMS is off) must not page the on-call group.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $send
+     * @return T
+     */
+    public function uncounted(callable $send): mixed
+    {
+        $muted = $this->muted;
+        $this->muted = true;
+        try {
+            return $send();
+        } finally {
+            $this->muted = $muted;
+        }
     }
 
     /**

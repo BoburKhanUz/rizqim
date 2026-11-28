@@ -26,8 +26,9 @@ Route::prefix('system')->name('system.')->middleware('admin.can:system.manage')-
         Route::patch('/settings', [AdminSystemSettingController::class, 'update'])->name('settings_updated');
         Route::put('/settings/secrets/{key}', [AdminSystemSettingController::class, 'replaceSecret'])->where('key', $key)->name('setting_secret_replaced');
         Route::delete('/settings/secrets/{key}', [AdminSystemSettingController::class, 'clearSecret'])->where('key', $key)->name('setting_secret_cleared');
-        // One fixed text through the saved SMS settings, 5 an hour per member (AdminSystemServiceProvider)
-        Route::post('/settings/sms-test', [AdminSystemSettingController::class, 'testSms'])->middleware('throttle:admin-sms-test')->name('sms_test_sent');
+        // One fixed text through the saved SMS settings; its limits (5 an hour per member, 30 for the platform) count only
+        // attempts that reached a provider, so they are in the controller, not a throttle middleware
+        Route::post('/settings/sms-test', [AdminSystemSettingController::class, 'testSms'])->name('sms_test_sent');
 
         Route::patch('/payment-providers/{slug}', [AdminSystemPaymentProviderController::class, 'update'])->where('slug', $slug)->name('payment_provider_updated');
         Route::put('/payment-providers/{slug}/credentials/{key}', [AdminSystemPaymentProviderController::class, 'replaceCredential'])->where(['slug' => $slug, 'key' => $key])->name('payment_credential_replaced');

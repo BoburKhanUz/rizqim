@@ -3916,8 +3916,9 @@ export interface paths {
          * Send a test SMS
          * @description `phone` (an Uzbek mobile number, any spacing: `+998 90 123 45 67`, `901234567`), optional `reason`. Sends the one
          *     fixed text "RIZQIM: sinov xabari. SMS sozlamalari ishlayapti." (no text of one's own) through the saved settings:
-         *     the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up; 5 an hour per member (429
-         *     `sms_test_rate_limited`). Every attempt that reached the provider is audited (driver, outcome, the phone masked).
+         *     the chosen real driver, or with SMS off (log) the saved Onlinegroup key. Step-up. 5 an hour per member and 30 an
+         *     hour for the platform (429 `sms_test_rate_limited`, `Retry-After`); only attempts that reached a provider count,
+         *     not a mistyped phone or SMS that is not set up. Every such attempt is audited (driver, outcome, the phone masked).
          */
         post: operations["admin.system.sms_test_sent"];
         delete?: never;
@@ -26284,9 +26285,10 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description More than 5 tests an hour (sms_test_rate_limited) */
+            /** @description More than 5 tests an hour for the member or 30 for the platform (sms_test_rate_limited) */
             429: {
                 headers: {
+                    "Retry-After"?: string;
                     [name: string]: unknown;
                 };
                 content: {

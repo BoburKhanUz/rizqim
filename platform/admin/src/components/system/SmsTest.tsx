@@ -16,11 +16,26 @@ import { useT } from '../I18nProvider';
 
 const filled = (value: string | null | undefined) => (value ?? '').trim() !== '';
 
+// The saved SMS method as the backend reads it (SmsDriver::current()): an empty value is Log
+export function savedSmsMethod(items: SettingItem[]): string {
+  const driver = items.find((item) => item.key === 'sms_driver');
+  return (driver?.value ?? '').trim() || 'log';
+}
+
+// An Uzbek mobile number as the gateway takes it (OnlinegroupSmsService::normalizePhone): +998 and nine digits; written with
+// "+", only +998; else 9 digits, 998 + 9 or 8998 + 9, any spacing. Null for anything else.
+export function normalizeUzPhone(input: string): string | null {
+  let digits = input.replace(/\D+/g, '');
+  if (input.trimStart().startsWith('+')) return /^998\d{9}$/.test(digits) ? `+${digits}` : null;
+  if (digits.length === 9) digits = `998${digits}`;
+  else if (digits.length === 13 && digits.startsWith('8998')) digits = digits.slice(1);
+  return /^998\d{9}$/.test(digits) ? `+${digits}` : null;
+}
+
 // What the backend can test with the saved settings: 'method' (the saved method), 'key' (SMS off, the Onlinegroup key) or null
 export function smsTestTarget(items: SettingItem[]): 'method' | 'key' | null {
   const byKey = new Map(items.map((item) => [item.key, item]));
-  const driver = byKey.get('sms_driver');
-  const method = driver?.value || driver?.default || 'log';
+  const method = savedSmsMethod(items);
   const key = Boolean(byKey.get('onlinegroup_api_key')?.configured);
   if (method === 'onlinegroup') return key ? 'method' : null;
   if (method === 'eskiz') return filled(byKey.get('eskiz_email')?.value) && byKey.get('eskiz_password')?.configured ? 'method' : null;
@@ -46,13 +61,18 @@ function testErrorText(error: unknown, t: ReturnType<typeof useT>): string | nul
   return errorText(error, t);
 }
 
+// What the result of a test was a test of: a new key, method or credentials makes an old "sent" note stale
+const fingerprint = (items: SettingItem[]) => JSON.stringify(items.map((item) => [item.key, item.value, item.configured, item.last4, item.updated_at]));
+
 export function SmsTestRow({ items, unsaved }: { items: SettingItem[]; unsaved: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ phone: string; of: string } | null>(null);
   const hintId = useId();
   const target = smsTestTarget(items);
   const hint = target === null ? t('system_smsTest_unavailable') : target === 'key' ? t('system_smsTest_viaKey') : t('system_smsTest_hint');
+  const current = fingerprint(items);
+  const sentTo = sent && sent.of === current ? sent.phone : null;
 
   return (
     <div className="flex flex-col gap-2 rounded-control bg-surface-2 p-3">
@@ -60,7 +80,15 @@ export function SmsTestRow({ items, unsaved }: { items: SettingItem[]; unsaved: 
         <span id={hintId} className="min-w-0 flex-1 text-footnote text-fg-muted">
           {hint}
         </span>
-        <Button variant="secondary" disabled={target === null} aria-describedby={hintId} onClick={() => setOpen(true)}>
+        <Button
+          variant="secondary"
+          disabled={target === null}
+          aria-describedby={hintId}
+          onClick={() => {
+            setSent(null);
+            setOpen(true);
+          }}
+        >
           <Send aria-hidden="true" className="size-4" />
           {t('system_smsTest_button')}
         </Button>
@@ -77,7 +105,7 @@ export function SmsTestRow({ items, unsaved }: { items: SettingItem[]; unsaved: 
           onClose={() => setOpen(false)}
           onSent={(phone) => {
             setOpen(false);
-            setSentTo(phone);
+            setSent({ phone, of: current });
           }}
         />
       )}
@@ -88,19 +116,41 @@ export function SmsTestRow({ items, unsaved }: { items: SettingItem[]; unsaved: 
 function SmsTestDialog({ unsaved, onClose, onSent }: { unsaved: boolean; onClose: () => void; onSent: (phone: string) => void }) {
   const t = useT();
   const [phone, setPhone] = useState('');
+  // The phone as typed was checked here and is not an Uzbek mobile number (nothing was sent)
+  const [badPhone, setBadPhone] = useState(false);
   const send = useMutation({ mutationFn: sendTestSms });
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (send.isPending || phone.trim() === '') return;
+    if (normalizeUzPhone(phone) === null) {
+      send.reset();
+      setBadPhone(true);
+      return;
+    }
     send.mutate(phone.trim(), { onSuccess: (result) => onSent(result.phone || phone.trim()) });
   };
 
   return (
     <Dialog open title={t('system_smsTest_title')} description={t('system_smsTest_text')} busy={send.isPending} closeLabel={t('close')} onClose={onClose}>
-      <form onSubmit={submit} className="flex flex-col gap-4">
+      <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {unsaved && <p className="text-footnote text-fg-muted">{t('system_smsTest_unsaved')}</p>}
-        <Field label={t('system_smsTest_phone')} hint={t('system_smsTest_phoneHint')} error={fieldError(send.error, 'phone')}>
-          {(control) => <input {...control} data-autofocus type="tel" inputMode="tel" autoComplete="tel" maxLength={32} className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} />}
+        <Field label={t('system_smsTest_phone')} hint={t('system_smsTest_phoneHint')} error={badPhone ? t('system_smsTest_err_phone') : fieldError(send.error, 'phone')}>
+          {(control) => (
+            <input
+              {...control}
+              data-autofocus
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={32}
+              className={fieldClass}
+              value={phone}
+              onChange={(event) => {
+                setPhone(event.target.value);
+                setBadPhone(false);
+              }}
+            />
+          )}
         </Field>
         <FormError message={testErrorText(send.error, t)} />
         <div className="flex gap-2 [&>*]:flex-1">

@@ -12,14 +12,15 @@ use App\Services\Sms\SmsFailures;
  * used to message people) to a phone the admin gives, through the SAVED settings, so the owner sees whether the key
  * works without a store and a sign-in.
  *
- * Which provider: the saved sms_driver when it sends real SMS (onlinegroup: with its API key; eskiz: with its email and
- * password). With SMS off (log) a saved Onlinegroup key is checked through Onlinegroup, so the key can be tried before
- * switching sign-in codes over to it. Anything else is `sms_not_configured`.
+ * Which provider (provider()): the saved sms_driver (SmsDriver::current(), an empty value is `log`) when it sends real
+ * SMS (onlinegroup: with its API key and an https gateway address; eskiz: with its email and password). With SMS off
+ * (log) a saved Onlinegroup key is checked through Onlinegroup, so the key can be tried before switching sign-in codes
+ * over to it; such a check is not counted for the `sms_failures` alert (codes do not use that key yet). Anything else
+ * is `sms_not_configured`.
  *
- * A failure is said in plain words from the reason the driver recorded (SmsFailures): the key refused (401/403), the
- * gateway's limit (429), the data refused (422), no answer / 5xx, or an answer that is not the gateway's message.
- * The providers log as they always do (Onlinegroup: the phone masked, never the key or the text); this class logs
- * nothing. A failed test is also counted for the `sms_failures` alert, like any send that did not go out.
+ * A failure is said in plain words from the reason the driver recorded (SmsFailures): the key refused, the provider's
+ * limit, the data refused, no answer / 5xx, or an answer that is not the provider's message. The providers log as
+ * they always do (the phone masked, never the key or the text); this class logs nothing.
  */
 final class SmsTestSender
 {
@@ -30,13 +31,13 @@ final class SmsTestSender
 
     /** SmsFailures reason => [code, message] */
     private const FAILURES = [
-        SmsFailures::CONFIG => ['sms_key_refused', "SMS xizmati API kalitini qabul qilmadi. Kalitni tekshiring yoki almashtiring (unga «sms:send» ruxsati kerak)."],
+        SmsFailures::CONFIG => ['sms_key_refused', 'SMS xizmati kalitni (yoki email va parolni) qabul qilmadi. Ularni tekshiring yoki almashtiring (Onlinegroup kalitiga «sms:send» ruxsati kerak).'],
         SmsFailures::RATE_LIMITED => ['sms_provider_rate_limited', "SMS xizmati limitga yetdi. Birozdan so'ng qayta urinib ko'ring."],
-        SmsFailures::REFUSED => ['sms_provider_refused', "SMS xizmati xabarni qabul qilmadi. Telefon raqamini tekshiring."],
+        SmsFailures::REFUSED => ['sms_provider_refused', 'SMS xizmati xabarni qabul qilmadi. Telefon raqamini tekshiring.'],
         SmsFailures::UNAVAILABLE => ['sms_provider_unavailable', "SMS xizmati javob bermadi. Birozdan so'ng qayta urinib ko'ring."],
     ];
 
-    private const FAILED = ['sms_send_failed', "SMS yuborilmadi: xizmat kutilmagan javob qaytardi. Server jurnalini tekshiring."];
+    private const FAILED = ['sms_send_failed', 'SMS yuborilmadi: xizmat kutilmagan javob qaytardi. Server jurnalini tekshiring.'];
 
     public function __construct(
         private readonly OnlinegroupSmsService $onlinegroup,
@@ -44,18 +45,33 @@ final class SmsTestSender
     ) {}
 
     /**
-     * The provider a test goes through with the saved settings, or null when SMS is not set up.
+     * The provider a test goes through with the saved settings.
+     *
+     * @throws SystemAdminException 422 sms_not_configured, saying what is missing
      */
-    public function provider(): ?string
+    public function provider(): string
     {
+        $driver = SmsDriver::current();
         $onlinegroupKey = !blank(trim((string) setting('onlinegroup_api_key')));
 
-        return match (SmsDriver::current()) {
-            'onlinegroup' => $onlinegroupKey ? 'onlinegroup' : null,
-            'eskiz' => !blank(setting('eskiz_email')) && !blank(setting('eskiz_password')) ? 'eskiz' : null,
-            SmsDriver::LOG => $onlinegroupKey ? 'onlinegroup' : null,
-            default => null,
-        };
+        if ($driver === 'eskiz') {
+            if (blank(setting('eskiz_email')) || blank(setting('eskiz_password'))) {
+                throw self::notConfigured('SMS sozlanmagan: Eskiz uchun email va parolni kiriting.');
+            }
+
+            return 'eskiz';
+        }
+
+        if (!in_array($driver, ['onlinegroup', SmsDriver::LOG], true) || !$onlinegroupKey) {
+            throw self::notConfigured();
+        }
+
+        $base = rtrim((string) config('services.onlinegroup.base_url', 'https://sms.onlinegroup.uz'), '/');
+        if (!OnlinegroupSmsService::safeBaseUrl($base)) {
+            throw self::notConfigured("SMS sozlanmagan: Onlinegroup manzili (ONLINEGROUP_SMS_BASE_URL) https emas, kalit bunday manzilga yuborilmaydi. Server sozlamasini tuzating.");
+        }
+
+        return 'onlinegroup';
     }
 
     /**
@@ -68,30 +84,28 @@ final class SmsTestSender
         $failures = app(SmsFailures::class);
         $failures->clearLast();
 
-        $sent = match ($provider) {
+        $send = fn (): bool => match ($provider) {
             'onlinegroup' => $this->onlinegroup->send($phone, self::TEXT, self::TTL_SECONDS),
             'eskiz' => $this->eskiz->send($phone, self::TEXT, self::TTL_SECONDS),
             default => false,
         };
+        // A key check while SMS is off: sign-in codes do not depend on it, so no alert
+        $sent = SmsDriver::current() === SmsDriver::LOG ? $failures->uncounted($send) : $send();
 
         if ($sent) {
             return;
         }
 
         $last = $failures->last();
-        if ($last === null) {
-            // A driver that does not say why (Eskiz) still counts for the `sms_failures` alert
-            $failures->record(SmsFailures::UNAVAILABLE);
-        }
         [$code, $message] = $last !== null ? (self::FAILURES[$last] ?? self::FAILED) : self::FAILED;
 
         throw new SystemAdminException($message, $code, 422, ['driver' => $provider]);
     }
 
-    public static function notConfigured(): SystemAdminException
+    public static function notConfigured(?string $message = null): SystemAdminException
     {
         return new SystemAdminException(
-            "SMS sozlanmagan: avval yuborish usulini tanlang va uning kalitini kiriting (Onlinegroup — API kaliti, Eskiz — email va parol).",
+            $message ?? 'SMS sozlanmagan: avval yuborish usulini tanlang va uning kalitini kiriting (Onlinegroup — API kaliti, Eskiz — email va parol).',
             'sms_not_configured',
         );
     }

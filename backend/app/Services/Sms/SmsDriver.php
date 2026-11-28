@@ -23,9 +23,15 @@ class SmsDriver implements SmsServiceInterface
         private readonly OnlinegroupSmsService $onlinegroup,
     ) {}
 
+    /**
+     * The chosen driver. An empty value (SMS_DRIVER= in .env, or an empty row) is `log`, as the control centre shows
+     * it (SystemSettings treats an empty .env value as unset, so the card says "Log").
+     */
     public static function current(): string
     {
-        return (string) setting('sms_driver', self::LOG);
+        $driver = trim((string) setting('sms_driver', self::LOG));
+
+        return $driver === '' ? self::LOG : $driver;
     }
 
     /**

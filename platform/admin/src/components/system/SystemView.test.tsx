@@ -267,31 +267,78 @@ describe('SystemView', () => {
     expect(screen.queryByRole('dialog', { name: 'Sinov SMS yuborish' })).not.toBeInTheDocument();
   });
 
-  it("says the provider's refusal, a wrong phone and the hourly limit in plain words", async () => {
+  it("checks the phone before sending and says the provider's refusal and the limit in plain words", async () => {
     const user = userEvent.setup();
     const answers = [
-      () => refusal(422, "Ma'lumotlar yaroqsiz.", {}, { errors: { phone: ["O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam."] } }),
       () => refusal(422, 'Backend', { reason: 'sms_key_refused', driver: 'onlinegroup' }, { code: 'sms_key_refused' }),
       () => json({ success: false, message: 'Backend', code: 'sms_test_rate_limited', data: { reason: 'sms_test_rate_limited' } }, 429, { 'Retry-After': '1800' }),
     ];
     let next = 0;
-    mockFetch({ 'GET /auth/me': me(), 'GET /system/settings': () => ok({ groups: smsGroups({ driver: 'onlinegroup', key: true }) }), 'POST /system/settings/sms-test': () => answers[next++]!() });
+    const { callsTo } = mockFetch({ 'GET /auth/me': me(), 'GET /system/settings': () => ok({ groups: smsGroups({ driver: 'onlinegroup', key: true }) }), 'POST /system/settings/sms-test': () => answers[next++]!() });
     renderPage(<SystemView />);
 
     const sms = await screen.findByRole('region', { name: 'SMS' });
     await user.click(within(sms).getByRole('button', { name: 'Sinov SMS yuborish' }));
     const dialog = await screen.findByRole('dialog', { name: 'Sinov SMS yuborish' });
-    await user.type(within(dialog).getByLabelText('Telefon raqami'), '+1 202 555 0123');
-    await user.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
-    expect(await within(dialog).findByText("O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam.")).toBeInTheDocument();
+    // Not an Uzbek mobile number: said here, nothing sent (and nothing used of the hourly allowance)
+    for (const wrong of ['+1 202 555 0123', '90 123 45', '+998 90 123 45 678']) {
+      await user.clear(within(dialog).getByLabelText('Telefon raqami'));
+      await user.type(within(dialog).getByLabelText('Telefon raqami'), wrong);
+      await user.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
+      expect(await within(dialog).findByText("O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam.")).toBeInTheDocument();
+    }
+    expect(callsTo('POST', '/system/settings/sms-test')).toHaveLength(0);
 
     await user.clear(within(dialog).getByLabelText('Telefon raqami'));
-    await user.type(within(dialog).getByLabelText('Telefon raqami'), '+998901234567');
+    await user.type(within(dialog).getByLabelText('Telefon raqami'), '+998 (90) 123-45-67');
+    expect(within(dialog).queryByText("O'zbekiston mobil raqamini kiriting: +998 va 9 ta raqam.")).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent("SMS xizmati API kalitini qabul qilmadi. Kalitni tekshiring yoki almashtiring (unga «sms:send» ruxsati kerak).");
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("SMS xizmati kalitni (yoki Eskiz email va parolini) qabul qilmadi. Tekshiring yoki almashtiring (Onlinegroup kalitiga «sms:send» ruxsati kerak).");
 
     await user.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
-    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent("Sinov SMS soatiga 5 martadan ko'p yuborilmaydi. 30 daqiqadan so'ng qayta urinib ko'ring."));
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent("Sinov SMS juda ko'p yuborildi (har a'zoga soatiga 5 ta, butun platformaga 30 ta). 30 daqiqadan so'ng qayta urinib ko'ring."));
+    expect(callsTo('POST', '/system/settings/sms-test')).toHaveLength(2);
+  });
+
+  it('clears the "sent" note when the dialog opens again and when the SMS settings change', async () => {
+    const user = userEvent.setup();
+    const replaced = smsGroups({ driver: 'onlinegroup', key: true }).map((group) => ({
+      ...group,
+      items: group.items.map((candidate) => (candidate.key === 'onlinegroup_api_key' ? { ...candidate, last4: 'NEW1', updated_at: '2026-11-28T09:00:00Z' } : candidate)),
+    }));
+    mockFetch({
+      'GET /auth/me': me(),
+      'GET /system/settings': () => ok({ groups: smsGroups({ driver: 'onlinegroup', key: true }) }),
+      'POST /system/settings/sms-test': () => ok({ driver: 'onlinegroup', phone: '+998 90 *** ** 67' }),
+      'PUT /system/settings/secrets/onlinegroup_api_key': () => ok({ groups: replaced }),
+    });
+    renderPage(<SystemView />);
+    const sent = 'Sinov SMS yuborildi: +998 90 *** ** 67. Telefonga kelganini tekshiring.';
+    const sms = await screen.findByRole('region', { name: 'SMS' });
+
+    const sendOnce = async () => {
+      await user.click(within(sms).getByRole('button', { name: 'Sinov SMS yuborish' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Sinov SMS yuborish' });
+      await user.type(within(dialog).getByLabelText('Telefon raqami'), '901234567');
+      await user.click(within(dialog).getByRole('button', { name: 'Yuborish' }));
+      expect(await within(sms).findByText(sent)).toBeInTheDocument();
+    };
+
+    await sendOnce();
+    // Opening the dialog again: the old result no longer stands
+    await user.click(within(sms).getByRole('button', { name: 'Sinov SMS yuborish' }));
+    expect(within(sms).queryByText(sent)).not.toBeInTheDocument();
+    await user.click(within(await screen.findByRole('dialog', { name: 'Sinov SMS yuborish' })).getByRole('button', { name: 'Bekor qilish' }));
+
+    await sendOnce();
+    // A new key: the test was of the old one
+    await user.click(within(sms).getByRole('button', { name: 'Onlinegroup API kaliti: almashtirish' }));
+    const secret = await screen.findByRole('dialog');
+    await user.type(within(secret).getByLabelText('Yangi qiymat'), 'sk_new_value_NEW1');
+    await user.type(within(secret).getByLabelText('Sabab'), 'Yangi kalit');
+    await user.click(within(secret).getByRole('button', { name: 'Almashtirish' }));
+    expect(await within(sms).findByText('••••NEW1')).toBeInTheDocument();
+    expect(within(sms).queryByText(sent)).not.toBeInTheDocument();
   });
 
   it('offers the test only when the saved settings can send one', async () => {
@@ -307,6 +354,15 @@ describe('SystemView', () => {
     groups = smsGroups({ driver: 'log', key: true });
     renderPage(<SystemView />);
     sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByRole('button', { name: 'Sinov SMS yuborish' })).toBeEnabled();
+    expect(within(sms).getByText("SMS hozir o'chiq: sinov saqlangan Onlinegroup kaliti bilan yuboriladi, kirish kodlari yoqilmaydi.")).toBeInTheDocument();
+  });
+
+  it('treats an empty SMS method as Log, as the backend does', async () => {
+    mockFetch({ 'GET /auth/me': me(), 'GET /system/settings': () => ok({ groups: smsGroups({ driver: '', key: true }) }) });
+    renderPage(<SystemView />);
+    const sms = await screen.findByRole('region', { name: 'SMS' });
+    expect(within(sms).getByText('Sinov rejimi: SMS yuborilmaydi.')).toBeInTheDocument();
     expect(within(sms).getByRole('button', { name: 'Sinov SMS yuborish' })).toBeEnabled();
     expect(within(sms).getByText("SMS hozir o'chiq: sinov saqlangan Onlinegroup kaliti bilan yuboriladi, kirish kodlari yoqilmaydi.")).toBeInTheDocument();
   });

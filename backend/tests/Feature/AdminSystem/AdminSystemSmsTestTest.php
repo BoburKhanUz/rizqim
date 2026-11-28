@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Services\Admin\System\SmsTestSender;
 use App\Services\Audit\AuditRedactor;
+use App\Services\Sms\SmsFailures;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Log\Events\MessageLogged;
@@ -20,7 +21,7 @@ use Tests\TestCase;
 /**
  * Tizim → Sozlamalar → SMS: "Sinov SMS yuborish". The platform admin checks the saved SMS settings by sending one fixed
  * text to a phone of their choice through the configured provider (never a text of their own), at most 5 an hour per
- * member. The answer says plainly what went wrong; the provider key never reaches the answer, the log or the audit entry.
+ * member and 30 an hour for the whole platform (only attempts that reached a provider count). The answer says plainly what went wrong; the provider key never reaches the answer, the log or the audit entry.
  */
 class AdminSystemSmsTestTest extends TestCase
 {
@@ -53,6 +54,7 @@ class AdminSystemSmsTestTest extends TestCase
         Setting::create(['key' => 'onlinegroup_api_key', 'value' => $this->apiKey]);
         Cache::flush();
         Sleep::fake();
+        Http::preventStrayRequests();
 
         Event::listen(MessageLogged::class, function (MessageLogged $event) {
             $this->logged[] = $event->message . ' ' . json_encode($event->context);
@@ -140,6 +142,61 @@ class AdminSystemSmsTestTest extends TestCase
 
         $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertOk()->assertJsonPath('data.driver', 'onlinegroup');
         Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request) => $request->url() === self::GATEWAY
+            && $request->header('X-API-Key') === [$this->apiKey]
+            && $request['text'] === SmsTestSender::TEXT);
+    }
+
+    public function test_a_key_check_with_sms_off_does_not_raise_the_sms_failures_alert(): void
+    {
+        Http::fake([self::GATEWAY => Http::response(['detail' => 'Invalid API key'], 401)]);
+        Setting::where('key', 'sms_driver')->update(['value' => 'log']);
+        Cache::flush();
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_key_refused');
+        // Sign-in codes do not use this key yet: nothing for the on-call group
+        $this->assertSame([], app(SmsFailures::class)->counts(60));
+    }
+
+    public function test_a_failed_test_of_the_live_method_is_counted_for_the_alert(): void
+    {
+        Http::fake([self::GATEWAY => Http::response(['detail' => 'Invalid API key'], 401)]);
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_key_refused');
+        $this->assertSame([SmsFailures::CONFIG => 1], app(SmsFailures::class)->counts(60));
+    }
+
+    public function test_an_answer_that_is_not_the_gateways_message_is_sms_send_failed(): void
+    {
+        Http::fake([self::GATEWAY => Http::response(['ok' => true], 200)]);
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_send_failed');
+        $this->assertSame('sms_send_failed', $this->audits()->sole()->payload_json['outcome']);
+    }
+
+    public function test_a_gateway_address_that_is_not_https_is_not_set_up_not_a_refused_key(): void
+    {
+        config(['services.onlinegroup.base_url' => 'http://sms.example.uz']);
+
+        $response = $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_not_configured');
+        $this->assertStringContainsString('https', (string) $response->json('message'));
+        Http::assertNothingSent();
+    }
+
+    public function test_an_empty_sms_driver_means_sms_off_as_the_settings_card_shows_it(): void
+    {
+        Http::fake([self::GATEWAY => $this->queued()]);
+        Setting::where('key', 'sms_driver')->update(['value' => '']);
+        Cache::flush();
+
+        // As log: the saved Onlinegroup key is checked
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertOk()->assertJsonPath('data.driver', 'onlinegroup');
+        $this->assertSame('log', \App\Services\Sms\SmsDriver::current());
+
+        Setting::where('key', 'sms_driver')->delete();
+        config(['settings.sms_driver' => '']);
+        Cache::flush();
+        $this->assertSame('log', \App\Services\Sms\SmsDriver::current());
     }
 
     public function test_sms_that_is_not_set_up_is_a_clear_refusal(): void
@@ -202,6 +259,84 @@ class AdminSystemSmsTestTest extends TestCase
         $this->assertNoSecretOrFullPhoneLeaked();
     }
 
+    private const ESKIZ_LOGIN = 'https://notify.eskiz.uz/api/auth/login';
+
+    private const ESKIZ_SEND = 'https://notify.eskiz.uz/api/message/sms/send';
+
+    /**
+     * SMS through Eskiz with its email and a runtime password; returns the password and the token the fake login answers.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function useEskiz(): array
+    {
+        $password = 'pw-' . bin2hex(random_bytes(8));
+        $token = 'tok-' . bin2hex(random_bytes(12));
+        Setting::where('key', 'sms_driver')->update(['value' => 'eskiz']);
+        Setting::create(['key' => 'eskiz_email', 'value' => 'sms@rizqim.uz']);
+        Setting::create(['key' => 'eskiz_password', 'value' => $password]);
+        Cache::flush();
+
+        return [$password, $token];
+    }
+
+    public function test_eskiz_sends_the_fixed_text_and_leaks_nothing(): void
+    {
+        [$password, $token] = $this->useEskiz();
+        Http::fake([
+            self::ESKIZ_LOGIN => Http::response(['data' => ['token' => $token]]),
+            self::ESKIZ_SEND => Http::response(['id' => 'abc', 'status' => 'waiting', 'message' => 'Waiting for SMS provider', 'mobile_phone' => '998901234567']),
+        ]);
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '90 123 45 67'])->assertOk()->assertJsonPath('data.driver', 'eskiz');
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->url() === self::ESKIZ_SEND
+            && $request->header('Authorization') === ['Bearer ' . $token]
+            && $request['mobile_phone'] === '998901234567'
+            && $request['message'] === SmsTestSender::TEXT);
+        $this->assertNoSecretOrFullPhoneLeaked($password, $token);
+    }
+
+    public function test_eskiz_refusing_the_email_and_password_is_a_refused_key(): void
+    {
+        [$password] = $this->useEskiz();
+        Http::fake([self::ESKIZ_LOGIN => Http::response(['message' => 'Invalid credentials for 998901234567'], 401)]);
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_key_refused')->assertJsonPath('data.driver', 'eskiz');
+        Http::assertSentCount(1);
+        $this->assertSame([SmsFailures::CONFIG => 1], app(SmsFailures::class)->counts(60));
+        $this->assertNoSecretOrFullPhoneLeaked($password);
+    }
+
+    public function test_eskiz_retries_an_expired_token_only_once(): void
+    {
+        [$password, $token] = $this->useEskiz();
+        Http::fake([
+            self::ESKIZ_LOGIN => Http::response(['data' => ['token' => $token]]),
+            self::ESKIZ_SEND => Http::response(['message' => 'Expired for 998901234567'], 401),
+        ]);
+
+        $this->adminJson('POST', self::URI, $this->superToken(), ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_key_refused');
+        // login, send (401), a fresh login, send (401) again: then it stops
+        Http::assertSentCount(4);
+        $this->assertNoSecretOrFullPhoneLeaked($password, $token);
+    }
+
+    public function test_eskiz_without_an_answer_or_with_a_bad_phone_is_said_as_such(): void
+    {
+        [$password, $token] = $this->useEskiz();
+        Http::fake([
+            self::ESKIZ_LOGIN => Http::response(['data' => ['token' => $token]]),
+            self::ESKIZ_SEND => Http::sequence()->push(['message' => 'down'], 503)->push(['message' => 'bad mobile_phone 998901234567'], 422),
+        ]);
+        $token2 = $this->superToken();
+
+        $this->adminJson('POST', self::URI, $token2, ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_provider_unavailable');
+        $this->adminJson('POST', self::URI, $token2, ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_provider_refused');
+        $this->assertNoSecretOrFullPhoneLeaked($password, $token);
+    }
+
     public function test_at_most_five_tests_an_hour_per_member(): void
     {
         Http::fake([self::GATEWAY => $this->queued()]);
@@ -222,5 +357,48 @@ class AdminSystemSmsTestTest extends TestCase
         $other = $this->makeMember(PlatformRole::SUPERADMIN);
         $this->adminJson('POST', self::URI, $this->confirmedSession($other), ['phone' => '+998901234567'])->assertOk();
         Http::assertSentCount(6);
+    }
+
+    public function test_refused_requests_do_not_use_up_the_allowance(): void
+    {
+        Http::fake([self::GATEWAY => $this->queued()]);
+        $token = $this->superToken();
+
+        // A typo, SMS not set up, another role, no step-up: none reaches a provider, none counts
+        for ($i = 0; $i < 6; $i++) {
+            $this->adminJson('POST', self::URI, $token, ['phone' => '90 123'])->assertStatus(422)->assertJsonValidationErrors('phone');
+        }
+        Setting::where('key', 'onlinegroup_api_key')->update(['value' => '']);
+        Cache::flush();
+        for ($i = 0; $i < 6; $i++) {
+            $this->adminJson('POST', self::URI, $token, ['phone' => '+998901234567'])->assertStatus(422)->assertJsonPath('code', 'sms_not_configured');
+        }
+        $this->adminJson('POST', self::URI, $this->confirmedSession($this->makeMember(PlatformRole::VIEWER)), ['phone' => '+998901234567'])->assertForbidden();
+        $this->adminJson('POST', self::URI, $this->signIn($this->superadmin), ['phone' => '+998901234567'])->assertForbidden()->assertJsonPath('code', 'reauth_required');
+
+        Setting::where('key', 'onlinegroup_api_key')->update(['value' => $this->apiKey]);
+        Cache::flush();
+        for ($i = 0; $i < 5; $i++) {
+            $this->adminJson('POST', self::URI, $token, ['phone' => '+998901234567'])->assertOk();
+        }
+        $this->adminJson('POST', self::URI, $token, ['phone' => '+998901234567'])->assertStatus(429)->assertJsonPath('code', 'sms_test_rate_limited');
+        Http::assertSentCount(5);
+    }
+
+    public function test_the_whole_platform_sends_at_most_thirty_tests_an_hour(): void
+    {
+        Http::fake([self::GATEWAY => $this->queued()]);
+        // 29 attempts already made by other members this hour
+        for ($i = 0; $i < 29; $i++) {
+            \Illuminate\Support\Facades\RateLimiter::hit('admin-sms-test:global', 3600);
+        }
+
+        $token = $this->superToken();
+        $this->adminJson('POST', self::URI, $token, ['phone' => '+998901234567'])->assertOk();
+        $this->adminJson('POST', self::URI, $token, ['phone' => '+998901234567'])
+            ->assertStatus(429)
+            ->assertJsonPath('code', 'sms_test_rate_limited')
+            ->assertHeader('Retry-After');
+        Http::assertSentCount(1);
     }
 }
