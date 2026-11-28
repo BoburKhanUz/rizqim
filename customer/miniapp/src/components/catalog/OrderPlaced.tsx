@@ -1,14 +1,24 @@
+import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { loadOrders } from '../../lib/customerPages';
 import { hapticFeedback } from '../../lib/telegram';
 import { useLanguageStore } from '../../store/languageStore';
-import { buttonClasses } from '../ui';
+import { buttonClasses, Spinner } from '../ui';
 
 // "Your order was placed": the cart shows it right after checkout, and /success shows it for an order opened by id.
 // Only what is true is said: the order number the server gave, and where to follow the order. No made-up progress.
 export function OrderPlaced({ orderNumber }: { orderNumber?: string }) {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
+  // The orders page is its own chunk, and the router navigates in a React transition: until the chunk has arrived the
+  // confirmation stays on screen (the route fallback is not shown). So the chunk is fetched as soon as the order is
+  // placed (a failed fetch is retried by the route itself), and the tapped link shows a spinner until the page replaces it.
+  const [opening, setOpening] = useState(false);
+  useEffect(() => {
+    loadOrders().catch(() => {});
+  }, []);
+
   return (
     <div className="flex flex-col items-center gap-6 px-6 pb-4 pt-16 text-center animate-fade-in">
       <span className="flex size-20 items-center justify-center rounded-full bg-success-soft text-success-soft-fg animate-scale-up">
@@ -28,9 +38,19 @@ export function OrderPlaced({ orderNumber }: { orderNumber?: string }) {
         </p>
       </div>
       <div className="flex w-full max-w-xs flex-col gap-2">
-        <Link to="/orders" onClick={() => hapticFeedback('medium')} className={buttonClasses({ size: 'lg', fullWidth: true })}>
+        <Link
+          to="/orders"
+          aria-busy={opening || undefined}
+          onClick={() => {
+            hapticFeedback('medium');
+            setOpening(true);
+          }}
+          className={buttonClasses({ size: 'lg', fullWidth: true })}
+        >
+          {opening && <Spinner className="size-5" />}
           {uz ? 'Buyurtmani kuzatish' : 'Отследить заказ'}
         </Link>
+        {/* The catalog (Home) is part of the entry bundle: it opens at once, there is nothing to wait for */}
         <Link to="/" onClick={() => hapticFeedback('light')} className={buttonClasses({ variant: 'secondary', size: 'lg', fullWidth: true })}>
           {uz ? 'Katalogga qaytish' : 'В каталог'}
         </Link>

@@ -16,6 +16,7 @@ import PhoneVerificationModal from './components/PhoneVerificationModal';
 import { ConsentNotice } from './components/ConsentNotice';
 import { FullScreenLoader, ErrorFallback, RouteErrorBoundary, RouteFallback } from './components/Feedback';
 import { lazyWithRetry } from './lib/lazyWithRetry';
+import { loadCategoryDetail, loadOrders, loadStoreDetail, loadStores } from './lib/customerPages';
 import { getRoleHomePath, isCustomerRole } from './lib/roles';
 import { useTelegramBackButton } from './hooks/useTelegramBackButton';
 import { BottomNav } from './components/navigation/BottomNav';
@@ -31,11 +32,6 @@ import type { User } from './types';
 // downloaded when its route is first visited (see lazyWithRetry), so a courier never downloads the
 // owner screens and a customer never downloads the staff ones.
 import Home from './pages/Home';
-
-const loadStoreDetail = () => import('./pages/StoreDetail');
-const loadCategoryDetail = () => import('./pages/CategoryDetail');
-const loadStores = () => import('./pages/Stores');
-const loadOrders = () => import('./pages/Orders');
 
 const StoreDetail = lazyWithRetry(loadStoreDetail);
 const CategoryDetail = lazyWithRetry(loadCategoryDetail);
